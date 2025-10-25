@@ -622,13 +622,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 8,
     flex: 1,
-    flexWrap: 'wrap',
   },
   headerTitle: {
     fontSize: 24,
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flexShrink: 1,
+    flexShrink: 0,
   },
   iconButton: {
     width: 40,
@@ -676,14 +676,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#2563EB',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 10,
     borderRadius: 8,
     gap: 4,
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
   },
   reportButton: {
