@@ -1,0 +1,509 @@
+import createContextHook from '@nkzw/create-context-hook';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile } from '@/types';
+import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
+import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
+
+interface AppState {
+  user: User | null;
+  subscription: Subscription | null;
+  projects: Project[];
+  clients: Client[];
+  expenses: Expense[];
+  photos: Photo[];
+  tasks: Task[];
+  clockEntries: ClockEntry[];
+  estimates: Estimate[];
+  customPriceListItems: CustomPriceListItem[];
+  customCategories: CustomCategory[];
+  callLogs: CallLog[];
+  conversations: ChatConversation[];
+  reports: Report[];
+  projectFiles: ProjectFile[];
+  isLoading: boolean;
+  
+  setUser: (user: User | null) => void;
+  setSubscription: (subscription: Subscription) => void;
+  addProject: (project: Project) => void;
+  updateProject: (id: string, updates: Partial<Project>) => void;
+  archiveProject: (id: string) => Promise<void>;
+  addClient: (client: Client) => void;
+  updateClient: (id: string, updates: Partial<Client>) => void;
+  addExpense: (expense: Expense) => void;
+  addPhoto: (photo: Photo) => void;
+  addTask: (task: Task) => void;
+  updateTask: (id: string, updates: Partial<Task>) => void;
+  addClockEntry: (entry: ClockEntry) => void;
+  updateClockEntry: (id: string, updates: Partial<ClockEntry>) => void;
+  addEstimate: (estimate: Estimate) => void;
+  updateEstimate: (id: string, updates: Partial<Estimate>) => void;
+  deleteEstimate: (id: string) => void;
+  addCustomPriceListItem: (item: CustomPriceListItem) => void;
+  deleteCustomPriceListItem: (id: string) => void;
+  addCustomCategory: (category: CustomCategory) => void;
+  deleteCustomCategory: (id: string) => void;
+  addCallLog: (log: CallLog) => void;
+  updateCallLog: (id: string, updates: Partial<CallLog>) => void;
+  deleteCallLog: (id: string) => void;
+  addConversation: (conversation: ChatConversation) => void;
+  addMessageToConversation: (conversationId: string, message: ChatMessage) => void;
+  addReport: (report: Report) => void;
+  deleteReport: (id: string) => void;
+  addProjectFile: (file: ProjectFile) => void;
+  updateProjectFile: (id: string, updates: Partial<ProjectFile>) => void;
+  deleteProjectFile: (id: string) => void;
+  logout: () => void;
+}
+
+export const [AppProvider, useApp] = createContextHook<AppState>(() => {
+  const [user, setUserState] = useState<User | null>(null);
+  const [subscription, setSubscriptionState] = useState<Subscription | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [clockEntries, setClockEntries] = useState<ClockEntry[]>([]);
+  const [estimates, setEstimates] = useState<Estimate[]>([]);
+  const [customPriceListItems, setCustomPriceListItems] = useState<CustomPriceListItem[]>([]);
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
+  const [callLogs, setCallLogs] = useState<CallLog[]>([]);
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const storedUser = await AsyncStorage.getItem('user');
+      const storedSubscription = await AsyncStorage.getItem('subscription');
+      const storedCustomItems = await AsyncStorage.getItem('customPriceListItems');
+      const storedCustomCategories = await AsyncStorage.getItem('customCategories');
+      const storedExpenses = await AsyncStorage.getItem('expenses');
+      const storedConversations = await AsyncStorage.getItem('conversations');
+      const storedReports = await AsyncStorage.getItem('reports');
+      const storedProjectFiles = await AsyncStorage.getItem('projectFiles');
+      
+      if (storedUser && storedUser !== 'undefined' && storedUser !== 'null') {
+        try {
+          const parsed = JSON.parse(storedUser);
+          if (parsed && typeof parsed === 'object') {
+            setUserState(parsed);
+          }
+        } catch (parseError) {
+          console.error('Error parsing user data:', parseError, 'Raw data:', storedUser);
+          await AsyncStorage.removeItem('user');
+        }
+      }
+      
+      if (storedSubscription && storedSubscription !== 'undefined' && storedSubscription !== 'null') {
+        try {
+          const parsed = JSON.parse(storedSubscription);
+          if (parsed && typeof parsed === 'object') {
+            setSubscriptionState(parsed);
+          }
+        } catch (parseError) {
+          console.error('Error parsing subscription data:', parseError, 'Raw data:', storedSubscription);
+          await AsyncStorage.removeItem('subscription');
+        }
+      }
+      
+      if (storedCustomItems && storedCustomItems !== 'undefined' && storedCustomItems !== 'null') {
+        try {
+          const parsed = JSON.parse(storedCustomItems);
+          if (Array.isArray(parsed)) {
+            setCustomPriceListItems(parsed);
+          }
+        } catch (parseError) {
+          console.error('Error parsing custom price list items:', parseError, 'Raw data:', storedCustomItems);
+          await AsyncStorage.removeItem('customPriceListItems');
+        }
+      }
+
+      if (storedCustomCategories && storedCustomCategories !== 'undefined' && storedCustomCategories !== 'null') {
+        try {
+          const parsed = JSON.parse(storedCustomCategories);
+          if (Array.isArray(parsed)) {
+            setCustomCategories(parsed);
+          }
+        } catch (parseError) {
+          console.error('Error parsing custom categories:', parseError, 'Raw data:', storedCustomCategories);
+          await AsyncStorage.removeItem('customCategories');
+        }
+      }
+
+      if (storedExpenses && storedExpenses !== 'undefined' && storedExpenses !== 'null') {
+        try {
+          const parsed = JSON.parse(storedExpenses);
+          if (Array.isArray(parsed)) {
+            setExpenses(parsed);
+          } else {
+            setExpenses(mockExpenses);
+          }
+        } catch (parseError) {
+          console.error('Error parsing expenses:', parseError, 'Raw data:', storedExpenses);
+          await AsyncStorage.removeItem('expenses');
+          setExpenses(mockExpenses);
+        }
+      } else {
+        setExpenses(mockExpenses);
+      }
+
+      if (storedConversations && storedConversations !== 'undefined' && storedConversations !== 'null') {
+        try {
+          const parsed = JSON.parse(storedConversations);
+          if (Array.isArray(parsed)) {
+            setConversations(parsed);
+          }
+        } catch (parseError) {
+          console.error('Error parsing conversations:', parseError, 'Raw data:', storedConversations);
+          await AsyncStorage.removeItem('conversations');
+        }
+      }
+
+      if (storedReports && storedReports !== 'undefined' && storedReports !== 'null') {
+        try {
+          const parsed = JSON.parse(storedReports);
+          if (Array.isArray(parsed)) {
+            setReports(parsed);
+          }
+        } catch (parseError) {
+          console.error('Error parsing reports:', parseError, 'Raw data:', storedReports);
+          await AsyncStorage.removeItem('reports');
+        }
+      }
+
+      if (storedProjectFiles && storedProjectFiles !== 'undefined' && storedProjectFiles !== 'null') {
+        try {
+          const parsed = JSON.parse(storedProjectFiles);
+          if (Array.isArray(parsed)) {
+            setProjectFiles(parsed);
+          }
+        } catch (parseError) {
+          console.error('Error parsing project files:', parseError, 'Raw data:', storedProjectFiles);
+          await AsyncStorage.removeItem('projectFiles');
+        }
+      }
+      
+      setProjects(mockProjects);
+      setClients(mockClients);
+      setPhotos(mockPhotos);
+      setTasks(mockTasks);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const setUser = useCallback(async (newUser: User | null) => {
+    setUserState(newUser);
+    if (newUser) {
+      await AsyncStorage.setItem('user', JSON.stringify(newUser));
+    } else {
+      await AsyncStorage.removeItem('user');
+    }
+  }, []);
+
+  const setSubscription = useCallback(async (newSubscription: Subscription) => {
+    setSubscriptionState(newSubscription);
+    await AsyncStorage.setItem('subscription', JSON.stringify(newSubscription));
+  }, []);
+
+  const addProject = useCallback((project: Project) => {
+    setProjects(prev => [...prev, project]);
+  }, []);
+
+  const updateProject = useCallback((id: string, updates: Partial<Project>) => {
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  }, []);
+
+  const archiveProject = useCallback(async (id: string) => {
+    const project = projects.find(p => p.id === id);
+    if (!project) return;
+
+    console.log(`[Cloud Storage] Archiving project: ${project.name}`);
+    console.log('[Cloud Storage] Collecting project data...');
+    
+    const projectData = {
+      project,
+      expenses: expenses.filter(e => e.projectId === id),
+      photos: photos.filter(p => p.projectId === id),
+      tasks: tasks.filter(t => t.projectId === id),
+      clockEntries: clockEntries.filter(c => c.projectId === id),
+      estimates: estimates.filter(e => e.projectId === id),
+      archivedDate: new Date().toISOString(),
+    };
+
+    console.log(`[Cloud Storage] Archived ${projectData.expenses.length} expenses`);
+    console.log(`[Cloud Storage] Archived ${projectData.photos.length} photos`);
+    console.log(`[Cloud Storage] Archived ${projectData.tasks.length} tasks`);
+    console.log(`[Cloud Storage] Archived ${projectData.clockEntries.length} clock entries`);
+    console.log(`[Cloud Storage] Archived ${projectData.estimates.length} estimates`);
+    
+    await AsyncStorage.setItem(`archived_project_${id}`, JSON.stringify(projectData));
+    console.log('[Cloud Storage] Project successfully archived to cloud storage');
+    
+    setProjects(prev => prev.map(p => 
+      p.id === id ? { ...p, status: 'archived' as const, endDate: new Date().toISOString() } : p
+    ));
+  }, [projects, expenses, photos, tasks, clockEntries, estimates]);
+
+  const addClient = useCallback((client: Client) => {
+    setClients(prev => [...prev, client]);
+  }, []);
+
+  const updateClient = useCallback((id: string, updates: Partial<Client>) => {
+    setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  }, []);
+
+  const addExpense = useCallback(async (expense: Expense) => {
+    const updated = [...expenses, expense];
+    setExpenses(updated);
+    await AsyncStorage.setItem('expenses', JSON.stringify(updated));
+    console.log('[Expense] Added expense:', expense.amount, 'to project:', expense.projectId);
+  }, [expenses]);
+
+  const addPhoto = useCallback((photo: Photo) => {
+    setPhotos(prev => [...prev, photo]);
+  }, []);
+
+  const addTask = useCallback((task: Task) => {
+    setTasks(prev => [...prev, task]);
+  }, []);
+
+  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  }, []);
+
+  const addClockEntry = useCallback((entry: ClockEntry) => {
+    setClockEntries(prev => [...prev, entry]);
+  }, []);
+
+  const updateClockEntry = useCallback((id: string, updates: Partial<ClockEntry>) => {
+    setClockEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+  }, []);
+
+  const addEstimate = useCallback((estimate: Estimate) => {
+    setEstimates(prev => [...prev, estimate]);
+  }, []);
+
+  const updateEstimate = useCallback((id: string, updates: Partial<Estimate>) => {
+    setEstimates(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+  }, []);
+
+  const deleteEstimate = useCallback((id: string) => {
+    setEstimates(prev => prev.filter(e => e.id !== id));
+  }, []);
+
+  const addCustomPriceListItem = useCallback(async (item: CustomPriceListItem) => {
+    const updated = [...customPriceListItems, item];
+    setCustomPriceListItems(updated);
+    await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updated));
+  }, [customPriceListItems]);
+
+  const deleteCustomPriceListItem = useCallback(async (id: string) => {
+    const updated = customPriceListItems.filter(item => item.id !== id);
+    setCustomPriceListItems(updated);
+    await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updated));
+  }, [customPriceListItems]);
+
+  const addCustomCategory = useCallback(async (category: CustomCategory) => {
+    const updated = [...customCategories, category];
+    setCustomCategories(updated);
+    await AsyncStorage.setItem('customCategories', JSON.stringify(updated));
+  }, [customCategories]);
+
+  const deleteCustomCategory = useCallback(async (id: string) => {
+    const updated = customCategories.filter(cat => cat.id !== id);
+    setCustomCategories(updated);
+    await AsyncStorage.setItem('customCategories', JSON.stringify(updated));
+    
+    const updatedItems = customPriceListItems.filter(item => {
+      const category = customCategories.find(cat => cat.id === id);
+      return item.category !== category?.name;
+    });
+    setCustomPriceListItems(updatedItems);
+    await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updatedItems));
+  }, [customCategories, customPriceListItems]);
+
+  const addCallLog = useCallback((log: CallLog) => {
+    setCallLogs(prev => [log, ...prev]);
+  }, []);
+
+  const updateCallLog = useCallback((id: string, updates: Partial<CallLog>) => {
+    setCallLogs(prev => prev.map(log => log.id === id ? { ...log, ...updates } : log));
+  }, []);
+
+  const deleteCallLog = useCallback((id: string) => {
+    setCallLogs(prev => prev.filter(log => log.id !== id));
+  }, []);
+
+  const addConversation = useCallback(async (conversation: ChatConversation) => {
+    const updated = [...conversations, conversation];
+    setConversations(updated);
+    await AsyncStorage.setItem('conversations', JSON.stringify(updated));
+  }, [conversations]);
+
+  const addMessageToConversation = useCallback(async (conversationId: string, message: ChatMessage) => {
+    const updated = conversations.map(conv => {
+      if (conv.id === conversationId) {
+        return {
+          ...conv,
+          messages: [...conv.messages, message],
+          lastMessage: message,
+        };
+      }
+      return conv;
+    });
+    setConversations(updated);
+    await AsyncStorage.setItem('conversations', JSON.stringify(updated));
+  }, [conversations]);
+
+  const addReport = useCallback(async (report: Report) => {
+    const updated = [report, ...reports];
+    setReports(updated);
+    await AsyncStorage.setItem('reports', JSON.stringify(updated));
+    console.log('[Storage] Report saved successfully:', report.name);
+  }, [reports]);
+
+  const deleteReport = useCallback(async (id: string) => {
+    const updated = reports.filter(r => r.id !== id);
+    setReports(updated);
+    await AsyncStorage.setItem('reports', JSON.stringify(updated));
+    console.log('[Storage] Report deleted successfully');
+  }, [reports]);
+
+  const addProjectFile = useCallback(async (file: ProjectFile) => {
+    const updated = [file, ...projectFiles];
+    setProjectFiles(updated);
+    await AsyncStorage.setItem('projectFiles', JSON.stringify(updated));
+    console.log('[Storage] File saved successfully:', file.name);
+  }, [projectFiles]);
+
+  const updateProjectFile = useCallback(async (id: string, updates: Partial<ProjectFile>) => {
+    const updated = projectFiles.map(f => f.id === id ? { ...f, ...updates } : f);
+    setProjectFiles(updated);
+    await AsyncStorage.setItem('projectFiles', JSON.stringify(updated));
+    console.log('[Storage] File updated successfully');
+  }, [projectFiles]);
+
+  const deleteProjectFile = useCallback(async (id: string) => {
+    const updated = projectFiles.filter(f => f.id !== id);
+    setProjectFiles(updated);
+    await AsyncStorage.setItem('projectFiles', JSON.stringify(updated));
+    console.log('[Storage] File deleted successfully');
+  }, [projectFiles]);
+
+  const logout = useCallback(async () => {
+    await AsyncStorage.multiRemove(['user', 'subscription', 'conversations', 'reports', 'projectFiles']);
+    setUserState(null);
+    setSubscriptionState(null);
+    setConversations([]);
+    setReports([]);
+    setProjectFiles([]);
+  }, []);
+
+  return useMemo(() => ({
+    user,
+    subscription,
+    projects,
+    clients,
+    expenses,
+    photos,
+    tasks,
+    clockEntries,
+    estimates,
+    customPriceListItems,
+    customCategories,
+    callLogs,
+    conversations,
+    reports,
+    projectFiles,
+    isLoading,
+    setUser,
+    setSubscription,
+    addProject,
+    updateProject,
+    archiveProject,
+    addClient,
+    updateClient,
+    addExpense,
+    addPhoto,
+    addTask,
+    updateTask,
+    addClockEntry,
+    updateClockEntry,
+    addEstimate,
+    updateEstimate,
+    deleteEstimate,
+    addCustomPriceListItem,
+    deleteCustomPriceListItem,
+    addCustomCategory,
+    deleteCustomCategory,
+    addCallLog,
+    updateCallLog,
+    deleteCallLog,
+    addConversation,
+    addMessageToConversation,
+    addReport,
+    deleteReport,
+    addProjectFile,
+    updateProjectFile,
+    deleteProjectFile,
+    logout,
+  }), [
+    user,
+    subscription,
+    projects,
+    clients,
+    expenses,
+    photos,
+    tasks,
+    clockEntries,
+    estimates,
+    customPriceListItems,
+    customCategories,
+    callLogs,
+    conversations,
+    reports,
+    projectFiles,
+    isLoading,
+    setUser,
+    setSubscription,
+    addProject,
+    updateProject,
+    archiveProject,
+    addClient,
+    updateClient,
+    addExpense,
+    addPhoto,
+    addTask,
+    updateTask,
+    addClockEntry,
+    updateClockEntry,
+    addEstimate,
+    updateEstimate,
+    deleteEstimate,
+    addCustomPriceListItem,
+    deleteCustomPriceListItem,
+    addCustomCategory,
+    deleteCustomCategory,
+    addCallLog,
+    updateCallLog,
+    deleteCallLog,
+    addConversation,
+    addMessageToConversation,
+    addReport,
+    deleteReport,
+    addProjectFile,
+    updateProjectFile,
+    deleteProjectFile,
+    logout,
+  ]);
+});
