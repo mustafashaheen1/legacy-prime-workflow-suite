@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, FlatList, Platform, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, FlatList, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
@@ -1098,63 +1098,65 @@ export default function ProjectDetailScreen() {
         )}
       </View>
 
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'overview' && styles.activeTab]}
-          onPress={() => setActiveTab('overview')}
-        >
-          <Text style={[styles.tabText, activeTab === 'overview' && styles.activeTabText]}>
-            Overview
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'estimate' && styles.activeTab]}
-          onPress={() => setActiveTab('estimate')}
-        >
-          <Text style={[styles.tabText, activeTab === 'estimate' && styles.activeTabText]}>
-            Estimate
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'clock' && styles.activeTab]}
-          onPress={() => setActiveTab('clock')}
-        >
-          <Text style={[styles.tabText, activeTab === 'clock' && styles.activeTabText]}>
-            Clock
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'expenses' && styles.activeTab]}
-          onPress={() => setActiveTab('expenses')}
-        >
-          <Text style={[styles.tabText, activeTab === 'expenses' && styles.activeTabText]}>
-            Expenses
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'photos' && styles.activeTab]}
-          onPress={() => setActiveTab('photos')}
-        >
-          <Text style={[styles.tabText, activeTab === 'photos' && styles.activeTabText]}>
-            Photos
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'files' && styles.activeTab]}
-          onPress={() => setActiveTab('files')}
-        >
-          <Text style={[styles.tabText, activeTab === 'files' && styles.activeTabText]}>
-            Files
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'reports' && styles.activeTab]}
-          onPress={() => setActiveTab('reports')}
-        >
-          <Text style={[styles.tabText, activeTab === 'reports' && styles.activeTabText]}>
-            Reports
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.tabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs} contentContainerStyle={styles.tabsContent}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'overview' && styles.activeTab]}
+            onPress={() => setActiveTab('overview')}
+          >
+            <Text style={[styles.tabText, activeTab === 'overview' && styles.activeTabText]}>
+              Overview
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'estimate' && styles.activeTab]}
+            onPress={() => setActiveTab('estimate')}
+          >
+            <Text style={[styles.tabText, activeTab === 'estimate' && styles.activeTabText]}>
+              Estimate
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'clock' && styles.activeTab]}
+            onPress={() => setActiveTab('clock')}
+          >
+            <Text style={[styles.tabText, activeTab === 'clock' && styles.activeTabText]}>
+              Clock
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'expenses' && styles.activeTab]}
+            onPress={() => setActiveTab('expenses')}
+          >
+            <Text style={[styles.tabText, activeTab === 'expenses' && styles.activeTabText]}>
+              Expenses
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'photos' && styles.activeTab]}
+            onPress={() => setActiveTab('photos')}
+          >
+            <Text style={[styles.tabText, activeTab === 'photos' && styles.activeTabText]}>
+              Photos
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'files' && styles.activeTab]}
+            onPress={() => setActiveTab('files')}
+          >
+            <Text style={[styles.tabText, activeTab === 'files' && styles.activeTabText]}>
+              Files
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'reports' && styles.activeTab]}
+            onPress={() => setActiveTab('reports')}
+          >
+            <Text style={[styles.tabText, activeTab === 'reports' && styles.activeTabText]}>
+              Reports
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -1191,30 +1193,37 @@ const styles = StyleSheet.create({
   completeButton: {
     padding: 4,
   },
-  tabs: {
-    flexDirection: 'row',
+  tabsContainer: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
+  tabs: {
+    flexGrow: 0,
+  },
+  tabsContent: {
+    paddingHorizontal: 8,
+  },
   tab: {
-    flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    borderBottomWidth: 2,
+    justifyContent: 'center',
+    borderBottomWidth: 3,
     borderBottomColor: 'transparent',
+    minWidth: 90,
   },
   activeTab: {
     borderBottomColor: '#2563EB',
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '500' as const,
+    fontSize: 15,
+    fontWeight: '600' as const,
     color: '#6B7280',
   },
   activeTabText: {
     color: '#2563EB',
-    fontWeight: '600' as const,
+    fontWeight: '700' as const,
   },
   content: {
     flex: 1,
