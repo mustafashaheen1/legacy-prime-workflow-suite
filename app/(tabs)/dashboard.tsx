@@ -248,50 +248,59 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        <View style={styles.projectsGrid}>
-          {displayProjects.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Archive size={48} color="#9CA3AF" />
-              <Text style={styles.emptyStateText}>
-                {showArchived ? 'No archived projects' : 'No active projects'}
-              </Text>
-            </View>
-          ) : (
-            displayProjects.map((project) => (
-            <TouchableOpacity
-              key={project.id}
-              style={[
-                styles.projectCard,
-                isSelectMode && selectedProjects.includes(project.id) && styles.projectCardSelected
-              ]}
-              onPress={() => {
-                if (isSelectMode) {
-                  toggleProjectSelection(project.id);
-                } else {
-                  router.push(`/project/${project.id}` as any);
-                }
-              }}
-            >
-              {isSelectMode && (
-                <View style={styles.projectCheckbox}>
-                  <CheckSquare
-                    size={24}
-                    color={selectedProjects.includes(project.id) ? '#10B981' : '#FFFFFF'}
-                    fill={selectedProjects.includes(project.id) ? '#10B981' : 'transparent'}
-                  />
-                </View>
-              )}
-              <Text style={styles.projectName}>{project.name}</Text>
-              <Text style={styles.projectBudget}>Budget: ${project.budget.toLocaleString()}</Text>
-              <Image
-                source={{ uri: project.image }}
-                style={styles.projectImage}
-                contentFit="cover"
-              />
-            </TouchableOpacity>
-          ))
-          )}
-        </View>
+        {displayProjects.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Archive size={48} color="#9CA3AF" />
+            <Text style={styles.emptyStateText}>
+              {showArchived ? 'No archived projects' : 'No active projects'}
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+            snapToInterval={310}
+            snapToAlignment="center"
+            contentContainerStyle={styles.projectsCarousel}
+            style={styles.projectsCarouselContainer}
+          >
+            {displayProjects.map((project) => (
+              <TouchableOpacity
+                key={project.id}
+                style={[
+                  styles.projectCard,
+                  isSelectMode && selectedProjects.includes(project.id) && styles.projectCardSelected
+                ]}
+                onPress={() => {
+                  if (isSelectMode) {
+                    toggleProjectSelection(project.id);
+                  } else {
+                    router.push(`/project/${project.id}` as any);
+                  }
+                }}
+              >
+                {isSelectMode && (
+                  <View style={styles.projectCheckbox}>
+                    <CheckSquare
+                      size={24}
+                      color={selectedProjects.includes(project.id) ? '#10B981' : '#FFFFFF'}
+                      fill={selectedProjects.includes(project.id) ? '#10B981' : 'transparent'}
+                    />
+                  </View>
+                )}
+                <Text style={styles.projectName}>{project.name}</Text>
+                <Text style={styles.projectBudget}>Budget: ${project.budget.toLocaleString()}</Text>
+                <Image
+                  source={{ uri: project.image }}
+                  style={styles.projectImage}
+                  contentFit="cover"
+                />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
@@ -769,13 +778,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  projectsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 16,
-    gap: 12,
-    minHeight: 200,
-    justifyContent: 'flex-start',
+  projectsCarouselContainer: {
+    height: 280,
+  },
+  projectsCarousel: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 16,
   },
   emptyState: {
     flex: 1,
@@ -783,6 +792,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
+    paddingHorizontal: 16,
   },
   emptyStateText: {
     fontSize: 16,
@@ -790,12 +800,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   projectCard: {
-    width: '100%',
-    maxWidth: 180,
+    width: 280,
     backgroundColor: '#2563EB',
     borderRadius: 16,
     padding: 16,
-    minHeight: 200,
+    height: 240,
     position: 'relative' as const,
   },
   projectCardSelected: {
