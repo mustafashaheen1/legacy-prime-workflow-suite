@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions } from 'react-native';
 import { useState, useMemo } from 'react';
-import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check } from 'lucide-react-native';
+import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -8,6 +8,7 @@ import { Audio } from 'expo-av';
 import { useApp } from '@/contexts/AppContext';
 import { mockUsers } from '@/mocks/data';
 import { ChatMessage } from '@/types';
+import GlobalAIChat from '@/components/GlobalAIChat';
 
 export default function ChatScreen() {
   const { user, conversations, clients, addConversation, addMessageToConversation } = useApp();
@@ -23,6 +24,7 @@ export default function ChatScreen() {
   const [showNewChatModal, setShowNewChatModal] = useState<boolean>(false);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [newChatSearch, setNewChatSearch] = useState<string>('');
+  const [showAIChat, setShowAIChat] = useState<boolean>(false);
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
@@ -361,6 +363,28 @@ export default function ChatScreen() {
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
+            <View style={styles.contactsSection}>
+              <Text style={styles.sectionTitle}>AI Assistant</Text>
+              <TouchableOpacity
+                style={[styles.aiChatItem, selectedChat === 'ai-assistant' && styles.contactItemActive]}
+                onPress={() => {
+                  setSelectedChat('ai-assistant');
+                  setShowAIChat(true);
+                }}
+              >
+                <View style={styles.aiAvatarContainer}>
+                  <Bot size={20} color="#2563EB" strokeWidth={2.5} />
+                </View>
+                <View style={styles.aiChatInfo}>
+                  <Text style={styles.aiChatName}>AI Assistant</Text>
+                  <Text style={styles.aiChatDescription}>Ask me anything about your projects</Text>
+                </View>
+                <View style={styles.aiSparkle}>
+                  <Sparkles size={16} color="#8B5CF6" />
+                </View>
+              </TouchableOpacity>
+            </View>
+
             {individualChats.length > 0 && (
               <View style={styles.contactsSection}>
                 <Text style={styles.sectionTitle}>Direct Messages</Text>
@@ -411,7 +435,19 @@ export default function ChatScreen() {
         </View>}
 
         {(!isSmallScreen || selectedChat) && <View style={[styles.chatArea, isSmallScreen && styles.chatAreaMobile]}>
-          {selectedChat ? (
+          {selectedChat === 'ai-assistant' ? (
+            <View style={styles.aiChatContainer}>
+              {!isSmallScreen && <View style={styles.chatHeader}>
+                <View style={styles.aiHeaderInfo}>
+                  <View style={styles.aiAvatarContainer}>
+                    <Bot size={20} color="#2563EB" strokeWidth={2.5} />
+                  </View>
+                  <Text style={styles.chatTitle}>AI Assistant</Text>
+                </View>
+              </View>}
+              <GlobalAIChat inline />
+            </View>
+          ) : selectedChat ? (
             <>
               {!isSmallScreen && <View style={styles.chatHeader}>
                 <Text style={styles.chatTitle}>{selectedConversation?.name}</Text>
@@ -1162,5 +1198,51 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2563EB',
     fontWeight: '600' as const,
+  },
+  aiChatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 12,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 2,
+    borderColor: '#DBEAFE',
+  },
+  aiAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#2563EB',
+  },
+  aiChatInfo: {
+    flex: 1,
+  },
+  aiChatName: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  aiChatDescription: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  aiSparkle: {
+    padding: 4,
+  },
+  aiChatContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  aiHeaderInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
 });

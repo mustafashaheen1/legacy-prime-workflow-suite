@@ -643,20 +643,173 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     return null;
   }
 
+  if (inline) {
+    return (
+      <View style={styles.inlineContainer}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.messagesContainer}
+          contentContainerStyle={styles.messagesContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {messages.length === 0 && (
+            <View style={styles.emptyState}>
+              <Bot size={56} color="#D1D5DB" strokeWidth={2} />
+              <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
+              <Text style={styles.emptyStateText}>
+                I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze documents, images, plans, and PDFs you attach!
+              </Text>
+            </View>
+          )}
+
+          {messages.map((message) => (
+            <View key={message.id} style={styles.messageWrapper}>
+              {message.role === 'user' ? (
+                <View style={styles.userMessageContainer}>
+                  <View style={styles.userMessage}>
+                    {message.parts.map((part, i) => {
+                      if (part.type === 'text') {
+                        return (
+                          <Text key={i} style={styles.userMessageText}>
+                            {part.text}
+                          </Text>
+                        );
+                      }
+
+                      return null;
+                    })}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.assistantMessageContainer}>
+                  <View style={styles.assistantMessage}>
+                    {message.parts.map((part, i) => {
+                      if (part.type === 'text') {
+                        return (
+                          <Text key={i} style={styles.assistantMessageText}>
+                            {part.text}
+                          </Text>
+                        );
+                      }
+                      if (part.type === 'tool') {
+                        const toolName = part.toolName;
+                        
+                        if (part.state === 'input-streaming' || part.state === 'input-available') {
+                          return (
+                            <View key={i} style={styles.toolExecuting}>
+                              <ActivityIndicator size="small" color="#2563EB" />
+                              <Text style={styles.toolText}>Executing {toolName}...</Text>
+                            </View>
+                          );
+                        }
+                        
+                        if (part.state === 'output-available') {
+                          return (
+                            <View key={i} style={styles.toolSuccess}>
+                              <Text style={styles.toolSuccessText}>✓ {toolName} completed</Text>
+                            </View>
+                          );
+                        }
+                        
+                        if (part.state === 'output-error') {
+                          return (
+                            <View key={i} style={styles.toolError}>
+                              <Text style={styles.toolErrorText}>✕ Error: {part.errorText}</Text>
+                            </View>
+                          );
+                        }
+                      }
+                      return null;
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+          ))}
+
+          {isLoading && (
+            <View style={styles.assistantMessageContainer}>
+              <View style={styles.assistantMessage}>
+                <ActivityIndicator size="small" color="#2563EB" />
+              </View>
+            </View>
+          )}
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>Error: {error.message}</Text>
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={styles.inputWrapper}>
+          {attachedFiles.length > 0 && (
+            <ScrollView
+              horizontal
+              style={styles.attachmentsContainer}
+              contentContainerStyle={styles.attachmentsContent}
+              showsHorizontalScrollIndicator={false}
+            >
+              {attachedFiles.map((file, index) => (
+                <View key={index} style={styles.attachmentItem}>
+                  {file.mimeType.startsWith('image/') ? (
+                    <Image source={{ uri: file.uri }} style={styles.attachmentImage} />
+                  ) : (
+                    <View style={styles.attachmentFileIcon}>
+                      <FileIcon size={24} color="#6B7280" />
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={styles.removeAttachment}
+                    onPress={() => removeFile(index)}
+                  >
+                    <X size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <Text style={styles.attachmentName} numberOfLines={1}>
+                    {file.name}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+          <View style={styles.inputContainer}>
+            <TouchableOpacity
+              style={styles.attachButton}
+              onPress={handlePickFile}
+              disabled={isLoading}
+            >
+              <Paperclip size={22} color="#6B7280" />
+            </TouchableOpacity>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Ask me anything..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              maxLength={500}
+              editable={!isLoading}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, (isLoading || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
+              onPress={handleSend}
+              disabled={isLoading || (!input.trim() && attachedFiles.length === 0)}
+            >
+              <Send size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <>
       <TouchableOpacity
-        style={inline ? styles.inlineButton : styles.floatingButton}
+        style={styles.floatingButton}
         onPress={() => setIsOpen(true)}
       >
-        {inline ? (
-          <>
-            <Bot size={20} color="#8B5CF6" />
-            <Text style={styles.inlineButtonText}>Ask AI</Text>
-          </>
-        ) : (
-          <Bot size={28} color="#FFFFFF" strokeWidth={2.5} />
-        )}
+        <Bot size={28} color="#FFFFFF" strokeWidth={2.5} />
       </TouchableOpacity>
 
       <Modal
@@ -847,6 +1000,10 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
 }
 
 const styles = StyleSheet.create({
+  inlineContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   floatingButton: {
     position: 'absolute' as const,
     bottom: 90,
