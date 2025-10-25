@@ -627,6 +627,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+    flexWrap: 'wrap',
   },
   headerTitle: {
     fontSize: 24,
@@ -659,7 +661,8 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    flexShrink: 1,
   },
   iconButton: {
     width: 40,
@@ -673,14 +676,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#2563EB',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 10,
     borderRadius: 8,
-    gap: 6,
+    gap: 4,
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
   },
   reportButton: {
@@ -770,8 +773,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     padding: 16,
-    gap: 16,
+    gap: 12,
     minHeight: 200,
+    justifyContent: 'flex-start',
   },
   emptyState: {
     flex: 1,
@@ -786,7 +790,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   projectCard: {
-    width: '31%',
+    width: '100%',
+    maxWidth: 180,
     backgroundColor: '#2563EB',
     borderRadius: 16,
     padding: 16,
