@@ -8,12 +8,17 @@ import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData } from '@/types';
 
 export default function DashboardScreen() {
-  const { projects, expenses, clockEntries, addProject, addReport, reports } = useApp();
+  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient } = useApp();
   const router = useRouter();
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showArchived, setShowArchived] = useState<boolean>(false);
+  const [showImportOptions, setShowImportOptions] = useState<boolean>(false);
   const [projectName, setProjectName] = useState<string>('');
+  const [projectAddress, setProjectAddress] = useState<string>('');
   const [projectBudget, setProjectBudget] = useState<string>('');
+  const [projectEmail, setProjectEmail] = useState<string>('');
+  const [projectPhone, setProjectPhone] = useState<string>('');
+  const [projectSource, setProjectSource] = useState<string>('');
   const [showReportMenu, setShowReportMenu] = useState<boolean>(false);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
@@ -175,10 +180,10 @@ export default function DashboardScreen() {
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.addButton}
-                onPress={() => setShowCreateModal(true)}
+                onPress={() => setShowImportOptions(true)}
               >
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.addButtonText}>Add Project</Text>
+                <Text style={styles.addButtonText}>Project</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -366,79 +371,232 @@ export default function DashboardScreen() {
       </ScrollView>
 
       <Modal
+        visible={showImportOptions}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowImportOptions(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.importOptionsModal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Project</Text>
+              <TouchableOpacity onPress={() => setShowImportOptions(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.importDescription}>
+              Choose how to add your project
+            </Text>
+
+            <TouchableOpacity
+              style={styles.importOptionCard}
+              onPress={() => {
+                setShowImportOptions(false);
+                setShowCreateModal(true);
+              }}
+            >
+              <View style={styles.importIconContainer}>
+                <Plus size={28} color="#2563EB" />
+              </View>
+              <View style={styles.importOptionContent}>
+                <Text style={styles.importOptionTitle}>Create New Project</Text>
+                <Text style={styles.importOptionText}>
+                  Start from scratch with all project details
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.importOptionCard}
+              onPress={() => {
+                if (clients.filter(c => c.status === 'Lead').length === 0) {
+                  Alert.alert('No Leads Available', 'Add clients to your CRM first to import from there.');
+                  return;
+                }
+                Alert.alert(
+                  'Import from CRM',
+                  'Select a client from CRM to convert to project',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Go to CRM',
+                      onPress: () => {
+                        setShowImportOptions(false);
+                        router.push('/crm');
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <View style={styles.importIconContainer}>
+                <FileText size={28} color="#10B981" />
+              </View>
+              <View style={styles.importOptionContent}>
+                <Text style={styles.importOptionTitle}>Import from CRM</Text>
+                <Text style={styles.importOptionText}>
+                  Convert an existing lead to a project
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={showCreateModal}
         animationType="slide"
         transparent
         onRequestClose={() => setShowCreateModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create New Project</Text>
-              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-                <X size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Project Name</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={projectName}
-                  onChangeText={setProjectName}
-                  placeholder="Enter project name"
-                  placeholderTextColor="#9CA3AF"
-                />
+          <ScrollView
+            style={styles.modalScrollView}
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Create New Project</Text>
+                <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Budget</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={projectBudget}
-                  onChangeText={setProjectBudget}
-                  placeholder="Enter budget amount"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="numeric"
-                />
+              <View style={styles.modalBody}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Client/Project Name *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={projectName}
+                    onChangeText={setProjectName}
+                    placeholder="Enter client or project name"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Address</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={projectAddress}
+                    onChangeText={setProjectAddress}
+                    placeholder="Enter project address"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Email *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={projectEmail}
+                    onChangeText={setProjectEmail}
+                    placeholder="Enter client email"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Phone *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={projectPhone}
+                    onChangeText={setProjectPhone}
+                    placeholder="Enter client phone"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Source</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={projectSource}
+                    onChangeText={setProjectSource}
+                    placeholder="Google, Referral, Ad, Other"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Budget *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={projectBudget}
+                    onChangeText={setProjectBudget}
+                    placeholder="Enter budget amount"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <TouchableOpacity 
+                  style={styles.createButton}
+                  onPress={() => {
+                    if (!projectName.trim()) {
+                      Alert.alert('Error', 'Please enter a client/project name');
+                      return;
+                    }
+                    if (!projectEmail.trim()) {
+                      Alert.alert('Error', 'Please enter an email');
+                      return;
+                    }
+                    if (!projectPhone.trim()) {
+                      Alert.alert('Error', 'Please enter a phone number');
+                      return;
+                    }
+                    if (!projectBudget.trim()) {
+                      Alert.alert('Error', 'Please enter a budget');
+                      return;
+                    }
+
+                    const newProject: Project = {
+                      id: `project-${Date.now()}`,
+                      name: projectName,
+                      budget: parseFloat(projectBudget),
+                      expenses: 0,
+                      progress: 0,
+                      status: 'active',
+                      image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+                      hoursWorked: 0,
+                      startDate: new Date().toISOString(),
+                    };
+
+                    addProject(newProject);
+
+                    const sourceValue = projectSource.trim() || 'Other';
+                    const validSources = ['Google', 'Referral', 'Ad', 'Other'];
+                    const finalSource = validSources.includes(sourceValue) ? sourceValue as 'Google' | 'Referral' | 'Ad' | 'Other' : 'Other';
+
+                    const existingClient = clients.find(c => 
+                      c.email.toLowerCase() === projectEmail.toLowerCase() ||
+                      c.phone === projectPhone
+                    );
+
+                    if (existingClient) {
+                      updateClient(existingClient.id, { status: 'Project' });
+                    }
+
+                    setProjectName('');
+                    setProjectAddress('');
+                    setProjectEmail('');
+                    setProjectPhone('');
+                    setProjectSource('');
+                    setProjectBudget('');
+                    setShowCreateModal(false);
+                    Alert.alert('Success', 'Project created successfully!');
+                  }}
+                >
+                  <Text style={styles.createButtonText}>Create Project</Text>
+                </TouchableOpacity>
               </View>
-
-              <TouchableOpacity 
-                style={styles.createButton}
-                onPress={() => {
-                  if (!projectName.trim()) {
-                    Alert.alert('Error', 'Please enter a project name');
-                    return;
-                  }
-                  if (!projectBudget.trim()) {
-                    Alert.alert('Error', 'Please enter a budget');
-                    return;
-                  }
-
-                  const newProject: Project = {
-                    id: `project-${Date.now()}`,
-                    name: projectName,
-                    budget: parseFloat(projectBudget),
-                    expenses: 0,
-                    progress: 0,
-                    status: 'active',
-                    image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-                    hoursWorked: 0,
-                    startDate: new Date().toISOString(),
-                  };
-
-                  addProject(newProject);
-                  setProjectName('');
-                  setProjectBudget('');
-                  setShowCreateModal(false);
-                  Alert.alert('Success', 'Project created successfully');
-                }}
-              >
-                <Text style={styles.createButtonText}>Create Project</Text>
-              </TouchableOpacity>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -515,7 +673,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#2563EB',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
     gap: 6,
@@ -787,12 +945,69 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
+  },
+  modalScrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
+    width: '100%',
+    maxWidth: 500,
+  },
+  importOptionsModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
     width: '90%',
     maxWidth: 500,
+  },
+  importDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  importOptionCard: {
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    marginBottom: 12,
+    alignItems: 'flex-start',
+  },
+  importIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  importOptionContent: {
+    flex: 1,
+  },
+  importOptionTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 6,
+  },
+  importOptionText: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
   },
   modalHeader: {
     flexDirection: 'row',
