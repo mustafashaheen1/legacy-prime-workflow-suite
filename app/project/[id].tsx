@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, FlatList, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, FlatList, Platform, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
@@ -26,6 +26,14 @@ export default function ProjectDetailScreen() {
   const [photoNotes, setPhotoNotes] = useState<string>('');
   const [photoCategory, setPhotoCategory] = useState<string>('Foundation');
   const insets = useSafeAreaInsets();
+  const [dimensions, setDimensions] = useState(Dimensions.get('window'));
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setDimensions(window);
+    });
+    return () => subscription?.remove();
+  }, []);
 
   const project = projects.find(p => p.id === id);
 
@@ -472,7 +480,7 @@ export default function ProjectDetailScreen() {
               </View>
             )}
 
-            <View style={styles.contentRow}>
+            <View style={[styles.contentRow, dimensions.width < 600 && styles.contentRowVertical]}>
               <View style={styles.mainContent}>
                 <View style={styles.chartCard}>
               <View style={styles.cardHeader}>
@@ -598,7 +606,7 @@ export default function ProjectDetailScreen() {
               </View>
 
               {activeClockEntries.length > 0 && (
-                <View style={styles.sidebarContent}>
+                <View style={[styles.sidebarContent, dimensions.width < 600 && styles.sidebarContentVertical]}>
                   <View style={styles.sidebarCard}>
                     <View style={styles.sidebarHeader}>
                       <UserCheck size={16} color="#10B981" />
@@ -1236,6 +1244,9 @@ const styles = StyleSheet.create({
     gap: 16,
     alignItems: 'flex-start',
   },
+  contentRowVertical: {
+    flexDirection: 'column',
+  },
   mainContent: {
     flex: 3,
   },
@@ -1243,10 +1254,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 200,
   },
+  sidebarContentVertical: {
+    width: '100%',
+    flex: undefined,
+  },
   sidebarCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 12,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1260,7 +1275,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sidebarTitle: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700' as const,
     color: '#1F2937',
   },
@@ -1276,7 +1291,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   activeBadgeTextSidebar: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '600' as const,
     color: '#059669',
   },
@@ -1286,15 +1301,15 @@ const styles = StyleSheet.create({
   sidebarItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
-    paddingVertical: 8,
+    gap: 10,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
   sidebarEmployeeAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#10B981',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1309,12 +1324,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   sidebarEmployeeName: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: '#1F2937',
   },
   sidebarClockInTime: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#6B7280',
   },
   sidebarHoursContainer: {
@@ -1324,7 +1339,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sidebarHoursText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700' as const,
     color: '#10B981',
   },
@@ -1343,15 +1358,15 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   sidebarCategoryText: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#2563EB',
     fontWeight: '600' as const,
   },
   sidebarWorkDescription: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#4B5563',
     marginTop: 3,
-    lineHeight: 12,
+    lineHeight: 14,
   },
   sidebarLunchBadge: {
     flexDirection: 'row',
@@ -1365,7 +1380,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   sidebarLunchText: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#D97706',
     fontWeight: '600' as const,
   },
