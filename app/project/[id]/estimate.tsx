@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, FlatList, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, FlatList, Platform, Linking, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
@@ -13,6 +13,8 @@ export default function EstimateScreen() {
   const router = useRouter();
   const { projects, addEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile } = useApp();
   const insets = useSafeAreaInsets();
+  const screenWidth = Dimensions.get('window').width;
+  const isNarrow = screenWidth < 600;
   
   const [estimateName, setEstimateName] = useState<string>('');
   const [items, setItems] = useState<EstimateItem[]>([]);
@@ -513,8 +515,8 @@ export default function EstimateScreen() {
         />
       </View>
 
-      <View style={styles.mainContent}>
-        <ScrollView style={styles.itemSelectionSection} showsVerticalScrollIndicator={false}>
+      <View style={[styles.mainContent, isNarrow && styles.mainContentNarrow]}>
+        <ScrollView style={[styles.itemSelectionSection, isNarrow && styles.itemSelectionSectionNarrow]} showsVerticalScrollIndicator={false}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{selectedCategory}</Text>
             <TouchableOpacity style={styles.addCustomButton} onPress={addCustomItem}>
@@ -583,7 +585,7 @@ export default function EstimateScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.selectedItemsSection}>
+        <View style={[styles.selectedItemsSection, isNarrow && styles.selectedItemsSectionNarrow]}>
           <View style={styles.selectedItemsHeader}>
             <Text style={styles.sectionLabel}>Selected Items ({items.length})</Text>
           </View>
@@ -638,20 +640,20 @@ export default function EstimateScreen() {
                     <Text style={styles.itemCategory}>{itemCategory}</Text>
                   </View>
                   
-                  <View style={styles.itemDetailsRow}>
+                  <View style={[styles.itemDetailsRow, isNarrow && styles.itemDetailsRowNarrow]}>
                     {showUnitsQty && (
                       <>
-                        <View style={styles.quantityControl}>
-                          <Text style={styles.itemLabel}>Qty</Text>
+                        <View style={[styles.quantityControl, isNarrow && styles.quantityControlNarrow]}>
+                          <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Qty</Text>
                           <View style={styles.quantityInput}>
                             <TouchableOpacity 
-                              style={styles.quantityButton}
+                              style={[styles.quantityButton, isNarrow && styles.quantityButtonNarrow]}
                               onPress={() => updateItemQuantity(item.id, Math.max(1, item.quantity - 1))}
                             >
-                              <Text style={styles.quantityButtonText}>-</Text>
+                              <Text style={[styles.quantityButtonText, isNarrow && styles.quantityButtonTextNarrow]}>-</Text>
                             </TouchableOpacity>
                             <TextInput
-                              style={styles.quantityTextInput}
+                              style={[styles.quantityTextInput, isNarrow && styles.quantityTextInputNarrow]}
                               value={item.quantity.toString()}
                               onChangeText={(text) => {
                                 const qty = parseInt(text) || 1;
@@ -660,39 +662,39 @@ export default function EstimateScreen() {
                               keyboardType="number-pad"
                             />
                             <TouchableOpacity 
-                              style={styles.quantityButton}
+                              style={[styles.quantityButton, isNarrow && styles.quantityButtonNarrow]}
                               onPress={() => updateItemQuantity(item.id, item.quantity + 1)}
                             >
-                              <Text style={styles.quantityButtonText}>+</Text>
+                              <Text style={[styles.quantityButtonText, isNarrow && styles.quantityButtonTextNarrow]}>+</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
 
-                        <View style={styles.unitControl}>
-                          <Text style={styles.itemLabel}>Unit</Text>
+                        <View style={[styles.unitControl, isNarrow && styles.unitControlNarrow]}>
+                          <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Unit</Text>
                           {isCustom && isEditing ? (
                             <TextInput
-                              style={styles.unitInput}
+                              style={[styles.unitInput, isNarrow && styles.unitInputNarrow]}
                               value={itemUnit}
                               onChangeText={(text) => updateCustomItemUnit(item.id, text)}
                               placeholder="EA"
                               placeholderTextColor="#9CA3AF"
                             />
                           ) : (
-                            <Text style={styles.unitValue}>{itemUnit}</Text>
+                            <Text style={[styles.unitValue, isNarrow && styles.unitValueNarrow]}>{itemUnit}</Text>
                           )}
                         </View>
                       </>
                     )}
                     
                     {showUnitsQty && (
-                      <View style={styles.priceControl}>
-                        <Text style={styles.itemLabel}>Price</Text>
+                      <View style={[styles.priceControl, isNarrow && styles.priceControlNarrow]}>
+                        <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Price</Text>
                         {isEditing ? (
-                          <View style={styles.priceEditRow}>
-                            <Text style={styles.dollarSign}>$</Text>
+                          <View style={[styles.priceEditRow, isNarrow && styles.priceEditRowNarrow]}>
+                            <Text style={[styles.dollarSign, isNarrow && styles.dollarSignNarrow]}>$</Text>
                             <TextInput
-                              style={styles.priceInput}
+                              style={[styles.priceInput, isNarrow && styles.priceInputNarrow]}
                               value={displayPrice.toString()}
                               onChangeText={(text) => {
                                 const price = parseFloat(text) || 0;
@@ -704,18 +706,18 @@ export default function EstimateScreen() {
                             />
                           </View>
                         ) : (
-                          <Text style={styles.priceValue}>${displayPrice.toFixed(2)}</Text>
+                          <Text style={[styles.priceValue, isNarrow && styles.priceValueNarrow]}>${displayPrice.toFixed(2)}</Text>
                         )}
                       </View>
                     )}
 
                     {showBudget && (
-                      <View style={styles.budgetControl}>
-                        <Text style={styles.itemLabel}>Budget</Text>
-                        <View style={styles.priceEditRow}>
-                          <Text style={styles.dollarSign}>$</Text>
+                      <View style={[styles.budgetControl, isNarrow && styles.budgetControlNarrow]}>
+                        <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Budget</Text>
+                        <View style={[styles.priceEditRow, isNarrow && styles.priceEditRowNarrow]}>
+                          <Text style={[styles.dollarSign, isNarrow && styles.dollarSignNarrow]}>$</Text>
                           <TextInput
-                            style={styles.budgetInput}
+                            style={[styles.budgetInput, isNarrow && styles.budgetInputNarrow]}
                             value={item.budgetUnitPrice?.toString() || ''}
                             onChangeText={(text) => {
                               const budgetUnitPrice = parseFloat(text) || 0;
@@ -729,12 +731,12 @@ export default function EstimateScreen() {
                       </View>
                     )}
 
-                    <View style={[styles.totalControl, !showUnitsQty && !showBudget && styles.totalControlFull]}>
-                      <Text style={styles.itemLabel}>Total</Text>
+                    <View style={[styles.totalControl, !showUnitsQty && !showBudget && styles.totalControlFull, isNarrow && styles.totalControlNarrow]}>
+                      <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Total</Text>
                       <View>
-                        <Text style={styles.totalValue}>${item.total.toFixed(2)}</Text>
+                        <Text style={[styles.totalValue, isNarrow && styles.totalValueNarrow]}>${item.total.toFixed(2)}</Text>
                         {showBudget && item.budget && item.budget > 0 ? (
-                          <Text style={styles.budgetTotalText}>(${item.budget.toFixed(2)})</Text>
+                          <Text style={[styles.budgetTotalText, isNarrow && styles.budgetTotalTextNarrow]}>(${item.budget.toFixed(2)})</Text>
                         ) : null}
                       </View>
                     </View>
@@ -1215,8 +1217,14 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
   },
+  mainContentNarrow: {
+    flexDirection: 'column',
+  },
   itemSelectionSection: {
     flex: 1,
+  },
+  itemSelectionSectionNarrow: {
+    maxHeight: 200,
   },
   itemsListContent: {
   },
@@ -1256,6 +1264,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderLeftWidth: 1,
     borderLeftColor: '#E5E7EB',
+  },
+  selectedItemsSectionNarrow: {
+    borderLeftWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    flex: 2,
   },
   selectedItemsHeader: {
     paddingHorizontal: 16,
@@ -1385,20 +1399,38 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
   },
+  itemDetailsRowNarrow: {
+    gap: 4,
+  },
   quantityControl: {
     flex: 1.5,
+  },
+  quantityControlNarrow: {
+    flex: 1.2,
   },
   unitControl: {
     flex: 1,
   },
+  unitControlNarrow: {
+    flex: 0.7,
+  },
   priceControl: {
     flex: 1.5,
+  },
+  priceControlNarrow: {
+    flex: 1.2,
   },
   budgetControl: {
     flex: 1.5,
   },
+  budgetControlNarrow: {
+    flex: 1.2,
+  },
   totalControl: {
     flex: 1.5,
+  },
+  totalControlNarrow: {
+    flex: 1.2,
   },
   totalControlFull: {
     flex: 4,
@@ -1408,6 +1440,10 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginBottom: 4,
     fontWeight: '500' as const,
+  },
+  itemLabelNarrow: {
+    fontSize: 9,
+    marginBottom: 2,
   },
   quantityInput: {
     flexDirection: 'row',
@@ -1422,10 +1458,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  quantityButtonNarrow: {
+    width: 22,
+    height: 22,
+  },
   quantityButtonText: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#2563EB',
+  },
+  quantityButtonTextNarrow: {
+    fontSize: 14,
   },
   quantityValue: {
     fontSize: 14,
@@ -1444,10 +1487,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
+  quantityTextInputNarrow: {
+    fontSize: 11,
+    minWidth: 28,
+    padding: 2,
+  },
   unitValue: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#1F2937',
+  },
+  unitValueNarrow: {
+    fontSize: 11,
   },
   unitInput: {
     fontSize: 14,
@@ -1457,25 +1508,42 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#2563EB',
   },
+  unitInputNarrow: {
+    fontSize: 11,
+    padding: 2,
+  },
   priceValue: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#1F2937',
+  },
+  priceValueNarrow: {
+    fontSize: 11,
   },
   totalValue: {
     fontSize: 14,
     fontWeight: '700' as const,
     color: '#2563EB',
   },
+  totalValueNarrow: {
+    fontSize: 11,
+  },
   priceEditRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  priceEditRowNarrow: {
+    gap: 1,
   },
   dollarSign: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#6B7280',
     marginRight: 2,
+  },
+  dollarSignNarrow: {
+    fontSize: 11,
+    marginRight: 1,
   },
   priceInput: {
     fontSize: 14,
@@ -1485,6 +1553,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#2563EB',
     minWidth: 50,
+  },
+  priceInputNarrow: {
+    fontSize: 11,
+    padding: 2,
+    minWidth: 35,
   },
   notesSection: {
   },
@@ -1925,6 +1998,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#10B981',
     minWidth: 50,
   },
+  budgetInputNarrow: {
+    fontSize: 11,
+    padding: 2,
+    minWidth: 35,
+  },
   budgetTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1954,5 +2032,8 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#10B981',
     marginTop: 2,
+  },
+  budgetTotalTextNarrow: {
+    fontSize: 9,
   },
 });
