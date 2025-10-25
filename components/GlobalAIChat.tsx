@@ -30,6 +30,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
   const pathname = usePathname();
+  const isOnChatScreen = pathname === '/chat';
   const { projects, clients, expenses, photos, tasks, clockEntries, estimates, addEstimate } = useApp();
 
   const getContextForCurrentPage = () => {
@@ -637,6 +638,10 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       setInput('');
     }
   };
+
+  if (isOnChatScreen && !inline) {
+    return null;
+  }
 
   return (
     <>

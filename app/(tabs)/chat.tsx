@@ -1067,7 +1067,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
-    zIndex: 10000,
+    zIndex: 99999,
   },
   attachMenu: {
     backgroundColor: '#FFFFFF',
@@ -1076,7 +1076,6 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 40,
     gap: 16,
-    zIndex: 10001,
   },
   attachOption: {
     flexDirection: 'row',
