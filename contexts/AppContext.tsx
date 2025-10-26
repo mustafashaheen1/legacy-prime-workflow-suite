@@ -78,6 +78,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     loadData();
   }, []);
 
+  const safeJsonParse = <T,>(data: string | null, key: string, fallback: T): T => {
+    if (!data || data === 'undefined' || data === 'null') {
+      return fallback;
+    }
+    try {
+      const parsed = JSON.parse(data);
+      return parsed;
+    } catch (error) {
+      console.error(`Error parsing ${key}:`, error, 'Raw data:', data?.substring(0, 100));
+      AsyncStorage.removeItem(key).catch(e => console.error(`Failed to remove ${key}:`, e));
+      return fallback;
+    }
+  };
+
   const loadData = async () => {
     try {
       const storedUser = await AsyncStorage.getItem('user');
@@ -89,105 +103,46 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const storedReports = await AsyncStorage.getItem('reports');
       const storedProjectFiles = await AsyncStorage.getItem('projectFiles');
       
-      if (storedUser && storedUser !== 'undefined' && storedUser !== 'null') {
-        try {
-          const parsed = JSON.parse(storedUser);
-          if (parsed && typeof parsed === 'object') {
-            setUserState(parsed);
-          }
-        } catch (parseError) {
-          console.error('Error parsing user data:', parseError, 'Raw data:', storedUser);
-          await AsyncStorage.removeItem('user');
-        }
+      const parsedUser = safeJsonParse<User | null>(storedUser, 'user', null);
+      if (parsedUser && typeof parsedUser === 'object') {
+        setUserState(parsedUser);
       }
       
-      if (storedSubscription && storedSubscription !== 'undefined' && storedSubscription !== 'null') {
-        try {
-          const parsed = JSON.parse(storedSubscription);
-          if (parsed && typeof parsed === 'object') {
-            setSubscriptionState(parsed);
-          }
-        } catch (parseError) {
-          console.error('Error parsing subscription data:', parseError, 'Raw data:', storedSubscription);
-          await AsyncStorage.removeItem('subscription');
-        }
+      const parsedSubscription = safeJsonParse<Subscription | null>(storedSubscription, 'subscription', null);
+      if (parsedSubscription && typeof parsedSubscription === 'object') {
+        setSubscriptionState(parsedSubscription);
       }
       
-      if (storedCustomItems && storedCustomItems !== 'undefined' && storedCustomItems !== 'null') {
-        try {
-          const parsed = JSON.parse(storedCustomItems);
-          if (Array.isArray(parsed)) {
-            setCustomPriceListItems(parsed);
-          }
-        } catch (parseError) {
-          console.error('Error parsing custom price list items:', parseError, 'Raw data:', storedCustomItems);
-          await AsyncStorage.removeItem('customPriceListItems');
-        }
+      const parsedCustomItems = safeJsonParse<CustomPriceListItem[]>(storedCustomItems, 'customPriceListItems', []);
+      if (Array.isArray(parsedCustomItems)) {
+        setCustomPriceListItems(parsedCustomItems);
       }
 
-      if (storedCustomCategories && storedCustomCategories !== 'undefined' && storedCustomCategories !== 'null') {
-        try {
-          const parsed = JSON.parse(storedCustomCategories);
-          if (Array.isArray(parsed)) {
-            setCustomCategories(parsed);
-          }
-        } catch (parseError) {
-          console.error('Error parsing custom categories:', parseError, 'Raw data:', storedCustomCategories);
-          await AsyncStorage.removeItem('customCategories');
-        }
+      const parsedCustomCategories = safeJsonParse<CustomCategory[]>(storedCustomCategories, 'customCategories', []);
+      if (Array.isArray(parsedCustomCategories)) {
+        setCustomCategories(parsedCustomCategories);
       }
 
-      if (storedExpenses && storedExpenses !== 'undefined' && storedExpenses !== 'null') {
-        try {
-          const parsed = JSON.parse(storedExpenses);
-          if (Array.isArray(parsed)) {
-            setExpenses(parsed);
-          } else {
-            setExpenses(mockExpenses);
-          }
-        } catch (parseError) {
-          console.error('Error parsing expenses:', parseError, 'Raw data:', storedExpenses);
-          await AsyncStorage.removeItem('expenses');
-          setExpenses(mockExpenses);
-        }
+      const parsedExpenses = safeJsonParse<Expense[]>(storedExpenses, 'expenses', mockExpenses);
+      if (Array.isArray(parsedExpenses)) {
+        setExpenses(parsedExpenses);
       } else {
         setExpenses(mockExpenses);
       }
 
-      if (storedConversations && storedConversations !== 'undefined' && storedConversations !== 'null') {
-        try {
-          const parsed = JSON.parse(storedConversations);
-          if (Array.isArray(parsed)) {
-            setConversations(parsed);
-          }
-        } catch (parseError) {
-          console.error('Error parsing conversations:', parseError, 'Raw data:', storedConversations);
-          await AsyncStorage.removeItem('conversations');
-        }
+      const parsedConversations = safeJsonParse<ChatConversation[]>(storedConversations, 'conversations', []);
+      if (Array.isArray(parsedConversations)) {
+        setConversations(parsedConversations);
       }
 
-      if (storedReports && storedReports !== 'undefined' && storedReports !== 'null') {
-        try {
-          const parsed = JSON.parse(storedReports);
-          if (Array.isArray(parsed)) {
-            setReports(parsed);
-          }
-        } catch (parseError) {
-          console.error('Error parsing reports:', parseError, 'Raw data:', storedReports);
-          await AsyncStorage.removeItem('reports');
-        }
+      const parsedReports = safeJsonParse<Report[]>(storedReports, 'reports', []);
+      if (Array.isArray(parsedReports)) {
+        setReports(parsedReports);
       }
 
-      if (storedProjectFiles && storedProjectFiles !== 'undefined' && storedProjectFiles !== 'null') {
-        try {
-          const parsed = JSON.parse(storedProjectFiles);
-          if (Array.isArray(parsed)) {
-            setProjectFiles(parsed);
-          }
-        } catch (parseError) {
-          console.error('Error parsing project files:', parseError, 'Raw data:', storedProjectFiles);
-          await AsyncStorage.removeItem('projectFiles');
-        }
+      const parsedProjectFiles = safeJsonParse<ProjectFile[]>(storedProjectFiles, 'projectFiles', []);
+      if (Array.isArray(parsedProjectFiles)) {
+        setProjectFiles(parsedProjectFiles);
       }
       
       setProjects(mockProjects);
