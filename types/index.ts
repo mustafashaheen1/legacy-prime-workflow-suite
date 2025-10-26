@@ -205,19 +205,36 @@ export interface ProjectReportData {
   expensesByCategory: { [category: string]: number };
 }
 
+export interface EmployeeTimeData {
+  employeeId: string;
+  employeeName: string;
+  totalHours: number;
+  regularHours: number;
+  overtimeHours: number;
+  totalDays: number;
+  averageHoursPerDay: number;
+  clockEntries: ClockEntry[];
+}
+
 export interface Report {
   id: string;
   name: string;
   type: 'administrative' | 'financial' | 'time-tracking' | 'custom';
   generatedDate: string;
   projectIds: string[];
-  projectsCount: number;
-  totalBudget: number;
-  totalExpenses: number;
-  totalHours: number;
-  projects: ProjectReportData[];
+  projectsCount?: number;
+  totalBudget?: number;
+  totalExpenses?: number;
+  totalHours?: number;
+  projects?: ProjectReportData[];
   fileUrl?: string;
   notes?: string;
+  dateRange?: {
+    startDate: string;
+    endDate: string;
+  };
+  employeeData?: EmployeeTimeData[];
+  employeeIds?: string[];
 }
 
 export type FileCategory = 'receipts' | 'photos' | 'reports' | 'plans' | 'estimates' | 'documentation' | 'other';

@@ -1,9 +1,9 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, Alert, Platform } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Clock, CheckCircle, Coffee } from 'lucide-react-native';
+import { Clock, CheckCircle, Coffee, FileText, Calendar } from 'lucide-react-native';
 import * as Location from 'expo-location';
-import { ClockEntry } from '@/types';
+import { ClockEntry, Report, EmployeeTimeData } from '@/types';
 
 const WORK_CATEGORIES = [
   'Framing',
@@ -227,6 +227,127 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     return totalMs / (1000 * 60 * 60);
   };
 
+  const [showReportModal, setShowReportModal] = useState<boolean>(false);
+  const [reportStartDate, setReportStartDate] = useState<string>('');
+  const [reportEndDate, setReportEndDate] = useState<string>('');
+
+  const getWeekDates = (weeksAgo: number = 0) => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diff - (weeksAgo * 7));
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    return { start: monday.toISOString(), end: sunday.toISOString() };
+  };
+
+  const setDateRange = (type: 'current' | 'last' | 'custom') => {
+    if (type === 'current') {
+      const { start, end } = getWeekDates(0);
+      setReportStartDate(start);
+      setReportEndDate(end);
+    } else if (type === 'last') {
+      const { start, end } = getWeekDates(1);
+      setReportStartDate(start);
+      setReportEndDate(end);
+    }
+  };
+
+  const generateWeeklyReport = () => {
+    if (!reportStartDate || !reportEndDate) {
+      Alert.alert('Error', 'Please select a date range');
+      return;
+    }
+
+    if (!user) return;
+
+    const startDate = new Date(reportStartDate);
+    const endDate = new Date(reportEndDate);
+
+    const employeeEntries = clockEntries.filter(entry => {
+      const entryDate = new Date(entry.clockIn);
+      return entry.employeeId === user.id && 
+             entry.projectId === projectId && 
+             entryDate >= startDate && 
+             entryDate <= endDate;
+    });
+
+    const calculateHours = (entry: ClockEntry) => {
+      if (!entry.clockOut) return 0;
+      const start = new Date(entry.clockIn).getTime();
+      const end = new Date(entry.clockOut).getTime();
+      let totalMs = end - start;
+
+      if (entry.lunchBreaks) {
+        entry.lunchBreaks.forEach(lunch => {
+          if (lunch.endTime) {
+            const lunchStart = new Date(lunch.startTime).getTime();
+            const lunchEnd = new Date(lunch.endTime).getTime();
+            totalMs -= (lunchEnd - lunchStart);
+          }
+        });
+      }
+
+      return totalMs / (1000 * 60 * 60);
+    };
+
+    const totalHours = employeeEntries.reduce((sum, entry) => sum + calculateHours(entry), 0);
+    const regularHours = Math.min(totalHours, 40);
+    const overtimeHours = Math.max(0, totalHours - 40);
+
+    const uniqueDays = new Set(
+      employeeEntries.map(entry => new Date(entry.clockIn).toDateString())
+    ).size;
+
+    const employeeData: EmployeeTimeData = {
+      employeeId: user.id,
+      employeeName: user.name,
+      totalHours: totalHours,
+      regularHours: regularHours,
+      overtimeHours: overtimeHours,
+      totalDays: uniqueDays,
+      averageHoursPerDay: uniqueDays > 0 ? totalHours / uniqueDays : 0,
+      clockEntries: employeeEntries,
+    };
+
+    const report: Report = {
+      id: `report-${Date.now()}`,
+      name: `Weekly Hours Report - ${user.name} - ${projectName}`,
+      type: 'time-tracking',
+      generatedDate: new Date().toISOString(),
+      projectIds: [projectId],
+      dateRange: {
+        startDate: reportStartDate,
+        endDate: reportEndDate,
+      },
+      employeeData: [employeeData],
+      employeeIds: [user.id],
+      totalHours: totalHours,
+    };
+
+    addReport(report);
+
+    console.log('[Report] Weekly hours report generated');
+    console.log(`  Employee: ${user.name}`);
+    console.log(`  Project: ${projectName}`);
+    console.log(`  Date Range: ${new Date(reportStartDate).toLocaleDateString()} - ${new Date(reportEndDate).toLocaleDateString()}`);
+    console.log(`  Total Hours: ${totalHours.toFixed(2)}h`);
+    console.log(`  Regular Hours: ${regularHours.toFixed(2)}h`);
+    console.log(`  Overtime Hours: ${overtimeHours.toFixed(2)}h`);
+    console.log(`  Days Worked: ${uniqueDays}`);
+
+    Alert.alert(
+      'Report Generated',
+      `Weekly hours report saved successfully.\n\nTotal Hours: ${totalHours.toFixed(2)}h\nRegular: ${regularHours.toFixed(2)}h\nOvertime: ${overtimeHours.toFixed(2)}h`,
+      [{ text: 'OK', onPress: () => setShowReportModal(false) }]
+    );
+  };
+
   const todayEntries = clockEntries.filter((entry) => {
     const entryDate = new Date(entry.clockIn).toDateString();
     const today = new Date().toDateString();
@@ -248,6 +369,8 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     
     return sum + totalMs / (1000 * 60 * 60);
   }, 0);
+
+  const { addReport } = useApp();
 
   if (compact) {
     return (
@@ -429,7 +552,16 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
       )}
 
       <View style={styles.statsCard}>
-        <Text style={styles.statsTitle}>Today&apos;s Summary</Text>
+        <View style={styles.statsHeader}>
+          <Text style={styles.statsTitle}>Today&apos;s Summary</Text>
+          <TouchableOpacity 
+            style={styles.reportButton}
+            onPress={() => setShowReportModal(true)}
+          >
+            <FileText size={18} color="#2563EB" />
+            <Text style={styles.reportButtonText}>Weekly Report</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Total Hours</Text>
@@ -578,6 +710,62 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
                 disabled={!selectedCategory}
               >
                 <Text style={styles.confirmButtonText}>Complete Clock Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showReportModal} animationType="slide" transparent onRequestClose={() => setShowReportModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Generate Weekly Hours Report</Text>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Select Time Period</Text>
+              <View style={styles.dateRangeButtons}>
+                <TouchableOpacity 
+                  style={styles.dateRangeButton}
+                  onPress={() => setDateRange('current')}
+                >
+                  <Calendar size={18} color="#2563EB" />
+                  <Text style={styles.dateRangeButtonText}>Current Week</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.dateRangeButton}
+                  onPress={() => setDateRange('last')}
+                >
+                  <Calendar size={18} color="#2563EB" />
+                  <Text style={styles.dateRangeButtonText}>Last Week</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {reportStartDate && reportEndDate && (
+              <View style={styles.selectedDateRange}>
+                <Text style={styles.selectedDateLabel}>Selected Range:</Text>
+                <Text style={styles.selectedDateText}>
+                  {new Date(reportStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {' - '}
+                  {new Date(reportEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => {
+                setShowReportModal(false);
+                setReportStartDate('');
+                setReportEndDate('');
+              }}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmButton, (!reportStartDate || !reportEndDate) && styles.confirmButtonDisabled]}
+                onPress={generateWeeklyReport}
+                disabled={!reportStartDate || !reportEndDate}
+              >
+                <Text style={styles.confirmButtonText}>Generate Report</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -736,11 +924,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 16,
   },
+  statsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   statsTitle: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#1F2937',
-    marginBottom: 16,
+  },
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  reportButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#2563EB',
   },
   statsRow: {
     flexDirection: 'row',
@@ -1041,5 +1248,44 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     marginBottom: 4,
     fontWeight: '600' as const,
+  },
+  dateRangeButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dateRangeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#2563EB',
+  },
+  dateRangeButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  selectedDateRange: {
+    backgroundColor: '#F9FAFB',
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  selectedDateLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  selectedDateText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
   },
 });
