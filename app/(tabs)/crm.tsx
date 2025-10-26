@@ -486,6 +486,64 @@ export default function CRMScreen() {
     }
   };
 
+  const getAISuggestions = (client: Client): string[] => {
+    const suggestions: string[] = [];
+    const lastContactStr = client.lastContactDate || client.lastContacted;
+    const lastContact = new Date(lastContactStr);
+    const now = new Date();
+    const daysSinceContact = Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24));
+    
+    const clientEstimates = estimates.filter(est => 
+      est.projectId.includes(client.name) || est.name.includes(client.name)
+    );
+    const hasSentEstimate = clientEstimates.some(e => e.status === 'sent');
+    const hasApprovedEstimate = clientEstimates.some(e => e.status === 'approved');
+
+    if (daysSinceContact > 7) {
+      suggestions.push('No response in 7+ days – consider marking cold');
+    }
+
+    if (daysSinceContact >= 3 && daysSinceContact <= 7) {
+      suggestions.push('Send follow-up email');
+    }
+
+    if (hasSentEstimate && daysSinceContact > 3) {
+      suggestions.push('Schedule estimate revision');
+    }
+
+    if (!clientEstimates.length && client.status === 'Lead') {
+      suggestions.push('Create and send initial estimate');
+    }
+
+    if (client.source === 'Google' && daysSinceContact > 5) {
+      suggestions.push('Google lead needs attention');
+    }
+
+    if (hasApprovedEstimate && client.status === 'Lead') {
+      suggestions.push('Approved estimate ready – convert to project');
+    }
+
+    if (client.nextFollowUpDate) {
+      const followUpDate = new Date(client.nextFollowUpDate);
+      const daysUntilFollowUp = Math.floor((followUpDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysUntilFollowUp <= 0) {
+        suggestions.push('Follow-up date reached – contact client now');
+      } else if (daysUntilFollowUp === 1) {
+        suggestions.push('Follow-up scheduled for tomorrow');
+      }
+    }
+
+    if (suggestions.length === 0) {
+      if (client.status === 'Lead') {
+        suggestions.push('Lead is active – maintain regular contact');
+      } else if (client.status === 'Project') {
+        suggestions.push('Project is on track');
+      }
+    }
+
+    return suggestions;
+  };
+
   const openFollowUpDatePicker = (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     if (client?.nextFollowUpDate) {
@@ -726,6 +784,24 @@ export default function CRMScreen() {
                       <Text style={styles.nextFollowUpText}>Next Follow-Up: {new Date(client.nextFollowUpDate).toLocaleDateString()}</Text>
                     </View>
                   )}
+                  
+                  {(() => {
+                    const suggestions = getAISuggestions(client);
+                    return suggestions.length > 0 ? (
+                      <View style={styles.aiSuggestionsContainer}>
+                        <View style={styles.aiSuggestionsHeader}>
+                          <Sparkles size={14} color="#8B5CF6" />
+                          <Text style={styles.aiSuggestionsTitle}>AI Suggestions</Text>
+                        </View>
+                        {suggestions.map((suggestion, idx) => (
+                          <View key={idx} style={styles.aiSuggestionItem}>
+                            <View style={styles.aiSuggestionDot} />
+                            <Text style={styles.aiClientSuggestionText}>{suggestion}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null;
+                  })()}
                 </View>
               </View>
               <View style={styles.clientActions}>
@@ -3335,5 +3411,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '600' as const,
+  },
+  aiSuggestionsContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#FAF5FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+  },
+  aiSuggestionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  aiSuggestionsTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: '#7C3AED',
+  },
+  aiSuggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
+  },
+  aiSuggestionDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#8B5CF6',
+    marginTop: 5,
+  },
+  aiClientSuggestionText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#6B21A8',
+    lineHeight: 16,
   },
 });
