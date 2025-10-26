@@ -1396,23 +1396,23 @@ const styles = StyleSheet.create({
   },
   itemDetailsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     marginBottom: 12,
   },
   itemDetailsRowNarrow: {
-    gap: 4,
+    gap: 6,
   },
   quantityControl: {
-    flex: 1.5,
+    flex: 1.6,
   },
   quantityControlNarrow: {
-    flex: 1.2,
+    flex: 1.4,
   },
   unitControl: {
-    flex: 1,
+    flex: 0.9,
   },
   unitControlNarrow: {
-    flex: 0.7,
+    flex: 0.8,
   },
   priceControl: {
     flex: 1.5,
@@ -1448,7 +1448,7 @@ const styles = StyleSheet.create({
   quantityInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   quantityButton: {
     width: 28,
