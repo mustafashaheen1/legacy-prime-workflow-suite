@@ -1241,7 +1241,8 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   mainContent: {
-    flex: 3,
+    flex: 1,
+    width: '100%',
   },
   clockedInCard: {
     backgroundColor: '#FFFFFF',
@@ -1378,7 +1379,8 @@ const styles = StyleSheet.create({
   },
   statBox: {
     flex: 1,
-    minWidth: '45%',
+    minWidth: 0,
+    maxWidth: '48%',
     backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
@@ -1499,11 +1501,14 @@ const styles = StyleSheet.create({
   },
   budgetStats: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginTop: 16,
   },
   budgetStatCard: {
     flex: 1,
+    minWidth: 0,
+    maxWidth: '48%',
     backgroundColor: '#F9FAFB',
     padding: 12,
     borderRadius: 8,
@@ -1532,10 +1537,13 @@ const styles = StyleSheet.create({
   },
   quickStatsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
   quickStat: {
     flex: 1,
+    minWidth: 0,
+    maxWidth: '31%',
     backgroundColor: '#F9FAFB',
     padding: 12,
     borderRadius: 8,
@@ -1774,7 +1782,8 @@ const styles = StyleSheet.create({
   },
   balanceItem: {
     flex: 1,
-    minWidth: '45%',
+    minWidth: 0,
+    maxWidth: '48%',
     backgroundColor: '#F9FAFB',
     padding: 16,
     borderRadius: 12,
@@ -2014,10 +2023,13 @@ const styles = StyleSheet.create({
   },
   insightsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
   insightCard: {
     flex: 1,
+    minWidth: 0,
+    maxWidth: '48%',
     backgroundColor: '#F9FAFB',
     padding: 12,
     borderRadius: 10,
