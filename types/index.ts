@@ -82,6 +82,8 @@ export interface Client {
   source: 'Google' | 'Referral' | 'Ad' | 'Other';
   status: 'Lead' | 'Project' | 'Completed';
   lastContacted: string;
+  lastContactDate?: string;
+  nextFollowUpDate?: string;
 }
 
 export interface ChatMessage {

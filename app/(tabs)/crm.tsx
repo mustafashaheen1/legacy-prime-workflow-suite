@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform } from 'react-native';
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2 } from 'lucide-react-native';
+import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar } from 'lucide-react-native';
 import { Project, Client, CallLog } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
@@ -79,6 +79,9 @@ export default function CRMScreen() {
   const [showCallAssistantModal, setShowCallAssistantModal] = useState<boolean>(false);
   const [showCallLogsModal, setShowCallLogsModal] = useState<boolean>(false);
   const [selectedCallLog, setSelectedCallLog] = useState<CallLog | null>(null);
+  const [showFollowUpModal, setShowFollowUpModal] = useState<boolean>(false);
+  const [selectedClientForFollowUp, setSelectedClientForFollowUp] = useState<string | null>(null);
+  const [selectedFollowUpDate, setSelectedFollowUpDate] = useState<string>('');
   const [callAssistantConfig, setCallAssistantConfig] = useState({
     enabled: true,
     businessName: 'Legacy Prime Construction',
@@ -468,6 +471,44 @@ export default function CRMScreen() {
     );
   };
 
+  const getFollowUpStatus = (client: Client): { status: 'followed-up' | 'pending' | 'overdue', color: string, label: string, emoji: string } => {
+    const lastContactStr = client.lastContactDate || client.lastContacted;
+    const lastContact = new Date(lastContactStr);
+    const now = new Date();
+    const daysSinceContact = Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysSinceContact <= 3) {
+      return { status: 'followed-up', color: '#10B981', label: 'Followed Up', emoji: '🟢' };
+    } else if (daysSinceContact <= 7) {
+      return { status: 'pending', color: '#F59E0B', label: 'Pending', emoji: '🟡' };
+    } else {
+      return { status: 'overdue', color: '#EF4444', label: 'Overdue', emoji: '🔴' };
+    }
+  };
+
+  const openFollowUpDatePicker = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (client?.nextFollowUpDate) {
+      setSelectedFollowUpDate(client.nextFollowUpDate);
+    } else {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setSelectedFollowUpDate(tomorrow.toISOString().split('T')[0]);
+    }
+    setSelectedClientForFollowUp(clientId);
+    setShowFollowUpModal(true);
+  };
+
+  const saveFollowUpDate = () => {
+    if (selectedClientForFollowUp && selectedFollowUpDate) {
+      updateClient(selectedClientForFollowUp, { nextFollowUpDate: selectedFollowUpDate });
+      Alert.alert('Success', 'Next follow-up date set!');
+      setShowFollowUpModal(false);
+      setSelectedClientForFollowUp(null);
+      setSelectedFollowUpDate('');
+    }
+  };
+
   const convertLeadToProject = (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
@@ -660,7 +701,17 @@ export default function CRMScreen() {
                   )}
                 </TouchableOpacity>
                 <View style={styles.clientInfo}>
-                  <Text style={styles.clientName}>{client.name}</Text>
+                  <View style={styles.clientNameRow}>
+                    <Text style={styles.clientName}>{client.name}</Text>
+                    {(() => {
+                      const followUpStatus = getFollowUpStatus(client);
+                      return (
+                        <View style={[styles.followUpStatusBadge, { backgroundColor: followUpStatus.color }]}>
+                          <Text style={styles.followUpStatusText}>{followUpStatus.emoji} {followUpStatus.label}</Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
                   {client.address && <Text style={styles.clientAddress}>{client.address}</Text>}
                   <Text style={styles.clientEmail}>{client.email}</Text>
                   <Text style={styles.clientPhone}>{client.phone}</Text>
@@ -668,7 +719,13 @@ export default function CRMScreen() {
                   <View style={[styles.statusBadge, client.status === 'Lead' ? styles.leadBadge : styles.projectBadge]}>
                     <Text style={styles.statusText}>{client.status}</Text>
                   </View>
-                  <Text style={styles.clientDate}>Last contacted: {client.lastContacted}</Text>
+                  <Text style={styles.clientDate}>Last contacted: {client.lastContactDate || client.lastContacted}</Text>
+                  {client.nextFollowUpDate && (
+                    <View style={styles.nextFollowUpRow}>
+                      <Calendar size={14} color="#2563EB" />
+                      <Text style={styles.nextFollowUpText}>Next Follow-Up: {new Date(client.nextFollowUpDate).toLocaleDateString()}</Text>
+                    </View>
+                  )}
                 </View>
               </View>
               <View style={styles.clientActions}>
@@ -689,13 +746,23 @@ export default function CRMScreen() {
                 <TouchableOpacity 
                   style={styles.followUpButton}
                   onPress={() => {
-                    const contactDate = new Date().toLocaleDateString();
-                    updateClient(client.id, { lastContacted: contactDate });
+                    const contactDate = new Date().toISOString();
+                    updateClient(client.id, { 
+                      lastContacted: new Date().toLocaleDateString(),
+                      lastContactDate: contactDate 
+                    });
                     Alert.alert('Success', 'Follow-up recorded!');
                   }}
                 >
                   <CheckCircle size={16} color="#10B981" />
                   <Text style={styles.followUpButtonText}>Follow Up</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.setFollowUpButton}
+                  onPress={() => openFollowUpDatePicker(client.id)}
+                >
+                  <Calendar size={16} color="#2563EB" />
+                  <Text style={styles.setFollowUpButtonText}>Set Follow-Up</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={styles.estimateButton}
@@ -1778,6 +1845,91 @@ export default function CRMScreen() {
           )}
         </View>
       </Modal>
+
+      <Modal
+        visible={showFollowUpModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowFollowUpModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.followUpModal}>
+            <View style={styles.modalHeader}>
+              <View style={styles.followUpModalTitleContainer}>
+                <Calendar size={24} color="#2563EB" />
+                <Text style={styles.modalTitle}>Set Follow-Up Date</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowFollowUpModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.followUpModalDescription}>
+              Choose the next date to follow up with this client
+            </Text>
+
+            <TextInput
+              style={styles.dateInput}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#9CA3AF"
+              value={selectedFollowUpDate}
+              onChangeText={setSelectedFollowUpDate}
+            />
+
+            <Text style={styles.dateFormatHint}>
+              Format: YYYY-MM-DD (e.g., {new Date().toISOString().split('T')[0]})
+            </Text>
+
+            <View style={styles.quickDateButtons}>
+              <TouchableOpacity
+                style={styles.quickDateButton}
+                onPress={() => {
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  setSelectedFollowUpDate(tomorrow.toISOString().split('T')[0]);
+                }}
+              >
+                <Text style={styles.quickDateButtonText}>Tomorrow</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickDateButton}
+                onPress={() => {
+                  const nextWeek = new Date();
+                  nextWeek.setDate(nextWeek.getDate() + 7);
+                  setSelectedFollowUpDate(nextWeek.toISOString().split('T')[0]);
+                }}
+              >
+                <Text style={styles.quickDateButtonText}>Next Week</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickDateButton}
+                onPress={() => {
+                  const nextMonth = new Date();
+                  nextMonth.setMonth(nextMonth.getMonth() + 1);
+                  setSelectedFollowUpDate(nextMonth.toISOString().split('T')[0]);
+                }}
+              >
+                <Text style={styles.quickDateButtonText}>Next Month</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => setShowFollowUpModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.saveFollowUpButton}
+                onPress={saveFollowUpDate}
+              >
+                <Text style={styles.saveFollowUpButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1879,11 +2031,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
   },
+  clientNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
   clientName: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#1F2937',
-    marginBottom: 4,
+  },
+  followUpStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  followUpStatusText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
   clientEmail: {
     fontSize: 14,
@@ -1956,6 +2124,33 @@ const styles = StyleSheet.create({
   followUpButtonText: {
     color: '#059669',
     fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  setFollowUpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  setFollowUpButtonText: {
+    color: '#2563EB',
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  nextFollowUpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  nextFollowUpText: {
+    fontSize: 13,
+    color: '#2563EB',
     fontWeight: '600' as const,
   },
   convertButton: {
@@ -3075,5 +3270,70 @@ const styles = StyleSheet.create({
   callLogActionText: {
     fontSize: 14,
     color: '#1F2937',
+  },
+  followUpModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 500,
+  },
+  followUpModalTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  followUpModalDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  dateInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  dateFormatHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 20,
+    fontStyle: 'italic' as const,
+  },
+  quickDateButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 24,
+  },
+  quickDateButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  quickDateButtonText: {
+    fontSize: 13,
+    color: '#4B5563',
+    fontWeight: '600' as const,
+  },
+  saveFollowUpButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+  },
+  saveFollowUpButtonText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
   },
 });
