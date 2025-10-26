@@ -328,7 +328,7 @@ export default function DashboardScreen() {
             
             {pieChartData.length > 0 ? (
               <View style={styles.pieChartContainer}>
-                <Svg width="200" height="200" viewBox="0 0 200 200">
+                <Svg width="180" height="180" viewBox="0 0 200 200">
                   <G>
                     {pieChartData.map((slice) => {
                       return (
@@ -834,12 +834,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statsContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     padding: 16,
     gap: 16,
   },
   statCard: {
-    flex: 1,
+    width: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
@@ -851,17 +851,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700' as const,
     color: '#1F2937',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   chartContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    height: 120,
-    paddingHorizontal: 4,
+    height: 140,
+    paddingHorizontal: 8,
     marginBottom: 16,
   },
   barWrapper: {
@@ -871,16 +871,15 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   bar: {
-    width: '70%',
+    width: '80%',
     backgroundColor: '#2563EB',
     borderRadius: 4,
     minHeight: 4,
   },
   barLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#6B7280',
-    marginTop: 4,
-    transform: [{ rotate: '-45deg' }],
+    marginTop: 6,
   },
   totalBudgetRow: {
     flexDirection: 'row',
@@ -923,13 +922,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   legendName: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#1F2937',
     marginBottom: 2,
   },
   legendValue: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
   },
   emptyExpenses: {
