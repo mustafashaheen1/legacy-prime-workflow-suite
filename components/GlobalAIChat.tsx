@@ -589,7 +589,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         });
       } else {
         const base64 = await FileSystem.readAsStringAsync(file.uri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: 'base64' as any,
         });
         return base64;
       }

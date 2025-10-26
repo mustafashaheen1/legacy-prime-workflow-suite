@@ -165,7 +165,7 @@ export default function ProjectExpensesScreen() {
         console.log('[OCR] Reading local file as base64...');
         try {
           const base64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: 'base64' as any,
           });
           const mimeType = uri.endsWith('.png') ? 'image/png' : 'image/jpeg';
           imageData = `data:${mimeType};base64,${base64}`;

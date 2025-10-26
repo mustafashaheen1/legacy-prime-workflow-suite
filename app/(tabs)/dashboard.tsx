@@ -99,8 +99,8 @@ export default function DashboardScreen() {
     console.log('[Report] Generating administrative report for projects:', projectsToReport.map(p => p.name));
     console.log('[Report] Report includes:');
     console.log(`  - ${projectsToReport.length} projects`);
-    console.log(`  - Total Budget: ${report.totalBudget.toLocaleString()}`);
-    console.log(`  - Total Expenses: ${report.totalExpenses.toLocaleString()}`);
+    console.log(`  - Total Budget: ${report.totalBudget?.toLocaleString()}`);
+    console.log(`  - Total Expenses: ${report.totalExpenses?.toLocaleString()}`);
     console.log(`  - Total Hours: ${report.totalHours}`);
     
     projectsData.forEach(project => {
