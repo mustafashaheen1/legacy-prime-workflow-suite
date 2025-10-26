@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Bot, X, Send, Paperclip, File as FileIcon } from 'lucide-react-native';
+import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useState, useRef, useEffect } from 'react';
@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { useApp } from '@/contexts/AppContext';
 import { masterPriceList, priceListCategories } from '@/mocks/priceList';
 import { usePathname } from 'expo-router';
+import { Audio } from 'expo-av';
 
 interface GlobalAIChatProps {
   currentPageContext?: string;
@@ -23,12 +24,19 @@ type AttachedFile = {
 };
 
 export default function GlobalAIChat({ currentPageContext, inline = false }: GlobalAIChatProps) {
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const isSmallScreen = width < 768;
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [input, setInput] = useState<string>('');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
+  const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const pathname = usePathname();
   const isOnChatScreen = pathname === '/chat';
   const { projects, clients, expenses, photos, tasks, clockEntries, estimates, addEstimate } = useApp();
@@ -532,6 +540,187 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
 
   const isLoading = status === 'streaming';
 
+  const startRecording = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunksRef.current = [];
+        
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm',
+        });
+        
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+        
+        mediaRecorder.start();
+        mediaRecorderRef.current = mediaRecorder;
+        setIsRecording(true);
+      } else {
+        await Audio.requestPermissionsAsync();
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        const recording = new Audio.Recording();
+        await recording.prepareToRecordAsync({
+          android: {
+            extension: '.m4a',
+            outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+            audioEncoder: Audio.AndroidAudioEncoder.AAC,
+            sampleRate: 44100,
+            numberOfChannels: 2,
+            bitRate: 128000,
+          },
+          ios: {
+            extension: '.wav',
+            outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+            audioQuality: Audio.IOSAudioQuality.HIGH,
+            sampleRate: 44100,
+            numberOfChannels: 2,
+            bitRate: 128000,
+            linearPCMBitDepth: 16,
+            linearPCMIsBigEndian: false,
+            linearPCMIsFloat: false,
+          },
+          web: {
+            mimeType: 'audio/webm',
+            bitsPerSecond: 128000,
+          },
+        });
+
+        await recording.startAsync();
+        setRecordingInstance(recording);
+        setIsRecording(true);
+      }
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      setIsRecording(false);
+      setIsTranscribing(true);
+
+      if (Platform.OS === 'web') {
+        if (mediaRecorderRef.current) {
+          mediaRecorderRef.current.stop();
+          mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          await transcribeAudio(audioBlob);
+          
+          mediaRecorderRef.current = null;
+          audioChunksRef.current = [];
+        }
+      } else {
+        if (recordingInstance) {
+          await recordingInstance.stopAndUnloadAsync();
+          await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+          
+          const uri = recordingInstance.getURI();
+          if (uri) {
+            const uriParts = uri.split('.');
+            const fileType = uriParts[uriParts.length - 1];
+            
+            const audioFile = {
+              uri,
+              name: `recording.${fileType}`,
+              type: `audio/${fileType}`,
+            };
+            
+            await transcribeAudio(audioFile);
+          }
+          setRecordingInstance(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to stop recording:', error);
+      setIsTranscribing(false);
+    }
+  };
+
+  const transcribeAudio = async (audio: Blob | { uri: string; name: string; type: string }) => {
+    try {
+      const formData = new FormData();
+      
+      if (audio instanceof Blob) {
+        formData.append('audio', audio, 'recording.webm');
+      } else {
+        formData.append('audio', audio as any);
+      }
+
+      const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Transcription failed');
+      }
+
+      const data = await response.json();
+      setInput(data.text);
+    } catch (error) {
+      console.error('Transcription error:', error);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const speakText = async (text: string) => {
+    try {
+      if (isSpeaking) {
+        if (soundInstance) {
+          await soundInstance.stopAsync();
+          await soundInstance.unloadAsync();
+          setSoundInstance(null);
+        }
+        setIsSpeaking(false);
+        return;
+      }
+
+      const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
+      
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true }
+      );
+
+      setSoundInstance(sound);
+      setIsSpeaking(true);
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsSpeaking(false);
+          sound.unloadAsync();
+          setSoundInstance(null);
+        }
+      });
+    } catch (error) {
+      console.error('TTS error:', error);
+      setIsSpeaking(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (soundInstance) {
+        soundInstance.unloadAsync();
+      }
+      if (recordingInstance) {
+        recordingInstance.stopAndUnloadAsync();
+      }
+    };
+  }, [soundInstance, recordingInstance]);
+
   const handleSendWithContext = (userInput: string) => {
     const contextMessage = `Context: ${getContextForCurrentPage()}\n\nUser question: ${userInput}`;
     sendMessage(contextMessage);
@@ -657,7 +846,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               <Bot size={56} color="#D1D5DB" strokeWidth={2} />
               <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
               <Text style={styles.emptyStateText}>
-                I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze documents, images, plans, and PDFs you attach!
+                I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze documents, images, plans, and PDFs you attach! You can also use voice to talk to me.
               </Text>
             </View>
           )}
@@ -686,9 +875,22 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                     {message.parts.map((part, i) => {
                       if (part.type === 'text') {
                         return (
-                          <Text key={i} style={styles.assistantMessageText}>
-                            {part.text}
-                          </Text>
+                          <View key={i}>
+                            <Text style={styles.assistantMessageText}>
+                              {part.text}
+                            </Text>
+                            {part.text && (
+                              <TouchableOpacity
+                                style={styles.speakButton}
+                                onPress={() => speakText(part.text)}
+                              >
+                                <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
+                                <Text style={styles.speakButtonText}>
+                                  {isSpeaking ? 'Stop' : 'Speak'}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
                         );
                       }
                       if (part.type === 'tool') {
@@ -743,6 +945,21 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         </ScrollView>
 
         <View style={styles.inputWrapper}>
+          {(isTranscribing || isRecording) && (
+            <View style={styles.recordingBanner}>
+              {isTranscribing ? (
+                <>
+                  <ActivityIndicator size="small" color="#2563EB" />
+                  <Text style={styles.recordingText}>Transcribing audio...</Text>
+                </>
+              ) : (
+                <>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.recordingText}>Recording...</Text>
+                </>
+              )}
+            </View>
+          )}
           {attachedFiles.length > 0 && (
             <ScrollView
               horizontal
@@ -776,24 +993,45 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
             <TouchableOpacity
               style={styles.attachButton}
               onPress={handlePickFile}
-              disabled={isLoading}
+              disabled={isLoading || isRecording}
             >
               <Paperclip size={22} color="#6B7280" />
             </TouchableOpacity>
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Ask me anything..."
-              placeholderTextColor="#9CA3AF"
-              multiline
-              maxLength={500}
-              editable={!isLoading}
-            />
+            {isRecording ? (
+              <TouchableOpacity
+                style={styles.recordingButton}
+                onPress={stopRecording}
+              >
+                <View style={styles.recordingIndicator}>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.recordingButtonText}>Tap to stop</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <>
+                <TextInput
+                  style={styles.input}
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Ask me anything or tap mic..."
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  maxLength={500}
+                  editable={!isLoading && !isTranscribing}
+                />
+                <TouchableOpacity
+                  style={styles.micButton}
+                  onPress={startRecording}
+                  disabled={isLoading || isTranscribing}
+                >
+                  <Mic size={20} color="#6B7280" />
+                </TouchableOpacity>
+              </>
+            )}
             <TouchableOpacity
-              style={[styles.sendButton, (isLoading || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
+              style={[styles.sendButton, (isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
               onPress={handleSend}
-              disabled={isLoading || (!input.trim() && attachedFiles.length === 0)}
+              disabled={isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
             >
               <Send size={20} color="#FFFFFF" />
             </TouchableOpacity>
@@ -850,7 +1088,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   <Bot size={56} color="#D1D5DB" strokeWidth={2} />
                   <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
                   <Text style={styles.emptyStateText}>
-                    I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze documents, images, plans, and PDFs you attach!
+                    I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze documents, images, plans, and PDFs you attach! You can also use voice to talk to me.
                   </Text>
                 </View>
               )}
@@ -879,9 +1117,22 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                         {message.parts.map((part, i) => {
                           if (part.type === 'text') {
                             return (
-                              <Text key={i} style={styles.assistantMessageText}>
-                                {part.text}
-                              </Text>
+                              <View key={i}>
+                                <Text style={styles.assistantMessageText}>
+                                  {part.text}
+                                </Text>
+                                {part.text && (
+                                  <TouchableOpacity
+                                    style={styles.speakButton}
+                                    onPress={() => speakText(part.text)}
+                                  >
+                                    <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
+                                    <Text style={styles.speakButtonText}>
+                                      {isSpeaking ? 'Stop' : 'Speak'}
+                                    </Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
                             );
                           }
                           if (part.type === 'tool') {
@@ -936,6 +1187,21 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
             </ScrollView>
 
             <View style={styles.inputWrapper}>
+              {(isTranscribing || isRecording) && (
+                <View style={styles.recordingBanner}>
+                  {isTranscribing ? (
+                    <>
+                      <ActivityIndicator size="small" color="#2563EB" />
+                      <Text style={styles.recordingText}>Transcribing audio...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.recordingDot} />
+                      <Text style={styles.recordingText}>Recording...</Text>
+                    </>
+                  )}
+                </View>
+              )}
               {attachedFiles.length > 0 && (
                 <ScrollView
                   horizontal
@@ -969,24 +1235,45 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                 <TouchableOpacity
                   style={styles.attachButton}
                   onPress={handlePickFile}
-                  disabled={isLoading}
+                  disabled={isLoading || isRecording}
                 >
                   <Paperclip size={22} color="#6B7280" />
                 </TouchableOpacity>
-                <TextInput
-                  style={styles.input}
-                  value={input}
-                  onChangeText={setInput}
-                  placeholder="Ask me anything..."
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  maxLength={500}
-                  editable={!isLoading}
-                />
+                {isRecording ? (
+                  <TouchableOpacity
+                    style={styles.recordingButton}
+                    onPress={stopRecording}
+                  >
+                    <View style={styles.recordingIndicator}>
+                      <View style={styles.recordingDot} />
+                      <Text style={styles.recordingButtonText}>Tap to stop</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <TextInput
+                      style={styles.input}
+                      value={input}
+                      onChangeText={setInput}
+                      placeholder="Ask me anything or tap mic..."
+                      placeholderTextColor="#9CA3AF"
+                      multiline
+                      maxLength={500}
+                      editable={!isLoading && !isTranscribing}
+                    />
+                    <TouchableOpacity
+                      style={styles.micButton}
+                      onPress={startRecording}
+                      disabled={isLoading || isTranscribing}
+                    >
+                      <Mic size={20} color="#6B7280" />
+                    </TouchableOpacity>
+                  </>
+                )}
                 <TouchableOpacity
-                  style={[styles.sendButton, (isLoading || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
+                  style={[styles.sendButton, (isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
                   onPress={handleSend}
-                  disabled={isLoading || (!input.trim() && attachedFiles.length === 0)}
+                  disabled={isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
                 >
                   <Send size={20} color="#FFFFFF" />
                 </TouchableOpacity>
@@ -1286,5 +1573,66 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#DC2626',
     fontWeight: '500' as const,
+  },
+  recordingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    backgroundColor: '#FEF3C7',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+  },
+  recordingText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#92400E',
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#DC2626',
+  },
+  recordingButton: {
+    flex: 1,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  recordingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  recordingButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#DC2626',
+  },
+  micButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speakButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    alignSelf: 'flex-start',
+  },
+  speakButtonText: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: '#6B7280',
   },
 });
