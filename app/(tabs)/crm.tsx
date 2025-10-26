@@ -82,6 +82,7 @@ export default function CRMScreen() {
   const [showFollowUpModal, setShowFollowUpModal] = useState<boolean>(false);
   const [selectedClientForFollowUp, setSelectedClientForFollowUp] = useState<string | null>(null);
   const [selectedFollowUpDate, setSelectedFollowUpDate] = useState<string>('');
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [showMetricsWidget, setShowMetricsWidget] = useState<boolean>(false);
   const [callAssistantConfig, setCallAssistantConfig] = useState({
     enabled: true,
@@ -612,6 +613,30 @@ export default function CRMScreen() {
       setSelectedClientForFollowUp(null);
       setSelectedFollowUpDate('');
     }
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay();
+    
+    return { daysInMonth, startDayOfWeek, year, month };
+  };
+
+  const selectDate = (day: number) => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setSelectedFollowUpDate(dateStr);
+  };
+
+  const changeMonth = (offset: number) => {
+    const newMonth = new Date(calendarMonth);
+    newMonth.setMonth(newMonth.getMonth() + offset);
+    setCalendarMonth(newMonth);
   };
 
   const convertLeadToProject = (clientId: string) => {
@@ -2091,17 +2116,92 @@ export default function CRMScreen() {
               Choose the next date to follow up with this client
             </Text>
 
-            <TextInput
-              style={styles.dateInput}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#9CA3AF"
-              value={selectedFollowUpDate}
-              onChangeText={setSelectedFollowUpDate}
-            />
+            {selectedFollowUpDate && (
+              <View style={styles.selectedDateDisplay}>
+                <Text style={styles.selectedDateLabel}>Selected Date:</Text>
+                <Text style={styles.selectedDateValue}>
+                  {new Date(selectedFollowUpDate + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </Text>
+              </View>
+            )}
 
-            <Text style={styles.dateFormatHint}>
-              Format: YYYY-MM-DD (e.g., {new Date().toISOString().split('T')[0]})
-            </Text>
+            <View style={styles.calendarContainer}>
+              <View style={styles.calendarHeader}>
+                <TouchableOpacity
+                  style={styles.calendarNavButton}
+                  onPress={() => changeMonth(-1)}
+                >
+                  <Text style={styles.calendarNavText}>‹</Text>
+                </TouchableOpacity>
+                <Text style={styles.calendarMonthTitle}>
+                  {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </Text>
+                <TouchableOpacity
+                  style={styles.calendarNavButton}
+                  onPress={() => changeMonth(1)}
+                >
+                  <Text style={styles.calendarNavText}>›</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.calendarWeekDays}>
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  <Text key={day} style={styles.calendarWeekDay}>
+                    {day}
+                  </Text>
+                ))}
+              </View>
+
+              <View style={styles.calendarDaysGrid}>
+                {(() => {
+                  const { daysInMonth, startDayOfWeek, year, month } = getDaysInMonth(calendarMonth);
+                  const days = [];
+                  const today = new Date();
+                  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                  for (let i = 0; i < startDayOfWeek; i++) {
+                    days.push(<View key={`empty-${i}`} style={styles.calendarDayEmpty} />);
+                  }
+
+                  for (let day = 1; day <= daysInMonth; day++) {
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const isSelected = dateStr === selectedFollowUpDate;
+                    const isToday = dateStr === todayStr;
+                    const isPast = new Date(dateStr) < new Date(todayStr);
+
+                    days.push(
+                      <TouchableOpacity
+                        key={day}
+                        style={[
+                          styles.calendarDay,
+                          isSelected && styles.calendarDaySelected,
+                          isToday && !isSelected && styles.calendarDayToday,
+                        ]}
+                        onPress={() => selectDate(day)}
+                      >
+                        <Text
+                          style={[
+                            styles.calendarDayText,
+                            isSelected && styles.calendarDayTextSelected,
+                            isToday && !isSelected && styles.calendarDayTextToday,
+                            isPast && !isSelected && styles.calendarDayTextPast,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }
+
+                  return days;
+                })()}
+              </View>
+            </View>
 
             <View style={styles.quickDateButtons}>
               <TouchableOpacity
@@ -2110,6 +2210,7 @@ export default function CRMScreen() {
                   const tomorrow = new Date();
                   tomorrow.setDate(tomorrow.getDate() + 1);
                   setSelectedFollowUpDate(tomorrow.toISOString().split('T')[0]);
+                  setCalendarMonth(tomorrow);
                 }}
               >
                 <Text style={styles.quickDateButtonText}>Tomorrow</Text>
@@ -2120,6 +2221,7 @@ export default function CRMScreen() {
                   const nextWeek = new Date();
                   nextWeek.setDate(nextWeek.getDate() + 7);
                   setSelectedFollowUpDate(nextWeek.toISOString().split('T')[0]);
+                  setCalendarMonth(nextWeek);
                 }}
               >
                 <Text style={styles.quickDateButtonText}>Next Week</Text>
@@ -2130,6 +2232,7 @@ export default function CRMScreen() {
                   const nextMonth = new Date();
                   nextMonth.setMonth(nextMonth.getMonth() + 1);
                   setSelectedFollowUpDate(nextMonth.toISOString().split('T')[0]);
+                  setCalendarMonth(nextMonth);
                 }}
               >
                 <Text style={styles.quickDateButtonText}>Next Month</Text>
@@ -3558,6 +3661,108 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '600' as const,
+  },
+  selectedDateDisplay: {
+    backgroundColor: '#EFF6FF',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  selectedDateLabel: {
+    fontSize: 12,
+    color: '#3B82F6',
+    fontWeight: '600' as const,
+    marginBottom: 4,
+  },
+  selectedDateValue: {
+    fontSize: 16,
+    color: '#1E40AF',
+    fontWeight: '700' as const,
+  },
+  calendarContainer: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  calendarNavButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  calendarNavText: {
+    fontSize: 24,
+    color: '#2563EB',
+    fontWeight: '700' as const,
+  },
+  calendarMonthTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  calendarWeekDays: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  calendarWeekDay: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  calendarDaysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarDay: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  calendarDayEmpty: {
+    width: '14.28%',
+    aspectRatio: 1,
+  },
+  calendarDaySelected: {
+    backgroundColor: '#2563EB',
+  },
+  calendarDayToday: {
+    backgroundColor: '#DBEAFE',
+  },
+  calendarDayText: {
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+  },
+  calendarDayTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700' as const,
+  },
+  calendarDayTextToday: {
+    color: '#2563EB',
+    fontWeight: '700' as const,
+  },
+  calendarDayTextPast: {
+    color: '#9CA3AF',
   },
   aiSuggestionsContainer: {
     marginTop: 12,
