@@ -143,19 +143,19 @@ export default function ReportsScreen() {
                   <View style={styles.reportStat}>
                     <Text style={styles.reportStatLabel}>Budget</Text>
                     <Text style={styles.reportStatValue}>
-                      ${report.totalBudget.toLocaleString()}
+                      ${(report.totalBudget ?? 0).toLocaleString()}
                     </Text>
                   </View>
                   <View style={styles.reportStat}>
                     <Text style={styles.reportStatLabel}>Expenses</Text>
                     <Text style={styles.reportStatValue}>
-                      ${report.totalExpenses.toLocaleString()}
+                      ${(report.totalExpenses ?? 0).toLocaleString()}
                     </Text>
                   </View>
                   <View style={styles.reportStat}>
                     <Text style={styles.reportStatLabel}>Hours</Text>
                     <Text style={styles.reportStatValue}>
-                      {report.totalHours}h
+                      {report.totalHours ?? 0}h
                     </Text>
                   </View>
                 </View>
@@ -208,25 +208,25 @@ export default function ReportsScreen() {
                     <View style={styles.summaryCard}>
                       <Text style={styles.summaryLabel}>Total Budget</Text>
                       <Text style={styles.summaryValue}>
-                        ${selectedReport.totalBudget.toLocaleString()}
+                        ${(selectedReport.totalBudget ?? 0).toLocaleString()}
                       </Text>
                     </View>
                     <View style={styles.summaryCard}>
                       <Text style={styles.summaryLabel}>Total Expenses</Text>
                       <Text style={styles.summaryValue}>
-                        ${selectedReport.totalExpenses.toLocaleString()}
+                        ${(selectedReport.totalExpenses ?? 0).toLocaleString()}
                       </Text>
                     </View>
                     <View style={styles.summaryCard}>
                       <Text style={styles.summaryLabel}>Total Hours</Text>
-                      <Text style={styles.summaryValue}>{selectedReport.totalHours}h</Text>
+                      <Text style={styles.summaryValue}>{selectedReport.totalHours ?? 0}h</Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.detailSection}>
                   <Text style={styles.detailSectionTitle}>Projects</Text>
-                  {selectedReport.projects.map((project) => (
+                  {selectedReport.projects?.map((project) => (
                     <View key={project.projectId} style={styles.projectDetail}>
                       <Text style={styles.projectDetailName}>{project.projectName}</Text>
                       <View style={styles.projectDetailRow}>
@@ -254,14 +254,14 @@ export default function ReportsScreen() {
                         <Text style={styles.projectDetailValue}>{project.progress}%</Text>
                       </View>
 
-                      {Object.keys(project.expensesByCategory).length > 0 && (
+                      {project.expensesByCategory && Object.keys(project.expensesByCategory).length > 0 && (
                         <View style={styles.expensesCategorySection}>
                           <Text style={styles.expensesCategoryTitle}>Expenses by Category:</Text>
                           {Object.entries(project.expensesByCategory).map(([category, amount]) => (
                             <View key={category} style={styles.expensesCategoryRow}>
                               <Text style={styles.expensesCategoryLabel}>{category}:</Text>
                               <Text style={styles.expensesCategoryValue}>
-                                ${amount.toLocaleString()}
+                                ${(amount ?? 0).toLocaleString()}
                               </Text>
                             </View>
                           ))}
