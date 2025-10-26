@@ -9,6 +9,7 @@ import { useApp } from '@/contexts/AppContext';
 import { mockUsers } from '@/mocks/data';
 import { ChatMessage } from '@/types';
 import GlobalAIChat from '@/components/GlobalAIChat';
+import ImageAnnotation from '@/components/ImageAnnotation';
 
 export default function ChatScreen() {
   const { user, conversations, clients, addConversation, addMessageToConversation } = useApp();
@@ -25,6 +26,7 @@ export default function ChatScreen() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [newChatSearch, setNewChatSearch] = useState<string>('');
   const [showAIChat, setShowAIChat] = useState<boolean>(false);
+  const [pendingAnnotation, setPendingAnnotation] = useState<string | null>(null);
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
@@ -104,19 +106,12 @@ export default function ChatScreen() {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 0.8,
       });
 
-      if (!result.canceled && selectedChat) {
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          senderId: user?.id || '1',
-          type: 'image',
-          content: result.assets[0].uri,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-        addMessageToConversation(selectedChat, newMessage);
+      if (!result.canceled) {
+        setPendingAnnotation(result.assets[0].uri);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -134,19 +129,12 @@ export default function ChatScreen() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 0.8,
       });
 
-      if (!result.canceled && selectedChat) {
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          senderId: user?.id || '1',
-          type: 'image',
-          content: result.assets[0].uri,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-        addMessageToConversation(selectedChat, newMessage);
+      if (!result.canceled) {
+        setPendingAnnotation(result.assets[0].uri);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
@@ -264,6 +252,24 @@ export default function ChatScreen() {
       addMessageToConversation(selectedChat, newMessage);
       setMessageText('');
     }
+  };
+
+  const handleSaveAnnotation = (uri: string) => {
+    if (selectedChat) {
+      const newMessage: ChatMessage = {
+        id: Date.now().toString(),
+        senderId: user?.id || '1',
+        type: 'image',
+        content: uri,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      addMessageToConversation(selectedChat, newMessage);
+    }
+    setPendingAnnotation(null);
+  };
+
+  const handleCancelAnnotation = () => {
+    setPendingAnnotation(null);
   };
 
   const renderMessageContent = (message: ChatMessage) => {
@@ -687,6 +693,15 @@ export default function ChatScreen() {
           )}
         </TouchableOpacity>
       </Modal>
+
+      {pendingAnnotation && (
+        <ImageAnnotation
+          visible={true}
+          imageUri={pendingAnnotation}
+          onSave={handleSaveAnnotation}
+          onCancel={handleCancelAnnotation}
+        />
+      )}
     </View>
   );
 }
