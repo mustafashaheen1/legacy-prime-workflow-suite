@@ -34,6 +34,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
   const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
+  const [voiceMode, setVoiceMode] = useState<boolean>(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -647,6 +648,15 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     }
   };
 
+  const stopSpeaking = async () => {
+    if (soundInstance) {
+      await soundInstance.stopAsync();
+      await soundInstance.unloadAsync();
+      setSoundInstance(null);
+    }
+    setIsSpeaking(false);
+  };
+
   const transcribeAudio = async (audio: Blob | { uri: string; name: string; type: string }) => {
     try {
       const formData = new FormData();
@@ -667,7 +677,15 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       }
 
       const data = await response.json();
-      setInput(data.text);
+      const transcribedText = data.text;
+      setInput(transcribedText);
+      
+      if (voiceMode && transcribedText.trim()) {
+        setTimeout(() => {
+          handleSendWithContext(transcribedText);
+          setInput('');
+        }, 300);
+      }
     } catch (error) {
       console.error('Transcription error:', error);
     } finally {
@@ -675,16 +693,16 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     }
   };
 
-  const speakText = async (text: string) => {
+  const speakText = async (text: string, autoNext = false) => {
     try {
-      if (isSpeaking) {
-        if (soundInstance) {
-          await soundInstance.stopAsync();
-          await soundInstance.unloadAsync();
-          setSoundInstance(null);
-        }
-        setIsSpeaking(false);
+      if (isSpeaking && !autoNext) {
+        await stopSpeaking();
         return;
+      }
+
+      if (isSpeaking && autoNext) {
+        await stopSpeaking();
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
@@ -702,6 +720,12 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           setIsSpeaking(false);
           sound.unloadAsync();
           setSoundInstance(null);
+          
+          if (voiceMode && autoNext) {
+            setTimeout(() => {
+              startRecording();
+            }, 500);
+          }
         }
       });
     } catch (error) {
@@ -731,8 +755,23 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
+      
+      if (voiceMode && messages.length > 0) {
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage.role === 'assistant' && status !== 'streaming') {
+          const textParts = lastMessage.parts.filter(p => p.type === 'text');
+          if (textParts.length > 0) {
+            const lastTextPart = textParts[textParts.length - 1];
+            if (lastTextPart.type === 'text' && lastTextPart.text) {
+              setTimeout(() => {
+                speakText(lastTextPart.text, true);
+              }, 500);
+            }
+          }
+        }
+      }
     }
-  }, [messages]);
+  }, [messages, status, voiceMode]);
 
   const handlePickFile = async () => {
     try {
@@ -991,11 +1030,24 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           )}
           <View style={styles.inputContainer}>
             <TouchableOpacity
-              style={styles.attachButton}
-              onPress={handlePickFile}
+              style={[styles.voiceModeButton, voiceMode && styles.voiceModeButtonActive]}
+              onPress={() => {
+                const newVoiceMode = !voiceMode;
+                setVoiceMode(newVoiceMode);
+                if (!newVoiceMode && isSpeaking) {
+                  stopSpeaking();
+                }
+              }}
               disabled={isLoading || isRecording}
             >
-              <Paperclip size={22} color="#6B7280" />
+              <Volume2 size={20} color={voiceMode ? '#FFFFFF' : '#6B7280'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.attachButton}
+              onPress={handlePickFile}
+              disabled={isLoading || isRecording || voiceMode}
+            >
+              <Paperclip size={22} color={voiceMode ? '#D1D5DB' : '#6B7280'} />
             </TouchableOpacity>
             {isRecording ? (
               <TouchableOpacity
@@ -1013,25 +1065,25 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   style={styles.input}
                   value={input}
                   onChangeText={setInput}
-                  placeholder="Ask me anything or tap mic..."
+                  placeholder={voiceMode ? "Voice mode active - tap mic to talk" : "Ask me anything or tap mic..."}
                   placeholderTextColor="#9CA3AF"
                   multiline
                   maxLength={500}
-                  editable={!isLoading && !isTranscribing}
+                  editable={!isLoading && !isTranscribing && !voiceMode}
                 />
                 <TouchableOpacity
-                  style={styles.micButton}
+                  style={[styles.micButton, voiceMode && styles.micButtonActive]}
                   onPress={startRecording}
                   disabled={isLoading || isTranscribing}
                 >
-                  <Mic size={20} color="#6B7280" />
+                  <Mic size={20} color={voiceMode ? '#FFFFFF' : '#6B7280'} />
                 </TouchableOpacity>
               </>
             )}
             <TouchableOpacity
-              style={[styles.sendButton, (isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
+              style={[styles.sendButton, (isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0) || voiceMode) && styles.sendButtonDisabled]}
               onPress={handleSend}
-              disabled={isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
+              disabled={isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0) || voiceMode}
             >
               <Send size={20} color="#FFFFFF" />
             </TouchableOpacity>
@@ -1233,11 +1285,24 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               )}
               <View style={styles.inputContainer}>
                 <TouchableOpacity
-                  style={styles.attachButton}
-                  onPress={handlePickFile}
+                  style={[styles.voiceModeButton, voiceMode && styles.voiceModeButtonActive]}
+                  onPress={() => {
+                    const newVoiceMode = !voiceMode;
+                    setVoiceMode(newVoiceMode);
+                    if (!newVoiceMode && isSpeaking) {
+                      stopSpeaking();
+                    }
+                  }}
                   disabled={isLoading || isRecording}
                 >
-                  <Paperclip size={22} color="#6B7280" />
+                  <Volume2 size={20} color={voiceMode ? '#FFFFFF' : '#6B7280'} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.attachButton}
+                  onPress={handlePickFile}
+                  disabled={isLoading || isRecording || voiceMode}
+                >
+                  <Paperclip size={22} color={voiceMode ? '#D1D5DB' : '#6B7280'} />
                 </TouchableOpacity>
                 {isRecording ? (
                   <TouchableOpacity
@@ -1255,25 +1320,25 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                       style={styles.input}
                       value={input}
                       onChangeText={setInput}
-                      placeholder="Ask me anything or tap mic..."
+                      placeholder={voiceMode ? "Voice mode active - tap mic to talk" : "Ask me anything or tap mic..."}
                       placeholderTextColor="#9CA3AF"
                       multiline
                       maxLength={500}
-                      editable={!isLoading && !isTranscribing}
+                      editable={!isLoading && !isTranscribing && !voiceMode}
                     />
                     <TouchableOpacity
-                      style={styles.micButton}
+                      style={[styles.micButton, voiceMode && styles.micButtonActive]}
                       onPress={startRecording}
                       disabled={isLoading || isTranscribing}
                     >
-                      <Mic size={20} color="#6B7280" />
+                      <Mic size={20} color={voiceMode ? '#FFFFFF' : '#6B7280'} />
                     </TouchableOpacity>
                   </>
                 )}
                 <TouchableOpacity
-                  style={[styles.sendButton, (isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
+                  style={[styles.sendButton, (isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0) || voiceMode) && styles.sendButtonDisabled]}
                   onPress={handleSend}
-                  disabled={isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
+                  disabled={isLoading || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0) || voiceMode}
                 >
                   <Send size={20} color="#FFFFFF" />
                 </TouchableOpacity>
@@ -1634,5 +1699,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500' as const,
     color: '#6B7280',
+  },
+  voiceModeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voiceModeButtonActive: {
+    backgroundColor: '#10B981',
+  },
+  micButtonActive: {
+    backgroundColor: '#10B981',
+    borderRadius: 22,
   },
 });
