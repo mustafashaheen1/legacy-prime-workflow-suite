@@ -480,6 +480,63 @@ export default function ProjectDetailScreen() {
               </View>
             )}
 
+            {activeClockEntries.length > 0 && (
+              <View style={styles.clockedInCard}>
+                <View style={styles.clockedInHeader}>
+                  <UserCheck size={20} color="#10B981" />
+                  <Text style={styles.clockedInTitle}>Active Workers</Text>
+                  <View style={styles.activeBadgeHeader}>
+                    <View style={styles.activePulse} />
+                    <Text style={styles.activeBadgeTextHeader}>{activeClockEntries.length} Clocked In</Text>
+                  </View>
+                </View>
+                <View style={styles.clockedInList}>
+                  {activeClockEntries.map(entry => {
+                    const clockInTime = new Date(entry.clockIn);
+                    const now = new Date();
+                    const hoursWorked = ((now.getTime() - clockInTime.getTime()) / (1000 * 60 * 60)).toFixed(1);
+                    const isOnLunch = entry.lunchBreaks?.some(lunch => !lunch.endTime) || false;
+                    
+                    return (
+                      <View key={entry.id} style={styles.clockedInItem}>
+                        <View style={styles.clockedInEmployeeAvatar}>
+                          <Text style={styles.clockedInEmployeeAvatarText}>
+                            {getEmployeeName(entry.employeeId).charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.clockedInItemInfo}>
+                          <Text style={styles.clockedInEmployeeName} numberOfLines={1}>
+                            {getEmployeeName(entry.employeeId)}
+                          </Text>
+                          <Text style={styles.clockedInClockTime}>
+                            {clockInTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                          </Text>
+                          {isOnLunch ? (
+                            <View style={styles.clockedInLunchBadge}>
+                              <Coffee size={10} color="#F59E0B" />
+                              <Text style={styles.clockedInLunchText}>On Lunch</Text>
+                            </View>
+                          ) : (
+                            <>
+                              {entry.category && (
+                                <View style={styles.clockedInCategoryBadge}>
+                                  <Text style={styles.clockedInCategoryText}>{entry.category}</Text>
+                                </View>
+                              )}
+                            </>
+                          )}
+                        </View>
+                        <View style={styles.clockedInHoursContainer}>
+                          <Text style={styles.clockedInHoursText}>{hoursWorked}h</Text>
+                          <View style={[styles.activeIndicatorSmall, isOnLunch && { backgroundColor: '#F59E0B' }]} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
             <View style={[styles.contentRow, dimensions.width < 600 && styles.contentRowVertical]}>
               <View style={styles.mainContent}>
                 <View style={styles.chartCard}>
@@ -604,70 +661,6 @@ export default function ProjectDetailScreen() {
                   </View>
                 )}
               </View>
-
-              {activeClockEntries.length > 0 && (
-                <View style={[styles.sidebarContent, dimensions.width < 600 && styles.sidebarContentVertical]}>
-                  <View style={styles.sidebarCard}>
-                    <View style={styles.sidebarHeader}>
-                      <UserCheck size={16} color="#10B981" />
-                      <Text style={styles.sidebarTitle}>Clocked In</Text>
-                    </View>
-                    <View style={styles.activeBadgeSidebar}>
-                      <View style={styles.activePulse} />
-                      <Text style={styles.activeBadgeTextSidebar}>{activeClockEntries.length} Active</Text>
-                    </View>
-                    <View style={styles.sidebarList}>
-                      {activeClockEntries.map(entry => {
-                        const clockInTime = new Date(entry.clockIn);
-                        const now = new Date();
-                        const hoursWorked = ((now.getTime() - clockInTime.getTime()) / (1000 * 60 * 60)).toFixed(1);
-                        const isOnLunch = entry.lunchBreaks?.some(lunch => !lunch.endTime) || false;
-                        
-                        return (
-                          <View key={entry.id} style={styles.sidebarItem}>
-                            <View style={styles.sidebarEmployeeAvatar}>
-                              <Text style={styles.sidebarEmployeeAvatarText}>
-                                {getEmployeeName(entry.employeeId).charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                            <View style={styles.sidebarItemInfo}>
-                              <Text style={styles.sidebarEmployeeName} numberOfLines={1}>
-                                {getEmployeeName(entry.employeeId)}
-                              </Text>
-                              <Text style={styles.sidebarClockInTime}>
-                                {clockInTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                              </Text>
-                              {isOnLunch ? (
-                                <View style={styles.sidebarLunchBadge}>
-                                  <Coffee size={10} color="#F59E0B" />
-                                  <Text style={styles.sidebarLunchText}>On Lunch</Text>
-                                </View>
-                              ) : (
-                                <>
-                                  {entry.category && (
-                                    <View style={styles.sidebarCategoryBadge}>
-                                      <Text style={styles.sidebarCategoryText}>{entry.category}</Text>
-                                    </View>
-                                  )}
-                                  {entry.workPerformed && (
-                                    <Text style={styles.sidebarWorkDescription} numberOfLines={2}>
-                                      {entry.workPerformed}
-                                    </Text>
-                                  )}
-                                </>
-                              )}
-                              <View style={styles.sidebarHoursContainer}>
-                                <Text style={styles.sidebarHoursText}>{hoursWorked}h</Text>
-                                <View style={[styles.activeIndicatorSmall, isOnLunch && { backgroundColor: '#F59E0B' }]} />
-                              </View>
-                            </View>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  </View>
-                </View>
-              )}
             </View>
           </View>
         );
@@ -1250,139 +1243,126 @@ const styles = StyleSheet.create({
   mainContent: {
     flex: 3,
   },
-  sidebarContent: {
-    flex: 1,
-    minWidth: 200,
-  },
-  sidebarContentVertical: {
-    width: '100%',
-    flex: undefined,
-  },
-  sidebarCard: {
+  clockedInCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
-  sidebarHeader: {
+  clockedInHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  clockedInTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    flex: 1,
+  },
+  activeBadgeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
-  },
-  sidebarTitle: {
-    fontSize: 15,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-  },
-  activeBadgeSidebar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
     backgroundColor: '#D1FAE5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginBottom: 12,
-    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  activeBadgeTextSidebar: {
-    fontSize: 11,
+  activeBadgeTextHeader: {
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#059669',
   },
-  sidebarList: {
-    gap: 8,
+  clockedInList: {
+    gap: 12,
   },
-  sidebarItem: {
+  clockedInItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10B981',
   },
-  sidebarEmployeeAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  clockedInEmployeeAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#10B981',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sidebarEmployeeAvatarText: {
-    fontSize: 12,
+  clockedInEmployeeAvatarText: {
+    fontSize: 16,
     fontWeight: '700' as const,
     color: '#FFFFFF',
   },
-  sidebarItemInfo: {
+  clockedInItemInfo: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
-  sidebarEmployeeName: {
-    fontSize: 13,
+  clockedInEmployeeName: {
+    fontSize: 14,
     fontWeight: '600' as const,
     color: '#1F2937',
   },
-  sidebarClockInTime: {
-    fontSize: 11,
+  clockedInClockTime: {
+    fontSize: 12,
     color: '#6B7280',
   },
-  sidebarHoursContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  clockedInCategoryBadge: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
     marginTop: 2,
   },
-  sidebarHoursText: {
-    fontSize: 13,
-    fontWeight: '700' as const,
-    color: '#10B981',
-  },
-  activeIndicatorSmall: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#10B981',
-  },
-  sidebarCategoryBadge: {
-    backgroundColor: '#DBEAFE',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-    marginTop: 3,
-  },
-  sidebarCategoryText: {
-    fontSize: 10,
+  clockedInCategoryText: {
+    fontSize: 11,
     color: '#2563EB',
     fontWeight: '600' as const,
   },
-  sidebarWorkDescription: {
-    fontSize: 11,
-    color: '#4B5563',
-    marginTop: 3,
-    lineHeight: 14,
-  },
-  sidebarLunchBadge: {
+  clockedInLunchBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
     alignSelf: 'flex-start',
-    marginTop: 3,
+    marginTop: 2,
   },
-  sidebarLunchText: {
-    fontSize: 10,
+  clockedInLunchText: {
+    fontSize: 11,
     color: '#D97706',
     fontWeight: '600' as const,
+  },
+  clockedInHoursContainer: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  clockedInHoursText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#10B981',
+  },
+  activeIndicatorSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
   },
   projectImage: {
     width: '100%',
@@ -1665,29 +1645,6 @@ const styles = StyleSheet.create({
   },
   clockTabContent: {
     padding: 20,
-  },
-  clockedInList: {
-    gap: 12,
-  },
-  clockedInItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#10B981',
-  },
-  clockedInLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  clockedInInfo: {
-    flex: 1,
-    gap: 2,
   },
   employeeAvatar: {
     width: 36,
