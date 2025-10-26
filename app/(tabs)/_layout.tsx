@@ -55,6 +55,7 @@ export default function TabLayout() {
         name="schedule"
         options={{
           title: "Schedule",
+          headerShown: false,
           tabBarIcon: ({ color }) => <Calendar size={24} color={color} />,
         }}
       />

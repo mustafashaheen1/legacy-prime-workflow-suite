@@ -263,3 +263,15 @@ export interface Annotation {
   color: string;
   createdDate: string;
 }
+
+export interface ScheduledTask {
+  id: string;
+  projectId: string;
+  category: string;
+  startDate: string;
+  endDate: string;
+  duration: number;
+  workType: 'in-house' | 'subcontractor';
+  notes?: string;
+  color: string;
+}
