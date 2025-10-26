@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform } from 'react-native';
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar } from 'lucide-react-native';
+import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon } from 'lucide-react-native';
 import { Project, Client, CallLog } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
@@ -82,6 +82,7 @@ export default function CRMScreen() {
   const [showFollowUpModal, setShowFollowUpModal] = useState<boolean>(false);
   const [selectedClientForFollowUp, setSelectedClientForFollowUp] = useState<string | null>(null);
   const [selectedFollowUpDate, setSelectedFollowUpDate] = useState<string>('');
+  const [showMetricsWidget, setShowMetricsWidget] = useState<boolean>(false);
   const [callAssistantConfig, setCallAssistantConfig] = useState({
     enabled: true,
     businessName: 'Legacy Prime Construction',
@@ -100,6 +101,52 @@ export default function CRMScreen() {
   const leadsByGoogle = clients.filter(c => c.source === 'Google' && c.status === 'Lead').length;
   const leadsByReferral = clients.filter(c => c.source === 'Referral' && c.status === 'Lead').length;
   const leadsByAd = clients.filter(c => c.source === 'Ad' && c.status === 'Lead').length;
+
+  const totalLeads = clients.filter(c => c.status === 'Lead').length;
+  const totalProjects = clients.filter(c => c.status === 'Project' || c.status === 'Completed').length;
+  const conversionRate = totalLeads > 0 ? ((totalProjects / (totalLeads + totalProjects)) * 100).toFixed(1) : '0.0';
+  
+  const calculateAverageResponseTime = () => {
+    const clientsWithFollowUps = clients.filter(c => c.lastContactDate);
+    if (clientsWithFollowUps.length === 0) return '0';
+    
+    let totalDays = 0;
+    clientsWithFollowUps.forEach(client => {
+      const lastContact = new Date(client.lastContactDate || client.lastContacted);
+      const now = new Date();
+      const daysSince = Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24));
+      totalDays += daysSince;
+    });
+    
+    return (totalDays / clientsWithFollowUps.length).toFixed(1);
+  };
+  
+  const averageResponseTime = calculateAverageResponseTime();
+  const totalEstimatesSent = estimates.filter(e => e.status === 'sent' || e.status === 'approved').length;
+  
+  const revenueBySource = {
+    Google: estimates
+      .filter(e => e.status === 'approved')
+      .filter(e => {
+        const client = clients.find(c => e.projectId.includes(c.name) || e.name.includes(c.name));
+        return client?.source === 'Google';
+      })
+      .reduce((sum, e) => sum + e.total, 0),
+    Referral: estimates
+      .filter(e => e.status === 'approved')
+      .filter(e => {
+        const client = clients.find(c => e.projectId.includes(c.name) || e.name.includes(c.name));
+        return client?.source === 'Referral';
+      })
+      .reduce((sum, e) => sum + e.total, 0),
+    Ad: estimates
+      .filter(e => e.status === 'approved')
+      .filter(e => {
+        const client = clients.find(c => e.projectId.includes(c.name) || e.name.includes(c.name));
+        return client?.source === 'Ad';
+      })
+      .reduce((sum, e) => sum + e.total, 0),
+  };
 
   const { messages, sendMessage: sendAIMessage } = useRorkAgent({
     tools: {
@@ -880,6 +927,106 @@ export default function CRMScreen() {
               </View>
             </View>
           ))}
+
+          <View style={styles.metricsWidget}>
+            <TouchableOpacity 
+              style={styles.metricsHeader}
+              onPress={() => setShowMetricsWidget(!showMetricsWidget)}
+            >
+              <View style={styles.metricsHeaderLeft}>
+                <TrendingUp size={20} color="#2563EB" />
+                <Text style={styles.metricsHeaderTitle}>CRM Metrics</Text>
+              </View>
+              {showMetricsWidget ? (
+                <ChevronUp size={20} color="#6B7280" />
+              ) : (
+                <ChevronDown size={20} color="#6B7280" />
+              )}
+            </TouchableOpacity>
+
+            {showMetricsWidget && (
+              <View style={styles.metricsContent}>
+                <View style={styles.metricsGrid}>
+                  <View style={styles.metricCard}>
+                    <View style={styles.metricIconContainer}>
+                      <Users size={24} color="#10B981" />
+                    </View>
+                    <Text style={styles.metricValue}>{conversionRate}%</Text>
+                    <Text style={styles.metricLabel}>Conversion Rate</Text>
+                    <Text style={styles.metricSubtext}>
+                      {totalProjects} of {totalLeads + totalProjects} leads converted
+                    </Text>
+                  </View>
+
+                  <View style={styles.metricCard}>
+                    <View style={styles.metricIconContainer}>
+                      <Clock size={24} color="#F59E0B" />
+                    </View>
+                    <Text style={styles.metricValue}>{averageResponseTime}d</Text>
+                    <Text style={styles.metricLabel}>Avg Response Time</Text>
+                    <Text style={styles.metricSubtext}>
+                      Days since last contact
+                    </Text>
+                  </View>
+
+                  <View style={styles.metricCard}>
+                    <View style={styles.metricIconContainer}>
+                      <FileCheck size={24} color="#8B5CF6" />
+                    </View>
+                    <Text style={styles.metricValue}>{totalEstimatesSent}</Text>
+                    <Text style={styles.metricLabel}>Estimates Sent</Text>
+                    <Text style={styles.metricSubtext}>
+                      {estimates.filter(e => e.status === 'approved').length} approved
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.revenueSection}>
+                  <Text style={styles.revenueSectionTitle}>Revenue by Lead Source</Text>
+                  <View style={styles.revenueGrid}>
+                    <View style={styles.revenueCard}>
+                      <View style={styles.revenueCardHeader}>
+                        <View style={[styles.revenueSourceBadge, { backgroundColor: '#DBEAFE' }]}>
+                          <Text style={[styles.revenueSourceText, { color: '#1E40AF' }]}>Google</Text>
+                        </View>
+                        <DollarSignIcon size={18} color="#2563EB" />
+                      </View>
+                      <Text style={styles.revenueAmount}>${revenueBySource.Google.toLocaleString()}</Text>
+                      <Text style={styles.revenueSubtext}>
+                        {leadsByGoogle} active leads
+                      </Text>
+                    </View>
+
+                    <View style={styles.revenueCard}>
+                      <View style={styles.revenueCardHeader}>
+                        <View style={[styles.revenueSourceBadge, { backgroundColor: '#D1FAE5' }]}>
+                          <Text style={[styles.revenueSourceText, { color: '#047857' }]}>Referral</Text>
+                        </View>
+                        <DollarSignIcon size={18} color="#10B981" />
+                      </View>
+                      <Text style={styles.revenueAmount}>${revenueBySource.Referral.toLocaleString()}</Text>
+                      <Text style={styles.revenueSubtext}>
+                        {leadsByReferral} active leads
+                      </Text>
+                    </View>
+
+                    <View style={styles.revenueCard}>
+                      <View style={styles.revenueCardHeader}>
+                        <View style={[styles.revenueSourceBadge, { backgroundColor: '#FEF3C7' }]}>
+                          <Text style={[styles.revenueSourceText, { color: '#92400E' }]}>Ad</Text>
+                        </View>
+                        <DollarSignIcon size={18} color="#F59E0B" />
+                      </View>
+                      <Text style={styles.revenueAmount}>${revenueBySource.Ad.toLocaleString()}</Text>
+                      <Text style={styles.revenueSubtext}>
+                        {leadsByAd} active leads
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
 
           {showAddForm && (
             <View style={styles.addForm}>
@@ -3449,5 +3596,131 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B21A8',
     lineHeight: 16,
+  },
+  metricsWidget: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginTop: 24,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  metricsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  metricsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  metricsHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  metricsContent: {
+    padding: 16,
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+    flexWrap: 'wrap',
+  },
+  metricCard: {
+    flex: 1,
+    minWidth: 150,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  metricIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  metricValue: {
+    fontSize: 32,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  metricLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#4B5563',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  metricSubtext: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+  revenueSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 20,
+  },
+  revenueSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  revenueGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  revenueCard: {
+    flex: 1,
+    minWidth: 150,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  revenueCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  revenueSourceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  revenueSourceText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  revenueAmount: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  revenueSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 });
