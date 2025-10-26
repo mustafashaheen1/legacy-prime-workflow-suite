@@ -746,7 +746,16 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   }, [soundInstance, recordingInstance]);
 
   const handleSendWithContext = (userInput: string) => {
-    const contextMessage = `Context: ${getContextForCurrentPage()}\n\nUser question: ${userInput}`;
+    const systemInstructions = `IMPORTANT CONTENT RESTRICTIONS:
+- You CAN answer: General construction questions, industry tips, best practices, scope of work explanations, how to use app features, photo/document summaries, and general company processes.
+- You CANNOT answer: Anything about prices, estimate totals, markup, job costs, revenue, profit, payments, invoices, budget analytics, reports, contract details, or legal terms.
+- If the user asks about financials or contracts, respond ONLY with: "I'm sorry, I can't provide details about prices, payments, or contracts. Please contact your admin."
+- Do NOT explain why you can't answer or provide alternatives for financial questions.
+- This applies to ALL users and roles.
+
+`;
+    
+    const contextMessage = `${systemInstructions}Context: ${getContextForCurrentPage()}\n\nUser question: ${userInput}`;
     sendMessage(contextMessage);
   };
 
@@ -851,7 +860,16 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           }
         }
         
-        const contextMessage = `Context: ${getContextForCurrentPage()}`;
+        const systemInstructions = `IMPORTANT CONTENT RESTRICTIONS:
+- You CAN answer: General construction questions, industry tips, best practices, scope of work explanations, how to use app features, photo/document summaries, and general company processes.
+- You CANNOT answer: Anything about prices, estimate totals, markup, job costs, revenue, profit, payments, invoices, budget analytics, reports, contract details, or legal terms.
+- If the user asks about financials or contracts, respond ONLY with: "I'm sorry, I can't provide details about prices, payments, or contracts. Please contact your admin."
+- Do NOT explain why you can't answer or provide alternatives for financial questions.
+- This applies to ALL users and roles.
+
+`;
+        
+        const contextMessage = `${systemInstructions}Context: ${getContextForCurrentPage()}`;
         const userMessage = input.trim() || 'Please analyze the attached file(s)';
         const fullMessage = `${contextMessage}\n\nUser question: ${userMessage}\n\nAttached ${filesForMessage.length} file(s) for analysis.`;
         
