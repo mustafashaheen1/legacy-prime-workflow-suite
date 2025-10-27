@@ -52,6 +52,8 @@ export default function ScheduleScreen() {
   const [resizingTask, setResizingTask] = useState<{ id: string; type: 'right' | 'bottom' } | null>(null);
   const [quickEditTask, setQuickEditTask] = useState<string | null>(null);
   const [quickNoteText, setQuickNoteText] = useState<string>('');
+  const [quickEditWorkType, setQuickEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
+  const [lastTap, setLastTap] = useState<number>(0);
   
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
@@ -142,7 +144,9 @@ export default function ScheduleScreen() {
 
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      },
       onPanResponderGrant: () => {
         setDraggedTask(task.id);
         initialRow = task.row || 0;
@@ -176,15 +180,18 @@ export default function ScheduleScreen() {
 
   const createResizePanResponder = (task: ScheduledTask, resizeType: 'right' | 'bottom') => {
     let initialDuration = task.duration;
-    let initialRow = task.row || 0;
+    let initialRowSpan = task.rowSpan || 1;
 
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const threshold = 3;
+        return Math.abs(gestureState.dx) > threshold || Math.abs(gestureState.dy) > threshold;
+      },
       onPanResponderGrant: () => {
         setResizingTask({ id: task.id, type: resizeType });
         initialDuration = task.duration;
-        initialRow = task.row || 0;
+        initialRowSpan = task.rowSpan || 1;
       },
       onPanResponderMove: (_, gestureState) => {
         if (resizeType === 'right') {
@@ -204,7 +211,7 @@ export default function ScheduleScreen() {
           setScheduledTasks(updatedTasks);
         } else if (resizeType === 'bottom') {
           const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
-          const newRowSpan = Math.max(1, (task.rowSpan || 1) + rowsDelta);
+          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
           
           const updatedTasks = scheduledTasks.map(t => 
             t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
@@ -333,6 +340,20 @@ export default function ScheduleScreen() {
                       const bottomResizeResponder = createResizePanResponder(task, 'bottom');
                       const isQuickEditing = quickEditTask === task.id;
 
+                      const handleTaskTap = () => {
+                        const now = Date.now();
+                        const DOUBLE_TAP_DELAY = 300;
+                        
+                        if (now - lastTap < DOUBLE_TAP_DELAY) {
+                          setQuickEditTask(task.id);
+                          setQuickNoteText(task.notes || '');
+                          setQuickEditWorkType(task.workType);
+                          setLastTap(0);
+                        } else {
+                          setLastTap(now);
+                        }
+                      };
+
                       return (
                         <View
                           key={task.id}
@@ -354,17 +375,8 @@ export default function ScheduleScreen() {
                             style={styles.taskContent}
                           >
                             <TouchableOpacity
-                              onPress={() => {
-                                setQuickEditTask(task.id);
-                                setQuickNoteText(task.notes || '');
-                              }}
-                              onLongPress={() => {
-                                setEditingTask(task);
-                                setWorkType(task.workType);
-                                setNotes(task.notes || '');
-                                setShowModal(true);
-                              }}
-                              delayLongPress={500}
+                              onPress={handleTaskTap}
+                              activeOpacity={0.8}
                             >
                               <Text style={styles.taskTitle} numberOfLines={1}>
                                 {task.category}
@@ -385,21 +397,52 @@ export default function ScheduleScreen() {
 
                           {isQuickEditing && (
                             <View style={styles.quickEditContainer}>
-                              <TextInput
-                                style={styles.quickEditInput}
-                                value={quickNoteText}
-                                onChangeText={setQuickNoteText}
-                                placeholder="Add notes..."
-                                placeholderTextColor="rgba(255,255,255,0.6)"
-                                multiline
-                                autoFocus
-                              />
+                              <ScrollView style={styles.quickEditScroll}>
+                                <Text style={styles.quickEditLabel}>Work Type</Text>
+                                <View style={styles.quickEditWorkTypeRow}>
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.quickEditWorkTypeButton,
+                                      quickEditWorkType === 'in-house' && styles.quickEditWorkTypeButtonActive
+                                    ]}
+                                    onPress={() => setQuickEditWorkType('in-house')}
+                                  >
+                                    <Text style={[
+                                      styles.quickEditWorkTypeText,
+                                      quickEditWorkType === 'in-house' && styles.quickEditWorkTypeTextActive
+                                    ]}>🏠 In-House</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.quickEditWorkTypeButton,
+                                      quickEditWorkType === 'subcontractor' && styles.quickEditWorkTypeButtonActive
+                                    ]}
+                                    onPress={() => setQuickEditWorkType('subcontractor')}
+                                  >
+                                    <Text style={[
+                                      styles.quickEditWorkTypeText,
+                                      quickEditWorkType === 'subcontractor' && styles.quickEditWorkTypeTextActive
+                                    ]}>👷 Sub</Text>
+                                  </TouchableOpacity>
+                                </View>
+
+                                <Text style={styles.quickEditLabel}>Notes</Text>
+                                <TextInput
+                                  style={styles.quickEditInput}
+                                  value={quickNoteText}
+                                  onChangeText={setQuickNoteText}
+                                  placeholder="Add notes..."
+                                  placeholderTextColor="rgba(255,255,255,0.6)"
+                                  multiline
+                                  autoFocus
+                                />
+                              </ScrollView>
                               <View style={styles.quickEditButtons}>
                                 <TouchableOpacity
                                   style={styles.quickEditButton}
                                   onPress={() => {
                                     const updatedTasks = scheduledTasks.map(t => 
-                                      t.id === task.id ? { ...t, notes: quickNoteText } : t
+                                      t.id === task.id ? { ...t, notes: quickNoteText, workType: quickEditWorkType } : t
                                     );
                                     setScheduledTasks(updatedTasks);
                                     setQuickEditTask(null);
@@ -799,17 +842,56 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(0,0,0,0.92)',
     borderRadius: 8,
-    padding: 8,
+    padding: 12,
     justifyContent: 'space-between',
   },
-  quickEditInput: {
+  quickEditScroll: {
     flex: 1,
+  },
+  quickEditLabel: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600' as const,
+    marginBottom: 6,
+    opacity: 0.9,
+  },
+  quickEditWorkTypeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  quickEditWorkTypeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+  },
+  quickEditWorkTypeButtonActive: {
+    backgroundColor: '#2563EB',
+  },
+  quickEditWorkTypeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600' as const,
+    opacity: 0.8,
+  },
+  quickEditWorkTypeTextActive: {
+    opacity: 1,
+  },
+  quickEditInput: {
     color: '#FFFFFF',
     fontSize: 12,
     textAlignVertical: 'top',
-    padding: 4,
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 6,
+    minHeight: 60,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   quickEditButtons: {
     flexDirection: 'row',
@@ -834,45 +916,45 @@ const styles = StyleSheet.create({
   },
   resizeHandleRight: {
     position: 'absolute',
-    right: -4,
+    right: -8,
     top: 0,
     bottom: 0,
-    width: 24,
+    width: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
   },
   resizeHandleBottom: {
     position: 'absolute',
-    bottom: -4,
+    bottom: -8,
     left: 0,
     right: 0,
-    height: 24,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 8,
   },
   resizeIndicator: {
-    width: 4,
-    height: 40,
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    borderRadius: 2,
+    width: 6,
+    height: 50,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    elevation: 4,
   },
   resizeIndicatorHorizontal: {
-    height: 4,
-    width: 40,
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    borderRadius: 2,
+    height: 6,
+    width: 50,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    elevation: 4,
   },
   modalOverlay: {
     flex: 1,
