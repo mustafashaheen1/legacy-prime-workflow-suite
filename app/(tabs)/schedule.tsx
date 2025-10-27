@@ -302,11 +302,16 @@ export default function ScheduleScreen() {
             >
               <View style={styles.tasksContainer}>
                 <View style={styles.hourLabels}>
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <View key={i} style={styles.hourLabelRow}>
-                      <Text style={styles.hourText}>{i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}</Text>
-                    </View>
-                  ))}
+                  {Array.from({ length: 15 }, (_, i) => {
+                    const hour = i + 6;
+                    return (
+                      <View key={i} style={styles.hourLabelRow}>
+                        <Text style={styles.hourText}>
+                          {hour === 12 ? '12 PM' : hour < 12 ? `${hour} AM` : hour === 24 ? '12 AM' : `${hour - 12} PM`}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
                 
                 <ScrollView 
@@ -723,14 +728,14 @@ const styles = StyleSheet.create({
   },
   tasksGrid: {
     flexDirection: 'row',
-    minHeight: 1440,
+    minHeight: 900,
     position: 'relative',
   },
   dayGridColumn: {
     width: DAY_WIDTH,
     borderRightWidth: 1,
     borderRightColor: '#F3F4F6',
-    height: 1440,
+    height: 900,
   },
   taskBlock: {
     position: 'absolute',
@@ -829,33 +834,45 @@ const styles = StyleSheet.create({
   },
   resizeHandleRight: {
     position: 'absolute',
-    right: 0,
+    right: -4,
     top: 0,
     bottom: 0,
-    width: 12,
+    width: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 4,
   },
   resizeHandleBottom: {
     position: 'absolute',
-    bottom: 0,
+    bottom: -4,
     left: 0,
     right: 0,
-    height: 12,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 4,
   },
   resizeIndicator: {
-    width: 3,
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    width: 4,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.8)',
     borderRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   resizeIndicatorHorizontal: {
-    height: 3,
-    width: 30,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    height: 4,
+    width: 40,
+    backgroundColor: 'rgba(255,255,255,0.8)',
     borderRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   modalOverlay: {
     flex: 1,
