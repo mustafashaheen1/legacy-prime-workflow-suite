@@ -49,6 +49,9 @@ export default function ScheduleScreen() {
   const [workType, setWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
   const [notes, setNotes] = useState<string>('');
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
+  const [resizingTask, setResizingTask] = useState<{ id: string; type: 'right' | 'bottom' } | null>(null);
+  const [quickEditTask, setQuickEditTask] = useState<string | null>(null);
+  const [quickNoteText, setQuickNoteText] = useState<string>('');
   
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
@@ -91,6 +94,7 @@ export default function ScheduleScreen() {
       notes: '',
       color: categoryData.color,
       row: projectTasks.length,
+      rowSpan: 1,
     };
 
     setScheduledTasks([...scheduledTasks, newTask]);
@@ -121,32 +125,95 @@ export default function ScheduleScreen() {
     );
     if (startIdx === -1) return null;
     
+    const rowSpan = task.rowSpan || 1;
+    const height = rowSpan * ROW_HEIGHT + (rowSpan - 1) * 16;
+    
     return {
       left: LEFT_MARGIN + startIdx * DAY_WIDTH,
       width: task.duration * DAY_WIDTH,
       top: (task.row || 0) * (ROW_HEIGHT + 16),
+      height,
     };
   };
 
   const createPanResponder = (task: ScheduledTask) => {
-    let currentRow = task.row || 0;
+    let initialRow = task.row || 0;
+    let initialStartDate = new Date(task.startDate);
 
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         setDraggedTask(task.id);
+        initialRow = task.row || 0;
+        initialStartDate = new Date(task.startDate);
       },
       onPanResponderMove: (_, gestureState) => {
-        const newRow = Math.max(0, Math.floor((currentRow * (ROW_HEIGHT + 16) + gestureState.dy) / (ROW_HEIGHT + 16)));
+        const newRow = Math.max(0, Math.floor((initialRow * (ROW_HEIGHT + 16) + gestureState.dy) / (ROW_HEIGHT + 16)));
+        const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
+        
+        const newStartDate = new Date(initialStartDate);
+        newStartDate.setDate(initialStartDate.getDate() + daysDelta);
+        
+        const newEndDate = new Date(newStartDate);
+        newEndDate.setDate(newStartDate.getDate() + task.duration);
         
         const updatedTasks = scheduledTasks.map(t => 
-          t.id === task.id ? { ...t, row: newRow } : t
+          t.id === task.id ? { 
+            ...t, 
+            row: newRow,
+            startDate: newStartDate.toISOString(),
+            endDate: newEndDate.toISOString(),
+          } : t
         );
         setScheduledTasks(updatedTasks);
       },
       onPanResponderRelease: () => {
         setDraggedTask(null);
+      },
+    });
+  };
+
+  const createResizePanResponder = (task: ScheduledTask, resizeType: 'right' | 'bottom') => {
+    let initialDuration = task.duration;
+    let initialRow = task.row || 0;
+
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        setResizingTask({ id: task.id, type: resizeType });
+        initialDuration = task.duration;
+        initialRow = task.row || 0;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (resizeType === 'right') {
+          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
+          const newDuration = Math.max(1, initialDuration + daysDelta);
+          
+          const newEndDate = new Date(task.startDate);
+          newEndDate.setDate(newEndDate.getDate() + newDuration);
+          
+          const updatedTasks = scheduledTasks.map(t => 
+            t.id === task.id ? { 
+              ...t, 
+              duration: newDuration,
+              endDate: newEndDate.toISOString(),
+            } : t
+          );
+          setScheduledTasks(updatedTasks);
+        } else if (resizeType === 'bottom') {
+          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
+          const newRowSpan = Math.max(1, (task.rowSpan || 1) + rowsDelta);
+          
+          const updatedTasks = scheduledTasks.map(t => 
+            t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
+          );
+          setScheduledTasks(updatedTasks);
+        }
+      },
+      onPanResponderRelease: () => {
+        setResizingTask(null);
       },
     });
   };
@@ -257,44 +324,106 @@ export default function ScheduleScreen() {
                       const position = getTaskPosition(task);
                       if (!position) return null;
                       const panResponder = createPanResponder(task);
+                      const rightResizeResponder = createResizePanResponder(task, 'right');
+                      const bottomResizeResponder = createResizePanResponder(task, 'bottom');
+                      const isQuickEditing = quickEditTask === task.id;
 
                       return (
                         <View
                           key={task.id}
-                          {...panResponder.panHandlers}
                           style={[
                             styles.taskBlock,
                             {
                               left: position.left,
                               top: position.top,
                               width: position.width,
+                              height: position.height,
                               backgroundColor: task.color,
                             },
                             draggedTask === task.id && styles.taskBlockDragging,
+                            resizingTask?.id === task.id && styles.taskBlockResizing,
                           ]}
                         >
-                          <TouchableOpacity
+                          <View
+                            {...panResponder.panHandlers}
                             style={styles.taskContent}
-                            onPress={() => {
-                              setEditingTask(task);
-                              setWorkType(task.workType);
-                              setNotes(task.notes || '');
-                              setShowModal(true);
-                            }}
                           >
-                            <Text style={styles.taskTitle} numberOfLines={1}>
-                              {task.category}
-                            </Text>
-                            <Text style={styles.taskSubtitle} numberOfLines={1}>
-                              {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                            </Text>
-                            <Text style={styles.taskDuration}>
-                              {task.duration} days
-                            </Text>
-                          </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => {
+                                setQuickEditTask(task.id);
+                                setQuickNoteText(task.notes || '');
+                              }}
+                              onLongPress={() => {
+                                setEditingTask(task);
+                                setWorkType(task.workType);
+                                setNotes(task.notes || '');
+                                setShowModal(true);
+                              }}
+                              delayLongPress={500}
+                            >
+                              <Text style={styles.taskTitle} numberOfLines={1}>
+                                {task.category}
+                              </Text>
+                              <Text style={styles.taskSubtitle} numberOfLines={1}>
+                                {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                              </Text>
+                              <Text style={styles.taskDuration}>
+                                {task.duration} days
+                              </Text>
+                              {task.notes && !isQuickEditing && (
+                                <Text style={styles.taskNotes} numberOfLines={2}>
+                                  {task.notes}
+                                </Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+
+                          {isQuickEditing && (
+                            <View style={styles.quickEditContainer}>
+                              <TextInput
+                                style={styles.quickEditInput}
+                                value={quickNoteText}
+                                onChangeText={setQuickNoteText}
+                                placeholder="Add notes..."
+                                placeholderTextColor="rgba(255,255,255,0.6)"
+                                multiline
+                                autoFocus
+                              />
+                              <View style={styles.quickEditButtons}>
+                                <TouchableOpacity
+                                  style={styles.quickEditButton}
+                                  onPress={() => {
+                                    const updatedTasks = scheduledTasks.map(t => 
+                                      t.id === task.id ? { ...t, notes: quickNoteText } : t
+                                    );
+                                    setScheduledTasks(updatedTasks);
+                                    setQuickEditTask(null);
+                                  }}
+                                >
+                                  <Text style={styles.quickEditButtonText}>Save</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={[styles.quickEditButton, styles.quickEditButtonCancel]}
+                                  onPress={() => setQuickEditTask(null)}
+                                >
+                                  <Text style={styles.quickEditButtonText}>Cancel</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          )}
                           
-                          <View style={styles.dragHandle}>
-                            <GripVertical size={16} color="#FFFFFF" />
+                          <View 
+                            {...rightResizeResponder.panHandlers}
+                            style={styles.resizeHandleRight}
+                          >
+                            <View style={styles.resizeIndicator} />
+                          </View>
+
+                          <View 
+                            {...bottomResizeResponder.panHandlers}
+                            style={styles.resizeHandleBottom}
+                          >
+                            <View style={styles.resizeIndicatorHorizontal} />
                           </View>
                           
                           <TouchableOpacity
@@ -605,7 +734,6 @@ const styles = StyleSheet.create({
   },
   taskBlock: {
     position: 'absolute',
-    height: ROW_HEIGHT,
     borderRadius: 8,
     padding: 8,
     marginVertical: 8,
@@ -635,17 +763,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     marginTop: 2,
   },
-  dragHandle: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 10,
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   deleteTaskButton: {
     position: 'absolute',
     top: 4,
@@ -660,6 +778,84 @@ const styles = StyleSheet.create({
   taskBlockDragging: {
     opacity: 0.8,
     transform: [{ scale: 1.05 }],
+  },
+  taskBlockResizing: {
+    opacity: 0.9,
+  },
+  taskNotes: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    opacity: 0.85,
+    marginTop: 4,
+  },
+  quickEditContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    borderRadius: 8,
+    padding: 8,
+    justifyContent: 'space-between',
+  },
+  quickEditInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 12,
+    textAlignVertical: 'top',
+    padding: 4,
+  },
+  quickEditButtons: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+  },
+  quickEditButton: {
+    flex: 1,
+    backgroundColor: '#10B981',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    alignItems: 'center',
+  },
+  quickEditButtonCancel: {
+    backgroundColor: '#6B7280',
+  },
+  quickEditButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600' as const,
+  },
+  resizeHandleRight: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resizeHandleBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resizeIndicator: {
+    width: 3,
+    height: 30,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 2,
+  },
+  resizeIndicatorHorizontal: {
+    height: 3,
+    width: 30,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 2,
   },
   modalOverlay: {
     flex: 1,

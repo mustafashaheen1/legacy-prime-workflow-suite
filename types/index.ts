@@ -275,4 +275,5 @@ export interface ScheduledTask {
   notes?: string;
   color: string;
   row?: number;
+  rowSpan?: number;
 }
