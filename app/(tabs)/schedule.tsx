@@ -49,7 +49,8 @@ export default function ScheduleScreen() {
   const [workType, setWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
   const [notes, setNotes] = useState<string>('');
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
-  const [resizingTask, setResizingTask] = useState<{ id: string; type: 'right' | 'bottom' } | null>(null);
+  const [resizingTask, setResizingTask] = useState<{ id: string; type: 'right' | 'bottom' | 'corner' } | null>(null);
+  const [touchingHandle, setTouchingHandle] = useState<{ id: string; type: 'right' | 'bottom' | 'corner' } | null>(null);
   const [quickEditTask, setQuickEditTask] = useState<string | null>(null);
   const [quickNoteText, setQuickNoteText] = useState<string>('');
   const [quickEditWorkType, setQuickEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
@@ -178,18 +179,19 @@ export default function ScheduleScreen() {
     });
   };
 
-  const createResizePanResponder = (task: ScheduledTask, resizeType: 'right' | 'bottom') => {
+  const createResizePanResponder = (task: ScheduledTask, resizeType: 'right' | 'bottom' | 'corner') => {
     let initialDuration = task.duration;
     let initialRowSpan = task.rowSpan || 1;
 
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        const threshold = 3;
+        const threshold = 2;
         return Math.abs(gestureState.dx) > threshold || Math.abs(gestureState.dy) > threshold;
       },
       onPanResponderGrant: () => {
         setResizingTask({ id: task.id, type: resizeType });
+        setTouchingHandle({ id: task.id, type: resizeType });
         initialDuration = task.duration;
         initialRowSpan = task.rowSpan || 1;
       },
@@ -217,10 +219,30 @@ export default function ScheduleScreen() {
             t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
           );
           setScheduledTasks(updatedTasks);
+        } else if (resizeType === 'corner') {
+          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
+          const newDuration = Math.max(1, initialDuration + daysDelta);
+          
+          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
+          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
+          
+          const newEndDate = new Date(task.startDate);
+          newEndDate.setDate(newEndDate.getDate() + newDuration);
+          
+          const updatedTasks = scheduledTasks.map(t => 
+            t.id === task.id ? { 
+              ...t, 
+              duration: newDuration,
+              endDate: newEndDate.toISOString(),
+              rowSpan: newRowSpan,
+            } : t
+          );
+          setScheduledTasks(updatedTasks);
         }
       },
       onPanResponderRelease: () => {
         setResizingTask(null);
+        setTouchingHandle(null);
       },
     });
   };
@@ -338,6 +360,7 @@ export default function ScheduleScreen() {
                       const panResponder = createPanResponder(task);
                       const rightResizeResponder = createResizePanResponder(task, 'right');
                       const bottomResizeResponder = createResizePanResponder(task, 'bottom');
+                      const cornerResizeResponder = createResizePanResponder(task, 'corner');
                       const isQuickEditing = quickEditTask === task.id;
 
                       const handleTaskTap = () => {
@@ -353,6 +376,10 @@ export default function ScheduleScreen() {
                           setLastTap(now);
                         }
                       };
+
+                      const isTouchingRightHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'right';
+                      const isTouchingBottomHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'bottom';
+                      const isTouchingCornerHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'corner';
 
                       return (
                         <View
@@ -462,16 +489,41 @@ export default function ScheduleScreen() {
                           
                           <View 
                             {...rightResizeResponder.panHandlers}
-                            style={styles.resizeHandleRight}
+                            style={[
+                              styles.resizeHandleRight,
+                              isTouchingRightHandle && styles.resizeHandleActive,
+                            ]}
                           >
-                            <View style={styles.resizeIndicator} />
+                            <View style={[
+                              styles.resizeIndicator,
+                              isTouchingRightHandle && styles.resizeIndicatorActive,
+                            ]} />
                           </View>
 
                           <View 
                             {...bottomResizeResponder.panHandlers}
-                            style={styles.resizeHandleBottom}
+                            style={[
+                              styles.resizeHandleBottom,
+                              isTouchingBottomHandle && styles.resizeHandleActive,
+                            ]}
                           >
-                            <View style={styles.resizeIndicatorHorizontal} />
+                            <View style={[
+                              styles.resizeIndicatorHorizontal,
+                              isTouchingBottomHandle && styles.resizeIndicatorActive,
+                            ]} />
+                          </View>
+
+                          <View 
+                            {...cornerResizeResponder.panHandlers}
+                            style={[
+                              styles.resizeHandleCorner,
+                              isTouchingCornerHandle && styles.resizeHandleActive,
+                            ]}
+                          >
+                            <View style={[
+                              styles.resizeIndicatorCorner,
+                              isTouchingCornerHandle && styles.resizeIndicatorActive,
+                            ]} />
                           </View>
                           
                           <TouchableOpacity
@@ -916,45 +968,77 @@ const styles = StyleSheet.create({
   },
   resizeHandleRight: {
     position: 'absolute',
-    right: -8,
+    right: -20,
     top: 0,
     bottom: 0,
-    width: 36,
+    width: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 8,
   },
   resizeHandleBottom: {
     position: 'absolute',
-    bottom: -8,
+    bottom: -20,
     left: 0,
-    right: 0,
-    height: 36,
+    right: 60,
+    height: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
+  },
+  resizeHandleCorner: {
+    position: 'absolute',
+    bottom: -20,
+    right: -20,
+    width: 70,
+    height: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resizeHandleActive: {
+    backgroundColor: 'rgba(37, 99, 235, 0.2)',
   },
   resizeIndicator: {
-    width: 6,
-    height: 50,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 3,
+    width: 8,
+    height: 60,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: 'rgba(37, 99, 235, 0.6)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 3,
-    elevation: 4,
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 5,
   },
   resizeIndicatorHorizontal: {
-    height: 6,
-    width: 50,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 3,
+    height: 8,
+    width: 60,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: 'rgba(37, 99, 235, 0.6)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 3,
-    elevation: 4,
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  resizeIndicatorCorner: {
+    width: 24,
+    height: 24,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: 'rgba(37, 99, 235, 0.8)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.6,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  resizeIndicatorActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#FFFFFF',
+    transform: [{ scale: 1.2 }],
   },
   modalOverlay: {
     flex: 1,
