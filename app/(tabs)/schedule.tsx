@@ -6,9 +6,10 @@ import {
   TouchableOpacity, 
   TextInput,
   Modal,
-  Platform
+  Platform,
+  PanResponder
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Calendar, X, GripVertical } from 'lucide-react-native';
@@ -33,9 +34,12 @@ const CONSTRUCTION_CATEGORIES = [
 
 const DAY_WIDTH = 80;
 const ROW_HEIGHT = 60;
+const HOUR_HEIGHT = 60;
+const LEFT_MARGIN = 60;
 
 export default function ScheduleScreen() {
   const { projects } = useApp();
+  const insets = useSafeAreaInsets();
   const [selectedProject, setSelectedProject] = useState<string | null>(
     projects.length > 0 ? projects[0].id : null
   );
@@ -44,6 +48,7 @@ export default function ScheduleScreen() {
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
   const [workType, setWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
   const [notes, setNotes] = useState<string>('');
+  const [draggedTask, setDraggedTask] = useState<string | null>(null);
   
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
@@ -67,29 +72,28 @@ export default function ScheduleScreen() {
     return `${month} ${day}`;
   };
 
-  const handleCategoryDrop = (category: string, date: Date) => {
+  const handleCategoryClick = (category: string) => {
     const categoryData = CONSTRUCTION_CATEGORIES.find(c => c.name === category);
     if (!categoryData || !selectedProject) return;
 
-    const endDate = new Date(date);
-    endDate.setDate(date.getDate() + 7);
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 7);
 
     const newTask: ScheduledTask = {
       id: Date.now().toString(),
       projectId: selectedProject,
       category: category,
-      startDate: date.toISOString(),
+      startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       duration: 7,
       workType: 'in-house',
       notes: '',
       color: categoryData.color,
+      row: projectTasks.length,
     };
 
-    setEditingTask(newTask);
-    setWorkType('in-house');
-    setNotes('');
-    setShowModal(true);
+    setScheduledTasks([...scheduledTasks, newTask]);
   };
 
   const handleSaveTask = () => {
@@ -118,14 +122,38 @@ export default function ScheduleScreen() {
     if (startIdx === -1) return null;
     
     return {
-      left: startIdx * DAY_WIDTH,
+      left: LEFT_MARGIN + startIdx * DAY_WIDTH,
       width: task.duration * DAY_WIDTH,
+      top: (task.row || 0) * (ROW_HEIGHT + 16),
     };
   };
 
+  const createPanResponder = (task: ScheduledTask) => {
+    let currentRow = task.row || 0;
+
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        setDraggedTask(task.id);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newRow = Math.max(0, Math.floor((currentRow * (ROW_HEIGHT + 16) + gestureState.dy) / (ROW_HEIGHT + 16)));
+        
+        const updatedTasks = scheduledTasks.map(t => 
+          t.id === task.id ? { ...t, row: newRow } : t
+        );
+        setScheduledTasks(updatedTasks);
+      },
+      onPanResponderRelease: () => {
+        setDraggedTask(null);
+      },
+    });
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.bgArea} />
       <View style={styles.header}>
         <Text style={styles.title}>Project Schedule</Text>
       </View>
@@ -164,13 +192,13 @@ export default function ScheduleScreen() {
         <>
           <View style={styles.categoriesSection}>
             <Text style={styles.sectionTitle}>Construction Phases</Text>
-            <Text style={styles.sectionSubtitle}>Drag to timeline to schedule</Text>
+            <Text style={styles.sectionSubtitle}>Tap to add to schedule</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesList}>
               {CONSTRUCTION_CATEGORIES.map(category => (
                 <TouchableOpacity
                   key={category.name}
                   style={[styles.categoryChip, { backgroundColor: category.color }]}
-                  onPress={() => handleCategoryDrop(category.name, new Date())}
+                  onPress={() => handleCategoryClick(category.name)}
                 >
                   <GripVertical size={16} color="#FFFFFF" />
                   <Text style={styles.categoryText}>{category.name}</Text>
@@ -181,6 +209,7 @@ export default function ScheduleScreen() {
 
           <View style={styles.timeline}>
             <View style={styles.timelineHeader}>
+              <View style={styles.hourLabelHeader} />
               <ScrollView 
                 ref={timelineRef}
                 horizontal 
@@ -204,63 +233,82 @@ export default function ScheduleScreen() {
               style={styles.tasksArea}
               showsVerticalScrollIndicator={false}
             >
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                scrollEnabled={true}
-              >
-                <View style={styles.tasksGrid}>
-                  {dates.map((date, idx) => (
-                    <View key={idx} style={styles.dayGridColumn} />
+              <View style={styles.tasksContainer}>
+                <View style={styles.hourLabels}>
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <View key={i} style={styles.hourLabelRow}>
+                      <Text style={styles.hourText}>{i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}</Text>
+                    </View>
                   ))}
-                  
-                  {projectTasks.map((task) => {
-                    const position = getTaskPosition(task);
-                    if (!position) return null;
-
-                    return (
-                      <View
-                        key={task.id}
-                        style={[
-                          styles.taskBlock,
-                          {
-                            left: position.left,
-                            width: position.width,
-                            backgroundColor: task.color,
-                          }
-                        ]}
-                      >
-                        <TouchableOpacity
-                          style={styles.taskContent}
-                          onPress={() => {
-                            setEditingTask(task);
-                            setWorkType(task.workType);
-                            setNotes(task.notes || '');
-                            setShowModal(true);
-                          }}
-                        >
-                          <Text style={styles.taskTitle} numberOfLines={1}>
-                            {task.category}
-                          </Text>
-                          <Text style={styles.taskSubtitle} numberOfLines={1}>
-                            {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                          </Text>
-                          <Text style={styles.taskDuration}>
-                            {task.duration} days
-                          </Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity
-                          style={styles.deleteTaskButton}
-                          onPress={() => handleDeleteTask(task.id)}
-                        >
-                          <X size={14} color="#FFFFFF" />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
                 </View>
-              </ScrollView>
+                
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  scrollEnabled={true}
+                  style={styles.tasksScrollView}
+                >
+                  <View style={styles.tasksGrid}>
+                    {dates.map((date, idx) => (
+                      <View key={idx} style={styles.dayGridColumn} />
+                    ))}
+                    
+                    {projectTasks.map((task) => {
+                      const position = getTaskPosition(task);
+                      if (!position) return null;
+                      const panResponder = createPanResponder(task);
+
+                      return (
+                        <View
+                          key={task.id}
+                          {...panResponder.panHandlers}
+                          style={[
+                            styles.taskBlock,
+                            {
+                              left: position.left,
+                              top: position.top,
+                              width: position.width,
+                              backgroundColor: task.color,
+                            },
+                            draggedTask === task.id && styles.taskBlockDragging,
+                          ]}
+                        >
+                          <TouchableOpacity
+                            style={styles.taskContent}
+                            onPress={() => {
+                              setEditingTask(task);
+                              setWorkType(task.workType);
+                              setNotes(task.notes || '');
+                              setShowModal(true);
+                            }}
+                          >
+                            <Text style={styles.taskTitle} numberOfLines={1}>
+                              {task.category}
+                            </Text>
+                            <Text style={styles.taskSubtitle} numberOfLines={1}>
+                              {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                            </Text>
+                            <Text style={styles.taskDuration}>
+                              {task.duration} days
+                            </Text>
+                          </TouchableOpacity>
+                          
+                          <View style={styles.dragHandle}>
+                            <GripVertical size={16} color="#FFFFFF" />
+                          </View>
+                          
+                          <TouchableOpacity
+                            style={styles.deleteTaskButton}
+                            onPress={() => handleDeleteTask(task.id)}
+                          >
+                            <X size={14} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
             </ScrollView>
           </View>
         </>
@@ -379,18 +427,21 @@ export default function ScheduleScreen() {
         </View>
       </Modal>
       </View>
-    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: '#2563EB',
   },
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
+  bgArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 200,
+    backgroundColor: '#2563EB',
   },
   header: {
     backgroundColor: '#FFFFFF',
@@ -483,8 +534,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   timelineHeader: {
+    flexDirection: 'row',
     borderBottomWidth: 2,
     borderBottomColor: '#E5E7EB',
+  },
+  hourLabelHeader: {
+    width: LEFT_MARGIN,
+    backgroundColor: '#FFFFFF',
   },
   timelineScroll: {
     maxHeight: 60,
@@ -512,15 +568,40 @@ const styles = StyleSheet.create({
   tasksArea: {
     flex: 1,
   },
+  tasksContainer: {
+    flexDirection: 'row',
+  },
+  hourLabels: {
+    width: LEFT_MARGIN,
+    backgroundColor: '#F9FAFB',
+    borderRightWidth: 2,
+    borderRightColor: '#E5E7EB',
+  },
+  hourLabelRow: {
+    height: HOUR_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  hourText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  tasksScrollView: {
+    flex: 1,
+  },
   tasksGrid: {
     flexDirection: 'row',
-    minHeight: 400,
+    minHeight: 1440,
     position: 'relative',
   },
   dayGridColumn: {
     width: DAY_WIDTH,
     borderRightWidth: 1,
     borderRightColor: '#F3F4F6',
+    height: 1440,
   },
   taskBlock: {
     position: 'absolute',
@@ -554,6 +635,17 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     marginTop: 2,
   },
+  dragHandle: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 10,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   deleteTaskButton: {
     position: 'absolute',
     top: 4,
@@ -564,6 +656,10 @@ const styles = StyleSheet.create({
     height: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  taskBlockDragging: {
+    opacity: 0.8,
+    transform: [{ scale: 1.05 }],
   },
   modalOverlay: {
     flex: 1,

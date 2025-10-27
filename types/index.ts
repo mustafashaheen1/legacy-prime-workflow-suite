@@ -274,4 +274,5 @@ export interface ScheduledTask {
   workType: 'in-house' | 'subcontractor';
   notes?: string;
   color: string;
+  row?: number;
 }
