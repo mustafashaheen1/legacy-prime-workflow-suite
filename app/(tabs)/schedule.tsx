@@ -468,18 +468,24 @@ export default function ScheduleScreen() {
                                 <TouchableOpacity
                                   style={styles.quickEditButton}
                                   onPress={() => {
+                                    console.log('Saving notes:', quickNoteText);
+                                    console.log('Saving work type:', quickEditWorkType);
                                     const updatedTasks = scheduledTasks.map(t => 
                                       t.id === task.id ? { ...t, notes: quickNoteText, workType: quickEditWorkType } : t
                                     );
                                     setScheduledTasks(updatedTasks);
                                     setQuickEditTask(null);
+                                    setQuickNoteText('');
                                   }}
                                 >
                                   <Text style={styles.quickEditButtonText}>Save</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                   style={[styles.quickEditButton, styles.quickEditButtonCancel]}
-                                  onPress={() => setQuickEditTask(null)}
+                                  onPress={() => {
+                                    setQuickEditTask(null);
+                                    setQuickNoteText('');
+                                  }}
                                 >
                                   <Text style={styles.quickEditButtonText}>Cancel</Text>
                                 </TouchableOpacity>
@@ -939,11 +945,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlignVertical: 'top',
     padding: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 6,
     minHeight: 60,
+    maxHeight: 100,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   quickEditButtons: {
     flexDirection: 'row',
@@ -953,9 +960,9 @@ const styles = StyleSheet.create({
   quickEditButton: {
     flex: 1,
     backgroundColor: '#10B981',
-    paddingVertical: 6,
+    paddingVertical: 10,
     paddingHorizontal: 8,
-    borderRadius: 4,
+    borderRadius: 6,
     alignItems: 'center',
   },
   quickEditButtonCancel: {
@@ -963,8 +970,8 @@ const styles = StyleSheet.create({
   },
   quickEditButtonText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600' as const,
+    fontSize: 13,
+    fontWeight: '700' as const,
   },
   resizeHandleRight: {
     position: 'absolute',
