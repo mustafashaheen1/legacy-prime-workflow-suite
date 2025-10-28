@@ -917,7 +917,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                     {message.parts.map((part, i) => {
                       if (part.type === 'text') {
                         return (
-                          <Text key={i} style={styles.userMessageText}>
+                          <Text key={i} style={styles.userMessageText} selectable>
                             {part.text}
                           </Text>
                         );
@@ -934,7 +934,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                       if (part.type === 'text') {
                         return (
                           <View key={i}>
-                            <Text style={styles.assistantMessageText}>
+                            <Text style={styles.assistantMessageText} selectable>
                               {part.text}
                             </Text>
                             {part.text && (
