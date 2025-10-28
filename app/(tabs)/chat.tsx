@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions } from 'react-native';
 import { useState, useMemo } from 'react';
-import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles } from 'lucide-react-native';
+import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles, Copy, Check as CheckIcon } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -27,6 +28,7 @@ export default function ChatScreen() {
   const [newChatSearch, setNewChatSearch] = useState<string>('');
   const [showAIChat, setShowAIChat] = useState<boolean>(false);
   const [pendingAnnotation, setPendingAnnotation] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
@@ -272,10 +274,91 @@ export default function ChatScreen() {
     setPendingAnnotation(null);
   };
 
+  const handleCopyText = async (text: string | undefined, messageId: string) => {
+    if (!text) return;
+    try {
+      await Clipboard.setStringAsync(text);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+      Alert.alert('Error', 'Failed to copy text');
+    }
+  };
+
+  const handlePasteText = async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (text) {
+        setMessageText(prev => prev + text);
+      }
+    } catch (error) {
+      console.error('Failed to paste text:', error);
+      Alert.alert('Error', 'Failed to paste text');
+    }
+  };
+
+  const handleCopyImage = async (imageUri: string | undefined) => {
+    if (!imageUri) return;
+    try {
+      if (Platform.OS === 'web') {
+        Alert.alert('Info', 'Image copied to clipboard. On web, you can right-click the image to copy.');
+      } else {
+        await Clipboard.setImageAsync(imageUri);
+        Alert.alert('Success', 'Image copied to clipboard');
+      }
+    } catch (error) {
+      console.error('Failed to copy image:', error);
+      Alert.alert('Error', 'Failed to copy image');
+    }
+  };
+
+  const handlePasteImage = async () => {
+    try {
+      const hasImage = await Clipboard.hasImageAsync();
+      if (hasImage && selectedChat) {
+        const imageUri = await Clipboard.getImageAsync({ format: 'png' });
+        if (imageUri && imageUri.data) {
+          const dataUri = `data:image/png;base64,${imageUri.data}`;
+          const newMessage: ChatMessage = {
+            id: Date.now().toString(),
+            senderId: user?.id || '1',
+            type: 'image',
+            content: dataUri,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          addMessageToConversation(selectedChat, newMessage);
+        }
+      } else {
+        Alert.alert('Info', 'No image in clipboard');
+      }
+    } catch (error) {
+      console.error('Failed to paste image:', error);
+      Alert.alert('Error', 'Failed to paste image from clipboard');
+    }
+  };
+
   const renderMessageContent = (message: ChatMessage) => {
     switch (message.type) {
       case 'text':
-        return <Text style={[styles.messageText, message.senderId === user?.id && styles.messageTextOwn]}>{message.text}</Text>;
+        return (
+          <View>
+            <Text style={[styles.messageText, message.senderId === user?.id && styles.messageTextOwn]}>{message.text}</Text>
+            <TouchableOpacity 
+              style={styles.copyButton}
+              onPress={() => handleCopyText(message.text, message.id)}
+            >
+              {copiedMessageId === message.id ? (
+                <CheckIcon size={14} color={message.senderId === user?.id ? '#10B981' : '#FFFFFF'} />
+              ) : (
+                <Copy size={14} color={message.senderId === user?.id ? '#6B7280' : '#FFFFFF'} />
+              )}
+              <Text style={[styles.copyButtonText, message.senderId === user?.id && styles.copyButtonTextOwn]}>
+                {copiedMessageId === message.id ? 'Copied' : 'Copy'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        );
       
       case 'voice':
         return (
@@ -297,13 +380,22 @@ export default function ChatScreen() {
       
       case 'image':
         return (
-          <TouchableOpacity onPress={() => setSelectedImage(message.content || null)}>
-            <Image
-              source={{ uri: message.content }}
-              style={styles.messageImage}
-              contentFit="cover"
-            />
-          </TouchableOpacity>
+          <View>
+            <TouchableOpacity onPress={() => setSelectedImage(message.content || null)}>
+              <Image
+                source={{ uri: message.content }}
+                style={styles.messageImage}
+                contentFit="cover"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.copyImageButton}
+              onPress={() => handleCopyImage(message.content)}
+            >
+              <Copy size={14} color="#FFFFFF" />
+              <Text style={styles.copyImageButtonText}>Copy Image</Text>
+            </TouchableOpacity>
+          </View>
         );
 
       case 'file':
@@ -508,30 +600,46 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View style={styles.inputContainer}>
-                  <TouchableOpacity 
-                    style={styles.attachButton}
-                    onPress={() => setShowAttachMenu(true)}
-                  >
-                    <Paperclip size={20} color="#6B7280" />
-                  </TouchableOpacity>
-                  <TextInput
-                    style={styles.messageInput}
-                    placeholder="Type a message..."
-                    placeholderTextColor="#9CA3AF"
-                    value={messageText}
-                    onChangeText={setMessageText}
-                    multiline
-                  />
-                  {messageText.trim() ? (
-                    <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
-                      <Send size={20} color="#FFFFFF" />
+                <View>
+                  <View style={styles.pasteButtonContainer}>
+                    <TouchableOpacity 
+                      style={styles.pasteTextButton}
+                      onPress={handlePasteText}
+                    >
+                      <Text style={styles.pasteButtonText}>📋 Paste Text</Text>
                     </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity style={styles.voiceButton} onPress={startRecording}>
-                      <Mic size={20} color="#2563EB" />
+                    <TouchableOpacity 
+                      style={styles.pasteImageButton}
+                      onPress={handlePasteImage}
+                    >
+                      <Text style={styles.pasteButtonText}>🖼️ Paste Image</Text>
                     </TouchableOpacity>
-                  )}
+                  </View>
+                  <View style={styles.inputContainer}>
+                    <TouchableOpacity 
+                      style={styles.attachButton}
+                      onPress={() => setShowAttachMenu(true)}
+                    >
+                      <Paperclip size={20} color="#6B7280" />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.messageInput}
+                      placeholder="Type a message..."
+                      placeholderTextColor="#9CA3AF"
+                      value={messageText}
+                      onChangeText={setMessageText}
+                      multiline
+                    />
+                    {messageText.trim() ? (
+                      <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
+                        <Send size={20} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity style={styles.voiceButton} onPress={startRecording}>
+                        <Mic size={20} color="#2563EB" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               )}
             </>
@@ -1195,6 +1303,68 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 4,
     textAlign: 'center',
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignSelf: 'flex-start',
+  },
+  copyButtonText: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: '#FFFFFF',
+  },
+  copyButtonTextOwn: {
+    color: '#6B7280',
+  },
+  copyImageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignSelf: 'flex-start',
+  },
+  copyImageButtonText: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: '#FFFFFF',
+  },
+  pasteButtonContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  pasteTextButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+  },
+  pasteImageButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#F0FDF4',
+    alignItems: 'center',
+  },
+  pasteButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#1F2937',
   },
   mobileHeader: {
     flexDirection: 'row',
