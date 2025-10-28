@@ -33,6 +33,8 @@ export default function EstimateScreen() {
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [draftId, setDraftId] = useState<string>(`draft-${Date.now()}`);
   const [isLoadingDraft, setIsLoadingDraft] = useState<boolean>(true);
+  const [showAddSeparatorModal, setShowAddSeparatorModal] = useState<boolean>(false);
+  const [newSeparatorLabel, setNewSeparatorLabel] = useState<string>('');
 
   const project = projects.find(p => p.id === id);
 
@@ -249,8 +251,8 @@ export default function EstimateScreen() {
   };
 
   const calculateTotals = () => {
-    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-    const totalBudget = items.reduce((sum, item) => sum + (item.budget || 0), 0);
+    const subtotal = items.reduce((sum, item) => item.isSeparator ? sum : sum + item.total, 0);
+    const totalBudget = items.reduce((sum, item) => item.isSeparator ? sum : sum + (item.budget || 0), 0);
     const markupPercentNum = parseFloat(markupPercent) || 0;
     const taxPercentNum = parseFloat(taxPercent) || 0;
     const markupAmount = subtotal * (markupPercentNum / 100);
@@ -261,8 +263,30 @@ export default function EstimateScreen() {
     return { subtotal, totalBudget, markupPercent: markupPercentNum, markupAmount, subtotalWithMarkup, taxRate: taxPercentNum, taxAmount, total };
   };
 
+  const addSeparator = () => {
+    const newSeparator: EstimateItem = {
+      id: `separator-${Date.now()}`,
+      priceListItemId: 'separator',
+      quantity: 0,
+      unitPrice: 0,
+      total: 0,
+      isSeparator: true,
+      separatorLabel: newSeparatorLabel.trim() || 'Section',
+    };
+    setItems(prev => [...prev, newSeparator]);
+    setShowAddSeparatorModal(false);
+    setNewSeparatorLabel('');
+  };
+
+  const updateSeparatorLabel = (itemId: string, label: string) => {
+    setItems(prev => prev.map(item => 
+      item.id === itemId ? { ...item, separatorLabel: label } : item
+    ));
+  };
+
   const validateEstimate = (): { subtotal: number; markupPercent: number; markupAmount: number; subtotalWithMarkup: number; taxRate: number; taxAmount: number; total: number } | null => {
-    if (items.length === 0) {
+    const actualItems = items.filter(item => !item.isSeparator);
+    if (actualItems.length === 0) {
       Alert.alert('Error', 'Please add at least one item to the estimate');
       return null;
     }
@@ -322,6 +346,9 @@ export default function EstimateScreen() {
     await clearDraft();
 
     const itemsText = items.map((item, index) => {
+      if (item.isSeparator) {
+        return `\n--- ${item.separatorLabel?.toUpperCase() || 'SECTION'} ---\n`;
+      }
       const priceListItem = getPriceListItem(item.priceListItemId);
       const isCustom = item.priceListItemId === 'custom';
       const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
@@ -387,6 +414,9 @@ export default function EstimateScreen() {
     await clearDraft();
 
     const itemsText = items.map((item, index) => {
+      if (item.isSeparator) {
+        return `\n--- ${item.separatorLabel?.toUpperCase() || 'SECTION'} ---\n`;
+      }
       const priceListItem = getPriceListItem(item.priceListItemId);
       const isCustom = item.priceListItemId === 'custom';
       const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
@@ -578,7 +608,7 @@ export default function EstimateScreen() {
                 }}
               >
                 <Trash2 size={16} color="#EF4444" />
-                <Text style={styles.deleteCategoryButtonText}>Delete "{selectedCategory}" Category</Text>
+                <Text style={styles.deleteCategoryButtonText}>Delete &quot;{selectedCategory}&quot; Category</Text>
               </TouchableOpacity>
             )}
             <View style={styles.categoryBottomSpace} />
@@ -587,11 +617,41 @@ export default function EstimateScreen() {
 
         <View style={[styles.selectedItemsSection, isNarrow && styles.selectedItemsSectionNarrow]}>
           <View style={styles.selectedItemsHeader}>
-            <Text style={styles.sectionLabel}>Selected Items ({items.length})</Text>
+            <Text style={styles.sectionLabel}>Selected Items ({items.filter(i => !i.isSeparator).length})</Text>
+            <TouchableOpacity 
+              style={styles.addBreakPointButton}
+              onPress={() => setShowAddSeparatorModal(true)}
+            >
+              <Plus size={16} color="#F59E0B" />
+              <Text style={styles.addBreakPointButtonText}>Break Point</Text>
+            </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.itemsList} showsVerticalScrollIndicator={true}>
             {items.map((item) => {
+              if (item.isSeparator) {
+                return (
+                  <View key={item.id} style={styles.separatorItem}>
+                    <View style={styles.separatorContent}>
+                      <View style={styles.separatorLine} />
+                      <TextInput
+                        style={styles.separatorLabel}
+                        value={item.separatorLabel || ''}
+                        onChangeText={(text) => updateSeparatorLabel(item.id, text)}
+                        placeholder="Section Name"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                      <View style={styles.separatorLine} />
+                    </View>
+                    <TouchableOpacity 
+                      onPress={() => removeItem(item.id)}
+                      style={styles.separatorDeleteButton}
+                    >
+                      <Trash2 size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
               const priceListItem = getPriceListItem(item.priceListItemId);
               const isCustom = item.priceListItemId === 'custom';
               const isEditing = editingItemId === item.id;
@@ -1017,6 +1077,44 @@ export default function EstimateScreen() {
         </View>
       )}
 
+      {showAddSeparatorModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Break Point</Text>
+            <Text style={styles.modalSubtitle}>Add a category separator to organize your line items</Text>
+            
+            <Text style={styles.modalLabel}>Section Name *</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newSeparatorLabel}
+              onChangeText={setNewSeparatorLabel}
+              placeholder="e.g., Bathroom, Kitchen, Exterior"
+              placeholderTextColor="#9CA3AF"
+              autoFocus
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowAddSeparatorModal(false);
+                  setNewSeparatorLabel('');
+                }}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.modalAddButton}
+                onPress={addSeparator}
+              >
+                <Text style={styles.modalAddButtonText}>Add Break Point</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
       {showPreview && (
         <View style={styles.modalOverlay}>
           <View style={styles.previewModalContent}>
@@ -1039,6 +1137,15 @@ export default function EstimateScreen() {
                 <Text style={styles.previewSectionTitle}>LINE ITEMS</Text>
                 
                 {items.map((item, index) => {
+                  if (item.isSeparator) {
+                    return (
+                      <View key={item.id} style={styles.previewSeparator}>
+                        <View style={styles.previewSeparatorLine} />
+                        <Text style={styles.previewSeparatorLabel}>{item.separatorLabel?.toUpperCase() || 'SECTION'}</Text>
+                        <View style={styles.previewSeparatorLine} />
+                      </View>
+                    );
+                  }
                   const priceListItem = getPriceListItem(item.priceListItemId);
                   const isCustom = item.priceListItemId === 'custom';
                   const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
@@ -1272,6 +1379,9 @@ const styles = StyleSheet.create({
     flex: 2,
   },
   selectedItemsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
@@ -2035,5 +2145,72 @@ const styles = StyleSheet.create({
   },
   budgetTotalTextNarrow: {
     fontSize: 9,
+  },
+  separatorItem: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    borderStyle: 'dashed',
+  },
+  separatorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#F59E0B',
+  },
+  separatorLabel: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#F59E0B',
+    textAlign: 'center',
+    minWidth: 120,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  separatorDeleteButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    padding: 4,
+  },
+  addBreakPointButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  addBreakPointButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#F59E0B',
+  },
+  previewSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginVertical: 16,
+  },
+  previewSeparatorLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#F59E0B',
+  },
+  previewSeparatorLabel: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#F59E0B',
+    letterSpacing: 1,
   },
 });

@@ -138,6 +138,8 @@ export interface EstimateItem {
   customName?: string;
   customUnit?: string;
   customCategory?: string;
+  isSeparator?: boolean;
+  separatorLabel?: string;
 }
 
 export interface Estimate {
