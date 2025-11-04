@@ -9,7 +9,7 @@ import { Project, Report, ProjectReportData } from '@/types';
 import { generateText } from '@rork/toolkit-sdk';
 
 export default function DashboardScreen() {
-  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, dailyLogs } = useApp();
+  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, dailyLogs = [] } = useApp();
   const router = useRouter();
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showArchived, setShowArchived] = useState<boolean>(false);
@@ -73,7 +73,7 @@ export default function DashboardScreen() {
       const projectsData = projectsToReport.map(project => {
         const projectExpenses = expenses.filter(e => e.projectId === project.id);
         const projectClockEntries = clockEntries.filter(c => c.projectId === project.id);
-        const projectLogs = dailyLogs.filter(log => log.projectId === project.id);
+        const projectLogs = (dailyLogs || []).filter(log => log.projectId === project.id);
         
         return {
           name: project.name,
@@ -291,7 +291,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
 
     if (reportType === 'daily-logs') {
       const projectDailyLogs = projectsToReport.map(project => {
-        const logs = dailyLogs.filter(log => log.projectId === project.id);
+        const logs = (dailyLogs || []).filter(log => log.projectId === project.id);
         return {
           projectId: project.id,
           projectName: project.name,

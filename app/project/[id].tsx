@@ -16,7 +16,7 @@ type TabType = 'overview' | 'estimate' | 'clock' | 'expenses' | 'photos' | 'file
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, archiveProject, user, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, dailyLogs } = useApp();
+  const { projects, archiveProject, user, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, dailyLogs = [] } = useApp();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<FileCategory>('documentation');
@@ -1031,7 +1031,7 @@ export default function ProjectDetailScreen() {
           if (!project) return;
 
           if (type === 'daily-logs') {
-            const logs = dailyLogs.filter(log => log.projectId === project.id);
+            const logs = (dailyLogs || []).filter(log => log.projectId === project.id);
             
             if (logs.length === 0) {
               Alert.alert('No Daily Logs', 'This project has no daily logs to export.');
