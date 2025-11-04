@@ -556,22 +556,28 @@ export default function EstimateScreen() {
           </View>
           <View style={styles.itemsListContent}>
             {getCategoryItems(selectedCategory).map((item) => (
-              <TouchableOpacity
+              <View
                 key={item.id}
                 style={styles.lineItemCard}
-                onPress={() => addItemToEstimate(item)}
               >
-                <View style={styles.lineItemMain}>
+                <TouchableOpacity
+                  style={styles.lineItemMain}
+                  onPress={() => addItemToEstimate(item)}
+                  activeOpacity={0.7}
+                >
                   <Text style={styles.lineItemName} numberOfLines={2}>{item.name}</Text>
                   <View style={styles.lineItemRight}>
                     <Text style={styles.lineItemUnit}>{item.unit}</Text>
                     <Text style={styles.lineItemPrice}>${item.unitPrice.toFixed(2)}</Text>
-                    <TouchableOpacity style={styles.addItemButton}>
+                    <TouchableOpacity 
+                      style={styles.addItemButton}
+                      onPress={() => addItemToEstimate(item)}
+                    >
                       <Plus size={18} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
             ))}
             
             <TouchableOpacity
