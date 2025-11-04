@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Calendar, X, GripVertical, BookOpen, Plus, Bell, Trash2, Check, Share2, Users } from 'lucide-react-native';
+import { Calendar, X, GripVertical, BookOpen, Plus, Bell, Trash2, Check, Share2, Users, History, Download } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogReminder } from '@/types';
 
 const CONSTRUCTION_CATEGORIES = [
@@ -66,6 +66,7 @@ export default function ScheduleScreen() {
   const [sharedWith, setSharedWith] = useState<string[]>([]);
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
   const [shareEmail, setShareEmail] = useState<string>('');
+  const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
   
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
@@ -344,13 +345,21 @@ export default function ScheduleScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Project Schedule</Text>
         {selectedProject && (
-          <TouchableOpacity
-            style={styles.dailyLogHeaderButton}
-            onPress={handleOpenDailyLogs}
-          >
-            <BookOpen size={20} color="#2563EB" />
-            <Text style={styles.dailyLogHeaderButtonText}>Daily Log</Text>
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.dailyLogHeaderButton}
+              onPress={handleOpenDailyLogs}
+            >
+              <BookOpen size={20} color="#2563EB" />
+              <Text style={styles.dailyLogHeaderButtonText}>Daily Log</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.historyButton}
+              onPress={() => setShowHistoryModal(true)}
+            >
+              <History size={20} color="#059669" />
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -934,6 +943,153 @@ export default function ScheduleScreen() {
         </View>
       </Modal>
 
+      <Modal
+        visible={showHistoryModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowHistoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <History size={24} color="#059669" />
+                <Text style={styles.modalTitle}>Daily Logs History</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
+                <X size={24} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {projectDailyLogs.length === 0 ? (
+                <View style={styles.emptyHistoryState}>
+                  <BookOpen size={48} color="#9CA3AF" />
+                  <Text style={styles.emptyHistoryText}>No daily logs yet</Text>
+                  <Text style={styles.emptyHistorySubtext}>Start creating daily logs to track project progress</Text>
+                </View>
+              ) : (
+                <View style={styles.historyList}>
+                  {projectDailyLogs
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((log) => (
+                    <View key={log.id} style={styles.historyItem}>
+                      <View style={styles.historyItemHeader}>
+                        <View>
+                          <Text style={styles.historyDate}>
+                            {new Date(log.date).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </Text>
+                          {log.category && (
+                            <Text style={styles.historyCategory}>{log.category}</Text>
+                          )}
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            const logText = `Daily Log - ${new Date(log.date).toLocaleDateString()}\n\n` +
+                              (log.category ? `Category: ${log.category}\n` : '') +
+                              (log.workPerformed ? `\nWork Performed:\n${log.workPerformed}\n` : '') +
+                              (log.issues ? `\nIssues/Notes:\n${log.issues}\n` : '') +
+                              (log.note ? `\nAdditional Notes:\n${log.note}\n` : '') +
+                              (log.reminders && log.reminders.length > 0 
+                                ? `\nReminders:\n${log.reminders.map(r => `- ${r.task} (${r.time}) ${r.completed ? '✓' : ''}`).join('\n')}\n`
+                                : '');
+                            console.log('[Export] Daily log:', logText);
+                            alert('Export functionality: This will be available to share via email/SMS in production.');
+                          }}
+                          style={styles.exportButton}
+                        >
+                          <Download size={18} color="#2563EB" />
+                        </TouchableOpacity>
+                      </View>
+
+                      {log.workPerformed && (
+                        <View style={styles.historySection}>
+                          <Text style={styles.historySectionTitle}>Work Performed:</Text>
+                          <Text style={styles.historySectionText}>{log.workPerformed}</Text>
+                        </View>
+                      )}
+
+                      {log.issues && (
+                        <View style={styles.historySection}>
+                          <Text style={styles.historySectionTitle}>Issues/Notes:</Text>
+                          <Text style={styles.historySectionText}>{log.issues}</Text>
+                        </View>
+                      )}
+
+                      {log.note && (
+                        <View style={styles.historySection}>
+                          <Text style={styles.historySectionTitle}>Additional Notes:</Text>
+                          <Text style={styles.historySectionText}>{log.note}</Text>
+                        </View>
+                      )}
+
+                      {log.reminders && log.reminders.length > 0 && (
+                        <View style={styles.historySection}>
+                          <Text style={styles.historySectionTitle}>Reminders:</Text>
+                          {log.reminders.map((reminder) => (
+                            <View key={reminder.id} style={styles.historyReminderItem}>
+                              <View style={[styles.historyReminderCheck, reminder.completed && styles.historyReminderCheckCompleted]}>
+                                {reminder.completed && <Check size={12} color="#FFFFFF" />}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.historyReminderText, reminder.completed && styles.historyReminderTextCompleted]}>
+                                  {reminder.task}
+                                </Text>
+                                <Text style={styles.historyReminderTime}>⏰ {reminder.time}</Text>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.historyFooter}>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setShowHistoryModal(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+              {projectDailyLogs.length > 0 && (
+                <TouchableOpacity 
+                  style={styles.exportAllButton}
+                  onPress={() => {
+                    const allLogsText = projectDailyLogs
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map(log => {
+                        return `Daily Log - ${new Date(log.date).toLocaleDateString()}\n\n` +
+                          (log.category ? `Category: ${log.category}\n` : '') +
+                          (log.workPerformed ? `\nWork Performed:\n${log.workPerformed}\n` : '') +
+                          (log.issues ? `\nIssues/Notes:\n${log.issues}\n` : '') +
+                          (log.note ? `\nAdditional Notes:\n${log.note}\n` : '') +
+                          (log.reminders && log.reminders.length > 0 
+                            ? `\nReminders:\n${log.reminders.map(r => `- ${r.task} (${r.time}) ${r.completed ? '✓' : ''}`).join('\n')}\n`
+                            : '') +
+                          '\n---\n\n';
+                      })
+                      .join('');
+                    console.log('[Export All] Daily logs:', allLogsText);
+                    alert('Export All functionality: This will be available to share via email/SMS in production.');
+                  }}
+                >
+                  <Download size={18} color="#FFFFFF" />
+                  <Text style={styles.exportAllButtonText}>Export All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       </View>
   );
 }
@@ -1465,6 +1621,152 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#2563EB',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  historyList: {
+    gap: 16,
+  },
+  historyItem: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  historyItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  historyDate: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  historyCategory: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  historySection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  historySectionTitle: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  historySectionText: {
+    fontSize: 14,
+    color: '#1F2937',
+    lineHeight: 20,
+  },
+  historyReminderItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 8,
+  },
+  historyReminderCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  historyReminderCheckCompleted: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  historyReminderText: {
+    fontSize: 13,
+    color: '#1F2937',
+  },
+  historyReminderTextCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
+  },
+  historyReminderTime: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  exportButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#EFF6FF',
+  },
+  emptyHistoryState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyHistoryText: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginTop: 16,
+  },
+  emptyHistorySubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  historyFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  closeButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  exportAllButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#059669',
+  },
+  exportAllButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   dailyLogInput: {
     backgroundColor: '#F9FAFB',
