@@ -1,11 +1,12 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
-import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen } from 'lucide-react-native';
+import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, useMemo } from 'react';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData } from '@/types';
+import { generateText } from '@rork/toolkit-sdk';
 
 export default function DashboardScreen() {
   const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, dailyLogs } = useApp();
@@ -23,7 +24,10 @@ export default function DashboardScreen() {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
   const [showReportTypeMenu, setShowReportTypeMenu] = useState<boolean>(false);
-  const [reportType, setReportType] = useState<'administrative' | 'expenses' | 'time-tracking' | 'daily-logs'>('administrative');
+  const [reportType, setReportType] = useState<'administrative' | 'expenses' | 'time-tracking' | 'daily-logs' | 'custom-ai'>('administrative');
+  const [showAICustomModal, setShowAICustomModal] = useState<boolean>(false);
+  const [aiReportPrompt, setAiReportPrompt] = useState<string>('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState<boolean>(false);
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
@@ -47,6 +51,93 @@ export default function DashboardScreen() {
       amount: expenses.filter((e) => e.projectId === project.id).reduce((sum: number, e) => sum + e.amount, 0),
     }));
   }, [activeProjects, expenses]);
+
+  const handleAIReportGeneration = async (selectionType: 'all' | 'selected') => {
+    if (selectionType === 'selected' && selectedProjects.length === 0) {
+      Alert.alert('No Projects Selected', 'Please select at least one project to generate a report.');
+      return;
+    }
+
+    if (!aiReportPrompt.trim()) {
+      Alert.alert('Missing Instructions', 'Please describe what you want to include in the custom report.');
+      return;
+    }
+
+    const projectsToReport = selectionType === 'all' 
+      ? activeProjects 
+      : activeProjects.filter(p => selectedProjects.includes(p.id));
+
+    setIsGeneratingAI(true);
+
+    try {
+      const projectsData = projectsToReport.map(project => {
+        const projectExpenses = expenses.filter(e => e.projectId === project.id);
+        const projectClockEntries = clockEntries.filter(c => c.projectId === project.id);
+        const projectLogs = dailyLogs.filter(log => log.projectId === project.id);
+        
+        return {
+          name: project.name,
+          budget: project.budget,
+          expenses: projectExpenses.reduce((sum, e) => sum + e.amount, 0),
+          expensesList: projectExpenses.map(e => ({ type: e.type, amount: e.amount, date: e.date, store: e.store })),
+          hoursWorked: project.hoursWorked,
+          clockEntries: projectClockEntries.length,
+          status: project.status,
+          progress: project.progress,
+          startDate: project.startDate,
+          endDate: project.endDate,
+          dailyLogsCount: projectLogs.length,
+        };
+      });
+
+      const dataContext = JSON.stringify(projectsData, null, 2);
+
+      const aiPrompt = `You are generating a custom construction project report based on user requirements.
+
+User Request: ${aiReportPrompt}
+
+Project Data:
+${dataContext}
+
+Generate a detailed report based on the user's request. Format it in a clear, professional manner with sections, bullet points, and summaries as appropriate. Include relevant metrics, insights, and recommendations.`;
+
+      const generatedReport = await generateText(aiPrompt);
+
+      const report: Report = {
+        id: `report-${Date.now()}`,
+        name: `Custom AI Report - ${aiReportPrompt.slice(0, 50)}${aiReportPrompt.length > 50 ? '...' : ''}`,
+        type: 'custom',
+        generatedDate: new Date().toISOString(),
+        projectIds: projectsToReport.map(p => p.id),
+        projectsCount: projectsToReport.length,
+        notes: generatedReport,
+      };
+
+      addReport(report);
+
+      console.log('[Report] Custom AI report generated');
+      console.log('[Report] Prompt:', aiReportPrompt);
+      console.log('[Report] Projects:', projectsToReport.length);
+
+      Alert.alert(
+        'Report Generated',
+        'Your custom AI report has been generated successfully.',
+        [{ text: 'OK', onPress: () => {
+          setShowAICustomModal(false);
+          setShowReportMenu(false);
+          setShowReportTypeMenu(false);
+          setIsSelectMode(false);
+          setSelectedProjects([]);
+          setAiReportPrompt('');
+        }}]
+      );
+    } catch (error) {
+      console.error('[Report] AI generation error:', error);
+      Alert.alert('Error', 'Failed to generate custom report. Please try again.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
 
   const handleReportRequest = (selectionType: 'all' | 'selected') => {
     if (selectionType === 'selected' && selectedProjects.length === 0) {
@@ -409,44 +500,63 @@ export default function DashboardScreen() {
               <FileText size={20} color="#2563EB" />
               <Text style={styles.reportMenuTitle}>Generate Report</Text>
             </View>
-            <View style={styles.reportMenuButtons}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              style={styles.reportMenuScroll}
+              contentContainerStyle={styles.reportMenuScrollContent}
+            >
               <TouchableOpacity
-                style={styles.reportMenuItem}
+                style={styles.reportMenuItemHorizontal}
                 onPress={() => {
                   setReportType('administrative');
                   setShowReportTypeMenu(true);
                 }}
               >
-                <Text style={styles.reportMenuItemText}>Administrative & Financial</Text>
+                <FileText size={18} color="#2563EB" />
+                <Text style={styles.reportMenuItemTextHorizontal}>Admin &{"\n"}Financial</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.reportMenuItem}
+                style={styles.reportMenuItemHorizontal}
                 onPress={() => {
                   setReportType('expenses');
                   setShowReportTypeMenu(true);
                 }}
               >
-                <Text style={styles.reportMenuItemText}>Expenses Breakdown</Text>
+                <FileText size={18} color="#EF4444" />
+                <Text style={styles.reportMenuItemTextHorizontal}>Expenses{"\n"}Breakdown</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.reportMenuItem}
+                style={styles.reportMenuItemHorizontal}
                 onPress={() => {
                   setReportType('time-tracking');
                   setShowReportTypeMenu(true);
                 }}
               >
-                <Text style={styles.reportMenuItemText}>Time Tracking & Clocking</Text>
+                <FileText size={18} color="#F59E0B" />
+                <Text style={styles.reportMenuItemTextHorizontal}>Time &{"\n"}Clocking</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.reportMenuItem}
+                style={styles.reportMenuItemHorizontal}
                 onPress={() => {
                   setReportType('daily-logs');
                   setShowReportTypeMenu(true);
                 }}
               >
-                <Text style={styles.reportMenuItemText}>Daily Logs</Text>
+                <FileText size={18} color="#8B5CF6" />
+                <Text style={styles.reportMenuItemTextHorizontal}>Daily{"\n"}Logs</Text>
               </TouchableOpacity>
-            </View>
+              <TouchableOpacity
+                style={[styles.reportMenuItemHorizontal, styles.reportMenuItemAI]}
+                onPress={() => {
+                  setReportType('custom-ai');
+                  setShowAICustomModal(true);
+                }}
+              >
+                <Sparkles size={18} color="#10B981" />
+                <Text style={[styles.reportMenuItemTextHorizontal, { color: '#10B981' }]}>Custom AI{"\n"}Report</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         )}
 
@@ -864,6 +974,105 @@ export default function DashboardScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      <Modal
+        visible={showAICustomModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAICustomModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.aiModalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={24} color="#10B981" />
+                <Text style={styles.modalTitle}>Custom AI Report</Text>
+              </View>
+              <TouchableOpacity onPress={() => {
+                setShowAICustomModal(false);
+                setAiReportPrompt('');
+              }}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.aiInstructionText}>
+                Describe what you want in your custom report. AI will analyze your project data and generate a comprehensive report based on your requirements.
+              </Text>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Report Instructions</Text>
+                <TextInput
+                  style={[styles.formInput, styles.aiTextArea]}
+                  value={aiReportPrompt}
+                  onChangeText={setAiReportPrompt}
+                  placeholder="Example: Generate a summary of budget vs actual expenses with variance analysis and recommendations for cost savings..."
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={6}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <Text style={styles.aiExampleTitle}>Quick Examples:</Text>
+              <ScrollView style={styles.aiExamplesScroll} showsVerticalScrollIndicator={false}>
+                <TouchableOpacity
+                  style={styles.aiExampleChip}
+                  onPress={() => setAiReportPrompt('Analyze budget vs expenses with variance analysis and cost-saving recommendations')}
+                >
+                  <Text style={styles.aiExampleText}>Budget variance analysis</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.aiExampleChip}
+                  onPress={() => setAiReportPrompt('Provide project timeline analysis with progress insights and schedule recommendations')}
+                >
+                  <Text style={styles.aiExampleText}>Timeline & progress analysis</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.aiExampleChip}
+                  onPress={() => setAiReportPrompt('Compare project performance metrics across all selected projects')}
+                >
+                  <Text style={styles.aiExampleText}>Performance comparison</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.aiExampleChip}
+                  onPress={() => setAiReportPrompt('Generate executive summary with key metrics and action items')}
+                >
+                  <Text style={styles.aiExampleText}>Executive summary</Text>
+                </TouchableOpacity>
+              </ScrollView>
+
+              <View style={styles.aiButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.aiSecondaryButton}
+                  onPress={() => {
+                    setIsSelectMode(!isSelectMode);
+                    if (isSelectMode) {
+                      setSelectedProjects([]);
+                    }
+                  }}
+                >
+                  <Text style={styles.aiSecondaryButtonText}>
+                    {isSelectMode ? 'Cancel Selection' : 'Select Specific Projects'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.aiGenerateButton, isGeneratingAI && styles.aiGenerateButtonDisabled]}
+                  onPress={() => handleAIReportGeneration(isSelectMode && selectedProjects.length > 0 ? 'selected' : 'all')}
+                  disabled={isGeneratingAI}
+                >
+                  <Sparkles size={18} color="#FFFFFF" />
+                  <Text style={styles.aiGenerateButtonText}>
+                    {isGeneratingAI ? 'Generating...' : `Generate for ${isSelectMode && selectedProjects.length > 0 ? `${selectedProjects.length} Projects` : 'All Projects'}`}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1032,6 +1241,37 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#FFFFFF',
     textAlign: 'center',
+  },
+  reportMenuScroll: {
+    maxHeight: 140,
+  },
+  reportMenuScrollContent: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 4,
+  },
+  reportMenuItemHorizontal: {
+    backgroundColor: '#F9FAFB',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 100,
+    gap: 8,
+  },
+  reportMenuItemAI: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  reportMenuItemTextHorizontal: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    textAlign: 'center',
+    lineHeight: 16,
   },
 
   projectsCarouselContainer: {
@@ -1323,6 +1563,81 @@ const styles = StyleSheet.create({
   createButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '700' as const,
+  },
+  aiModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '95%',
+    maxWidth: 600,
+    maxHeight: '85%',
+  },
+  aiInstructionText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  aiTextArea: {
+    height: 120,
+    paddingTop: 12,
+  },
+  aiExampleTitle: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  aiExamplesScroll: {
+    maxHeight: 100,
+    marginBottom: 20,
+  },
+  aiExampleChip: {
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  aiExampleText: {
+    fontSize: 13,
+    color: '#2563EB',
+    fontWeight: '500' as const,
+  },
+  aiButtonsContainer: {
+    gap: 12,
+  },
+  aiSecondaryButton: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  aiSecondaryButtonText: {
+    color: '#1F2937',
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  aiGenerateButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  aiGenerateButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  aiGenerateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '700' as const,
   },
 });

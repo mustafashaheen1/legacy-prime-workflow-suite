@@ -278,11 +278,13 @@ export default function ReportsScreen() {
                   </View>
                 ) : selectedReport.type === 'custom' && selectedReport.notes ? (
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Daily Logs</Text>
                     {(() => {
                       try {
                         const data = JSON.parse(selectedReport.notes) as { dailyLogs: Array<{ projectId: string; projectName: string; logs: DailyLog[] }> };
-                        return data.dailyLogs.map((projectLogs) => (
+                        return (
+                          <>
+                            <Text style={styles.detailSectionTitle}>Daily Logs</Text>
+                            {data.dailyLogs.map((projectLogs) => (
                           <View key={projectLogs.projectId} style={styles.projectLogsSection}>
                             <Text style={styles.projectLogsTitle}>{projectLogs.projectName}</Text>
                             <Text style={styles.projectLogsCount}>{projectLogs.logs.length} log(s)</Text>
@@ -339,10 +341,19 @@ export default function ReportsScreen() {
                               </View>
                             ))}
                           </View>
-                        ));
+                        ))}
+                          </>
+                        );
                       } catch (error) {
-                        console.error('Error parsing daily logs:', error);
-                        return <Text style={styles.errorText}>Error loading daily logs</Text>;
+                        console.error('Error parsing custom report:', error);
+                        return (
+                          <>
+                            <Text style={styles.detailSectionTitle}>Report Content</Text>
+                            <View style={styles.aiReportContent}>
+                              <Text style={styles.aiReportText}>{selectedReport.notes}</Text>
+                            </View>
+                          </>
+                        );
                       }
                     })()}
                   </View>
@@ -875,5 +886,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700' as const,
     color: '#1F2937',
+  },
+  aiReportContent: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  aiReportText: {
+    fontSize: 14,
+    color: '#1F2937',
+    lineHeight: 22,
   },
 });
