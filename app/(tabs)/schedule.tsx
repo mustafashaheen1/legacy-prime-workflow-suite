@@ -9,13 +9,14 @@ import {
   Platform,
   PanResponder,
   Alert,
-  Image
+  Image,
+  Switch
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Calendar, X, GripVertical, BookOpen, Plus, Bell, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, Clock, User } from 'lucide-react-native';
-import { ScheduledTask, DailyLog, DailyLogReminder, DailyLogNote, DailyLogPhoto } from '@/types';
+import { Calendar, X, GripVertical, BookOpen, Plus, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronRight, FileText } from 'lucide-react-native';
+import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto } from '@/types';
 
 const CONSTRUCTION_CATEGORIES = [
   { name: 'Pre-Construction', color: '#8B5CF6' },
@@ -57,21 +58,29 @@ export default function ScheduleScreen() {
   const [quickNoteText, setQuickNoteText] = useState<string>('');
   const [quickEditWorkType, setQuickEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
   const [lastTap, setLastTap] = useState<number>(0);
+  
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
-  const [dailyLogNote, setDailyLogNote] = useState<string>('');
-  const [dailyLogCategory, setDailyLogCategory] = useState<string>('');
-  const [dailyLogWorkPerformed, setDailyLogWorkPerformed] = useState<string>('');
-  const [dailyLogIssues, setDailyLogIssues] = useState<string>('');
-  const [dailyLogReminders, setDailyLogReminders] = useState<DailyLogReminder[]>([]);
-  const [newReminderTask, setNewReminderTask] = useState<string>('');
-  const [newReminderTime, setNewReminderTime] = useState<string>('');
+  const [equipmentExpanded, setEquipmentExpanded] = useState<boolean>(false);
+  const [materialExpanded, setMaterialExpanded] = useState<boolean>(false);
+  const [officialExpanded, setOfficialExpanded] = useState<boolean>(false);
+  const [subsExpanded, setSubsExpanded] = useState<boolean>(false);
+  const [employeesExpanded, setEmployeesExpanded] = useState<boolean>(false);
+  
+  const [equipmentNote, setEquipmentNote] = useState<string>('');
+  const [materialNote, setMaterialNote] = useState<string>('');
+  const [officialNote, setOfficialNote] = useState<string>('');
+  const [subsNote, setSubsNote] = useState<string>('');
+  const [employeesNote, setEmployeesNote] = useState<string>('');
+  
+  const [workPerformed, setWorkPerformed] = useState<string>('');
+  const [issues, setIssues] = useState<string>('');
+  const [generalNotes, setGeneralNotes] = useState<string>('');
+  
+  const [tasks, setTasks] = useState<DailyLogTask[]>([]);
+  const [photos, setPhotos] = useState<DailyLogPhoto[]>([]);
   const [sharedWith, setSharedWith] = useState<string[]>([]);
-  const [showShareModal, setShowShareModal] = useState<boolean>(false);
   const [shareEmail, setShareEmail] = useState<string>('');
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
-  const [noteEntries, setNoteEntries] = useState<DailyLogNote[]>([]);
-  const [photoEntries, setPhotoEntries] = useState<DailyLogPhoto[]>([]);
-  const [currentNoteInput, setCurrentNoteInput] = useState<string>('');
   
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
@@ -142,73 +151,43 @@ export default function ScheduleScreen() {
 
   const handleOpenDailyLogs = () => {
     setShowDailyLogsModal(true);
-    setDailyLogNote('');
-    setDailyLogCategory('');
-    setDailyLogWorkPerformed('');
-    setDailyLogIssues('');
-    setDailyLogReminders([]);
-    setNewReminderTask('');
-    setNewReminderTime('');
-    setNoteEntries([]);
-    setPhotoEntries([]);
-    setCurrentNoteInput('');
+    setEquipmentExpanded(false);
+    setMaterialExpanded(false);
+    setOfficialExpanded(false);
+    setSubsExpanded(false);
+    setEmployeesExpanded(false);
+    setEquipmentNote('');
+    setMaterialNote('');
+    setOfficialNote('');
+    setSubsNote('');
+    setEmployeesNote('');
+    setWorkPerformed('');
+    setIssues('');
+    setGeneralNotes('');
+    setTasks([]);
+    setPhotos([]);
+    setSharedWith([]);
   };
 
-  const handleAddReminder = () => {
-    if (!newReminderTask.trim() || !newReminderTime.trim()) return;
-
-    const reminder: DailyLogReminder = {
+  const handleAddTask = () => {
+    const newTask: DailyLogTask = {
       id: Date.now().toString(),
-      dailyLogId: '',
-      task: newReminderTask,
-      time: newReminderTime,
+      description: '',
       completed: false,
     };
-
-    setDailyLogReminders([...dailyLogReminders, reminder]);
-    setNewReminderTask('');
-    setNewReminderTime('');
+    setTasks([...tasks, newTask]);
   };
 
-  const handleToggleReminder = (reminderId: string) => {
-    setDailyLogReminders(prev => 
-      prev.map(r => r.id === reminderId ? { ...r, completed: !r.completed } : r)
-    );
+  const handleUpdateTask = (id: string, description: string) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, description } : t));
   };
 
-  const handleDeleteReminder = (reminderId: string) => {
-    setDailyLogReminders(prev => prev.filter(r => r.id !== reminderId));
+  const handleToggleTaskComplete = (id: string) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   };
 
-  const handleAddTeamMember = () => {
-    if (!shareEmail.trim()) return;
-    if (sharedWith.includes(shareEmail.trim())) {
-      console.log('[Share] User already added');
-      return;
-    }
-    setSharedWith([...sharedWith, shareEmail.trim()]);
-    setShareEmail('');
-    console.log('[Share] Added team member:', shareEmail);
-  };
-
-  const handleRemoveTeamMember = (email: string) => {
-    setSharedWith(prev => prev.filter(e => e !== email));
-    console.log('[Share] Removed team member:', email);
-  };
-
-  const handleAddNoteEntry = () => {
-    if (!currentNoteInput.trim()) return;
-
-    const noteEntry: DailyLogNote = {
-      id: Date.now().toString(),
-      text: currentNoteInput,
-      timestamp: new Date().toISOString(),
-      author: user?.name || 'Unknown User',
-    };
-
-    setNoteEntries([...noteEntries, noteEntry]);
-    setCurrentNoteInput('');
-    console.log('[Note Entry] Added note at:', new Date().toLocaleTimeString());
+  const handleDeleteTaskRow = (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
   };
 
   const handleTakePhoto = async () => {
@@ -218,7 +197,6 @@ export default function ScheduleScreen() {
     }
 
     try {
-      const { CameraView, useCameraPermissions } = await import('expo-camera');
       Alert.alert('Photo', 'Camera functionality will be available in the next update.');
       console.log('[Camera] Opening camera...');
     } catch (error) {
@@ -237,7 +215,7 @@ export default function ScheduleScreen() {
         notes: '',
       };
 
-      setPhotoEntries([...photoEntries, photoEntry]);
+      setPhotos([...photos, photoEntry]);
       console.log('[Photo] Photo added at:', new Date().toLocaleTimeString());
     } catch (error) {
       console.error('[Photo Picker] Error:', error);
@@ -245,29 +223,46 @@ export default function ScheduleScreen() {
   };
 
   const handleRemovePhoto = (photoId: string) => {
-    setPhotoEntries(prev => prev.filter(p => p.id !== photoId));
+    setPhotos(prev => prev.filter(p => p.id !== photoId));
   };
 
-  const handleRemoveNoteEntry = (noteId: string) => {
-    setNoteEntries(prev => prev.filter(n => n.id !== noteId));
+  const handleAddTeamMember = () => {
+    if (!shareEmail.trim()) return;
+    if (sharedWith.includes(shareEmail.trim())) {
+      console.log('[Share] User already added');
+      return;
+    }
+    setSharedWith([...sharedWith, shareEmail.trim()]);
+    setShareEmail('');
+    console.log('[Share] Added team member:', shareEmail);
+  };
+
+  const handleRemoveTeamMember = (email: string) => {
+    setSharedWith(prev => prev.filter(e => e !== email));
+    console.log('[Share] Removed team member:', email);
   };
 
   const handleSaveDailyLog = () => {
-    if (!selectedProject) return;
+    if (!selectedProject || !user) return;
 
     const logId = Date.now().toString();
     const log: DailyLog = {
       id: logId,
       projectId: selectedProject,
-      date: new Date().toISOString(),
-      note: dailyLogNote,
-      category: dailyLogCategory,
-      workPerformed: dailyLogWorkPerformed,
-      issues: dailyLogIssues,
-      reminders: dailyLogReminders.map(r => ({ ...r, dailyLogId: logId })),
-      notes: noteEntries,
-      photos: photoEntries,
-      sharedWith: sharedWith,
+      logDate: new Date().toISOString().split('T')[0],
+      createdBy: user.name,
+      equipmentNote: equipmentExpanded ? equipmentNote : undefined,
+      materialNote: materialExpanded ? materialNote : undefined,
+      officialNote: officialExpanded ? officialNote : undefined,
+      subsNote: subsExpanded ? subsNote : undefined,
+      employeesNote: employeesExpanded ? employeesNote : undefined,
+      workPerformed,
+      issues,
+      generalNotes,
+      tasks,
+      photos,
+      sharedWith,
+      createdAt: new Date().toISOString(),
     };
 
     addDailyLog(log);
@@ -277,8 +272,7 @@ export default function ScheduleScreen() {
     }
     
     setShowDailyLogsModal(false);
-    setSharedWith([]);
-    console.log('[Daily Log] Created with', dailyLogReminders.length, 'reminders,', noteEntries.length, 'notes, and', photoEntries.length, 'photos');
+    console.log('[Daily Log] Created with', tasks.length, 'tasks and', photos.length, 'photos');
   };
 
   const getTaskPosition = (task: ScheduledTask) => {
@@ -644,8 +638,6 @@ export default function ScheduleScreen() {
                                 <TouchableOpacity
                                   style={styles.quickEditButton}
                                   onPress={() => {
-                                    console.log('Saving notes:', quickNoteText);
-                                    console.log('Saving work type:', quickEditWorkType);
                                     const updatedTasks = scheduledTasks.map(t => 
                                       t.id === task.id ? { ...t, notes: quickNoteText, workType: quickEditWorkType } : t
                                     );
@@ -726,119 +718,6 @@ export default function ScheduleScreen() {
       )}
 
       <Modal
-        visible={showModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingTask ? editingTask.category : 'Add Task'}
-              </Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <X size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <Text style={styles.label}>Work Type</Text>
-              <View style={styles.workTypeContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.workTypeButton,
-                    workType === 'in-house' && styles.workTypeButtonActive
-                  ]}
-                  onPress={() => setWorkType('in-house')}
-                >
-                  <Text style={[
-                    styles.workTypeText,
-                    workType === 'in-house' && styles.workTypeTextActive
-                  ]}>
-                    🏠 In-House
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.workTypeButton,
-                    workType === 'subcontractor' && styles.workTypeButtonActive
-                  ]}
-                  onPress={() => setWorkType('subcontractor')}
-                >
-                  <Text style={[
-                    styles.workTypeText,
-                    workType === 'subcontractor' && styles.workTypeTextActive
-                  ]}>
-                    👷 Subcontractor
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {editingTask && (
-                <View style={styles.durationControl}>
-                  <Text style={styles.label}>Duration (days)</Text>
-                  <View style={styles.durationButtons}>
-                    <TouchableOpacity
-                      style={styles.durationButton}
-                      onPress={() => {
-                        if (editingTask.duration > 1) {
-                          setEditingTask({
-                            ...editingTask,
-                            duration: editingTask.duration - 1
-                          });
-                        }
-                      }}
-                    >
-                      <Text style={styles.durationButtonText}>-</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.durationValue}>{editingTask.duration}</Text>
-                    <TouchableOpacity
-                      style={styles.durationButton}
-                      onPress={() => {
-                        setEditingTask({
-                          ...editingTask,
-                          duration: editingTask.duration + 1
-                        });
-                      }}
-                    >
-                      <Text style={styles.durationButtonText}>+</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              <Text style={styles.label}>Notes</Text>
-              <TextInput
-                style={styles.textArea}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Add notes about this phase..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={4}
-              />
-            </View>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity 
-                style={styles.cancelButton}
-                onPress={() => setShowModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.saveButton}
-                onPress={handleSaveTask}
-              >
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
         visible={showDailyLogsModal}
         transparent
         animationType="slide"
@@ -849,7 +728,12 @@ export default function ScheduleScreen() {
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <BookOpen size={24} color="#2563EB" />
-                <Text style={styles.modalTitle}>Daily Log</Text>
+                <View>
+                  <Text style={styles.modalTitle}>Daily Log</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                </View>
               </View>
               <TouchableOpacity onPress={() => setShowDailyLogsModal(false)}>
                 <X size={24} color="#1F2937" />
@@ -857,188 +741,216 @@ export default function ScheduleScreen() {
             </View>
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <Text style={styles.label}>Work Category</Text>
-              <TextInput
-                style={styles.dailyLogInput}
-                value={dailyLogCategory}
-                onChangeText={setDailyLogCategory}
-                placeholder="e.g., Framing, Plumbing, etc."
-                placeholderTextColor="#9CA3AF"
-              />
+              <View style={styles.toggleSection}>
+                <TouchableOpacity 
+                  style={styles.toggleRow}
+                  onPress={() => setEquipmentExpanded(!equipmentExpanded)}
+                >
+                  {equipmentExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
+                  <Text style={styles.toggleLabel}>🚜 Equipment</Text>
+                </TouchableOpacity>
+                {equipmentExpanded && (
+                  <TextInput
+                    style={styles.oneLineInput}
+                    value={equipmentNote}
+                    onChangeText={setEquipmentNote}
+                    placeholder="Quick note about equipment..."
+                    placeholderTextColor="#9CA3AF"
+                  />
+                )}
+              </View>
 
-              <Text style={styles.label}>Work Performed Today</Text>
+              <View style={styles.toggleSection}>
+                <TouchableOpacity 
+                  style={styles.toggleRow}
+                  onPress={() => setMaterialExpanded(!materialExpanded)}
+                >
+                  {materialExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
+                  <Text style={styles.toggleLabel}>📦 Material</Text>
+                </TouchableOpacity>
+                {materialExpanded && (
+                  <TextInput
+                    style={styles.oneLineInput}
+                    value={materialNote}
+                    onChangeText={setMaterialNote}
+                    placeholder="Quick note about materials..."
+                    placeholderTextColor="#9CA3AF"
+                  />
+                )}
+              </View>
+
+              <View style={styles.toggleSection}>
+                <TouchableOpacity 
+                  style={styles.toggleRow}
+                  onPress={() => setOfficialExpanded(!officialExpanded)}
+                >
+                  {officialExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
+                  <Text style={styles.toggleLabel}>📋 Official</Text>
+                </TouchableOpacity>
+                {officialExpanded && (
+                  <TextInput
+                    style={styles.oneLineInput}
+                    value={officialNote}
+                    onChangeText={setOfficialNote}
+                    placeholder="Quick note about official matters..."
+                    placeholderTextColor="#9CA3AF"
+                  />
+                )}
+              </View>
+
+              <View style={styles.toggleSection}>
+                <TouchableOpacity 
+                  style={styles.toggleRow}
+                  onPress={() => setSubsExpanded(!subsExpanded)}
+                >
+                  {subsExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
+                  <Text style={styles.toggleLabel}>👷 Subs</Text>
+                </TouchableOpacity>
+                {subsExpanded && (
+                  <TextInput
+                    style={styles.oneLineInput}
+                    value={subsNote}
+                    onChangeText={setSubsNote}
+                    placeholder="Quick note about subcontractors..."
+                    placeholderTextColor="#9CA3AF"
+                  />
+                )}
+              </View>
+
+              <View style={styles.toggleSection}>
+                <TouchableOpacity 
+                  style={styles.toggleRow}
+                  onPress={() => setEmployeesExpanded(!employeesExpanded)}
+                >
+                  {employeesExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
+                  <Text style={styles.toggleLabel}>👥 Employees</Text>
+                </TouchableOpacity>
+                {employeesExpanded && (
+                  <TextInput
+                    style={styles.oneLineInput}
+                    value={employeesNote}
+                    onChangeText={setEmployeesNote}
+                    placeholder="Quick note about employees..."
+                    placeholderTextColor="#9CA3AF"
+                  />
+                )}
+              </View>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.label}>Work Performed</Text>
               <TextInput
                 style={styles.textArea}
-                value={dailyLogWorkPerformed}
-                onChangeText={setDailyLogWorkPerformed}
+                value={workPerformed}
+                onChangeText={setWorkPerformed}
                 placeholder="Describe what was completed today..."
                 placeholderTextColor="#9CA3AF"
                 multiline
                 numberOfLines={3}
               />
 
-              <Text style={styles.label}>Issues/Notes</Text>
+              <Text style={styles.label}>Issues</Text>
               <TextInput
                 style={styles.textArea}
-                value={dailyLogIssues}
-                onChangeText={setDailyLogIssues}
-                placeholder="Any issues or important notes..."
+                value={issues}
+                onChangeText={setIssues}
+                placeholder="Any issues or concerns..."
                 placeholderTextColor="#9CA3AF"
                 multiline
                 numberOfLines={3}
               />
 
-              <Text style={styles.label}>Additional Notes</Text>
+              <Text style={styles.label}>General Notes</Text>
               <TextInput
                 style={styles.textArea}
-                value={dailyLogNote}
-                onChangeText={setDailyLogNote}
-                placeholder="General notes for the day..."
+                value={generalNotes}
+                onChangeText={setGeneralNotes}
+                placeholder="Additional notes..."
                 placeholderTextColor="#9CA3AF"
                 multiline
                 numberOfLines={3}
               />
 
-              <View style={styles.remindersSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <Bell size={20} color="#2563EB" />
-                  <Text style={styles.label}>Reminders & Tasks</Text>
-                </View>
-                
-                {dailyLogReminders.length > 0 && (
-                  <View style={styles.remindersList}>
-                    {dailyLogReminders.map((reminder) => (
-                      <View key={reminder.id} style={styles.reminderItem}>
-                        <TouchableOpacity 
-                          onPress={() => handleToggleReminder(reminder.id)}
-                          style={styles.reminderCheckbox}
-                        >
-                          {reminder.completed && <Check size={16} color="#FFFFFF" />}
-                        </TouchableOpacity>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.reminderText, reminder.completed && styles.reminderTextCompleted]}>
-                            {reminder.task}
-                          </Text>
-                          <Text style={styles.reminderTime}>⏰ {reminder.time}</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => handleDeleteReminder(reminder.id)}>
-                          <Trash2 size={18} color="#EF4444" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
-                )}
+              <View style={styles.divider} />
 
-                <View style={styles.addReminderContainer}>
-                  <TextInput
-                    style={styles.reminderInput}
-                    value={newReminderTask}
-                    onChangeText={setNewReminderTask}
-                    placeholder="Task description..."
-                    placeholderTextColor="#9CA3AF"
-                  />
-                  <TextInput
-                    style={styles.reminderTimeInput}
-                    value={newReminderTime}
-                    onChangeText={setNewReminderTime}
-                    placeholder="Time (e.g., 9:00 AM)"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                  <TouchableOpacity 
-                    style={styles.addReminderButton}
-                    onPress={handleAddReminder}
-                  >
-                    <Plus size={20} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.dailyLogMessagesSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <Clock size={20} color="#2563EB" />
-                  <Text style={styles.label}>Daily Log Messages</Text>
-                </View>
-                <Text style={styles.messageSectionSubtitle}>
-                  📅 {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                </Text>
-                
-                <ScrollView 
-                  style={styles.messagesContainer}
-                  contentContainerStyle={styles.messagesContent}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {noteEntries.map((note) => (
-                    <View key={note.id} style={styles.messageBubble}>
-                      <View style={styles.messageBubbleContent}>
-                        <Text style={styles.messageText}>{note.text}</Text>
-                      </View>
-                      <View style={styles.messageFooter}>
-                        <Text style={styles.messageAuthor}>👤 {note.author}</Text>
-                        <Text style={styles.messageTimestamp}>
-                          {new Date(note.timestamp).toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                  {photoEntries.map((photo) => (
-                    <View key={photo.id} style={styles.messageBubble}>
-                      <View style={styles.messageBubbleContent}>
-                        <Image 
-                          source={{ uri: photo.uri }} 
-                          style={styles.messageImage}
-                        />
-                        {photo.notes && (
-                          <Text style={styles.messageText}>{photo.notes}</Text>
-                        )}
-                      </View>
-                      <View style={styles.messageFooter}>
-                        <Text style={styles.messageAuthor}>👤 {photo.author}</Text>
-                        <Text style={styles.messageTimestamp}>
-                          {new Date(photo.timestamp).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                </ScrollView>
-
-                <View style={styles.messageInputContainer}>
-                  <View style={styles.messageInputRow}>
+              <View style={styles.photoSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <Text style={styles.label}>Photo Attachments</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
                     <TouchableOpacity 
-                      style={styles.attachmentButton}
+                      style={styles.photoButton}
                       onPress={handleTakePhoto}
                     >
-                      <Camera size={20} color="#2563EB" />
+                      <Camera size={18} color="#2563EB" />
                     </TouchableOpacity>
                     <TouchableOpacity 
-                      style={styles.attachmentButton}
+                      style={styles.photoButton}
                       onPress={handlePickPhoto}
                     >
-                      <ImageIcon size={20} color="#2563EB" />
-                    </TouchableOpacity>
-                    <TextInput
-                      style={styles.messageInput}
-                      value={currentNoteInput}
-                      onChangeText={setCurrentNoteInput}
-                      placeholder="Type a message..."
-                      placeholderTextColor="#9CA3AF"
-                      multiline
-                    />
-                    <TouchableOpacity 
-                      style={[styles.sendButton, !currentNoteInput.trim() && styles.sendButtonDisabled]}
-                      onPress={handleAddNoteEntry}
-                      disabled={!currentNoteInput.trim()}
-                    >
-                      <Text style={styles.sendButtonText}>Send</Text>
+                      <ImageIcon size={18} color="#2563EB" />
                     </TouchableOpacity>
                   </View>
                 </View>
+                
+                {photos.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.photosList}>
+                      {photos.map((photo) => (
+                        <View key={photo.id} style={styles.photoItem}>
+                          <Image 
+                            source={{ uri: photo.uri }} 
+                            style={styles.photoThumbnail}
+                          />
+                          <TouchableOpacity
+                            style={styles.photoRemoveButton}
+                            onPress={() => handleRemovePhoto(photo.id)}
+                          >
+                            <X size={14} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                )}
               </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.tasksSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <Text style={styles.label}>Tasks</Text>
+                  <TouchableOpacity 
+                    style={styles.addTaskButton}
+                    onPress={handleAddTask}
+                  >
+                    <Plus size={18} color="#FFFFFF" />
+                    <Text style={styles.addTaskButtonText}>Add Row</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {tasks.map((task) => (
+                  <View key={task.id} style={styles.taskRow}>
+                    <TouchableOpacity 
+                      onPress={() => handleToggleTaskComplete(task.id)}
+                      style={[styles.taskCheckbox, task.completed && styles.taskCheckboxCompleted]}
+                    >
+                      {task.completed && <Check size={14} color="#FFFFFF" />}
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.taskInput, task.completed && styles.taskInputCompleted]}
+                      value={task.description}
+                      onChangeText={(text) => handleUpdateTask(task.id, text)}
+                      placeholder="Task description..."
+                      placeholderTextColor="#9CA3AF"
+                    />
+                    <TouchableOpacity onPress={() => handleDeleteTaskRow(task.id)}>
+                      <Trash2 size={18} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.divider} />
 
               <View style={styles.shareSection}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -1125,33 +1037,34 @@ export default function ScheduleScreen() {
               ) : (
                 <View style={styles.historyList}>
                   {projectDailyLogs
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime())
                     .map((log) => (
                     <View key={log.id} style={styles.historyItem}>
                       <View style={styles.historyItemHeader}>
                         <View>
                           <Text style={styles.historyDate}>
-                            {new Date(log.date).toLocaleDateString('en-US', {
+                            {new Date(log.logDate).toLocaleDateString('en-US', {
                               weekday: 'long',
                               year: 'numeric',
                               month: 'long',
                               day: 'numeric'
                             })}
                           </Text>
-                          {log.category && (
-                            <Text style={styles.historyCategory}>{log.category}</Text>
-                          )}
+                          <Text style={styles.historyCreatedBy}>By {log.createdBy}</Text>
                         </View>
                         <TouchableOpacity
                           onPress={() => {
-                            const logText = `Daily Log - ${new Date(log.date).toLocaleDateString()}\n\n` +
-                              (log.category ? `Category: ${log.category}\n` : '') +
-                              (log.workPerformed ? `\nWork Performed:\n${log.workPerformed}\n` : '') +
-                              (log.issues ? `\nIssues/Notes:\n${log.issues}\n` : '') +
-                              (log.note ? `\nAdditional Notes:\n${log.note}\n` : '') +
-                              (log.reminders && log.reminders.length > 0 
-                                ? `\nReminders:\n${log.reminders.map(r => `- ${r.task} (${r.time}) ${r.completed ? '✓' : ''}`).join('\n')}\n`
-                                : '');
+                            const logText = `Daily Log - ${new Date(log.logDate).toLocaleDateString()}\n` +
+                              `Created by: ${log.createdBy}\n\n` +
+                              (log.equipmentNote ? `Equipment: ${log.equipmentNote}\n` : '') +
+                              (log.materialNote ? `Material: ${log.materialNote}\n` : '') +
+                              (log.officialNote ? `Official: ${log.officialNote}\n` : '') +
+                              (log.subsNote ? `Subs: ${log.subsNote}\n` : '') +
+                              (log.employeesNote ? `Employees: ${log.employeesNote}\n` : '') +
+                              `\nWork Performed:\n${log.workPerformed}\n` +
+                              `\nIssues:\n${log.issues}\n` +
+                              `\nGeneral Notes:\n${log.generalNotes}\n` +
+                              (log.tasks.length > 0 ? `\nTasks:\n${log.tasks.map(t => `${t.completed ? '✓' : '○'} ${t.description}`).join('\n')}\n` : '');
                             console.log('[Export] Daily log:', logText);
                             alert('Export functionality: This will be available to share via email/SMS in production.');
                           }}
@@ -1160,6 +1073,17 @@ export default function ScheduleScreen() {
                           <Download size={18} color="#2563EB" />
                         </TouchableOpacity>
                       </View>
+
+                      {(log.equipmentNote || log.materialNote || log.officialNote || log.subsNote || log.employeesNote) && (
+                        <View style={styles.historySection}>
+                          <Text style={styles.historySectionTitle}>Quick Notes:</Text>
+                          {log.equipmentNote && <Text style={styles.quickNoteItem}>🚜 Equipment: {log.equipmentNote}</Text>}
+                          {log.materialNote && <Text style={styles.quickNoteItem}>📦 Material: {log.materialNote}</Text>}
+                          {log.officialNote && <Text style={styles.quickNoteItem}>📋 Official: {log.officialNote}</Text>}
+                          {log.subsNote && <Text style={styles.quickNoteItem}>👷 Subs: {log.subsNote}</Text>}
+                          {log.employeesNote && <Text style={styles.quickNoteItem}>👥 Employees: {log.employeesNote}</Text>}
+                        </View>
+                      )}
 
                       {log.workPerformed && (
                         <View style={styles.historySection}>
@@ -1170,62 +1094,37 @@ export default function ScheduleScreen() {
 
                       {log.issues && (
                         <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Issues/Notes:</Text>
+                          <Text style={styles.historySectionTitle}>Issues:</Text>
                           <Text style={styles.historySectionText}>{log.issues}</Text>
                         </View>
                       )}
 
-                      {log.note && (
+                      {log.generalNotes && (
                         <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Additional Notes:</Text>
-                          <Text style={styles.historySectionText}>{log.note}</Text>
+                          <Text style={styles.historySectionTitle}>General Notes:</Text>
+                          <Text style={styles.historySectionText}>{log.generalNotes}</Text>
                         </View>
                       )}
 
-                      {log.reminders && log.reminders.length > 0 && (
+                      {log.tasks.length > 0 && (
                         <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Reminders:</Text>
-                          {log.reminders.map((reminder) => (
-                            <View key={reminder.id} style={styles.historyReminderItem}>
-                              <View style={[styles.historyReminderCheck, reminder.completed && styles.historyReminderCheckCompleted]}>
-                                {reminder.completed && <Check size={12} color="#FFFFFF" />}
+                          <Text style={styles.historySectionTitle}>Tasks:</Text>
+                          {log.tasks.map((task) => (
+                            <View key={task.id} style={styles.historyTaskItem}>
+                              <View style={[styles.historyTaskCheck, task.completed && styles.historyTaskCheckCompleted]}>
+                                {task.completed && <Check size={12} color="#FFFFFF" />}
                               </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={[styles.historyReminderText, reminder.completed && styles.historyReminderTextCompleted]}>
-                                  {reminder.task}
-                                </Text>
-                                <Text style={styles.historyReminderTime}>⏰ {reminder.time}</Text>
-                              </View>
+                              <Text style={[styles.historyTaskText, task.completed && styles.historyTaskTextCompleted]}>
+                                {task.description}
+                              </Text>
                             </View>
                           ))}
                         </View>
                       )}
 
-                      {log.notes && log.notes.length > 0 && (
+                      {log.photos.length > 0 && (
                         <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Timestamped Notes:</Text>
-                          {log.notes.map((note) => (
-                            <View key={note.id} style={styles.historyNoteItem}>
-                              <View style={styles.historyNoteHeader}>
-                                <Text style={styles.historyNoteAuthor}>👤 {note.author}</Text>
-                                <Text style={styles.historyNoteTime}>
-                                  {new Date(note.timestamp).toLocaleString([], {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </Text>
-                              </View>
-                              <Text style={styles.historyNoteText}>{note.text}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-
-                      {log.photos && log.photos.length > 0 && (
-                        <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Photo Attachments:</Text>
+                          <Text style={styles.historySectionTitle}>Photos ({log.photos.length}):</Text>
                           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                             <View style={styles.historyPhotosList}>
                               {log.photos.map((photo) => (
@@ -1234,21 +1133,17 @@ export default function ScheduleScreen() {
                                     source={{ uri: photo.uri }} 
                                     style={styles.historyPhotoImage}
                                   />
-                                  <View style={styles.historyPhotoInfo}>
-                                    <Text style={styles.historyPhotoAuthor}>👤 {photo.author}</Text>
-                                    <Text style={styles.historyPhotoTime}>
-                                      {new Date(photo.timestamp).toLocaleString([], {
-                                        month: 'short',
-                                        day: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
-                                    </Text>
-                                  </View>
                                 </View>
                               ))}
                             </View>
                           </ScrollView>
+                        </View>
+                      )}
+
+                      {log.sharedWith.length > 0 && (
+                        <View style={styles.historySection}>
+                          <Text style={styles.historySectionTitle}>Shared with:</Text>
+                          <Text style={styles.historySectionText}>{log.sharedWith.join(', ')}</Text>
                         </View>
                       )}
                     </View>
@@ -1269,17 +1164,18 @@ export default function ScheduleScreen() {
                   style={styles.exportAllButton}
                   onPress={() => {
                     const allLogsText = projectDailyLogs
-                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime())
                       .map(log => {
-                        return `Daily Log - ${new Date(log.date).toLocaleDateString()}\n\n` +
-                          (log.category ? `Category: ${log.category}\n` : '') +
-                          (log.workPerformed ? `\nWork Performed:\n${log.workPerformed}\n` : '') +
-                          (log.issues ? `\nIssues/Notes:\n${log.issues}\n` : '') +
-                          (log.note ? `\nAdditional Notes:\n${log.note}\n` : '') +
-                          (log.reminders && log.reminders.length > 0 
-                            ? `\nReminders:\n${log.reminders.map(r => `- ${r.task} (${r.time}) ${r.completed ? '✓' : ''}`).join('\n')}\n`
-                            : '') +
-                          '\n---\n\n';
+                        return `Daily Log - ${new Date(log.logDate).toLocaleDateString()}\n` +
+                          `Created by: ${log.createdBy}\n\n` +
+                          (log.equipmentNote ? `Equipment: ${log.equipmentNote}\n` : '') +
+                          (log.materialNote ? `Material: ${log.materialNote}\n` : '') +
+                          (log.officialNote ? `Official: ${log.officialNote}\n` : '') +
+                          (log.subsNote ? `Subs: ${log.subsNote}\n` : '') +
+                          (log.employeesNote ? `Employees: ${log.employeesNote}\n` : '') +
+                          `\nWork Performed:\n${log.workPerformed}\n` +
+                          `\nIssues:\n${log.issues}\n` +
+                          `\nGeneral Notes:\n${log.generalNotes}\n\n---\n\n`;
                       })
                       .join('');
                     console.log('[Export All] Daily logs:', allLogsText);
@@ -1506,7 +1402,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     marginTop: 2,
   },
-
   deleteTaskButton: {
     position: 'absolute',
     top: 4,
@@ -1709,65 +1604,53 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#1F2937',
   },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
   modalBody: {
     padding: 20,
+  },
+  toggleSection: {
+    marginBottom: 16,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    flex: 1,
+  },
+  oneLineInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: '#1F2937',
+    marginTop: 8,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 20,
   },
   label: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#1F2937',
     marginBottom: 8,
-  },
-  workTypeContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  workTypeButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  workTypeButtonActive: {
-    backgroundColor: '#2563EB',
-  },
-  workTypeText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-  },
-  workTypeTextActive: {
-    color: '#FFFFFF',
-  },
-  durationControl: {
-    marginBottom: 20,
-  },
-  durationButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  durationButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  durationButtonText: {
-    fontSize: 24,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  durationValue: {
-    fontSize: 24,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-    minWidth: 60,
-    textAlign: 'center',
   },
   textArea: {
     backgroundColor: '#F9FAFB',
@@ -1778,8 +1661,140 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 14,
     color: '#1F2937',
-    minHeight: 100,
+    minHeight: 80,
     textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  photoSection: {
+    marginBottom: 16,
+  },
+  photoButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  photosList: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  photoItem: {
+    position: 'relative',
+  },
+  photoThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+  },
+  photoRemoveButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#EF4444',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tasksSection: {
+    marginBottom: 16,
+  },
+  addTaskButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#2563EB',
+    borderRadius: 6,
+  },
+  addTaskButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 8,
+  },
+  taskCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskCheckboxCompleted: {
+    backgroundColor: '#2563EB',
+  },
+  taskInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1F2937',
+    paddingVertical: 4,
+  },
+  taskInputCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
+  },
+  shareSection: {
+    marginBottom: 16,
+  },
+  sharedList: {
+    marginBottom: 12,
+    gap: 8,
+  },
+  sharedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  sharedEmail: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#0C4A6E',
+  },
+  addShareContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  shareInput: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  addShareButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalFooter: {
     flexDirection: 'row',
@@ -1862,10 +1877,10 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 4,
   },
-  historyCategory: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#2563EB',
+  historyCreatedBy: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: '#6B7280',
   },
   historySection: {
     marginTop: 12,
@@ -1885,13 +1900,18 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     lineHeight: 20,
   },
-  historyReminderItem: {
+  quickNoteItem: {
+    fontSize: 13,
+    color: '#1F2937',
+    marginTop: 4,
+  },
+  historyTaskItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
     marginTop: 8,
   },
-  historyReminderCheck: {
+  historyTaskCheck: {
     width: 18,
     height: 18,
     borderRadius: 4,
@@ -1902,22 +1922,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 2,
   },
-  historyReminderCheckCompleted: {
+  historyTaskCheckCompleted: {
     backgroundColor: '#10B981',
     borderColor: '#10B981',
   },
-  historyReminderText: {
+  historyTaskText: {
+    flex: 1,
     fontSize: 13,
     color: '#1F2937',
   },
-  historyReminderTextCompleted: {
+  historyTaskTextCompleted: {
     textDecorationLine: 'line-through',
     color: '#9CA3AF',
   },
-  historyReminderTime: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginTop: 2,
+  historyPhotosList: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  historyPhotoItem: {
+    width: 100,
+  },
+  historyPhotoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
   },
   exportButton: {
     padding: 8,
@@ -1972,318 +2002,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
-  },
-  dailyLogInput: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    fontSize: 14,
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  remindersSection: {
-    marginTop: 24,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  remindersList: {
-    marginBottom: 16,
-    gap: 12,
-  },
-  reminderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  reminderCheckbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#2563EB',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reminderText: {
-    fontSize: 14,
-    fontWeight: '500' as const,
-    color: '#1F2937',
-  },
-  reminderTextCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#9CA3AF',
-  },
-  reminderTime: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  addReminderContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  reminderInput: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: '#1F2937',
-  },
-  reminderTimeInput: {
-    width: 130,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: '#1F2937',
-  },
-  addReminderButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shareSection: {
-    marginTop: 24,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  sharedList: {
-    marginBottom: 12,
-    gap: 8,
-  },
-  sharedItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    backgroundColor: '#F0F9FF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  sharedEmail: {
-    fontSize: 14,
-    fontWeight: '500' as const,
-    color: '#0C4A6E',
-  },
-  addShareContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  shareInput: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: '#1F2937',
-  },
-  addShareButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dailyLogMessagesSection: {
-    marginTop: 24,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    flex: 1,
-  },
-  messageSectionSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 12,
-    textAlign: 'center',
-    fontWeight: '500' as const,
-  },
-  messagesContainer: {
-    maxHeight: 300,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 12,
-  },
-  messagesContent: {
-    padding: 12,
-    gap: 8,
-  },
-  messageBubble: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  messageBubbleContent: {
-    marginBottom: 8,
-  },
-  messageText: {
-    fontSize: 14,
-    color: '#1F2937',
-    lineHeight: 20,
-  },
-  messageImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    backgroundColor: '#E5E7EB',
-    marginBottom: 8,
-  },
-  messageFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  messageAuthor: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-  },
-  messageTimestamp: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-  messageInputContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingTop: 12,
-  },
-  messageInputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  attachmentButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  messageInput: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    fontSize: 14,
-    color: '#1F2937',
-    maxHeight: 100,
-    textAlignVertical: 'center',
-  },
-  sendButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 20,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-    opacity: 0.6,
-  },
-  sendButtonText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  historyNoteItem: {
-    marginTop: 8,
-    padding: 10,
-    backgroundColor: '#F0F9FF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  historyNoteHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  historyNoteAuthor: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  historyNoteTime: {
-    fontSize: 11,
-    color: '#6B7280',
-  },
-  historyNoteText: {
-    fontSize: 13,
-    color: '#1F2937',
-    lineHeight: 18,
-  },
-  historyPhotosList: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingVertical: 8,
-  },
-  historyPhotoItem: {
-    width: 120,
-  },
-  historyPhotoImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 8,
-    backgroundColor: '#E5E7EB',
-  },
-  historyPhotoInfo: {
-    marginTop: 6,
-  },
-  historyPhotoAuthor: {
-    fontSize: 11,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  historyPhotoTime: {
-    fontSize: 10,
-    color: '#6B7280',
-    marginTop: 2,
   },
 });

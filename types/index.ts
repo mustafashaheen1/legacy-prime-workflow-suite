@@ -63,20 +63,29 @@ export interface DailyLogPhoto {
   notes?: string;
 }
 
+export interface DailyLogTask {
+  id: string;
+  description: string;
+  completed: boolean;
+}
+
 export interface DailyLog {
   id: string;
   projectId: string;
-  date: string;
-  note: string;
-  category?: string;
-  workPerformed?: string;
-  issues?: string;
-  weather?: string;
-  crewSize?: number;
-  reminders?: DailyLogReminder[];
-  notes?: DailyLogNote[];
-  photos?: DailyLogPhoto[];
-  sharedWith?: string[];
+  logDate: string;
+  createdBy: string;
+  equipmentNote?: string;
+  materialNote?: string;
+  officialNote?: string;
+  subsNote?: string;
+  employeesNote?: string;
+  workPerformed: string;
+  issues: string;
+  generalNotes: string;
+  tasks: DailyLogTask[];
+  photos: DailyLogPhoto[];
+  sharedWith: string[];
+  createdAt: string;
 }
 
 export interface DailyLogReminder {
