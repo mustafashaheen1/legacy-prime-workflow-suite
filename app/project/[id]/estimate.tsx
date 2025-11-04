@@ -14,7 +14,7 @@ export default function EstimateScreen() {
   const { projects, addEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile } = useApp();
   const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
-  const isNarrow = screenWidth < 600;
+  const isNarrow = screenWidth < 800;
   
   const [estimateName, setEstimateName] = useState<string>('');
   const [items, setItems] = useState<EstimateItem[]>([]);
@@ -1335,9 +1335,10 @@ const styles = StyleSheet.create({
   },
   itemSelectionSection: {
     flex: 1,
+    minWidth: 320,
   },
   itemSelectionSectionNarrow: {
-    maxHeight: 200,
+    maxHeight: 250,
   },
   itemsListContent: {
   },
@@ -1373,10 +1374,11 @@ const styles = StyleSheet.create({
     color: '#2563EB',
   },
   selectedItemsSection: {
-    flex: 1,
+    flex: 1.5,
     backgroundColor: '#FFFFFF',
     borderLeftWidth: 1,
     borderLeftColor: '#E5E7EB',
+    minWidth: 400,
   },
   selectedItemsSectionNarrow: {
     borderLeftWidth: 0,
@@ -1396,7 +1398,7 @@ const styles = StyleSheet.create({
   },
   lineItemCard: {
     backgroundColor: '#FFFFFF',
-    padding: 12,
+    padding: 14,
     marginHorizontal: 12,
     marginTop: 8,
     borderRadius: 8,
@@ -1465,8 +1467,8 @@ const styles = StyleSheet.create({
   estimateItem: {
     backgroundColor: '#F9FAFB',
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    padding: 14,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
@@ -1512,54 +1514,64 @@ const styles = StyleSheet.create({
   },
   itemDetailsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
     marginBottom: 12,
   },
   itemDetailsRowNarrow: {
-    gap: 6,
+    gap: 8,
   },
   quantityControl: {
     flex: 1.6,
+    minWidth: 100,
   },
   quantityControlNarrow: {
     flex: 1.4,
+    minWidth: 80,
   },
   unitControl: {
     flex: 0.9,
+    minWidth: 60,
   },
   unitControlNarrow: {
     flex: 0.8,
+    minWidth: 50,
   },
   priceControl: {
     flex: 1.5,
+    minWidth: 90,
   },
   priceControlNarrow: {
     flex: 1.2,
+    minWidth: 70,
   },
   budgetControl: {
     flex: 1.5,
+    minWidth: 90,
   },
   budgetControlNarrow: {
     flex: 1.2,
+    minWidth: 70,
   },
   totalControl: {
     flex: 1.5,
+    minWidth: 90,
   },
   totalControlNarrow: {
     flex: 1.2,
+    minWidth: 70,
   },
   totalControlFull: {
     flex: 4,
   },
   itemLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#6B7280',
-    marginBottom: 4,
+    marginBottom: 5,
     fontWeight: '500' as const,
   },
   itemLabelNarrow: {
-    fontSize: 9,
-    marginBottom: 2,
+    fontSize: 10,
+    marginBottom: 3,
   },
   quantityInput: {
     flexDirection: 'row',
@@ -1594,19 +1606,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   quantityTextInput: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600' as const,
     color: '#1F2937',
-    minWidth: 40,
+    minWidth: 50,
     textAlign: 'center',
-    padding: 4,
+    padding: 5,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   quantityTextInputNarrow: {
-    fontSize: 11,
-    minWidth: 28,
-    padding: 2,
+    fontSize: 12,
+    minWidth: 35,
+    padding: 3,
   },
   unitValue: {
     fontSize: 14,
@@ -1637,12 +1649,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   totalValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700' as const,
     color: '#2563EB',
   },
   totalValueNarrow: {
-    fontSize: 11,
+    fontSize: 12,
   },
   priceEditRow: {
     flexDirection: 'row',
@@ -1662,18 +1674,18 @@ const styles = StyleSheet.create({
     marginRight: 1,
   },
   priceInput: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600' as const,
     color: '#1F2937',
-    padding: 4,
+    padding: 5,
     borderBottomWidth: 1,
     borderBottomColor: '#2563EB',
-    minWidth: 50,
+    minWidth: 60,
   },
   priceInputNarrow: {
-    fontSize: 11,
-    padding: 2,
-    minWidth: 35,
+    fontSize: 12,
+    padding: 3,
+    minWidth: 45,
   },
   notesSection: {
   },
@@ -1906,7 +1918,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     width: '100%',
-    maxWidth: 500,
+    maxWidth: 600,
   },
   modalTitle: {
     fontSize: 20,
