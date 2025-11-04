@@ -14,7 +14,7 @@ export default function EstimateScreen() {
   const { projects, addEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile } = useApp();
   const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
-  const isNarrow = screenWidth < 800;
+  const isNarrow = screenWidth < 900;
   
   const [estimateName, setEstimateName] = useState<string>('');
   const [items, setItems] = useState<EstimateItem[]>([]);
@@ -1239,7 +1239,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
@@ -1250,13 +1250,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#6B7280',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   headerInput: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700' as const,
     color: '#1F2937',
     padding: 0,
@@ -1335,10 +1335,12 @@ const styles = StyleSheet.create({
   },
   itemSelectionSection: {
     flex: 1,
-    minWidth: 320,
+    minWidth: 280,
+    maxWidth: 380,
   },
   itemSelectionSectionNarrow: {
     maxHeight: 250,
+    maxWidth: '100%',
   },
   itemsListContent: {
   },
@@ -1347,13 +1349,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700' as const,
     color: '#1F2937',
     flex: 1,
@@ -1374,11 +1376,11 @@ const styles = StyleSheet.create({
     color: '#2563EB',
   },
   selectedItemsSection: {
-    flex: 1.5,
+    flex: 2,
     backgroundColor: '#FFFFFF',
     borderLeftWidth: 1,
     borderLeftColor: '#E5E7EB',
-    minWidth: 400,
+    minWidth: 450,
   },
   selectedItemsSectionNarrow: {
     borderLeftWidth: 0,
@@ -1398,9 +1400,9 @@ const styles = StyleSheet.create({
   },
   lineItemCard: {
     backgroundColor: '#FFFFFF',
-    padding: 14,
-    marginHorizontal: 12,
-    marginTop: 8,
+    padding: 12,
+    marginHorizontal: 10,
+    marginTop: 6,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -1411,11 +1413,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   lineItemName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500' as const,
     color: '#1F2937',
     flex: 1,
-    marginRight: 12,
+    marginRight: 8,
   },
   lineItemRight: {
     flexDirection: 'row',
@@ -1565,14 +1567,14 @@ const styles = StyleSheet.create({
   },
   itemsList: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: 12,
+    paddingTop: 8,
   },
   estimateItem: {
     backgroundColor: '#F9FAFB',
     borderRadius: 8,
-    padding: 14,
-    marginBottom: 10,
+    padding: 12,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
