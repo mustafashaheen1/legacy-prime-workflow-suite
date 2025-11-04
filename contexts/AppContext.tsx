@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog } from '@/types';
+import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
 
@@ -22,6 +22,8 @@ interface AppState {
   reports: Report[];
   projectFiles: ProjectFile[];
   dailyLogs: DailyLog[];
+  payments: Payment[];
+  changeOrders: ChangeOrder[];
   isLoading: boolean;
   
   setUser: (user: User | null) => void;
@@ -57,6 +59,11 @@ interface AppState {
   addDailyLog: (log: DailyLog) => void;
   updateDailyLog: (id: string, updates: Partial<DailyLog>) => void;
   deleteDailyLog: (id: string) => void;
+  addPayment: (payment: Payment) => Promise<void>;
+  getPayments: (projectId?: string) => Payment[];
+  addChangeOrder: (changeOrder: ChangeOrder) => Promise<void>;
+  updateChangeOrder: (id: string, updates: Partial<ChangeOrder>) => Promise<void>;
+  getChangeOrders: (projectId?: string) => ChangeOrder[];
   logout: () => void;
 }
 
@@ -77,6 +84,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [reports, setReports] = useState<Report[]>([]);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
   const [dailyLogs, setDailyLogs] = useState<DailyLog[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -108,6 +117,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const storedReports = await AsyncStorage.getItem('reports');
       const storedProjectFiles = await AsyncStorage.getItem('projectFiles');
       const storedDailyLogs = await AsyncStorage.getItem('dailyLogs');
+      const storedPayments = await AsyncStorage.getItem('payments');
+      const storedChangeOrders = await AsyncStorage.getItem('changeOrders');
       
       const parsedUser = safeJsonParse<User | null>(storedUser, 'user', null);
       if (parsedUser && typeof parsedUser === 'object') {
@@ -154,6 +165,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const parsedDailyLogs = safeJsonParse<DailyLog[]>(storedDailyLogs, 'dailyLogs', []);
       if (Array.isArray(parsedDailyLogs)) {
         setDailyLogs(parsedDailyLogs);
+      }
+
+      const parsedPayments = safeJsonParse<Payment[]>(storedPayments, 'payments', []);
+      if (Array.isArray(parsedPayments)) {
+        setPayments(parsedPayments);
+      }
+
+      const parsedChangeOrders = safeJsonParse<ChangeOrder[]>(storedChangeOrders, 'changeOrders', []);
+      if (Array.isArray(parsedChangeOrders)) {
+        setChangeOrders(parsedChangeOrders);
       }
       
       setProjects(mockProjects);
@@ -387,14 +408,94 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log('[Storage] Daily log deleted successfully');
   }, [dailyLogs]);
 
+  const addPayment = useCallback(async (payment: Payment) => {
+    const updated = [payment, ...payments];
+    setPayments(updated);
+    await AsyncStorage.setItem('payments', JSON.stringify(updated));
+    console.log('[Storage] Payment saved successfully:', payment.amount);
+
+    const project = projects.find(p => p.id === payment.projectId);
+    if (project) {
+      const newExpenses = project.expenses + payment.amount;
+      setProjects(prev => prev.map(p => 
+        p.id === payment.projectId ? { ...p, expenses: newExpenses } : p
+      ));
+      console.log('[Project] Balance updated after payment');
+    }
+  }, [payments, projects]);
+
+  const getPayments = useCallback((projectId?: string) => {
+    if (!projectId) return payments;
+    return payments.filter(p => p.projectId === projectId);
+  }, [payments]);
+
+  const addChangeOrder = useCallback(async (changeOrder: ChangeOrder) => {
+    const updated = [changeOrder, ...changeOrders];
+    setChangeOrders(updated);
+    await AsyncStorage.setItem('changeOrders', JSON.stringify(updated));
+    console.log('[Storage] Change order saved successfully:', changeOrder.description);
+
+    if (changeOrder.status === 'approved') {
+      const project = projects.find(p => p.id === changeOrder.projectId);
+      if (project) {
+        const newBudget = project.budget + changeOrder.amount;
+        setProjects(prev => prev.map(p => 
+          p.id === changeOrder.projectId ? { ...p, budget: newBudget } : p
+        ));
+        console.log('[Project] Budget increased by change order:', changeOrder.amount);
+      }
+    }
+  }, [changeOrders, projects]);
+
+  const updateChangeOrder = useCallback(async (id: string, updates: Partial<ChangeOrder>) => {
+    const changeOrder = changeOrders.find(co => co.id === id);
+    if (!changeOrder) return;
+
+    const wasApproved = changeOrder.status === 'approved';
+    const isBeingApproved = updates.status === 'approved' && !wasApproved;
+    const isBeingRejected = updates.status === 'rejected' && wasApproved;
+
+    const updated = changeOrders.map(co => co.id === id ? { ...co, ...updates } : co);
+    setChangeOrders(updated);
+    await AsyncStorage.setItem('changeOrders', JSON.stringify(updated));
+    console.log('[Storage] Change order updated:', id);
+
+    if (isBeingApproved) {
+      const project = projects.find(p => p.id === changeOrder.projectId);
+      if (project) {
+        const newBudget = project.budget + changeOrder.amount;
+        setProjects(prev => prev.map(p => 
+          p.id === changeOrder.projectId ? { ...p, budget: newBudget } : p
+        ));
+        console.log('[Project] Budget increased by approved change order:', changeOrder.amount);
+      }
+    } else if (isBeingRejected) {
+      const project = projects.find(p => p.id === changeOrder.projectId);
+      if (project) {
+        const newBudget = project.budget - changeOrder.amount;
+        setProjects(prev => prev.map(p => 
+          p.id === changeOrder.projectId ? { ...p, budget: newBudget } : p
+        ));
+        console.log('[Project] Budget decreased by rejected change order:', changeOrder.amount);
+      }
+    }
+  }, [changeOrders, projects]);
+
+  const getChangeOrders = useCallback((projectId?: string) => {
+    if (!projectId) return changeOrders;
+    return changeOrders.filter(co => co.projectId === projectId);
+  }, [changeOrders]);
+
   const logout = useCallback(async () => {
-    await AsyncStorage.multiRemove(['user', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs']);
+    await AsyncStorage.multiRemove(['user', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders']);
     setUserState(null);
     setSubscriptionState(null);
     setConversations([]);
     setReports([]);
     setProjectFiles([]);
     setDailyLogs([]);
+    setPayments([]);
+    setChangeOrders([]);
   }, []);
 
   return useMemo(() => ({
@@ -414,6 +515,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     reports,
     projectFiles,
     dailyLogs,
+    payments,
+    changeOrders,
     isLoading,
     setUser,
     setSubscription,
@@ -448,6 +551,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addDailyLog,
     updateDailyLog,
     deleteDailyLog,
+    addPayment,
+    getPayments,
+    addChangeOrder,
+    updateChangeOrder,
+    getChangeOrders,
     logout,
   }), [
     user,
@@ -466,6 +574,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     reports,
     projectFiles,
     dailyLogs,
+    payments,
+    changeOrders,
     isLoading,
     setUser,
     setSubscription,
@@ -500,6 +610,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addDailyLog,
     updateDailyLog,
     deleteDailyLog,
+    addPayment,
+    getPayments,
+    addChangeOrder,
+    updateChangeOrder,
+    getChangeOrders,
     logout,
   ]);
 });

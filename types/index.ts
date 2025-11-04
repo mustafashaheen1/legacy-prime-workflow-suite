@@ -322,3 +322,29 @@ export interface ScheduledTask {
   row?: number;
   rowSpan?: number;
 }
+
+export interface Payment {
+  id: string;
+  projectId: string;
+  amount: number;
+  date: string;
+  clientId?: string;
+  clientName: string;
+  method: 'cash' | 'check' | 'credit-card' | 'wire-transfer' | 'other';
+  notes?: string;
+  receiptUrl?: string;
+  createdAt: string;
+}
+
+export interface ChangeOrder {
+  id: string;
+  projectId: string;
+  description: string;
+  amount: number;
+  date: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  approvedDate?: string;
+  notes?: string;
+  createdAt: string;
+}
