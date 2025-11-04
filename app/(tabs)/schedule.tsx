@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Calendar, X, GripVertical, BookOpen, Plus, Bell, Trash2, Check } from 'lucide-react-native';
+import { Calendar, X, GripVertical, BookOpen, Plus, Bell, Trash2, Check, Share2, Users } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogReminder } from '@/types';
 
 const CONSTRUCTION_CATEGORIES = [
@@ -63,6 +63,9 @@ export default function ScheduleScreen() {
   const [dailyLogReminders, setDailyLogReminders] = useState<DailyLogReminder[]>([]);
   const [newReminderTask, setNewReminderTask] = useState<string>('');
   const [newReminderTime, setNewReminderTime] = useState<string>('');
+  const [sharedWith, setSharedWith] = useState<string[]>([]);
+  const [showShareModal, setShowShareModal] = useState<boolean>(false);
+  const [shareEmail, setShareEmail] = useState<string>('');
   
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
@@ -168,6 +171,22 @@ export default function ScheduleScreen() {
     setDailyLogReminders(prev => prev.filter(r => r.id !== reminderId));
   };
 
+  const handleAddTeamMember = () => {
+    if (!shareEmail.trim()) return;
+    if (sharedWith.includes(shareEmail.trim())) {
+      console.log('[Share] User already added');
+      return;
+    }
+    setSharedWith([...sharedWith, shareEmail.trim()]);
+    setShareEmail('');
+    console.log('[Share] Added team member:', shareEmail);
+  };
+
+  const handleRemoveTeamMember = (email: string) => {
+    setSharedWith(prev => prev.filter(e => e !== email));
+    console.log('[Share] Removed team member:', email);
+  };
+
   const handleSaveDailyLog = () => {
     if (!selectedProject) return;
 
@@ -184,7 +203,13 @@ export default function ScheduleScreen() {
     };
 
     addDailyLog(log);
+    
+    if (sharedWith.length > 0) {
+      console.log('[Share] Daily log shared with:', sharedWith.join(', '));
+    }
+    
     setShowDailyLogsModal(false);
+    setSharedWith([]);
     console.log('[Daily Log] Created with', dailyLogReminders.length, 'reminders');
   };
 
@@ -318,6 +343,15 @@ export default function ScheduleScreen() {
       <View style={styles.bgArea} />
       <View style={styles.header}>
         <Text style={styles.title}>Project Schedule</Text>
+        {selectedProject && (
+          <TouchableOpacity
+            style={styles.dailyLogHeaderButton}
+            onPress={handleOpenDailyLogs}
+          >
+            <BookOpen size={20} color="#2563EB" />
+            <Text style={styles.dailyLogHeaderButtonText}>Daily Log</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.projectSelector}>
@@ -842,6 +876,44 @@ export default function ScheduleScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              <View style={styles.shareSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Users size={20} color="#2563EB" />
+                  <Text style={styles.label}>Share with Team</Text>
+                </View>
+                
+                {sharedWith.length > 0 && (
+                  <View style={styles.sharedList}>
+                    {sharedWith.map((email, idx) => (
+                      <View key={idx} style={styles.sharedItem}>
+                        <Text style={styles.sharedEmail}>{email}</Text>
+                        <TouchableOpacity onPress={() => handleRemoveTeamMember(email)}>
+                          <X size={18} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <View style={styles.addShareContainer}>
+                  <TextInput
+                    style={styles.shareInput}
+                    value={shareEmail}
+                    onChangeText={setShareEmail}
+                    placeholder="Team member email..."
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity 
+                    style={styles.addShareButton}
+                    onPress={handleAddTeamMember}
+                  >
+                    <Plus size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -862,14 +934,6 @@ export default function ScheduleScreen() {
         </View>
       </Modal>
 
-      {selectedProject && (
-        <TouchableOpacity
-          style={[styles.dailyLogButton, { bottom: insets.bottom + 80 }]}
-          onPress={handleOpenDailyLogs}
-        >
-          <BookOpen size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      )}
       </View>
   );
 }
@@ -893,6 +957,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
@@ -1383,20 +1450,21 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#FFFFFF',
   },
-  dailyLogButton: {
-    position: 'absolute',
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#10B981',
+  dailyLogHeaderButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  dailyLogHeaderButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#2563EB',
   },
   dailyLogInput: {
     backgroundColor: '#F9FAFB',
@@ -1480,6 +1548,54 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   addReminderButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  sharedList: {
+    marginBottom: 12,
+    gap: 8,
+  },
+  sharedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  sharedEmail: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#0C4A6E',
+  },
+  addShareContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  shareInput: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  addShareButton: {
     width: 44,
     height: 44,
     borderRadius: 8,
