@@ -286,7 +286,7 @@ export default function DashboardScreen() {
                   setShowReportTypeMenu(true);
                 }}
               >
-                <Text style={styles.reportMenuItemText}>Daily Logs</Text>
+                <Text style={styles.reportMenuItemText}>Daily Logs Report</Text>
               </TouchableOpacity>
             </View>
           </View>

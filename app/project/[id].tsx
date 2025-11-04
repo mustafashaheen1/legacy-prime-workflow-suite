@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Tex
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
+import { Report, ProjectReportData, DailyLog } from '@/types';
 import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
 import { Image } from 'expo-image';
@@ -15,7 +16,7 @@ type TabType = 'overview' | 'estimate' | 'clock' | 'expenses' | 'photos' | 'file
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, archiveProject, user, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports } = useApp();
+  const { projects, archiveProject, user, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, dailyLogs } = useApp();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<FileCategory>('documentation');
@@ -1026,15 +1027,129 @@ export default function ProjectDetailScreen() {
         );
 
       case 'reports':
+        const handleGenerateProjectReport = (type: 'administrative' | 'daily-logs') => {
+          if (!project) return;
+
+          if (type === 'daily-logs') {
+            const logs = dailyLogs.filter(log => log.projectId === project.id);
+            
+            if (logs.length === 0) {
+              Alert.alert('No Daily Logs', 'This project has no daily logs to export.');
+              return;
+            }
+
+            const report: Report = {
+              id: `report-${Date.now()}`,
+              name: `Daily Logs - ${project.name}`,
+              type: 'custom',
+              generatedDate: new Date().toISOString(),
+              projectIds: [project.id],
+              projectsCount: 1,
+              notes: JSON.stringify({ 
+                dailyLogs: [{ 
+                  projectId: project.id, 
+                  projectName: project.name, 
+                  logs: logs 
+                }] 
+              }),
+            };
+
+            addReport(report);
+            console.log('[Report] Generated daily logs report for project:', project.name);
+            console.log('[Report] Included', logs.length, 'daily logs');
+            Alert.alert(
+              'Report Generated',
+              `Daily logs report saved successfully. ${logs.length} log(s) included.`
+            );
+          } else {
+            const projectExpenses = expenses.filter(e => e.projectId === project.id);
+            const projectClockEntries = clockEntries.filter(c => c.projectId === project.id);
+            
+            const expensesByCategory: { [category: string]: number } = {};
+            projectExpenses.forEach(expense => {
+              const category = expense.type || 'Uncategorized';
+              expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
+            });
+
+            const projectData: ProjectReportData = {
+              projectId: project.id,
+              projectName: project.name,
+              budget: project.budget,
+              expenses: projectExpenses.reduce((sum, e) => sum + e.amount, 0),
+              hoursWorked: project.hoursWorked,
+              clockEntries: projectClockEntries.length,
+              status: project.status,
+              progress: project.progress,
+              startDate: project.startDate,
+              endDate: project.endDate,
+              expensesByCategory,
+            };
+
+            const report: Report = {
+              id: `report-${Date.now()}`,
+              name: `Administrative Report - ${project.name}`,
+              type: 'administrative',
+              generatedDate: new Date().toISOString(),
+              projectIds: [project.id],
+              projectsCount: 1,
+              totalBudget: project.budget,
+              totalExpenses: projectData.expenses,
+              totalHours: project.hoursWorked,
+              projects: [projectData],
+            };
+
+            addReport(report);
+            console.log('[Report] Generated administrative report for project:', project.name);
+            Alert.alert('Report Generated', 'Administrative report saved successfully.');
+          }
+        };
+
         return (
           <View style={styles.tabPlaceholder}>
             <FolderOpen size={48} color="#9CA3AF" />
             <Text style={styles.placeholderText}>Generate and view project reports</Text>
             <Text style={styles.placeholderSubtext}>Financial summaries, time tracking, and custom reports</Text>
-            <TouchableOpacity style={styles.primaryButton}>
-              <Plus size={20} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>Generate Report</Text>
-            </TouchableOpacity>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity 
+                style={styles.primaryButton}
+                onPress={() => handleGenerateProjectReport('administrative')}
+              >
+                <FileText size={20} color="#FFFFFF" />
+                <Text style={styles.primaryButtonText}>Administrative</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.secondaryButton}
+                onPress={() => handleGenerateProjectReport('daily-logs')}
+              >
+                <FileText size={20} color="#2563EB" />
+                <Text style={styles.secondaryButtonText}>Daily Logs</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {projectReports.length > 0 && (
+              <View style={styles.projectReportsList}>
+                <Text style={styles.projectReportsTitle}>Saved Reports ({projectReports.length})</Text>
+                {projectReports.map((report) => (
+                  <TouchableOpacity
+                    key={report.id}
+                    style={styles.projectReportCard}
+                    onPress={() => router.push('/reports' as any)}
+                  >
+                    <FileText size={20} color="#2563EB" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.projectReportName}>{report.name}</Text>
+                      <Text style={styles.projectReportDate}>
+                        {new Date(report.generatedDate).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         );
 
@@ -2523,5 +2638,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#1F2937',
     textAlign: 'center',
+  },
+  projectReportsList: {
+    width: '100%',
+    marginTop: 32,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  projectReportsTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 16,
+  },
+  projectReportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  projectReportName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  projectReportDate: {
+    fontSize: 13,
+    color: '#6B7280',
   },
 });
