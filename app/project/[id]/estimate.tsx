@@ -828,76 +828,75 @@ export default function EstimateScreen() {
 
       {items.length > 0 && (
         <View style={styles.fixedBottomSection}>
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal</Text>
-            <Text style={styles.totalValue}>${subtotal.toFixed(2)}</Text>
-          </View>
-          
-          {showBudget && totalBudget > 0 && (
-            <View style={styles.budgetTotalRow}>
-              <Text style={styles.budgetTotalLabel}>Total Budget Allowance</Text>
-              <Text style={styles.budgetTotalValue}>${totalBudget.toFixed(2)}</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={true}
+            style={styles.totalsScrollContainer}
+            contentContainerStyle={styles.totalsScrollContent}
+          >
+            <View style={styles.compactTotalItem}>
+              <Text style={styles.compactTotalLabel}>Subtotal</Text>
+              <Text style={styles.compactTotalValue}>${subtotal.toFixed(2)}</Text>
             </View>
-          )}
-          
-          <View style={styles.editableRow}>
-            <Text style={styles.totalLabel}>Markup</Text>
-            <View style={styles.editableInput}>
-              <TextInput
-                style={styles.percentInput}
-                value={markupPercent}
-                onChangeText={(text) => {
-                  if (text === '' || text === '.' || /^\d*\.?\d*$/.test(text)) {
-                    const val = parseFloat(text);
-                    if (text === '' || text === '.' || (val >= 0 && val <= 100)) {
-                      setMarkupPercent(text);
+            
+            {showBudget && totalBudget > 0 && (
+              <View style={[styles.compactTotalItem, styles.budgetItem]}>
+                <Text style={styles.compactBudgetLabel}>Budget</Text>
+                <Text style={styles.compactBudgetValue}>${totalBudget.toFixed(2)}</Text>
+              </View>
+            )}
+            
+            <View style={styles.compactEditableItem}>
+              <Text style={styles.compactTotalLabel}>Markup</Text>
+              <View style={styles.compactEditRow}>
+                <TextInput
+                  style={styles.compactPercentInput}
+                  value={markupPercent}
+                  onChangeText={(text) => {
+                    if (text === '' || text === '.' || /^\d*\.?\d*$/.test(text)) {
+                      const val = parseFloat(text);
+                      if (text === '' || text === '.' || (val >= 0 && val <= 100)) {
+                        setMarkupPercent(text);
+                      }
                     }
-                  }
-                }}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor="#9CA3AF"
-              />
-              <Text style={styles.percentSign}>%</Text>
-              <Text style={styles.calculatedValue}>${markupAmount.toFixed(2)}</Text>
+                  }}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor="#9CA3AF"
+                />
+                <Text style={styles.compactPercentSign}>%</Text>
+              </View>
+              <Text style={styles.compactCalculatedValue}>${markupAmount.toFixed(2)}</Text>
             </View>
-          </View>
-          
-          {(parseFloat(markupPercent) || 0) > 0 && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal w/ Markup</Text>
-              <Text style={styles.totalValue}>${subtotalWithMarkup.toFixed(2)}</Text>
-            </View>
-          )}
-          
-          <View style={styles.editableRow}>
-            <Text style={styles.totalLabel}>Tax</Text>
-            <View style={styles.editableInput}>
-              <TextInput
-                style={styles.percentInput}
-                value={taxPercent}
-                onChangeText={(text) => {
-                  if (text === '' || text === '.' || /^\d*\.?\d*$/.test(text)) {
-                    const val = parseFloat(text);
-                    if (text === '' || text === '.' || (val >= 0 && val <= 100)) {
-                      setTaxPercent(text);
+            
+            <View style={styles.compactEditableItem}>
+              <Text style={styles.compactTotalLabel}>Tax</Text>
+              <View style={styles.compactEditRow}>
+                <TextInput
+                  style={styles.compactPercentInput}
+                  value={taxPercent}
+                  onChangeText={(text) => {
+                    if (text === '' || text === '.' || /^\d*\.?\d*$/.test(text)) {
+                      const val = parseFloat(text);
+                      if (text === '' || text === '.' || (val >= 0 && val <= 100)) {
+                        setTaxPercent(text);
+                      }
                     }
-                  }
-                }}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor="#9CA3AF"
-              />
-              <Text style={styles.percentSign}>%</Text>
-              <Text style={styles.calculatedValue}>${taxAmount.toFixed(2)}</Text>
+                  }}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor="#9CA3AF"
+                />
+                <Text style={styles.compactPercentSign}>%</Text>
+              </View>
+              <Text style={styles.compactCalculatedValue}>${taxAmount.toFixed(2)}</Text>
             </View>
-          </View>
-          
-          <View style={[styles.totalRow, styles.grandTotalRow]}>
-            <Text style={styles.grandTotalLabel}>Total</Text>
-            <Text style={styles.grandTotalValue}>${total.toFixed(2)}</Text>
-          </View>
+            
+            <View style={styles.compactGrandTotalItem}>
+              <Text style={styles.compactGrandTotalLabel}>TOTAL</Text>
+              <Text style={styles.compactGrandTotalValue}>${total.toFixed(2)}</Text>
+            </View>
+          </ScrollView>
 
           <View style={styles.visibilityToggle}>
             <TouchableOpacity 
@@ -1448,12 +1447,116 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 2,
     borderTopColor: '#E5E7EB',
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+  },
+  totalsScrollContainer: {
+    maxHeight: 80,
+    marginBottom: 8,
+  },
+  totalsScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  compactTotalItem: {
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  budgetItem: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  compactTotalLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+    marginBottom: 4,
+  },
+  compactTotalValue: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  compactBudgetLabel: {
+    fontSize: 11,
+    color: '#10B981',
+    fontWeight: '500' as const,
+    marginBottom: 4,
+  },
+  compactBudgetValue: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#10B981',
+  },
+  compactEditableItem: {
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  compactEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  compactPercentInput: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    minWidth: 36,
+    textAlign: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2563EB',
+  },
+  compactPercentSign: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginLeft: 2,
+  },
+  compactCalculatedValue: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+    marginTop: 2,
+  },
+  compactGrandTotalItem: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 130,
+    alignItems: 'center',
+  },
+  compactGrandTotalLabel: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  compactGrandTotalValue: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
   sectionLabel: {
     fontSize: 14,
@@ -1794,7 +1897,7 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   visibilityToggle: {
-    marginTop: 12,
+    marginTop: 4,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
