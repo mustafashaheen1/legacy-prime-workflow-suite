@@ -953,116 +953,90 @@ export default function ScheduleScreen() {
                 </View>
               </View>
 
-              <View style={styles.noteEntriesSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <View style={styles.dailyLogMessagesSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <Clock size={20} color="#2563EB" />
-                  <Text style={styles.label}>Timestamped Notes</Text>
+                  <Text style={styles.label}>Daily Log Messages</Text>
                 </View>
+                <Text style={styles.messageSectionSubtitle}>
+                  📅 {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </Text>
                 
-                {noteEntries.length > 0 && (
-                  <View style={styles.noteEntriesList}>
-                    {noteEntries.map((note) => (
-                      <View key={note.id} style={styles.noteEntryItem}>
-                        <View style={styles.noteEntryHeader}>
-                          <View style={styles.noteEntryInfo}>
-                            <User size={14} color="#6B7280" />
-                            <Text style={styles.noteEntryAuthor}>{note.author}</Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Text style={styles.noteEntryTime}>
-                              {new Date(note.timestamp).toLocaleTimeString([], { 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                              })}
-                            </Text>
-                            <TouchableOpacity onPress={() => handleRemoveNoteEntry(note.id)}>
-                              <X size={16} color="#EF4444" />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                        <Text style={styles.noteEntryText}>{note.text}</Text>
-                        <Text style={styles.noteEntryDate}>
-                          {new Date(note.timestamp).toLocaleDateString()}
+                <ScrollView 
+                  style={styles.messagesContainer}
+                  contentContainerStyle={styles.messagesContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {noteEntries.map((note) => (
+                    <View key={note.id} style={styles.messageBubble}>
+                      <View style={styles.messageBubbleContent}>
+                        <Text style={styles.messageText}>{note.text}</Text>
+                      </View>
+                      <View style={styles.messageFooter}>
+                        <Text style={styles.messageAuthor}>👤 {note.author}</Text>
+                        <Text style={styles.messageTimestamp}>
+                          {new Date(note.timestamp).toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
                         </Text>
                       </View>
-                    ))}
-                  </View>
-                )}
-
-                <View style={styles.addNoteEntryContainer}>
-                  <TextInput
-                    style={styles.noteEntryInput}
-                    value={currentNoteInput}
-                    onChangeText={setCurrentNoteInput}
-                    placeholder="Add a note entry..."
-                    placeholderTextColor="#9CA3AF"
-                    multiline
-                  />
-                  <TouchableOpacity 
-                    style={styles.addNoteEntryButton}
-                    onPress={handleAddNoteEntry}
-                  >
-                    <Plus size={20} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.photoEntriesSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <ImageIcon size={20} color="#2563EB" />
-                  <Text style={styles.label}>Photo Attachments</Text>
-                </View>
-                
-                {photoEntries.length > 0 && (
-                  <View style={styles.photoEntriesList}>
-                    {photoEntries.map((photo) => (
-                      <View key={photo.id} style={styles.photoEntryItem}>
+                    </View>
+                  ))}
+                  {photoEntries.map((photo) => (
+                    <View key={photo.id} style={styles.messageBubble}>
+                      <View style={styles.messageBubbleContent}>
                         <Image 
                           source={{ uri: photo.uri }} 
-                          style={styles.photoEntryImage}
+                          style={styles.messageImage}
                         />
-                        <View style={styles.photoEntryDetails}>
-                          <View style={styles.photoEntryHeader}>
-                            <View style={styles.photoEntryInfo}>
-                              <User size={12} color="#6B7280" />
-                              <Text style={styles.photoEntryAuthor}>{photo.author}</Text>
-                            </View>
-                            <TouchableOpacity onPress={() => handleRemovePhoto(photo.id)}>
-                              <Trash2 size={16} color="#EF4444" />
-                            </TouchableOpacity>
-                          </View>
-                          <Text style={styles.photoEntryTime}>
-                            📅 {new Date(photo.timestamp).toLocaleString([], {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </Text>
-                          {photo.notes && (
-                            <Text style={styles.photoEntryNotes}>{photo.notes}</Text>
-                          )}
-                        </View>
+                        {photo.notes && (
+                          <Text style={styles.messageText}>{photo.notes}</Text>
+                        )}
                       </View>
-                    ))}
-                  </View>
-                )}
+                      <View style={styles.messageFooter}>
+                        <Text style={styles.messageAuthor}>👤 {photo.author}</Text>
+                        <Text style={styles.messageTimestamp}>
+                          {new Date(photo.timestamp).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
 
-                <View style={styles.photoButtonsContainer}>
-                  <TouchableOpacity 
-                    style={styles.photoButton}
-                    onPress={handleTakePhoto}
-                  >
-                    <Camera size={20} color="#FFFFFF" />
-                    <Text style={styles.photoButtonText}>Take Photo</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.photoButton}
-                    onPress={handlePickPhoto}
-                  >
-                    <ImageIcon size={20} color="#FFFFFF" />
-                    <Text style={styles.photoButtonText}>Pick Photo</Text>
-                  </TouchableOpacity>
+                <View style={styles.messageInputContainer}>
+                  <View style={styles.messageInputRow}>
+                    <TouchableOpacity 
+                      style={styles.attachmentButton}
+                      onPress={handleTakePhoto}
+                    >
+                      <Camera size={20} color="#2563EB" />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.attachmentButton}
+                      onPress={handlePickPhoto}
+                    >
+                      <ImageIcon size={20} color="#2563EB" />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.messageInput}
+                      value={currentNoteInput}
+                      onChangeText={setCurrentNoteInput}
+                      placeholder="Type a message..."
+                      placeholderTextColor="#9CA3AF"
+                      multiline
+                    />
+                    <TouchableOpacity 
+                      style={[styles.sendButton, !currentNoteInput.trim() && styles.sendButtonDisabled]}
+                      onPress={handleAddNoteEntry}
+                      disabled={!currentNoteInput.trim()}
+                    >
+                      <Text style={styles.sendButtonText}>Send</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
 
@@ -2136,147 +2110,123 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  noteEntriesSection: {
+  dailyLogMessagesSection: {
     marginTop: 24,
     paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    flex: 1,
   },
-  noteEntriesList: {
+  messageSectionSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
     marginBottom: 12,
-    gap: 12,
+    textAlign: 'center',
+    fontWeight: '500' as const,
   },
-  noteEntryItem: {
-    padding: 12,
-    backgroundColor: '#F0F9FF',
-    borderRadius: 8,
+  messagesContainer: {
+    maxHeight: 300,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#E5E7EB',
+    marginBottom: 12,
   },
-  noteEntryHeader: {
+  messagesContent: {
+    padding: 12,
+    gap: 8,
+  },
+  messageBubble: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  messageBubbleContent: {
+    marginBottom: 8,
+  },
+  messageText: {
+    fontSize: 14,
+    color: '#1F2937',
+    lineHeight: 20,
+  },
+  messageImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 8,
+  },
+  messageFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
-  noteEntryInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  noteEntryAuthor: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  noteEntryTime: {
+  messageAuthor: {
     fontSize: 12,
+    fontWeight: '600' as const,
     color: '#6B7280',
   },
-  noteEntryText: {
-    fontSize: 14,
-    color: '#1F2937',
-    marginBottom: 6,
-    lineHeight: 20,
-  },
-  noteEntryDate: {
+  messageTimestamp: {
     fontSize: 11,
     color: '#9CA3AF',
   },
-  addNoteEntryContainer: {
+  messageInputContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 12,
+  },
+  messageInputRow: {
     flexDirection: 'row',
+    alignItems: 'flex-end',
     gap: 8,
   },
-  noteEntryInput: {
+  attachmentButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  messageInput: {
     flex: 1,
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 8,
+    borderRadius: 20,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     fontSize: 14,
     color: '#1F2937',
-    minHeight: 60,
-    textAlignVertical: 'top',
+    maxHeight: 100,
+    textAlignVertical: 'center',
   },
-  addNoteEntryButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
+  sendButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoEntriesSection: {
-    marginTop: 24,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+  sendButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+    opacity: 0.6,
   },
-  photoEntriesList: {
-    marginBottom: 12,
-    gap: 12,
-  },
-  photoEntryItem: {
-    flexDirection: 'row',
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 12,
-  },
-  photoEntryImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 6,
-    backgroundColor: '#E5E7EB',
-  },
-  photoEntryDetails: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  photoEntryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  photoEntryInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  photoEntryAuthor: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  photoEntryTime: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-  photoEntryNotes: {
-    fontSize: 12,
-    color: '#1F2937',
-    marginTop: 4,
-  },
-  photoButtonsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  photoButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#059669',
-  },
-  photoButtonText: {
+  sendButtonText: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#FFFFFF',
