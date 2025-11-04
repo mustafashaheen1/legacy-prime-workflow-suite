@@ -48,6 +48,21 @@ export interface Task {
   completed: boolean;
 }
 
+export interface DailyLogNote {
+  id: string;
+  text: string;
+  timestamp: string;
+  author: string;
+}
+
+export interface DailyLogPhoto {
+  id: string;
+  uri: string;
+  timestamp: string;
+  author: string;
+  notes?: string;
+}
+
 export interface DailyLog {
   id: string;
   projectId: string;
@@ -59,6 +74,9 @@ export interface DailyLog {
   weather?: string;
   crewSize?: number;
   reminders?: DailyLogReminder[];
+  notes?: DailyLogNote[];
+  photos?: DailyLogPhoto[];
+  sharedWith?: string[];
 }
 
 export interface DailyLogReminder {

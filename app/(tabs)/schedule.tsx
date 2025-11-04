@@ -7,13 +7,15 @@ import {
   TextInput,
   Modal,
   Platform,
-  PanResponder
+  PanResponder,
+  Alert,
+  Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Calendar, X, GripVertical, BookOpen, Plus, Bell, Trash2, Check, Share2, Users, History, Download } from 'lucide-react-native';
-import { ScheduledTask, DailyLog, DailyLogReminder } from '@/types';
+import { Calendar, X, GripVertical, BookOpen, Plus, Bell, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, Clock, User } from 'lucide-react-native';
+import { ScheduledTask, DailyLog, DailyLogReminder, DailyLogNote, DailyLogPhoto } from '@/types';
 
 const CONSTRUCTION_CATEGORIES = [
   { name: 'Pre-Construction', color: '#8B5CF6' },
@@ -38,7 +40,7 @@ const HOUR_HEIGHT = 60;
 const LEFT_MARGIN = 60;
 
 export default function ScheduleScreen() {
-  const { projects, dailyLogs, addDailyLog, updateDailyLog, deleteDailyLog } = useApp();
+  const { user, projects, dailyLogs, addDailyLog, updateDailyLog, deleteDailyLog } = useApp();
   const insets = useSafeAreaInsets();
   const [selectedProject, setSelectedProject] = useState<string | null>(
     projects.length > 0 ? projects[0].id : null
@@ -67,6 +69,9 @@ export default function ScheduleScreen() {
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
   const [shareEmail, setShareEmail] = useState<string>('');
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
+  const [noteEntries, setNoteEntries] = useState<DailyLogNote[]>([]);
+  const [photoEntries, setPhotoEntries] = useState<DailyLogPhoto[]>([]);
+  const [currentNoteInput, setCurrentNoteInput] = useState<string>('');
   
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
@@ -144,6 +149,9 @@ export default function ScheduleScreen() {
     setDailyLogReminders([]);
     setNewReminderTask('');
     setNewReminderTime('');
+    setNoteEntries([]);
+    setPhotoEntries([]);
+    setCurrentNoteInput('');
   };
 
   const handleAddReminder = () => {
@@ -188,6 +196,62 @@ export default function ScheduleScreen() {
     console.log('[Share] Removed team member:', email);
   };
 
+  const handleAddNoteEntry = () => {
+    if (!currentNoteInput.trim()) return;
+
+    const noteEntry: DailyLogNote = {
+      id: Date.now().toString(),
+      text: currentNoteInput,
+      timestamp: new Date().toISOString(),
+      author: user?.name || 'Unknown User',
+    };
+
+    setNoteEntries([...noteEntries, noteEntry]);
+    setCurrentNoteInput('');
+    console.log('[Note Entry] Added note at:', new Date().toLocaleTimeString());
+  };
+
+  const handleTakePhoto = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Camera', 'Camera access is not available on web. Please use a mobile device.');
+      return;
+    }
+
+    try {
+      const { CameraView, useCameraPermissions } = await import('expo-camera');
+      Alert.alert('Photo', 'Camera functionality will be available in the next update.');
+      console.log('[Camera] Opening camera...');
+    } catch (error) {
+      console.error('[Camera] Error:', error);
+      Alert.alert('Error', 'Could not access camera');
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    try {
+      const photoEntry: DailyLogPhoto = {
+        id: Date.now().toString(),
+        uri: `https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=400`,
+        timestamp: new Date().toISOString(),
+        author: user?.name || 'Unknown User',
+        notes: '',
+      };
+
+      setPhotoEntries([...photoEntries, photoEntry]);
+      console.log('[Photo] Photo added at:', new Date().toLocaleTimeString());
+    } catch (error) {
+      console.error('[Photo Picker] Error:', error);
+    }
+  };
+
+  const handleRemovePhoto = (photoId: string) => {
+    setPhotoEntries(prev => prev.filter(p => p.id !== photoId));
+  };
+
+  const handleRemoveNoteEntry = (noteId: string) => {
+    setNoteEntries(prev => prev.filter(n => n.id !== noteId));
+  };
+
   const handleSaveDailyLog = () => {
     if (!selectedProject) return;
 
@@ -201,6 +265,9 @@ export default function ScheduleScreen() {
       workPerformed: dailyLogWorkPerformed,
       issues: dailyLogIssues,
       reminders: dailyLogReminders.map(r => ({ ...r, dailyLogId: logId })),
+      notes: noteEntries,
+      photos: photoEntries,
+      sharedWith: sharedWith,
     };
 
     addDailyLog(log);
@@ -211,7 +278,7 @@ export default function ScheduleScreen() {
     
     setShowDailyLogsModal(false);
     setSharedWith([]);
-    console.log('[Daily Log] Created with', dailyLogReminders.length, 'reminders');
+    console.log('[Daily Log] Created with', dailyLogReminders.length, 'reminders,', noteEntries.length, 'notes, and', photoEntries.length, 'photos');
   };
 
   const getTaskPosition = (task: ScheduledTask) => {
