@@ -3,7 +3,7 @@ import { useApp } from '@/contexts/AppContext';
 import { FileText, Calendar, Trash2, X, BarChart, Folder } from 'lucide-react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Report } from '@/types';
+import { Report, DailyLog } from '@/types';
 
 export default function ReportsScreen() {
   const { reports, deleteReport } = useApp();
@@ -56,6 +56,8 @@ export default function ReportsScreen() {
         return '#10B981';
       case 'time-tracking':
         return '#F59E0B';
+      case 'custom':
+        return '#8B5CF6';
       default:
         return '#6B7280';
     }
@@ -187,7 +189,7 @@ export default function ReportsScreen() {
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Type:</Text>
                     <Text style={styles.detailValue}>
-                      {selectedReport.type.charAt(0).toUpperCase() + selectedReport.type.slice(1)}
+                      {selectedReport.type === 'custom' ? 'Daily Logs' : selectedReport.type.charAt(0).toUpperCase() + selectedReport.type.slice(1)}
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
@@ -198,78 +200,152 @@ export default function ReportsScreen() {
                   </View>
                 </View>
 
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailSectionTitle}>Summary</Text>
-                  <View style={styles.summaryGrid}>
-                    <View style={styles.summaryCard}>
-                      <Text style={styles.summaryLabel}>Projects</Text>
-                      <Text style={styles.summaryValue}>{selectedReport.projectsCount}</Text>
-                    </View>
-                    <View style={styles.summaryCard}>
-                      <Text style={styles.summaryLabel}>Total Budget</Text>
-                      <Text style={styles.summaryValue}>
-                        ${(selectedReport.totalBudget ?? 0).toLocaleString()}
-                      </Text>
-                    </View>
-                    <View style={styles.summaryCard}>
-                      <Text style={styles.summaryLabel}>Total Expenses</Text>
-                      <Text style={styles.summaryValue}>
-                        ${(selectedReport.totalExpenses ?? 0).toLocaleString()}
-                      </Text>
-                    </View>
-                    <View style={styles.summaryCard}>
-                      <Text style={styles.summaryLabel}>Total Hours</Text>
-                      <Text style={styles.summaryValue}>{selectedReport.totalHours ?? 0}h</Text>
-                    </View>
+                {selectedReport.type === 'custom' && selectedReport.notes ? (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Daily Logs</Text>
+                    {(() => {
+                      try {
+                        const data = JSON.parse(selectedReport.notes) as { dailyLogs: Array<{ projectId: string; projectName: string; logs: DailyLog[] }> };
+                        return data.dailyLogs.map((projectLogs) => (
+                          <View key={projectLogs.projectId} style={styles.projectLogsSection}>
+                            <Text style={styles.projectLogsTitle}>{projectLogs.projectName}</Text>
+                            <Text style={styles.projectLogsCount}>{projectLogs.logs.length} log(s)</Text>
+                            {projectLogs.logs.map((log) => (
+                              <View key={log.id} style={styles.dailyLogCard}>
+                                <Text style={styles.dailyLogDate}>
+                                  {new Date(log.date).toLocaleDateString('en-US', {
+                                    weekday: 'short',
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </Text>
+                                {log.category && (
+                                  <View style={styles.dailyLogRow}>
+                                    <Text style={styles.dailyLogLabel}>Category:</Text>
+                                    <Text style={styles.dailyLogValue}>{log.category}</Text>
+                                  </View>
+                                )}
+                                {log.workPerformed && (
+                                  <View style={styles.dailyLogSection}>
+                                    <Text style={styles.dailyLogSectionTitle}>Work Performed:</Text>
+                                    <Text style={styles.dailyLogText}>{log.workPerformed}</Text>
+                                  </View>
+                                )}
+                                {log.issues && (
+                                  <View style={styles.dailyLogSection}>
+                                    <Text style={styles.dailyLogSectionTitle}>Issues/Notes:</Text>
+                                    <Text style={styles.dailyLogText}>{log.issues}</Text>
+                                  </View>
+                                )}
+                                {log.note && (
+                                  <View style={styles.dailyLogSection}>
+                                    <Text style={styles.dailyLogSectionTitle}>Additional Notes:</Text>
+                                    <Text style={styles.dailyLogText}>{log.note}</Text>
+                                  </View>
+                                )}
+                                {log.reminders && log.reminders.length > 0 && (
+                                  <View style={styles.dailyLogSection}>
+                                    <Text style={styles.dailyLogSectionTitle}>Reminders:</Text>
+                                    {log.reminders.map((reminder) => (
+                                      <View key={reminder.id} style={styles.reminderRow}>
+                                        <Text style={styles.reminderStatus}>{reminder.completed ? '✓' : '○'}</Text>
+                                        <View style={{ flex: 1 }}>
+                                          <Text style={[styles.reminderText, reminder.completed && styles.reminderTextCompleted]}>
+                                            {reminder.task}
+                                          </Text>
+                                          <Text style={styles.reminderTime}>⏰ {reminder.time}</Text>
+                                        </View>
+                                      </View>
+                                    ))}
+                                  </View>
+                                )}
+                              </View>
+                            ))}
+                          </View>
+                        ));
+                      } catch (error) {
+                        console.error('Error parsing daily logs:', error);
+                        return <Text style={styles.errorText}>Error loading daily logs</Text>;
+                      }
+                    })()}
                   </View>
-                </View>
-
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailSectionTitle}>Projects</Text>
-                  {selectedReport.projects?.map((project) => (
-                    <View key={project.projectId} style={styles.projectDetail}>
-                      <Text style={styles.projectDetailName}>{project.projectName}</Text>
-                      <View style={styles.projectDetailRow}>
-                        <Text style={styles.projectDetailLabel}>Budget:</Text>
-                        <Text style={styles.projectDetailValue}>
-                          ${project.budget.toLocaleString()}
-                        </Text>
-                      </View>
-                      <View style={styles.projectDetailRow}>
-                        <Text style={styles.projectDetailLabel}>Expenses:</Text>
-                        <Text style={styles.projectDetailValue}>
-                          ${project.expenses.toLocaleString()}
-                        </Text>
-                      </View>
-                      <View style={styles.projectDetailRow}>
-                        <Text style={styles.projectDetailLabel}>Hours Worked:</Text>
-                        <Text style={styles.projectDetailValue}>{project.hoursWorked}h</Text>
-                      </View>
-                      <View style={styles.projectDetailRow}>
-                        <Text style={styles.projectDetailLabel}>Status:</Text>
-                        <Text style={styles.projectDetailValue}>{project.status}</Text>
-                      </View>
-                      <View style={styles.projectDetailRow}>
-                        <Text style={styles.projectDetailLabel}>Progress:</Text>
-                        <Text style={styles.projectDetailValue}>{project.progress}%</Text>
-                      </View>
-
-                      {project.expensesByCategory && Object.keys(project.expensesByCategory).length > 0 && (
-                        <View style={styles.expensesCategorySection}>
-                          <Text style={styles.expensesCategoryTitle}>Expenses by Category:</Text>
-                          {Object.entries(project.expensesByCategory).map(([category, amount]) => (
-                            <View key={category} style={styles.expensesCategoryRow}>
-                              <Text style={styles.expensesCategoryLabel}>{category}:</Text>
-                              <Text style={styles.expensesCategoryValue}>
-                                ${(amount ?? 0).toLocaleString()}
-                              </Text>
-                            </View>
-                          ))}
+                ) : (
+                  <>
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailSectionTitle}>Summary</Text>
+                      <View style={styles.summaryGrid}>
+                        <View style={styles.summaryCard}>
+                          <Text style={styles.summaryLabel}>Projects</Text>
+                          <Text style={styles.summaryValue}>{selectedReport.projectsCount}</Text>
                         </View>
-                      )}
+                        <View style={styles.summaryCard}>
+                          <Text style={styles.summaryLabel}>Total Budget</Text>
+                          <Text style={styles.summaryValue}>
+                            ${(selectedReport.totalBudget ?? 0).toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={styles.summaryCard}>
+                          <Text style={styles.summaryLabel}>Total Expenses</Text>
+                          <Text style={styles.summaryValue}>
+                            ${(selectedReport.totalExpenses ?? 0).toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={styles.summaryCard}>
+                          <Text style={styles.summaryLabel}>Total Hours</Text>
+                          <Text style={styles.summaryValue}>{selectedReport.totalHours ?? 0}h</Text>
+                        </View>
+                      </View>
                     </View>
-                  ))}
-                </View>
+
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailSectionTitle}>Projects</Text>
+                      {selectedReport.projects?.map((project) => (
+                        <View key={project.projectId} style={styles.projectDetail}>
+                          <Text style={styles.projectDetailName}>{project.projectName}</Text>
+                          <View style={styles.projectDetailRow}>
+                            <Text style={styles.projectDetailLabel}>Budget:</Text>
+                            <Text style={styles.projectDetailValue}>
+                              ${project.budget.toLocaleString()}
+                            </Text>
+                          </View>
+                          <View style={styles.projectDetailRow}>
+                            <Text style={styles.projectDetailLabel}>Expenses:</Text>
+                            <Text style={styles.projectDetailValue}>
+                              ${project.expenses.toLocaleString()}
+                            </Text>
+                          </View>
+                          <View style={styles.projectDetailRow}>
+                            <Text style={styles.projectDetailLabel}>Hours Worked:</Text>
+                            <Text style={styles.projectDetailValue}>{project.hoursWorked}h</Text>
+                          </View>
+                          <View style={styles.projectDetailRow}>
+                            <Text style={styles.projectDetailLabel}>Status:</Text>
+                            <Text style={styles.projectDetailValue}>{project.status}</Text>
+                          </View>
+                          <View style={styles.projectDetailRow}>
+                            <Text style={styles.projectDetailLabel}>Progress:</Text>
+                            <Text style={styles.projectDetailValue}>{project.progress}%</Text>
+                          </View>
+
+                          {project.expensesByCategory && Object.keys(project.expensesByCategory).length > 0 && (
+                            <View style={styles.expensesCategorySection}>
+                              <Text style={styles.expensesCategoryTitle}>Expenses by Category:</Text>
+                              {Object.entries(project.expensesByCategory).map(([category, amount]) => (
+                                <View key={category} style={styles.expensesCategoryRow}>
+                                  <Text style={styles.expensesCategoryLabel}>{category}:</Text>
+                                  <Text style={styles.expensesCategoryValue}>
+                                    ${(amount ?? 0).toLocaleString()}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
               </ScrollView>
             )}
           </View>
@@ -540,5 +616,102 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     fontWeight: '600' as const,
     flex: 1,
+  },
+  projectLogsSection: {
+    marginBottom: 24,
+    backgroundColor: '#F9FAFB',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  projectLogsTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  projectLogsCount: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  dailyLogCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#8B5CF6',
+  },
+  dailyLogDate: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  dailyLogRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  dailyLogLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    width: 90,
+  },
+  dailyLogValue: {
+    fontSize: 13,
+    color: '#1F2937',
+    flex: 1,
+  },
+  dailyLogSection: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  dailyLogSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  dailyLogText: {
+    fontSize: 13,
+    color: '#1F2937',
+    lineHeight: 20,
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 6,
+  },
+  reminderStatus: {
+    fontSize: 16,
+    color: '#10B981',
+    fontWeight: '700' as const,
+    marginTop: 2,
+  },
+  reminderText: {
+    fontSize: 13,
+    color: '#1F2937',
+  },
+  reminderTextCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
+  },
+  reminderTime: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#EF4444',
+    textAlign: 'center',
+    padding: 20,
   },
 });

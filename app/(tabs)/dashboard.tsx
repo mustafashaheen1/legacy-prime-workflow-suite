@@ -8,7 +8,7 @@ import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData } from '@/types';
 
 export default function DashboardScreen() {
-  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient } = useApp();
+  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, dailyLogs } = useApp();
   const router = useRouter();
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showArchived, setShowArchived] = useState<boolean>(false);
@@ -22,6 +22,8 @@ export default function DashboardScreen() {
   const [showReportMenu, setShowReportMenu] = useState<boolean>(false);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+  const [showReportTypeMenu, setShowReportTypeMenu] = useState<boolean>(false);
+  const [reportType, setReportType] = useState<'administrative' | 'daily-logs'>('administrative');
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
@@ -46,15 +48,67 @@ export default function DashboardScreen() {
     }));
   }, [activeProjects, expenses]);
 
-  const handleReportRequest = (reportType: 'all' | 'selected') => {
-    if (reportType === 'selected' && selectedProjects.length === 0) {
+  const handleReportRequest = (selectionType: 'all' | 'selected') => {
+    if (selectionType === 'selected' && selectedProjects.length === 0) {
       Alert.alert('No Projects Selected', 'Please select at least one project to generate a report.');
       return;
     }
 
-    const projectsToReport = reportType === 'all' 
+    const projectsToReport = selectionType === 'all' 
       ? activeProjects 
       : activeProjects.filter(p => selectedProjects.includes(p.id));
+
+    if (reportType === 'daily-logs') {
+      const projectDailyLogs = projectsToReport.map(project => {
+        const logs = dailyLogs.filter(log => log.projectId === project.id);
+        return {
+          projectId: project.id,
+          projectName: project.name,
+          logs: logs,
+        };
+      }).filter(p => p.logs.length > 0);
+
+      const totalLogs = projectDailyLogs.reduce((sum, p) => sum + p.logs.length, 0);
+
+      if (totalLogs === 0) {
+        Alert.alert('No Daily Logs', 'The selected project(s) have no daily logs to export.');
+        return;
+      }
+
+      const report: Report = {
+        id: `report-${Date.now()}`,
+        name: `Daily Logs Report - ${selectionType === 'all' ? 'All Projects' : `${projectsToReport.length} Selected Projects`}`,
+        type: 'custom',
+        generatedDate: new Date().toISOString(),
+        projectIds: projectsToReport.map(p => p.id),
+        projectsCount: projectsToReport.length,
+        notes: JSON.stringify({ dailyLogs: projectDailyLogs }),
+      };
+
+      addReport(report);
+
+      console.log('[Report] Generating daily logs report for projects:', projectsToReport.map(p => p.name));
+      console.log('[Report] Report includes:');
+      console.log(`  - ${projectsToReport.length} projects`);
+      console.log(`  - ${totalLogs} daily logs`);
+      
+      projectDailyLogs.forEach(project => {
+        console.log(`\n[Report] ${project.projectName}:`);
+        console.log(`  Daily Logs: ${project.logs.length}`);
+      });
+
+      Alert.alert(
+        'Report Generated',
+        `Daily logs report saved successfully. ${totalLogs} log(s) from ${projectDailyLogs.length} project(s) included.`,
+        [{ text: 'OK', onPress: () => {
+          setShowReportMenu(false);
+          setShowReportTypeMenu(false);
+          setIsSelectMode(false);
+          setSelectedProjects([]);
+        }}]
+      );
+      return;
+    }
 
     const projectsData: ProjectReportData[] = projectsToReport.map(project => {
       const projectExpenses = expenses.filter(e => e.projectId === project.id);
@@ -83,7 +137,7 @@ export default function DashboardScreen() {
 
     const report: Report = {
       id: `report-${Date.now()}`,
-      name: `Administrative Report - ${reportType === 'all' ? 'All Projects' : `${projectsToReport.length} Selected Projects`}`,
+      name: `Administrative Report - ${selectionType === 'all' ? 'All Projects' : `${projectsToReport.length} Selected Projects`}`,
       type: 'administrative',
       generatedDate: new Date().toISOString(),
       projectIds: projectsToReport.map(p => p.id),
@@ -117,6 +171,7 @@ export default function DashboardScreen() {
       `Administrative report saved successfully. ${projectsToReport.length} project(s) included.`,
       [{ text: 'OK', onPress: () => {
         setShowReportMenu(false);
+        setShowReportTypeMenu(false);
         setIsSelectMode(false);
         setSelectedProjects([]);
       }}]
@@ -208,11 +263,52 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {showReportMenu && (
+        {showReportMenu && !showReportTypeMenu && (
           <View style={styles.reportMenu}>
             <View style={styles.reportMenuHeader}>
               <FileText size={20} color="#2563EB" />
-              <Text style={styles.reportMenuTitle}>Administrative Report</Text>
+              <Text style={styles.reportMenuTitle}>Generate Report</Text>
+            </View>
+            <View style={styles.reportMenuButtons}>
+              <TouchableOpacity
+                style={styles.reportMenuItem}
+                onPress={() => {
+                  setReportType('administrative');
+                  setShowReportTypeMenu(true);
+                }}
+              >
+                <Text style={styles.reportMenuItemText}>Administrative Report</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reportMenuItem}
+                onPress={() => {
+                  setReportType('daily-logs');
+                  setShowReportTypeMenu(true);
+                }}
+              >
+                <Text style={styles.reportMenuItemText}>Daily Logs</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {showReportMenu && showReportTypeMenu && (
+          <View style={styles.reportMenu}>
+            <View style={styles.reportMenuHeader}>
+              <FileText size={20} color="#2563EB" />
+              <Text style={styles.reportMenuTitle}>
+                {reportType === 'administrative' ? 'Administrative Report' : 'Daily Logs Report'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowReportTypeMenu(false);
+                  setIsSelectMode(false);
+                  setSelectedProjects([]);
+                }}
+                style={{ marginLeft: 'auto' }}
+              >
+                <Text style={{ color: '#6B7280', fontSize: 14 }}>Back</Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.reportMenuButtons}>
               <TouchableOpacity
