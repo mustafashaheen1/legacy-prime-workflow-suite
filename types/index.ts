@@ -238,7 +238,7 @@ export interface EmployeeTimeData {
 export interface Report {
   id: string;
   name: string;
-  type: 'administrative' | 'financial' | 'time-tracking' | 'custom';
+  type: 'administrative' | 'financial' | 'time-tracking' | 'expenses' | 'custom';
   generatedDate: string;
   projectIds: string[];
   projectsCount?: number;
@@ -254,6 +254,7 @@ export interface Report {
   };
   employeeData?: EmployeeTimeData[];
   employeeIds?: string[];
+  expensesByCategory?: { [category: string]: number };
 }
 
 export type FileCategory = 'receipts' | 'photos' | 'reports' | 'plans' | 'estimates' | 'documentation' | 'other';

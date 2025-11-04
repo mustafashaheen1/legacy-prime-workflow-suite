@@ -1027,7 +1027,7 @@ export default function ProjectDetailScreen() {
         );
 
       case 'reports':
-        const handleGenerateProjectReport = (type: 'administrative' | 'daily-logs') => {
+        const handleGenerateProjectReport = (type: 'administrative' | 'expenses' | 'time-tracking' | 'daily-logs') => {
           if (!project) return;
 
           if (type === 'daily-logs') {
@@ -1061,9 +1061,8 @@ export default function ProjectDetailScreen() {
               'Report Generated',
               `Daily logs report saved successfully. ${logs.length} log(s) included.`
             );
-          } else {
+          } else if (type === 'expenses') {
             const projectExpenses = expenses.filter(e => e.projectId === project.id);
-            const projectClockEntries = clockEntries.filter(c => c.projectId === project.id);
             
             const expensesByCategory: { [category: string]: number } = {};
             projectExpenses.forEach(expense => {
@@ -1077,7 +1076,7 @@ export default function ProjectDetailScreen() {
               budget: project.budget,
               expenses: projectExpenses.reduce((sum, e) => sum + e.amount, 0),
               hoursWorked: project.hoursWorked,
-              clockEntries: projectClockEntries.length,
+              clockEntries: 0,
               status: project.status,
               progress: project.progress,
               startDate: project.startDate,
@@ -1087,20 +1086,74 @@ export default function ProjectDetailScreen() {
 
             const report: Report = {
               id: `report-${Date.now()}`,
-              name: `Administrative Report - ${project.name}`,
-              type: 'administrative',
+              name: `Expenses Report - ${project.name}`,
+              type: 'expenses',
               generatedDate: new Date().toISOString(),
               projectIds: [project.id],
               projectsCount: 1,
-              totalBudget: project.budget,
               totalExpenses: projectData.expenses,
-              totalHours: project.hoursWorked,
               projects: [projectData],
+              expensesByCategory,
             };
 
             addReport(report);
-            console.log('[Report] Generated administrative report for project:', project.name);
-            Alert.alert('Report Generated', 'Administrative report saved successfully.');
+            console.log('[Report] Generated expenses report for project:', project.name);
+            Alert.alert('Report Generated', 'Expenses breakdown report saved successfully.');
+          } else if (type === 'time-tracking') {
+            const projectClockEntries = clockEntries.filter(entry => entry.projectId === project.id);
+
+            const employeeDataMap: { [employeeId: string]: any } = {};
+            
+            projectClockEntries.forEach(entry => {
+              if (!employeeDataMap[entry.employeeId]) {
+                employeeDataMap[entry.employeeId] = {
+                  employeeId: entry.employeeId,
+                  employeeName: `Employee ${entry.employeeId.slice(0, 8)}`,
+                  totalHours: 0,
+                  regularHours: 0,
+                  overtimeHours: 0,
+                  totalDays: 0,
+                  averageHoursPerDay: 0,
+                  clockEntries: [],
+                };
+              }
+
+              if (entry.clockOut) {
+                const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
+                employeeDataMap[entry.employeeId].totalHours += hours;
+                
+                if (hours > 8) {
+                  employeeDataMap[entry.employeeId].regularHours += 8;
+                  employeeDataMap[entry.employeeId].overtimeHours += (hours - 8);
+                } else {
+                  employeeDataMap[entry.employeeId].regularHours += hours;
+                }
+                
+                employeeDataMap[entry.employeeId].clockEntries.push(entry);
+              }
+            });
+
+            const employeeData = Object.values(employeeDataMap).map((emp: any) => ({
+              ...emp,
+              totalDays: emp.clockEntries.length,
+              averageHoursPerDay: emp.totalHours / (emp.clockEntries.length || 1),
+            }));
+
+            const report: Report = {
+              id: `report-${Date.now()}`,
+              name: `Time Tracking Report - ${project.name}`,
+              type: 'time-tracking',
+              generatedDate: new Date().toISOString(),
+              projectIds: [project.id],
+              projectsCount: 1,
+              totalHours: employeeData.reduce((sum, emp) => sum + emp.totalHours, 0),
+              employeeData,
+              employeeIds: employeeData.map(emp => emp.employeeId),
+            };
+
+            addReport(report);
+            console.log('[Report] Generated time tracking report for project:', project.name);
+            Alert.alert('Report Generated', `Time tracking report saved successfully. ${employeeData.length} employee(s), ${report.totalHours?.toFixed(2)} total hours.`);
           }
         };
 
@@ -1115,7 +1168,23 @@ export default function ProjectDetailScreen() {
                 onPress={() => handleGenerateProjectReport('administrative')}
               >
                 <FileText size={20} color="#FFFFFF" />
-                <Text style={styles.primaryButtonText}>Administrative</Text>
+                <Text style={styles.primaryButtonText}>Admin & Financial</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.secondaryButton}
+                onPress={() => handleGenerateProjectReport('expenses')}
+              >
+                <FileText size={20} color="#2563EB" />
+                <Text style={styles.secondaryButtonText}>Expenses</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.buttonRow, { marginTop: 12 }]}>
+              <TouchableOpacity 
+                style={styles.secondaryButton}
+                onPress={() => handleGenerateProjectReport('time-tracking')}
+              >
+                <FileText size={20} color="#2563EB" />
+                <Text style={styles.secondaryButtonText}>Time Tracking</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.secondaryButton}

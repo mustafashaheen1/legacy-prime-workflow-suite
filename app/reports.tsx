@@ -56,6 +56,8 @@ export default function ReportsScreen() {
         return '#10B981';
       case 'time-tracking':
         return '#F59E0B';
+      case 'expenses':
+        return '#EF4444';
       case 'custom':
         return '#8B5CF6';
       default:
@@ -189,7 +191,9 @@ export default function ReportsScreen() {
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Type:</Text>
                     <Text style={styles.detailValue}>
-                      {selectedReport.type === 'custom' ? 'Daily Logs' : selectedReport.type.charAt(0).toUpperCase() + selectedReport.type.slice(1)}
+                      {selectedReport.type === 'custom' ? 'Daily Logs' : 
+                       selectedReport.type === 'time-tracking' ? 'Time Tracking' :
+                       selectedReport.type.charAt(0).toUpperCase() + selectedReport.type.slice(1)}
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
@@ -200,7 +204,79 @@ export default function ReportsScreen() {
                   </View>
                 </View>
 
-                {selectedReport.type === 'custom' && selectedReport.notes ? (
+                {selectedReport.type === 'expenses' && selectedReport.expensesByCategory ? (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Expenses by Category</Text>
+                    <View style={styles.expensesCategoryBreakdown}>
+                      {Object.entries(selectedReport.expensesByCategory).map(([category, amount]) => (
+                        <View key={category} style={styles.expensesCategoryRow}>
+                          <Text style={styles.expensesCategoryLabel}>{category}:</Text>
+                          <Text style={styles.expensesCategoryValue}>
+                            ${(amount ?? 0).toLocaleString()}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                    <View style={styles.expensesTotalRow}>
+                      <Text style={styles.expensesTotalLabel}>Total Expenses:</Text>
+                      <Text style={styles.expensesTotalValue}>
+                        ${(selectedReport.totalExpenses ?? 0).toLocaleString()}
+                      </Text>
+                    </View>
+                  </View>
+                ) : selectedReport.type === 'time-tracking' && selectedReport.employeeData ? (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Employee Time Tracking</Text>
+                    <View style={styles.employeeTimeSection}>
+                      <View style={styles.timeTrackingSummary}>
+                        <View style={styles.timeTrackingStat}>
+                          <Text style={styles.timeTrackingStatLabel}>Total Hours</Text>
+                          <Text style={styles.timeTrackingStatValue}>{selectedReport.totalHours?.toFixed(2)}h</Text>
+                        </View>
+                        <View style={styles.timeTrackingStat}>
+                          <Text style={styles.timeTrackingStatLabel}>Employees</Text>
+                          <Text style={styles.timeTrackingStatValue}>{selectedReport.employeeData.length}</Text>
+                        </View>
+                      </View>
+
+                      {selectedReport.employeeData.map((employee) => (
+                        <View key={employee.employeeId} style={styles.employeeCard}>
+                          <Text style={styles.employeeName}>{employee.employeeName}</Text>
+                          <View style={styles.employeeStatsGrid}>
+                            <View style={styles.employeeStat}>
+                              <Text style={styles.employeeStatLabel}>Total Hours</Text>
+                              <Text style={styles.employeeStatValue}>{employee.totalHours.toFixed(2)}h</Text>
+                            </View>
+                            <View style={styles.employeeStat}>
+                              <Text style={styles.employeeStatLabel}>Regular</Text>
+                              <Text style={styles.employeeStatValue}>{employee.regularHours.toFixed(2)}h</Text>
+                            </View>
+                            <View style={styles.employeeStat}>
+                              <Text style={styles.employeeStatLabel}>Overtime</Text>
+                              <Text style={[styles.employeeStatValue, { color: '#EF4444' }]}>
+                                {employee.overtimeHours.toFixed(2)}h
+                              </Text>
+                            </View>
+                            <View style={styles.employeeStat}>
+                              <Text style={styles.employeeStatLabel}>Days Worked</Text>
+                              <Text style={styles.employeeStatValue}>{employee.totalDays}</Text>
+                            </View>
+                            <View style={styles.employeeStat}>
+                              <Text style={styles.employeeStatLabel}>Avg Hours/Day</Text>
+                              <Text style={styles.employeeStatValue}>
+                                {employee.averageHoursPerDay.toFixed(2)}h
+                              </Text>
+                            </View>
+                            <View style={styles.employeeStat}>
+                              <Text style={styles.employeeStatLabel}>Entries</Text>
+                              <Text style={styles.employeeStatValue}>{employee.clockEntries.length}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : selectedReport.type === 'custom' && selectedReport.notes ? (
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Daily Logs</Text>
                     {(() => {
@@ -713,5 +789,91 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     textAlign: 'center',
     padding: 20,
+  },
+  expensesCategoryBreakdown: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  expensesTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 2,
+    borderTopColor: '#E5E7EB',
+  },
+  expensesTotalLabel: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  expensesTotalValue: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#EF4444',
+  },
+  employeeTimeSection: {
+    gap: 12,
+  },
+  timeTrackingSummary: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  timeTrackingStat: {
+    flex: 1,
+    backgroundColor: '#EFF6FF',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  timeTrackingStatLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  timeTrackingStatValue: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#2563EB',
+  },
+  employeeCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  employeeName: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  employeeStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  employeeStat: {
+    flex: 1,
+    minWidth: '30%',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  employeeStatLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  employeeStatValue: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: '#1F2937',
   },
 });

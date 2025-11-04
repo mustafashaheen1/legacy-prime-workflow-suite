@@ -23,7 +23,7 @@ export default function DashboardScreen() {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
   const [showReportTypeMenu, setShowReportTypeMenu] = useState<boolean>(false);
-  const [reportType, setReportType] = useState<'administrative' | 'daily-logs'>('administrative');
+  const [reportType, setReportType] = useState<'administrative' | 'expenses' | 'time-tracking' | 'daily-logs'>('administrative');
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
@@ -57,6 +57,146 @@ export default function DashboardScreen() {
     const projectsToReport = selectionType === 'all' 
       ? activeProjects 
       : activeProjects.filter(p => selectedProjects.includes(p.id));
+
+    if (reportType === 'expenses') {
+      const projectsExpensesData = projectsToReport.map(project => {
+        const projectExpenses = expenses.filter(e => e.projectId === project.id);
+        
+        const expensesByCategory: { [category: string]: number } = {};
+        projectExpenses.forEach(expense => {
+          const category = expense.type || 'Uncategorized';
+          expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
+        });
+
+        return {
+          projectId: project.id,
+          projectName: project.name,
+          budget: project.budget,
+          expenses: projectExpenses.reduce((sum, e) => sum + e.amount, 0),
+          hoursWorked: project.hoursWorked,
+          clockEntries: 0,
+          status: project.status,
+          progress: project.progress,
+          startDate: project.startDate,
+          endDate: project.endDate,
+          expensesByCategory,
+        };
+      });
+
+      const overallExpensesByCategory: { [category: string]: number } = {};
+      projectsExpensesData.forEach(project => {
+        Object.entries(project.expensesByCategory).forEach(([category, amount]) => {
+          overallExpensesByCategory[category] = (overallExpensesByCategory[category] || 0) + amount;
+        });
+      });
+
+      const report: Report = {
+        id: `report-${Date.now()}`,
+        name: `Expenses Report - ${selectionType === 'all' ? 'All Projects' : `${projectsToReport.length} Selected Projects`}`,
+        type: 'expenses',
+        generatedDate: new Date().toISOString(),
+        projectIds: projectsToReport.map(p => p.id),
+        projectsCount: projectsToReport.length,
+        totalExpenses: projectsExpensesData.reduce((sum, p) => sum + p.expenses, 0),
+        projects: projectsExpensesData,
+        expensesByCategory: overallExpensesByCategory,
+      };
+
+      addReport(report);
+
+      console.log('[Report] Generating expenses breakdown report for projects:', projectsToReport.map(p => p.name));
+      console.log('[Report] Report includes:');
+      console.log(`  - ${projectsToReport.length} projects`);
+      console.log(`  - Total Expenses: ${report.totalExpenses?.toLocaleString()}`);
+      console.log(`  - Categories:`, Object.keys(overallExpensesByCategory).join(', '));
+
+      Alert.alert(
+        'Report Generated',
+        `Expenses report saved successfully. ${projectsToReport.length} project(s) included.`,
+        [{ text: 'OK', onPress: () => {
+          setShowReportMenu(false);
+          setShowReportTypeMenu(false);
+          setIsSelectMode(false);
+          setSelectedProjects([]);
+        }}]
+      );
+      return;
+    }
+
+    if (reportType === 'time-tracking') {
+      const allClockEntries = clockEntries.filter(entry => 
+        projectsToReport.some(p => p.id === entry.projectId)
+      );
+
+      const employeeDataMap: { [employeeId: string]: any } = {};
+      
+      allClockEntries.forEach(entry => {
+        if (!employeeDataMap[entry.employeeId]) {
+          employeeDataMap[entry.employeeId] = {
+            employeeId: entry.employeeId,
+            employeeName: `Employee ${entry.employeeId.slice(0, 8)}`,
+            totalHours: 0,
+            regularHours: 0,
+            overtimeHours: 0,
+            totalDays: 0,
+            averageHoursPerDay: 0,
+            clockEntries: [],
+          };
+        }
+
+        if (entry.clockOut) {
+          const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
+          employeeDataMap[entry.employeeId].totalHours += hours;
+          
+          if (hours > 8) {
+            employeeDataMap[entry.employeeId].regularHours += 8;
+            employeeDataMap[entry.employeeId].overtimeHours += (hours - 8);
+          } else {
+            employeeDataMap[entry.employeeId].regularHours += hours;
+          }
+          
+          employeeDataMap[entry.employeeId].clockEntries.push(entry);
+        }
+      });
+
+      const employeeData = Object.values(employeeDataMap).map((emp: any) => ({
+        ...emp,
+        totalDays: emp.clockEntries.length,
+        averageHoursPerDay: emp.totalHours / (emp.clockEntries.length || 1),
+      }));
+
+      const report: Report = {
+        id: `report-${Date.now()}`,
+        name: `Time Tracking Report - ${selectionType === 'all' ? 'All Projects' : `${projectsToReport.length} Selected Projects`}`,
+        type: 'time-tracking',
+        generatedDate: new Date().toISOString(),
+        projectIds: projectsToReport.map(p => p.id),
+        projectsCount: projectsToReport.length,
+        totalHours: employeeData.reduce((sum, emp) => sum + emp.totalHours, 0),
+        employeeData,
+        employeeIds: employeeData.map(emp => emp.employeeId),
+      };
+
+      addReport(report);
+
+      console.log('[Report] Generating time tracking report for projects:', projectsToReport.map(p => p.name));
+      console.log('[Report] Report includes:');
+      console.log(`  - ${projectsToReport.length} projects`);
+      console.log(`  - ${employeeData.length} employees`);
+      console.log(`  - Total Hours: ${report.totalHours?.toFixed(2)}`);
+
+      Alert.alert(
+        'Report Generated',
+        `Time tracking report saved successfully. ${employeeData.length} employee(s), ${report.totalHours?.toFixed(2)} total hours.`,
+        [{ text: 'OK', onPress: () => {
+          setShowReportMenu(false);
+          setShowReportTypeMenu(false);
+          setIsSelectMode(false);
+          setSelectedProjects([]);
+        }}]
+      );
+      return;
+    }
 
     if (reportType === 'daily-logs') {
       const projectDailyLogs = projectsToReport.map(project => {
@@ -277,7 +417,25 @@ export default function DashboardScreen() {
                   setShowReportTypeMenu(true);
                 }}
               >
-                <Text style={styles.reportMenuItemText}>Administrative Report</Text>
+                <Text style={styles.reportMenuItemText}>Administrative & Financial</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reportMenuItem}
+                onPress={() => {
+                  setReportType('expenses');
+                  setShowReportTypeMenu(true);
+                }}
+              >
+                <Text style={styles.reportMenuItemText}>Expenses Breakdown</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reportMenuItem}
+                onPress={() => {
+                  setReportType('time-tracking');
+                  setShowReportTypeMenu(true);
+                }}
+              >
+                <Text style={styles.reportMenuItemText}>Time Tracking & Clocking</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.reportMenuItem}
@@ -286,7 +444,7 @@ export default function DashboardScreen() {
                   setShowReportTypeMenu(true);
                 }}
               >
-                <Text style={styles.reportMenuItemText}>Daily Logs Report</Text>
+                <Text style={styles.reportMenuItemText}>Daily Logs</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -297,7 +455,9 @@ export default function DashboardScreen() {
             <View style={styles.reportMenuHeader}>
               <FileText size={20} color="#2563EB" />
               <Text style={styles.reportMenuTitle}>
-                {reportType === 'administrative' ? 'Administrative Report' : 'Daily Logs Report'}
+                {reportType === 'administrative' ? 'Administrative & Financial' : 
+                 reportType === 'expenses' ? 'Expenses Breakdown' :
+                 reportType === 'time-tracking' ? 'Time Tracking & Clocking' : 'Daily Logs'}
               </Text>
               <TouchableOpacity
                 onPress={() => {
