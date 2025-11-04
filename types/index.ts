@@ -1,9 +1,14 @@
+export type UserRole = 'super-admin' | 'admin' | 'salesperson' | 'field-employee';
+
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'employee' | 'sales';
+  role: UserRole;
+  companyId: string;
   avatar?: string;
+  createdAt: string;
+  isActive: boolean;
 }
 
 export interface Project {
@@ -148,6 +153,36 @@ export interface ChatConversation {
   lastMessage?: ChatMessage;
   avatar?: string;
   createdAt: string;
+}
+
+export interface Company {
+  id: string;
+  name: string;
+  logo?: string;
+  brandColor: string;
+  subscriptionStatus: 'trial' | 'active' | 'suspended' | 'cancelled';
+  subscriptionPlan: 'basic' | 'pro' | 'enterprise';
+  subscriptionStartDate: string;
+  subscriptionEndDate?: string;
+  settings: CompanySettings;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompanySettings {
+  features: {
+    crm: boolean;
+    estimates: boolean;
+    schedule: boolean;
+    expenses: boolean;
+    photos: boolean;
+    chat: boolean;
+    reports: boolean;
+    clock: boolean;
+    dashboard: boolean;
+  };
+  maxUsers: number;
+  maxProjects: number;
 }
 
 export interface Subscription {
@@ -347,4 +382,33 @@ export interface ChangeOrder {
   approvedDate?: string;
   notes?: string;
   createdAt: string;
+}
+
+export type Permission =
+  | 'view:dashboard'
+  | 'view:crm'
+  | 'edit:crm'
+  | 'view:estimates'
+  | 'create:estimates'
+  | 'view:projects'
+  | 'edit:projects'
+  | 'view:reports'
+  | 'view:contracts'
+  | 'view:schedule'
+  | 'edit:schedule'
+  | 'view:chat'
+  | 'send:chat'
+  | 'view:photos'
+  | 'add:photos'
+  | 'delete:photos'
+  | 'add:expenses'
+  | 'delete:expenses'
+  | 'clock:in-out'
+  | 'chatbot:unrestricted'
+  | 'chatbot:no-financials'
+  | 'chatbot:basic-only';
+
+export interface RolePermissions {
+  role: UserRole;
+  permissions: Permission[];
 }

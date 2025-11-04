@@ -1,12 +1,13 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder } from '@/types';
+import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
 
 interface AppState {
   user: User | null;
+  company: Company | null;
   subscription: Subscription | null;
   projects: Project[];
   clients: Client[];
@@ -27,6 +28,7 @@ interface AppState {
   isLoading: boolean;
   
   setUser: (user: User | null) => void;
+  setCompany: (company: Company | null) => void;
   setSubscription: (subscription: Subscription) => void;
   addProject: (project: Project) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
@@ -69,6 +71,7 @@ interface AppState {
 
 export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [user, setUserState] = useState<User | null>(null);
+  const [company, setCompanyState] = useState<Company | null>(null);
   const [subscription, setSubscriptionState] = useState<Subscription | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -92,6 +95,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (company && company.subscriptionStatus !== 'active' && company.subscriptionStatus !== 'trial') {
+      console.warn('[Subscription] Company subscription is not active:', company.subscriptionStatus);
+    }
+  }, [company]);
+
   const safeJsonParse = <T,>(data: string | null, key: string, fallback: T): T => {
     if (!data || data === 'undefined' || data === 'null') {
       return fallback;
@@ -109,6 +118,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const loadData = async () => {
     try {
       const storedUser = await AsyncStorage.getItem('user');
+      const storedCompany = await AsyncStorage.getItem('company');
       const storedSubscription = await AsyncStorage.getItem('subscription');
       const storedCustomItems = await AsyncStorage.getItem('customPriceListItems');
       const storedCustomCategories = await AsyncStorage.getItem('customCategories');
@@ -123,6 +133,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const parsedUser = safeJsonParse<User | null>(storedUser, 'user', null);
       if (parsedUser && typeof parsedUser === 'object') {
         setUserState(parsedUser);
+      }
+      
+      const parsedCompany = safeJsonParse<Company | null>(storedCompany, 'company', null);
+      if (parsedCompany && typeof parsedCompany === 'object') {
+        setCompanyState(parsedCompany);
       }
       
       const parsedSubscription = safeJsonParse<Subscription | null>(storedSubscription, 'subscription', null);
@@ -194,6 +209,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       await AsyncStorage.setItem('user', JSON.stringify(newUser));
     } else {
       await AsyncStorage.removeItem('user');
+    }
+  }, []);
+
+  const setCompany = useCallback(async (newCompany: Company | null) => {
+    setCompanyState(newCompany);
+    if (newCompany) {
+      await AsyncStorage.setItem('company', JSON.stringify(newCompany));
+    } else {
+      await AsyncStorage.removeItem('company');
     }
   }, []);
 
@@ -487,8 +511,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [changeOrders]);
 
   const logout = useCallback(async () => {
-    await AsyncStorage.multiRemove(['user', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders']);
+    await AsyncStorage.multiRemove(['user', 'company', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders']);
     setUserState(null);
+    setCompanyState(null);
     setSubscriptionState(null);
     setConversations([]);
     setReports([]);
@@ -500,6 +525,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   return useMemo(() => ({
     user,
+    company,
     subscription,
     projects,
     clients,
@@ -519,6 +545,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     changeOrders,
     isLoading,
     setUser,
+    setCompany,
     setSubscription,
     addProject,
     updateProject,
@@ -559,6 +586,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     logout,
   }), [
     user,
+    company,
     subscription,
     projects,
     clients,
@@ -578,6 +606,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     changeOrders,
     isLoading,
     setUser,
+    setCompany,
     setSubscription,
     addProject,
     updateProject,

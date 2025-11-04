@@ -9,6 +9,7 @@ import { useApp } from '@/contexts/AppContext';
 import { masterPriceList, priceListCategories } from '@/mocks/priceList';
 import { usePathname } from 'expo-router';
 import { Audio } from 'expo-av';
+import { shouldBlockChatbotQuery, getChatbotRestrictionLevel } from '@/lib/permissions';
 
 interface GlobalAIChatProps {
   currentPageContext?: string;
@@ -41,7 +42,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const pathname = usePathname();
   const isOnChatScreen = pathname === '/chat';
   const isOnAuthScreen = pathname === '/login' || pathname === '/subscription';
-  const { projects, clients, expenses, photos, tasks, clockEntries, estimates, addEstimate } = useApp();
+  const { user, projects, clients, expenses, photos, tasks, clockEntries, estimates, addEstimate } = useApp();
 
   const getContextForCurrentPage = () => {
     let context = `Current page: ${pathname}\n\n`;
@@ -747,16 +748,56 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   }, [soundInstance, recordingInstance]);
 
   const handleSendWithContext = (userInput: string) => {
-    const systemInstructions = `IMPORTANT CONTENT RESTRICTIONS:
-- You CAN answer: General construction questions, industry tips, best practices, scope of work explanations, how to use app features, photo/document summaries, and general company processes.
-- You CANNOT answer: Anything about prices, estimate totals, markup, job costs, revenue, profit, payments, invoices, budget analytics, reports, contract details, or legal terms.
-- If the user asks about financials or contracts, respond ONLY with: "I'm sorry, I can't provide details about prices, payments, or contracts. Please contact your admin."
-- Do NOT explain why you can't answer or provide alternatives for financial questions.
-- This applies to ALL users and roles.
+    if (!user) {
+      console.warn('[Chat] No user found, blocking request');
+      return;
+    }
+
+    const blockCheck = shouldBlockChatbotQuery(user.role, userInput);
+    if (blockCheck.shouldBlock) {
+      console.log('[Chat] Query blocked for role:', user.role);
+      const blockedMessage = {
+        id: `msg-${Date.now()}`,
+        role: 'assistant' as const,
+        parts: [
+          {
+            type: 'text' as const,
+            text: blockCheck.reason || "I'm sorry, I can't provide details about prices, payments, or contracts. Please contact your admin.",
+          },
+        ],
+      };
+      return;
+    }
+
+    const restrictionLevel = getChatbotRestrictionLevel(user.role);
+    let systemInstructions = '';
+
+    if (restrictionLevel === 'basic-only') {
+      systemInstructions = `IMPORTANT: You are assisting a Field Employee with LIMITED access.
+- You CAN answer ONLY: Scope of work, general project info, document/photo summaries, how to clock in/out, how to add expenses/photos.
+- You CANNOT answer: Anything about estimates, cost breakdowns, contract terms, revenue, payment info, budgets, pricing, or financial data.
+- If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin."
+- Keep responses focused on field work and basic app usage.
 
 `;
+    } else if (restrictionLevel === 'no-financials') {
+      systemInstructions = `IMPORTANT: You are assisting a Salesperson with RESTRICTED financial access.
+- You CAN answer: General construction questions, CRM usage, how to create estimates, scope of work, schedule, chat, photos, industry best practices.
+- You CANNOT answer: Pricing details, markup percentages, actual costs, contract terms, payment status, profit margins, cost reports, or financial analytics.
+- If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin."
+- You can help CREATE estimates but cannot discuss internal costs or pricing strategy.
+
+`;
+    } else {
+      systemInstructions = `IMPORTANT GLOBAL RESTRICTIONS (applies to everyone):
+- You CANNOT answer: Contract legal terms, specific legal advice, or compliance questions.
+- For non-restricted topics, provide full assistance.
+- You have unrestricted access to app features and data for this role.
+
+`;
+    }
     
-    const contextMessage = `${systemInstructions}Context: ${getContextForCurrentPage()}\n\nUser question: ${userInput}`;
+    const contextMessage = `${systemInstructions}Context: ${getContextForCurrentPage()}\n\nUser Role: ${user.role}\n\nUser question: ${userInput}`;
     sendMessage(contextMessage);
   };
 
@@ -861,17 +902,45 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           }
         }
         
-        const systemInstructions = `IMPORTANT CONTENT RESTRICTIONS:
-- You CAN answer: General construction questions, industry tips, best practices, scope of work explanations, how to use app features, photo/document summaries, and general company processes.
-- You CANNOT answer: Anything about prices, estimate totals, markup, job costs, revenue, profit, payments, invoices, budget analytics, reports, contract details, or legal terms.
-- If the user asks about financials or contracts, respond ONLY with: "I'm sorry, I can't provide details about prices, payments, or contracts. Please contact your admin."
-- Do NOT explain why you can't answer or provide alternatives for financial questions.
-- This applies to ALL users and roles.
+        const userMessage = input.trim() || 'Please analyze the attached file(s)';
+        
+        if (!user) {
+        console.warn('[Chat] No user found, blocking request');
+        return;
+      }
+
+      const blockCheck = shouldBlockChatbotQuery(user.role, userMessage);
+      if (blockCheck.shouldBlock) {
+        console.log('[Chat] Query blocked for role:', user.role);
+        return;
+      }
+
+      const restrictionLevel = getChatbotRestrictionLevel(user.role);
+      let systemInstructions = '';
+
+      if (restrictionLevel === 'basic-only') {
+        systemInstructions = `IMPORTANT: You are assisting a Field Employee with LIMITED access.
+- You CAN answer ONLY: Scope of work, general project info, document/photo summaries, how to clock in/out, how to add expenses/photos.
+- You CANNOT answer: Anything about estimates, cost breakdowns, contract terms, revenue, payment info, budgets, pricing, or financial data.
+- If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin."
 
 `;
+      } else if (restrictionLevel === 'no-financials') {
+        systemInstructions = `IMPORTANT: You are assisting a Salesperson with RESTRICTED financial access.
+- You CAN answer: General construction questions, CRM usage, how to create estimates, scope of work, schedule, chat, photos.
+- You CANNOT answer: Pricing details, markup percentages, actual costs, contract terms, payment status, profit margins, cost reports.
+- If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin."
+
+`;
+      } else {
+        systemInstructions = `IMPORTANT GLOBAL RESTRICTIONS:
+- You CANNOT answer: Contract legal terms or specific legal advice.
+- You have unrestricted access to app features and data for this role.
+
+`;
+      }
         
         const contextMessage = `${systemInstructions}Context: ${getContextForCurrentPage()}`;
-        const userMessage = input.trim() || 'Please analyze the attached file(s)';
         const fullMessage = `${contextMessage}\n\nUser question: ${userMessage}\n\nAttached ${filesForMessage.length} file(s) for analysis.`;
         
         sendMessage({ text: fullMessage, files: filesForMessage as any });
