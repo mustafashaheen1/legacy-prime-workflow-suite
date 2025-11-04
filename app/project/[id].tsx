@@ -1031,7 +1031,7 @@ export default function ProjectDetailScreen() {
           if (!project) return;
 
           if (type === 'daily-logs') {
-            const logs = (dailyLogs || []).filter(log => log.projectId === project.id);
+            const logs = Array.isArray(dailyLogs) ? dailyLogs.filter(log => log.projectId === project.id) : [];
             
             if (logs.length === 0) {
               Alert.alert('No Daily Logs', 'This project has no daily logs to export.');
