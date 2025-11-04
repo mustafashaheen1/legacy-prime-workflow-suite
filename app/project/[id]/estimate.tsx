@@ -844,7 +844,7 @@ export default function EstimateScreen() {
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.toggleButton, styles.toggleButtonMargin]}
+              style={styles.toggleButton}
               onPress={() => setShowBudget(!showBudget)}
             >
               {showBudget ? (
@@ -1796,20 +1796,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   toggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     backgroundColor: '#F9FAFB',
   },
   toggleButtonText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600' as const,
     color: '#1F2937',
   },
@@ -2152,9 +2154,7 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#10B981',
   },
-  toggleButtonMargin: {
-    marginLeft: 8,
-  },
+
   budgetTotalText: {
     fontSize: 11,
     fontWeight: '600' as const,
