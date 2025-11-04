@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile } from '@/types';
+import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
 
@@ -21,6 +21,7 @@ interface AppState {
   conversations: ChatConversation[];
   reports: Report[];
   projectFiles: ProjectFile[];
+  dailyLogs: DailyLog[];
   isLoading: boolean;
   
   setUser: (user: User | null) => void;
@@ -53,6 +54,9 @@ interface AppState {
   addProjectFile: (file: ProjectFile) => void;
   updateProjectFile: (id: string, updates: Partial<ProjectFile>) => void;
   deleteProjectFile: (id: string) => void;
+  addDailyLog: (log: DailyLog) => void;
+  updateDailyLog: (id: string, updates: Partial<DailyLog>) => void;
+  deleteDailyLog: (id: string) => void;
   logout: () => void;
 }
 
@@ -72,6 +76,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
+  const [dailyLogs, setDailyLogs] = useState<DailyLog[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -102,6 +107,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const storedConversations = await AsyncStorage.getItem('conversations');
       const storedReports = await AsyncStorage.getItem('reports');
       const storedProjectFiles = await AsyncStorage.getItem('projectFiles');
+      const storedDailyLogs = await AsyncStorage.getItem('dailyLogs');
       
       const parsedUser = safeJsonParse<User | null>(storedUser, 'user', null);
       if (parsedUser && typeof parsedUser === 'object') {
@@ -143,6 +149,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const parsedProjectFiles = safeJsonParse<ProjectFile[]>(storedProjectFiles, 'projectFiles', []);
       if (Array.isArray(parsedProjectFiles)) {
         setProjectFiles(parsedProjectFiles);
+      }
+
+      const parsedDailyLogs = safeJsonParse<DailyLog[]>(storedDailyLogs, 'dailyLogs', []);
+      if (Array.isArray(parsedDailyLogs)) {
+        setDailyLogs(parsedDailyLogs);
       }
       
       setProjects(mockProjects);
@@ -355,13 +366,35 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log('[Storage] File deleted successfully');
   }, [projectFiles]);
 
+  const addDailyLog = useCallback(async (log: DailyLog) => {
+    const updated = [log, ...dailyLogs];
+    setDailyLogs(updated);
+    await AsyncStorage.setItem('dailyLogs', JSON.stringify(updated));
+    console.log('[Storage] Daily log saved successfully');
+  }, [dailyLogs]);
+
+  const updateDailyLog = useCallback(async (id: string, updates: Partial<DailyLog>) => {
+    const updated = dailyLogs.map(log => log.id === id ? { ...log, ...updates } : log);
+    setDailyLogs(updated);
+    await AsyncStorage.setItem('dailyLogs', JSON.stringify(updated));
+    console.log('[Storage] Daily log updated successfully');
+  }, [dailyLogs]);
+
+  const deleteDailyLog = useCallback(async (id: string) => {
+    const updated = dailyLogs.filter(log => log.id !== id);
+    setDailyLogs(updated);
+    await AsyncStorage.setItem('dailyLogs', JSON.stringify(updated));
+    console.log('[Storage] Daily log deleted successfully');
+  }, [dailyLogs]);
+
   const logout = useCallback(async () => {
-    await AsyncStorage.multiRemove(['user', 'subscription', 'conversations', 'reports', 'projectFiles']);
+    await AsyncStorage.multiRemove(['user', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs']);
     setUserState(null);
     setSubscriptionState(null);
     setConversations([]);
     setReports([]);
     setProjectFiles([]);
+    setDailyLogs([]);
   }, []);
 
   return useMemo(() => ({
@@ -380,6 +413,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     conversations,
     reports,
     projectFiles,
+    dailyLogs,
     isLoading,
     setUser,
     setSubscription,
@@ -411,6 +445,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addProjectFile,
     updateProjectFile,
     deleteProjectFile,
+    addDailyLog,
+    updateDailyLog,
+    deleteDailyLog,
     logout,
   }), [
     user,
@@ -428,6 +465,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     conversations,
     reports,
     projectFiles,
+    dailyLogs,
     isLoading,
     setUser,
     setSubscription,
@@ -459,6 +497,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addProjectFile,
     updateProjectFile,
     deleteProjectFile,
+    addDailyLog,
+    updateDailyLog,
+    deleteDailyLog,
     logout,
   ]);
 });

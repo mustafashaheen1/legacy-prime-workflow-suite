@@ -53,6 +53,21 @@ export interface DailyLog {
   projectId: string;
   date: string;
   note: string;
+  category?: string;
+  workPerformed?: string;
+  issues?: string;
+  weather?: string;
+  crewSize?: number;
+  reminders?: DailyLogReminder[];
+}
+
+export interface DailyLogReminder {
+  id: string;
+  dailyLogId: string;
+  task: string;
+  time: string;
+  completed: boolean;
+  notifiedAt?: string;
 }
 
 export interface ClockEntry {

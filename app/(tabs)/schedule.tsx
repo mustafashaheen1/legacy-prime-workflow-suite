@@ -12,8 +12,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Calendar, X, GripVertical } from 'lucide-react-native';
-import { ScheduledTask } from '@/types';
+import { Calendar, X, GripVertical, BookOpen, Plus, Bell, Trash2, Check } from 'lucide-react-native';
+import { ScheduledTask, DailyLog, DailyLogReminder } from '@/types';
 
 const CONSTRUCTION_CATEGORIES = [
   { name: 'Pre-Construction', color: '#8B5CF6' },
@@ -38,7 +38,7 @@ const HOUR_HEIGHT = 60;
 const LEFT_MARGIN = 60;
 
 export default function ScheduleScreen() {
-  const { projects } = useApp();
+  const { projects, dailyLogs, addDailyLog, updateDailyLog, deleteDailyLog } = useApp();
   const insets = useSafeAreaInsets();
   const [selectedProject, setSelectedProject] = useState<string | null>(
     projects.length > 0 ? projects[0].id : null
@@ -55,9 +55,18 @@ export default function ScheduleScreen() {
   const [quickNoteText, setQuickNoteText] = useState<string>('');
   const [quickEditWorkType, setQuickEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
   const [lastTap, setLastTap] = useState<number>(0);
+  const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
+  const [dailyLogNote, setDailyLogNote] = useState<string>('');
+  const [dailyLogCategory, setDailyLogCategory] = useState<string>('');
+  const [dailyLogWorkPerformed, setDailyLogWorkPerformed] = useState<string>('');
+  const [dailyLogIssues, setDailyLogIssues] = useState<string>('');
+  const [dailyLogReminders, setDailyLogReminders] = useState<DailyLogReminder[]>([]);
+  const [newReminderTask, setNewReminderTask] = useState<string>('');
+  const [newReminderTime, setNewReminderTime] = useState<string>('');
   
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
+  const projectDailyLogs = dailyLogs.filter(log => log.projectId === selectedProject);
 
   const generateDates = (numDays: number): Date[] => {
     const dates: Date[] = [];
@@ -120,6 +129,63 @@ export default function ScheduleScreen() {
 
   const handleDeleteTask = (taskId: string) => {
     setScheduledTasks(prev => prev.filter(t => t.id !== taskId));
+  };
+
+  const handleOpenDailyLogs = () => {
+    setShowDailyLogsModal(true);
+    setDailyLogNote('');
+    setDailyLogCategory('');
+    setDailyLogWorkPerformed('');
+    setDailyLogIssues('');
+    setDailyLogReminders([]);
+    setNewReminderTask('');
+    setNewReminderTime('');
+  };
+
+  const handleAddReminder = () => {
+    if (!newReminderTask.trim() || !newReminderTime.trim()) return;
+
+    const reminder: DailyLogReminder = {
+      id: Date.now().toString(),
+      dailyLogId: '',
+      task: newReminderTask,
+      time: newReminderTime,
+      completed: false,
+    };
+
+    setDailyLogReminders([...dailyLogReminders, reminder]);
+    setNewReminderTask('');
+    setNewReminderTime('');
+  };
+
+  const handleToggleReminder = (reminderId: string) => {
+    setDailyLogReminders(prev => 
+      prev.map(r => r.id === reminderId ? { ...r, completed: !r.completed } : r)
+    );
+  };
+
+  const handleDeleteReminder = (reminderId: string) => {
+    setDailyLogReminders(prev => prev.filter(r => r.id !== reminderId));
+  };
+
+  const handleSaveDailyLog = () => {
+    if (!selectedProject) return;
+
+    const logId = Date.now().toString();
+    const log: DailyLog = {
+      id: logId,
+      projectId: selectedProject,
+      date: new Date().toISOString(),
+      note: dailyLogNote,
+      category: dailyLogCategory,
+      workPerformed: dailyLogWorkPerformed,
+      issues: dailyLogIssues,
+      reminders: dailyLogReminders.map(r => ({ ...r, dailyLogId: logId })),
+    };
+
+    addDailyLog(log);
+    setShowDailyLogsModal(false);
+    console.log('[Daily Log] Created with', dailyLogReminders.length, 'reminders');
   };
 
   const getTaskPosition = (task: ScheduledTask) => {
@@ -661,6 +727,149 @@ export default function ScheduleScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={showDailyLogsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDailyLogsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <BookOpen size={24} color="#2563EB" />
+                <Text style={styles.modalTitle}>Daily Log</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDailyLogsModal(false)}>
+                <X size={24} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <Text style={styles.label}>Work Category</Text>
+              <TextInput
+                style={styles.dailyLogInput}
+                value={dailyLogCategory}
+                onChangeText={setDailyLogCategory}
+                placeholder="e.g., Framing, Plumbing, etc."
+                placeholderTextColor="#9CA3AF"
+              />
+
+              <Text style={styles.label}>Work Performed Today</Text>
+              <TextInput
+                style={styles.textArea}
+                value={dailyLogWorkPerformed}
+                onChangeText={setDailyLogWorkPerformed}
+                placeholder="Describe what was completed today..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={3}
+              />
+
+              <Text style={styles.label}>Issues/Notes</Text>
+              <TextInput
+                style={styles.textArea}
+                value={dailyLogIssues}
+                onChangeText={setDailyLogIssues}
+                placeholder="Any issues or important notes..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={3}
+              />
+
+              <Text style={styles.label}>Additional Notes</Text>
+              <TextInput
+                style={styles.textArea}
+                value={dailyLogNote}
+                onChangeText={setDailyLogNote}
+                placeholder="General notes for the day..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={3}
+              />
+
+              <View style={styles.remindersSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Bell size={20} color="#2563EB" />
+                  <Text style={styles.label}>Reminders & Tasks</Text>
+                </View>
+                
+                {dailyLogReminders.length > 0 && (
+                  <View style={styles.remindersList}>
+                    {dailyLogReminders.map((reminder) => (
+                      <View key={reminder.id} style={styles.reminderItem}>
+                        <TouchableOpacity 
+                          onPress={() => handleToggleReminder(reminder.id)}
+                          style={styles.reminderCheckbox}
+                        >
+                          {reminder.completed && <Check size={16} color="#FFFFFF" />}
+                        </TouchableOpacity>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.reminderText, reminder.completed && styles.reminderTextCompleted]}>
+                            {reminder.task}
+                          </Text>
+                          <Text style={styles.reminderTime}>⏰ {reminder.time}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => handleDeleteReminder(reminder.id)}>
+                          <Trash2 size={18} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <View style={styles.addReminderContainer}>
+                  <TextInput
+                    style={styles.reminderInput}
+                    value={newReminderTask}
+                    onChangeText={setNewReminderTask}
+                    placeholder="Task description..."
+                    placeholderTextColor="#9CA3AF"
+                  />
+                  <TextInput
+                    style={styles.reminderTimeInput}
+                    value={newReminderTime}
+                    onChangeText={setNewReminderTime}
+                    placeholder="Time (e.g., 9:00 AM)"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                  <TouchableOpacity 
+                    style={styles.addReminderButton}
+                    onPress={handleAddReminder}
+                  >
+                    <Plus size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => setShowDailyLogsModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.saveButton}
+                onPress={handleSaveDailyLog}
+              >
+                <Text style={styles.saveButtonText}>Save Log</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {selectedProject && (
+        <TouchableOpacity
+          style={[styles.dailyLogButton, { bottom: insets.bottom + 80 }]}
+          onPress={handleOpenDailyLogs}
+        >
+          <BookOpen size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
       </View>
   );
 }
@@ -1173,5 +1382,109 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  dailyLogButton: {
+    position: 'absolute',
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  dailyLogInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: '#1F2937',
+    marginBottom: 16,
+  },
+  remindersSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  remindersList: {
+    marginBottom: 16,
+    gap: 12,
+  },
+  reminderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  reminderCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reminderText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#1F2937',
+  },
+  reminderTextCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
+  },
+  reminderTime: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  addReminderContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  reminderInput: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  reminderTimeInput: {
+    width: 130,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  addReminderButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
