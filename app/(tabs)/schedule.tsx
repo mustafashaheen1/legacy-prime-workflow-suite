@@ -84,7 +84,7 @@ export default function ScheduleScreen() {
   
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
-  const projectDailyLogs = Array.isArray(dailyLogs) ? dailyLogs.filter(log => log.projectId === selectedProject) : [];
+  const projectDailyLogs = (dailyLogs && Array.isArray(dailyLogs)) ? dailyLogs.filter(log => log.projectId === selectedProject) : [];
 
   const generateDates = (numDays: number): Date[] => {
     const dates: Date[] = [];
