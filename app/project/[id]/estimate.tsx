@@ -828,35 +828,6 @@ export default function EstimateScreen() {
 
       {items.length > 0 && (
         <View style={styles.fixedBottomSection}>
-          <View style={styles.visibilityToggle}>
-            <TouchableOpacity 
-              style={styles.toggleButton}
-              onPress={() => setShowUnitsQty(!showUnitsQty)}
-            >
-              {showUnitsQty ? (
-                <Eye size={16} color="#2563EB" />
-              ) : (
-                <EyeOff size={16} color="#6B7280" />
-              )}
-              <Text style={styles.toggleButtonText}>
-                {showUnitsQty ? 'Hide' : 'Show'} Units & Qty
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.toggleButton}
-              onPress={() => setShowBudget(!showBudget)}
-            >
-              {showBudget ? (
-                <Eye size={16} color="#10B981" />
-              ) : (
-                <EyeOff size={16} color="#6B7280" />
-              )}
-              <Text style={styles.toggleButtonText}>
-                {showBudget ? 'Hide' : 'Show'} Budget
-              </Text>
-            </TouchableOpacity>
-          </View>
 
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal</Text>
@@ -926,6 +897,36 @@ export default function EstimateScreen() {
           <View style={[styles.totalRow, styles.grandTotalRow]}>
             <Text style={styles.grandTotalLabel}>Total</Text>
             <Text style={styles.grandTotalValue}>${total.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.visibilityToggle}>
+            <TouchableOpacity 
+              style={styles.toggleButton}
+              onPress={() => setShowUnitsQty(!showUnitsQty)}
+            >
+              {showUnitsQty ? (
+                <Eye size={16} color="#2563EB" />
+              ) : (
+                <EyeOff size={16} color="#6B7280" />
+              )}
+              <Text style={styles.toggleButtonText}>
+                {showUnitsQty ? 'Hide' : 'Show'} Units & Qty
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.toggleButton}
+              onPress={() => setShowBudget(!showBudget)}
+            >
+              {showBudget ? (
+                <Eye size={16} color="#10B981" />
+              ) : (
+                <EyeOff size={16} color="#6B7280" />
+              )}
+              <Text style={styles.toggleButtonText}>
+                {showBudget ? 'Hide' : 'Show'} Budget
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.actionButtons}>
@@ -1793,7 +1794,8 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   visibilityToggle: {
-    marginBottom: 10,
+    marginTop: 12,
+    marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
