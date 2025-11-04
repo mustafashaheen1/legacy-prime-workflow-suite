@@ -953,6 +953,119 @@ export default function ScheduleScreen() {
                 </View>
               </View>
 
+              <View style={styles.noteEntriesSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Clock size={20} color="#2563EB" />
+                  <Text style={styles.label}>Timestamped Notes</Text>
+                </View>
+                
+                {noteEntries.length > 0 && (
+                  <View style={styles.noteEntriesList}>
+                    {noteEntries.map((note) => (
+                      <View key={note.id} style={styles.noteEntryItem}>
+                        <View style={styles.noteEntryHeader}>
+                          <View style={styles.noteEntryInfo}>
+                            <User size={14} color="#6B7280" />
+                            <Text style={styles.noteEntryAuthor}>{note.author}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Text style={styles.noteEntryTime}>
+                              {new Date(note.timestamp).toLocaleTimeString([], { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}
+                            </Text>
+                            <TouchableOpacity onPress={() => handleRemoveNoteEntry(note.id)}>
+                              <X size={16} color="#EF4444" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                        <Text style={styles.noteEntryText}>{note.text}</Text>
+                        <Text style={styles.noteEntryDate}>
+                          {new Date(note.timestamp).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <View style={styles.addNoteEntryContainer}>
+                  <TextInput
+                    style={styles.noteEntryInput}
+                    value={currentNoteInput}
+                    onChangeText={setCurrentNoteInput}
+                    placeholder="Add a note entry..."
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                  />
+                  <TouchableOpacity 
+                    style={styles.addNoteEntryButton}
+                    onPress={handleAddNoteEntry}
+                  >
+                    <Plus size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.photoEntriesSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <ImageIcon size={20} color="#2563EB" />
+                  <Text style={styles.label}>Photo Attachments</Text>
+                </View>
+                
+                {photoEntries.length > 0 && (
+                  <View style={styles.photoEntriesList}>
+                    {photoEntries.map((photo) => (
+                      <View key={photo.id} style={styles.photoEntryItem}>
+                        <Image 
+                          source={{ uri: photo.uri }} 
+                          style={styles.photoEntryImage}
+                        />
+                        <View style={styles.photoEntryDetails}>
+                          <View style={styles.photoEntryHeader}>
+                            <View style={styles.photoEntryInfo}>
+                              <User size={12} color="#6B7280" />
+                              <Text style={styles.photoEntryAuthor}>{photo.author}</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => handleRemovePhoto(photo.id)}>
+                              <Trash2 size={16} color="#EF4444" />
+                            </TouchableOpacity>
+                          </View>
+                          <Text style={styles.photoEntryTime}>
+                            📅 {new Date(photo.timestamp).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </Text>
+                          {photo.notes && (
+                            <Text style={styles.photoEntryNotes}>{photo.notes}</Text>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <View style={styles.photoButtonsContainer}>
+                  <TouchableOpacity 
+                    style={styles.photoButton}
+                    onPress={handleTakePhoto}
+                  >
+                    <Camera size={20} color="#FFFFFF" />
+                    <Text style={styles.photoButtonText}>Take Photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.photoButton}
+                    onPress={handlePickPhoto}
+                  >
+                    <ImageIcon size={20} color="#FFFFFF" />
+                    <Text style={styles.photoButtonText}>Pick Photo</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               <View style={styles.shareSection}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <Users size={20} color="#2563EB" />
@@ -1111,6 +1224,57 @@ export default function ScheduleScreen() {
                               </View>
                             </View>
                           ))}
+                        </View>
+                      )}
+
+                      {log.notes && log.notes.length > 0 && (
+                        <View style={styles.historySection}>
+                          <Text style={styles.historySectionTitle}>Timestamped Notes:</Text>
+                          {log.notes.map((note) => (
+                            <View key={note.id} style={styles.historyNoteItem}>
+                              <View style={styles.historyNoteHeader}>
+                                <Text style={styles.historyNoteAuthor}>👤 {note.author}</Text>
+                                <Text style={styles.historyNoteTime}>
+                                  {new Date(note.timestamp).toLocaleString([], {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </Text>
+                              </View>
+                              <Text style={styles.historyNoteText}>{note.text}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      {log.photos && log.photos.length > 0 && (
+                        <View style={styles.historySection}>
+                          <Text style={styles.historySectionTitle}>Photo Attachments:</Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                            <View style={styles.historyPhotosList}>
+                              {log.photos.map((photo) => (
+                                <View key={photo.id} style={styles.historyPhotoItem}>
+                                  <Image 
+                                    source={{ uri: photo.uri }} 
+                                    style={styles.historyPhotoImage}
+                                  />
+                                  <View style={styles.historyPhotoInfo}>
+                                    <Text style={styles.historyPhotoAuthor}>👤 {photo.author}</Text>
+                                    <Text style={styles.historyPhotoTime}>
+                                      {new Date(photo.timestamp).toLocaleString([], {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </Text>
+                                  </View>
+                                </View>
+                              ))}
+                            </View>
+                          </ScrollView>
                         </View>
                       )}
                     </View>
@@ -1971,5 +2135,205 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  noteEntriesSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  noteEntriesList: {
+    marginBottom: 12,
+    gap: 12,
+  },
+  noteEntryItem: {
+    padding: 12,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  noteEntryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  noteEntryInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  noteEntryAuthor: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  noteEntryTime: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  noteEntryText: {
+    fontSize: 14,
+    color: '#1F2937',
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  noteEntryDate: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  addNoteEntryContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  noteEntryInput: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#1F2937',
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  addNoteEntryButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoEntriesSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  photoEntriesList: {
+    marginBottom: 12,
+    gap: 12,
+  },
+  photoEntryItem: {
+    flexDirection: 'row',
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 12,
+  },
+  photoEntryImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 6,
+    backgroundColor: '#E5E7EB',
+  },
+  photoEntryDetails: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  photoEntryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  photoEntryInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  photoEntryAuthor: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  photoEntryTime: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  photoEntryNotes: {
+    fontSize: 12,
+    color: '#1F2937',
+    marginTop: 4,
+  },
+  photoButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  photoButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#059669',
+  },
+  photoButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  historyNoteItem: {
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  historyNoteHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  historyNoteAuthor: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  historyNoteTime: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  historyNoteText: {
+    fontSize: 13,
+    color: '#1F2937',
+    lineHeight: 18,
+  },
+  historyPhotosList: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  historyPhotoItem: {
+    width: 120,
+  },
+  historyPhotoImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+  },
+  historyPhotoInfo: {
+    marginTop: 6,
+  },
+  historyPhotoAuthor: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  historyPhotoTime: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginTop: 2,
   },
 });
