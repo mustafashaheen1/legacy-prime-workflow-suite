@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixtureData } from '@/mocks/fixtures';
 
 const SEED_VERSION_KEY = 'seed_version';
-const CURRENT_SEED_VERSION = '1.0.0';
+const CURRENT_SEED_VERSION = '1.1.0';
 
 export async function checkAndSeedData(): Promise<boolean> {
   try {
@@ -14,6 +14,9 @@ export async function checkAndSeedData(): Promise<boolean> {
     }
 
     console.log('[Seed] Starting data seeding...');
+    
+    await AsyncStorage.setItem('system:users', JSON.stringify(fixtureData.users));
+    console.log('[Seed] ✓ Seeded users:', fixtureData.users.length);
     
     await AsyncStorage.setItem('expenses', JSON.stringify(fixtureData.expenses));
     console.log('[Seed] ✓ Seeded expenses:', fixtureData.expenses.length);
@@ -51,6 +54,7 @@ export async function getDefaultUser() {
 export async function clearSeedData() {
   try {
     await AsyncStorage.multiRemove([
+      'system:users',
       'expenses',
       'conversations',
       'dailyLogs',

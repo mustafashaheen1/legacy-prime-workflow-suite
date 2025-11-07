@@ -19,7 +19,9 @@
     "search": "Buscar",
     "loading": "Cargando...",
     "success": "Éxito",
-    "error": "Error"
+    "error": "Error",
+    "confirm": "Confirmar",
+    "settings": "Configuración"
   },
   "dashboard": {
     "title": "Lista de Proyectos",
@@ -117,7 +119,24 @@
     "spanish": "Español",
     "notifications": "Notificaciones",
     "account": "Cuenta",
-    "logout": "Cerrar Sesión"
+    "logout": "Cerrar Sesión",
+    "teamManagement": "Gestión de Equipo",
+    "yourRole": "Tu Rol",
+    "teamMembers": "Miembros del Equipo",
+    "noUsers": "No se encontraron usuarios",
+    "noAccess": "No tienes permiso para acceder a esta sección",
+    "changeRole": "Cambiar Rol",
+    "currentRole": "Rol Actual:",
+    "selectNewRole": "Seleccionar Nuevo Rol",
+    "confirmRoleChange": "Confirmar Cambio de Rol",
+    "confirmRoleChangeMessage": "¿Estás seguro de cambiar el rol de {{name}} a {{role}}?",
+    "roleUpdated": "Rol de usuario actualizado exitosamente",
+    "roleDescriptions": {
+      "superAdmin": "Acceso completo a todas las funciones y puede gestionar todos los usuarios",
+      "admin": "Acceso completo a la mayoría de funciones y puede gestionar miembros del equipo",
+      "salesperson": "Acceso a CRM, estimaciones y herramientas de ventas",
+      "fieldEmployee": "Acceso a registro de entrada, fotos y funciones básicas"
+    }
   },
   "projects": {
     "createNew": "Crear Nuevo Proyecto",

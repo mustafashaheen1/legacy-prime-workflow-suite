@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { LayoutDashboard, Users, Clock, DollarSign, Camera, Calendar, MessageSquare } from "lucide-react-native";
+import { LayoutDashboard, Users, Clock, DollarSign, Camera, Calendar, MessageSquare, Settings } from "lucide-react-native";
 import React from "react";
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
@@ -74,6 +74,13 @@ export default function TabLayout() {
         options={{
           title: t('common.chat'),
           tabBarIcon: ({ color }) => <MessageSquare size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: t('common.settings'),
+          tabBarIcon: ({ color }) => <Settings size={24} color={color} />,
         }}
       />
     </Tabs>

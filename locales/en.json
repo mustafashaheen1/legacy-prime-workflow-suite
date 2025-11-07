@@ -19,7 +19,9 @@
     "search": "Search",
     "loading": "Loading...",
     "success": "Success",
-    "error": "Error"
+    "error": "Error",
+    "confirm": "Confirm",
+    "settings": "Settings"
   },
   "dashboard": {
     "title": "Project List",
@@ -117,7 +119,24 @@
     "spanish": "Spanish",
     "notifications": "Notifications",
     "account": "Account",
-    "logout": "Logout"
+    "logout": "Logout",
+    "teamManagement": "Team Management",
+    "yourRole": "Your Role",
+    "teamMembers": "Team Members",
+    "noUsers": "No users found",
+    "noAccess": "You don't have permission to access this section",
+    "changeRole": "Change Role",
+    "currentRole": "Current Role:",
+    "selectNewRole": "Select New Role",
+    "confirmRoleChange": "Confirm Role Change",
+    "confirmRoleChangeMessage": "Are you sure you want to change {{name}}'s role to {{role}}?",
+    "roleUpdated": "User role updated successfully",
+    "roleDescriptions": {
+      "superAdmin": "Full access to all features and can manage all users",
+      "admin": "Full access to most features and can manage team members",
+      "salesperson": "Access to CRM, estimates, and sales tools",
+      "fieldEmployee": "Access to clock-in, photos, and basic features"
+    }
   },
   "projects": {
     "createNew": "Create New Project",
