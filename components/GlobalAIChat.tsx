@@ -540,7 +540,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       }),
       
       generateFloorLayout: createRorkTool({
-        description: 'Generate a basic floor layout/plan with notes and annotations. Use this when user asks for floor plans, layouts, or architectural sketches.',
+        description: 'Generate a basic 2D floor layout/plan with notes and annotations. Use this when user asks for floor plans, 2D layouts, or top-down architectural sketches.',
         zodSchema: z.object({
           description: z.string().describe('Detailed description of the floor layout including rooms, dimensions, layout type (e.g., "3 bedroom house with open concept kitchen and living room, 2 bathrooms, total 1500 sq ft")'),
           notes: z.string().optional().describe('Important notes, specifications, or annotations to include on the plan (e.g., "12x15 master bedroom, 10x12 kitchen with island")'),
@@ -583,6 +583,72 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
             return JSON.stringify({
               success: false,
               error: error instanceof Error ? error.message : 'Failed to generate floor layout',
+            });
+          }
+        },
+      }),
+      
+      generate3DSketch: createRorkTool({
+        description: 'Generate a 3D sketch, rendering, or perspective view of a building, room, or construction element. Use this when user asks for 3D sketches, 3D renderings, perspective views, or isometric drawings.',
+        zodSchema: z.object({
+          description: z.string().describe('Detailed description of what to render in 3D (e.g., "exterior of 2-story modern house with garage", "kitchen interior with island and cabinets", "bathroom with walk-in shower and double vanity")'),
+          viewType: z.enum(['exterior', 'interior', 'isometric', 'perspective']).describe('Type of 3D view (exterior for outside views, interior for room views, isometric for technical drawings, perspective for realistic views)'),
+          notes: z.string().optional().describe('Additional details, materials, colors, or style preferences (e.g., "modern minimalist style, white walls, wood floors")'),
+          style: z.enum(['realistic', 'sketch', 'technical']).optional().describe('Rendering style: realistic for photorealistic, sketch for hand-drawn look, technical for architectural drawing style'),
+        }),
+        async execute(input) {
+          console.log('[3D Sketch] Generating 3D sketch:', input);
+          
+          try {
+            const style = input.style || 'realistic';
+            const styleDescription = style === 'realistic' 
+              ? 'photorealistic architectural rendering, high quality, detailed materials and lighting' 
+              : style === 'sketch' 
+              ? 'hand-drawn architectural sketch style, pencil drawing, professional architectural illustration' 
+              : 'technical architectural drawing, clean lines, isometric or perspective view, professional CAD-style rendering';
+            
+            const viewDescription = input.viewType === 'exterior' 
+              ? 'exterior view showing the outside of the building' 
+              : input.viewType === 'interior' 
+              ? 'interior view showing the inside of the room or space' 
+              : input.viewType === 'isometric' 
+              ? 'isometric 3D view showing the space from an angled perspective' 
+              : '3D perspective view with realistic depth and proportions';
+            
+            const prompt = `Create a professional 3D architectural ${viewDescription}. ${input.description}. ${input.notes ? `Details: ${input.notes}.` : ''} ${styleDescription}. High quality architectural visualization.`;
+            
+            const response = await fetch('https://toolkit.rork.com/images/generate/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                prompt,
+                size: '1024x1024',
+              }),
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to generate 3D sketch');
+            }
+            
+            const data = await response.json();
+            
+            return JSON.stringify({
+              success: true,
+              message: '3D sketch generated successfully',
+              imageData: data.image.base64Data,
+              mimeType: data.image.mimeType,
+              description: input.description,
+              viewType: input.viewType,
+              style: style,
+              notes: input.notes || 'No additional notes',
+            });
+          } catch (error) {
+            console.error('[3D Sketch] Error generating sketch:', error);
+            return JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : 'Failed to generate 3D sketch',
             });
           }
         },
@@ -1201,13 +1267,15 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                         }
                         
                         if (part.state === 'output-available') {
-                          if (toolName === 'generateFloorLayout' && part.output) {
+                          if ((toolName === 'generateFloorLayout' || toolName === 'generate3DSketch') && part.output) {
                             try {
                               const outputData = JSON.parse(part.output as string);
                               if (outputData.success && outputData.imageData) {
                                 return (
                                   <View key={i} style={styles.floorLayoutContainer}>
-                                    <Text style={styles.toolSuccessText}>✓ Floor layout generated</Text>
+                                    <Text style={styles.toolSuccessText}>
+                                      ✓ {toolName === 'generateFloorLayout' ? 'Floor layout' : '3D sketch'} generated
+                                    </Text>
                                     <Image 
                                       source={{ uri: `data:${outputData.mimeType};base64,${outputData.imageData}` }} 
                                       style={styles.floorLayoutImage}
@@ -1216,11 +1284,16 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                                     {outputData.notes && (
                                       <Text style={styles.floorLayoutNotes}>{outputData.notes}</Text>
                                     )}
+                                    {outputData.viewType && (
+                                      <Text style={styles.floorLayoutNotes}>
+                                        View: {outputData.viewType} | Style: {outputData.style}
+                                      </Text>
+                                    )}
                                   </View>
                                 );
                               }
                             } catch (e) {
-                              console.error('Failed to parse floor layout output:', e);
+                              console.error('Failed to parse image output:', e);
                             }
                           }
                           return (
@@ -1418,7 +1491,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   <Bot size={56} color="#D1D5DB" strokeWidth={2} />
                   <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
                   <Text style={styles.emptyStateText}>
-                    I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze images, PDFs, Word documents (.doc, .docx), and Excel files (.xls, .xlsx) you attach! You can also use voice to talk to me.
+                    I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze images, PDFs, Word documents (.doc, .docx), and Excel files (.xls, .xlsx) you attach! I can also generate 2D floor layouts and 3D sketches for you. You can use voice to talk to me.
                   </Text>
                 </View>
               )}
@@ -1478,6 +1551,35 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                             }
                             
                             if (part.state === 'output-available') {
+                              if ((toolName === 'generateFloorLayout' || toolName === 'generate3DSketch') && part.output) {
+                                try {
+                                  const outputData = JSON.parse(part.output as string);
+                                  if (outputData.success && outputData.imageData) {
+                                    return (
+                                      <View key={i} style={styles.floorLayoutContainer}>
+                                        <Text style={styles.toolSuccessText}>
+                                          ✓ {toolName === 'generateFloorLayout' ? 'Floor layout' : '3D sketch'} generated
+                                        </Text>
+                                        <Image 
+                                          source={{ uri: `data:${outputData.mimeType};base64,${outputData.imageData}` }} 
+                                          style={styles.floorLayoutImage}
+                                          resizeMode="contain"
+                                        />
+                                        {outputData.notes && (
+                                          <Text style={styles.floorLayoutNotes}>{outputData.notes}</Text>
+                                        )}
+                                        {outputData.viewType && (
+                                          <Text style={styles.floorLayoutNotes}>
+                                            View: {outputData.viewType} | Style: {outputData.style}
+                                          </Text>
+                                        )}
+                                      </View>
+                                    );
+                                  }
+                                } catch (e) {
+                                  console.error('Failed to parse image output:', e);
+                                }
+                              }
                               return (
                                 <View key={i} style={styles.toolSuccess}>
                                   <Text style={styles.toolSuccessText}>✓ {toolName} completed</Text>
