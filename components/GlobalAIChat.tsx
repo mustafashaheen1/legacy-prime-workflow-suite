@@ -827,7 +827,14 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
+        type: [
+          'image/*',
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ],
         copyToCacheDirectory: true,
         multiple: false,
       });
@@ -839,10 +846,52 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         
         console.log('Selected file:', file.name, file.mimeType, file.size);
         
+        let mimeType = file.mimeType || 'application/octet-stream';
+        
+        if (!mimeType || mimeType === 'application/octet-stream') {
+          const extension = file.name.toLowerCase().split('.').pop();
+          if (extension === 'pdf') {
+            mimeType = 'application/pdf';
+          } else if (extension === 'doc') {
+            mimeType = 'application/msword';
+          } else if (extension === 'docx') {
+            mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          } else if (extension === 'xls') {
+            mimeType = 'application/vnd.ms-excel';
+          } else if (extension === 'xlsx') {
+            mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+          } else if (extension === 'png') {
+            mimeType = 'image/png';
+          } else if (extension === 'jpg' || extension === 'jpeg') {
+            mimeType = 'image/jpeg';
+          } else if (extension === 'gif') {
+            mimeType = 'image/gif';
+          } else if (extension === 'webp') {
+            mimeType = 'image/webp';
+          }
+        }
+        
+        const supportedTypes = [
+          'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp',
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ];
+        
+        const isImage = mimeType.startsWith('image/');
+        const isSupported = supportedTypes.some(type => mimeType === type) || isImage;
+        
+        if (!isSupported) {
+          alert(`Unsupported file type: ${mimeType}\n\nSupported types:\n- Images (PNG, JPG, GIF, WebP)\n- PDF\n- Word (.doc, .docx)\n- Excel (.xls, .xlsx)`);
+          return;
+        }
+        
         const newFile: AttachedFile = {
           uri: file.uri,
           name: file.name,
-          mimeType: file.mimeType || 'application/octet-stream',
+          mimeType: mimeType,
           size: file.size || 0,
           type: 'file',
         };
@@ -855,6 +904,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       if (error instanceof Error) {
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
+        alert(`Error picking file: ${error.message}`);
       }
     }
   };
