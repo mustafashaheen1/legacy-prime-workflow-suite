@@ -4,11 +4,14 @@ import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles }
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData } from '@/types';
 import { generateText } from '@rork/toolkit-sdk';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 export default function DashboardScreen() {
+  const { t } = useTranslation();
   const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, dailyLogs = [] } = useApp();
   const router = useRouter();
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
@@ -449,18 +452,19 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.headerLeft}>
-              <Text style={styles.headerTitle}>Project List</Text>
+              <Text style={styles.headerTitle}>{t('dashboard.title')}</Text>
               <TouchableOpacity
                 style={[styles.filterChip, showArchived && styles.filterChipActive]}
                 onPress={() => setShowArchived(!showArchived)}
               >
                 <Archive size={16} color={showArchived ? '#FFFFFF' : '#6B7280'} />
                 <Text style={[styles.filterChipText, showArchived && styles.filterChipTextActive]}>
-                  {showArchived ? `Archived (${archivedProjects.length})` : `Active (${activeProjects.length})`}
+                  {showArchived ? `${t('dashboard.archivedProjects')} (${archivedProjects.length})` : `${t('dashboard.activeProjects')} (${activeProjects.length})`}
                 </Text>
               </TouchableOpacity>
             </View>
             <View style={styles.headerActions}>
+              <LanguageSwitcher />
               <TouchableOpacity style={styles.iconButton}>
                 <Search size={20} color="#2563EB" />
               </TouchableOpacity>
@@ -469,7 +473,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                 onPress={() => setShowImportOptions(true)}
               >
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.addButtonText}>Project</Text>
+                <Text style={styles.addButtonText}>{t('dashboard.addProject')}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -498,7 +502,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
           <View style={styles.reportMenu}>
             <View style={styles.reportMenuHeader}>
               <FileText size={20} color="#2563EB" />
-              <Text style={styles.reportMenuTitle}>Generate Report</Text>
+              <Text style={styles.reportMenuTitle}>{t('dashboard.generateReport')}</Text>
             </View>
             <ScrollView 
               horizontal 
@@ -618,7 +622,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
           <View style={styles.emptyState}>
             <Archive size={48} color="#9CA3AF" />
             <Text style={styles.emptyStateText}>
-              {showArchived ? 'No archived projects' : 'No active projects'}
+              {showArchived ? t('dashboard.noArchivedProjects') : t('dashboard.noActiveProjects')}
             </Text>
           </View>
         ) : (
@@ -670,7 +674,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
 
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <Text style={styles.statTitle}>total sold</Text>
+            <Text style={styles.statTitle}>{t('dashboard.totalSold')}</Text>
             <Text style={styles.statValue}>${(1500000).toLocaleString()}</Text>
             <View style={styles.chartContainer}>
               {monthlySales.map((sale, index) => {
@@ -684,13 +688,13 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
               })}
             </View>
             <View style={styles.totalBudgetRow}>
-              <Text style={styles.totalBudgetLabel}>Total Budget</Text>
+              <Text style={styles.totalBudgetLabel}>{t('dashboard.totalBudget')}</Text>
               <Text style={styles.totalBudgetValue}>${totalBudget.toLocaleString()}</Text>
             </View>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statTitle}>Expenses</Text>
+            <Text style={styles.statTitle}>{t('dashboard.expenses')}</Text>
             
             {pieChartData.length > 0 ? (
               <View style={styles.pieChartContainer}>
@@ -733,12 +737,12 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
               </View>
             ) : (
               <View style={styles.emptyExpenses}>
-                <Text style={styles.emptyExpensesText}>No expenses yet</Text>
+                <Text style={styles.emptyExpensesText}>{t('dashboard.noExpenses')}</Text>
               </View>
             )}
             
             <View style={styles.expenseTotal}>
-              <Text style={styles.expenseTotalLabel}>Total Expenses</Text>
+              <Text style={styles.expenseTotalLabel}>{t('dashboard.totalExpenses')}</Text>
               <Text style={styles.expenseTotalValue}>${totalExpenses.toLocaleString()}</Text>
             </View>
           </View>
@@ -754,7 +758,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
         <View style={styles.modalOverlay}>
           <View style={styles.importOptionsModal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Project</Text>
+              <Text style={styles.modalTitle}>{t('dashboard.addProject')}</Text>
               <TouchableOpacity onPress={() => setShowImportOptions(false)}>
                 <X size={24} color="#6B7280" />
               </TouchableOpacity>
@@ -833,7 +837,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
           >
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Create New Project</Text>
+                <Text style={styles.modalTitle}>{t('projects.createNew')}</Text>
                 <TouchableOpacity onPress={() => setShowCreateModal(false)}>
                   <X size={24} color="#6B7280" />
                 </TouchableOpacity>
@@ -841,7 +845,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
 
               <View style={styles.modalBody}>
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Client/Project Name *</Text>
+                  <Text style={styles.formLabel}>{t('projects.name')} *</Text>
                   <TextInput
                     style={styles.formInput}
                     value={projectName}
@@ -852,7 +856,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Address</Text>
+                  <Text style={styles.formLabel}>{t('projects.address')}</Text>
                   <TextInput
                     style={styles.formInput}
                     value={projectAddress}
@@ -863,7 +867,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Email *</Text>
+                  <Text style={styles.formLabel}>{t('forms.email')} *</Text>
                   <TextInput
                     style={styles.formInput}
                     value={projectEmail}
@@ -876,7 +880,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Phone *</Text>
+                  <Text style={styles.formLabel}>{t('forms.phone')} *</Text>
                   <TextInput
                     style={styles.formInput}
                     value={projectPhone}
@@ -888,7 +892,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Source</Text>
+                  <Text style={styles.formLabel}>{t('forms.source')}</Text>
                   <TextInput
                     style={styles.formInput}
                     value={projectSource}
@@ -899,7 +903,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Budget *</Text>
+                  <Text style={styles.formLabel}>{t('projects.budget')} *</Text>
                   <TextInput
                     style={styles.formInput}
                     value={projectBudget}
@@ -967,7 +971,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                     Alert.alert('Success', 'Project created successfully!');
                   }}
                 >
-                  <Text style={styles.createButtonText}>Create Project</Text>
+                  <Text style={styles.createButtonText}>{t('projects.createNew')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

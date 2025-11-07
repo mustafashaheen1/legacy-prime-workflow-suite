@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions, KeyboardAvoidingView } from 'react-native';
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
@@ -13,6 +14,7 @@ import GlobalAIChat from '@/components/GlobalAIChat';
 import ImageAnnotation from '@/components/ImageAnnotation';
 
 export default function ChatScreen() {
+  const { t } = useTranslation();
   const { user, conversations, clients, addConversation, addMessageToConversation } = useApp();
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 768;
@@ -413,7 +415,7 @@ export default function ChatScreen() {
 
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.contactsSection}>
-              <Text style={styles.sectionTitle}>AI Assistant</Text>
+              <Text style={styles.sectionTitle}>{t('chat.title')}</Text>
               <TouchableOpacity
                 style={[styles.aiChatItem, selectedChat === 'ai-assistant' && styles.contactItemActive]}
                 onPress={() => {
@@ -425,7 +427,7 @@ export default function ChatScreen() {
                 </View>
                 <View style={styles.aiChatInfo}>
                   <Text style={styles.aiChatName}>AI Assistant</Text>
-                  <Text style={styles.aiChatDescription}>Ask me anything about your projects</Text>
+                  <Text style={styles.aiChatDescription}>{t('chat.typeMessage')}</Text>
                 </View>
                 <View style={styles.aiSparkle}>
                   <Sparkles size={16} color="#8B5CF6" />
@@ -563,7 +565,7 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                   <TextInput
                     style={styles.messageInput}
-                    placeholder="Type a message..."
+    placeholder={t('chat.typeMessage')}
                     placeholderTextColor="#9CA3AF"
                     value={messageText}
                     onChangeText={setMessageText}
@@ -584,8 +586,8 @@ export default function ChatScreen() {
           ) : (
             <View style={styles.noChatSelected}>
               <Users size={64} color="#D1D5DB" />
-              <Text style={styles.noChatText}>Select a conversation</Text>
-              <Text style={styles.noChatSubtext}>Choose from your existing conversations or start a new one</Text>
+              <Text style={styles.noChatText}>{t('chat.title')}</Text>
+              <Text style={styles.noChatSubtext}>{t('chat.noMessages')}</Text>
             </View>
           )}
         </View>}
@@ -600,7 +602,7 @@ export default function ChatScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.newChatModal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New Chat</Text>
+              <Text style={styles.modalTitle}>{t('chat.title')}</Text>
               <TouchableOpacity onPress={() => {
                 setShowNewChatModal(false);
                 setSelectedParticipants([]);
@@ -614,7 +616,7 @@ export default function ChatScreen() {
               <Search size={16} color="#9CA3AF" />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search employees and clients..."
+placeholder={t('common.search')}
                 placeholderTextColor="#9CA3AF"
                 value={newChatSearch}
                 onChangeText={setNewChatSearch}
