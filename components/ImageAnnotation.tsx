@@ -398,13 +398,13 @@ export default function ImageAnnotation({
                 <input
                   type="text"
                   style={{
-                    fontSize: 16,
-                    padding: 12,
-                    borderWidth: 1,
-                    borderColor: '#E5E7EB',
-                    borderRadius: 8,
+                    fontSize: '16px',
+                    padding: '12px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '8px',
                     color: '#1F2937',
                     width: '100%',
+                    outline: 'none',
                   }}
                   placeholder="Enter text..."
                   value={textInput}
