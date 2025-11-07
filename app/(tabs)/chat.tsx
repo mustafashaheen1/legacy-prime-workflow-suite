@@ -499,7 +499,7 @@ export default function ChatScreen() {
             <KeyboardAvoidingView
               style={{ flex: 1 }}
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? (isSmallScreen ? 100 : 0) : 0}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? (isSmallScreen ? 150 : 90) : 0}
             >
               {!isSmallScreen && <View style={styles.chatHeader}>
                 <Text style={styles.chatTitle}>{selectedConversation?.name}</Text>
