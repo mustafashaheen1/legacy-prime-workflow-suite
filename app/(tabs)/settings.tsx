@@ -4,7 +4,7 @@ import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
 import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permissions';
-import { Users, Shield, ChevronRight, X } from 'lucide-react-native';
+import { Users, Shield, ChevronRight, X, Building2, Copy } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
 
@@ -52,9 +52,37 @@ export default function SettingsScreen() {
     );
   }
 
+  const handleCopyCompanyCode = () => {
+    if (company?.id) {
+      Alert.alert(t('settings.companyCode'), company.id);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Building2 size={24} color="#2563EB" />
+            <Text style={styles.sectionTitle}>{t('settings.companyInfo')}</Text>
+          </View>
+
+          <View style={styles.infoCard}>
+            <Text style={styles.infoLabel}>{t('settings.companyName')}</Text>
+            <Text style={styles.companyName}>{company?.name}</Text>
+            
+            <Text style={[styles.infoLabel, { marginTop: 12 }]}>{t('settings.companyCode')}</Text>
+            <TouchableOpacity 
+              style={styles.codeContainer}
+              onPress={handleCopyCompanyCode}
+            >
+              <Text style={styles.codeText}>{company?.id}</Text>
+              <Copy size={18} color="#6B7280" />
+            </TouchableOpacity>
+            <Text style={styles.codeHint}>{t('settings.shareCodeHint')}</Text>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Users size={24} color="#2563EB" />
@@ -452,6 +480,30 @@ const styles = StyleSheet.create({
   },
   roleOptionDescription: {
     fontSize: 14,
+    color: '#6B7280',
+  },
+  companyName: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#111827',
+  },
+  codeContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    backgroundColor: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  codeText: {
+    fontSize: 16,
+    fontWeight: '500' as const,
+    color: '#111827',
+    fontFamily: 'monospace',
+  },
+  codeHint: {
+    fontSize: 12,
     color: '#6B7280',
   },
 });

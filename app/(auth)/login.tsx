@@ -71,7 +71,7 @@ export default function LoginScreen() {
           <Text style={styles.loginButtonText}>Login</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => console.log('Create account')}>
+        <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
           <Text style={styles.createAccountText}>Create Account</Text>
         </TouchableOpacity>
       </View>
