@@ -412,3 +412,11 @@ export interface RolePermissions {
   role: UserRole;
   permissions: Permission[];
 }
+
+export interface AIChatSession {
+  id: string;
+  title: string;
+  messages: any[];
+  createdAt: string;
+  updatedAt: string;
+}

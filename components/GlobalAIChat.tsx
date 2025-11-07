@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2 } from 'lucide-react-native';
+import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, MessageSquare, Plus, Clock, Trash2 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useState, useRef, useEffect } from 'react';
@@ -10,6 +10,8 @@ import { masterPriceList, priceListCategories } from '@/mocks/priceList';
 import { usePathname } from 'expo-router';
 import { Audio } from 'expo-av';
 import { shouldBlockChatbotQuery, getChatbotRestrictionLevel } from '@/lib/permissions';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AIChatSession } from '@/types';
 
 interface GlobalAIChatProps {
   currentPageContext?: string;
