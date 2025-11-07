@@ -827,13 +827,18 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['image/*', 'application/pdf', 'text/*', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        type: '*/*',
         copyToCacheDirectory: true,
         multiple: false,
       });
 
+      console.log('Document picker result:', result);
+
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
+        
+        console.log('Selected file:', file.name, file.mimeType, file.size);
+        
         const newFile: AttachedFile = {
           uri: file.uri,
           name: file.name,
@@ -842,9 +847,15 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           type: 'file',
         };
         setAttachedFiles([...attachedFiles, newFile]);
+      } else {
+        console.log('Document picker canceled or no assets');
       }
     } catch (error) {
       console.error('Error picking file:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
     }
   };
 
@@ -883,71 +894,94 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     
     if (attachedFiles.length > 0) {
       try {
+        console.log('Processing attached files:', attachedFiles.length);
         const filesForMessage: {type: 'file'; mimeType: string; uri: string}[] = [];
         
         for (const file of attachedFiles) {
+          console.log('Processing file:', file.name, file.mimeType);
+          
           if (file.mimeType.startsWith('image/')) {
-            const base64 = await convertFileToBase64(file);
-            filesForMessage.push({
-              type: 'file',
-              mimeType: file.mimeType,
-              uri: `data:${file.mimeType};base64,${base64}`,
-            });
+            try {
+              const base64 = await convertFileToBase64(file);
+              console.log('Image converted to base64, length:', base64.length);
+              filesForMessage.push({
+                type: 'file',
+                mimeType: file.mimeType,
+                uri: `data:${file.mimeType};base64,${base64}`,
+              });
+            } catch (error) {
+              console.error('Failed to convert image to base64:', error);
+              throw new Error(`Failed to process image: ${file.name}`);
+            }
+          } else if (file.mimeType === 'application/pdf' || file.mimeType.includes('pdf')) {
+            try {
+              const base64 = await convertFileToBase64(file);
+              console.log('PDF converted to base64, length:', base64.length);
+              filesForMessage.push({
+                type: 'file',
+                mimeType: 'application/pdf',
+                uri: `data:application/pdf;base64,${base64}`,
+              });
+            } catch (error) {
+              console.error('Failed to convert PDF to base64:', error);
+              throw new Error(`Failed to process PDF: ${file.name}`);
+            }
           } else {
-            filesForMessage.push({
-              type: 'file',
-              mimeType: file.mimeType,
-              uri: file.uri,
-            });
+            console.warn('Unsupported file type:', file.mimeType, 'for file:', file.name);
+            throw new Error(`Sorry, I can only analyze images and PDFs. Please select an image or PDF file.`);
           }
         }
         
         const userMessage = input.trim() || 'Please analyze the attached file(s)';
         
         if (!user) {
-        console.warn('[Chat] No user found, blocking request');
-        return;
-      }
+          console.warn('[Chat] No user found, blocking request');
+          return;
+        }
 
-      const blockCheck = shouldBlockChatbotQuery(user.role, userMessage);
-      if (blockCheck.shouldBlock) {
-        console.log('[Chat] Query blocked for role:', user.role);
-        return;
-      }
+        const blockCheck = shouldBlockChatbotQuery(user.role, userMessage);
+        if (blockCheck.shouldBlock) {
+          console.log('[Chat] Query blocked for role:', user.role);
+          return;
+        }
 
-      const restrictionLevel = getChatbotRestrictionLevel(user.role);
-      let systemInstructions = '';
+        const restrictionLevel = getChatbotRestrictionLevel(user.role);
+        let systemInstructions = '';
 
-      if (restrictionLevel === 'basic-only') {
-        systemInstructions = `IMPORTANT: You are assisting a Field Employee with LIMITED access.
+        if (restrictionLevel === 'basic-only') {
+          systemInstructions = `IMPORTANT: You are assisting a Field Employee with LIMITED access.
 - You CAN answer ONLY: Scope of work, general project info, document/photo summaries, how to clock in/out, how to add expenses/photos.
 - You CANNOT answer: Anything about estimates, cost breakdowns, contract terms, revenue, payment info, budgets, pricing, or financial data.
 - If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin."
 
 `;
-      } else if (restrictionLevel === 'no-financials') {
-        systemInstructions = `IMPORTANT: You are assisting a Salesperson with RESTRICTED financial access.
+        } else if (restrictionLevel === 'no-financials') {
+          systemInstructions = `IMPORTANT: You are assisting a Salesperson with RESTRICTED financial access.
 - You CAN answer: General construction questions, CRM usage, how to create estimates, scope of work, schedule, chat, photos.
 - You CANNOT answer: Pricing details, markup percentages, actual costs, contract terms, payment status, profit margins, cost reports.
 - If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin."
 
 `;
-      } else {
-        systemInstructions = `IMPORTANT GLOBAL RESTRICTIONS:
+        } else {
+          systemInstructions = `IMPORTANT GLOBAL RESTRICTIONS:
 - You CANNOT answer: Contract legal terms or specific legal advice.
 - You have unrestricted access to app features and data for this role.
 
 `;
-      }
+        }
         
         const contextMessage = `${systemInstructions}Context: ${getContextForCurrentPage()}`;
         const fullMessage = `${contextMessage}\n\nUser question: ${userMessage}\n\nAttached ${filesForMessage.length} file(s) for analysis.`;
         
+        console.log('Sending message with', filesForMessage.length, 'files');
         sendMessage({ text: fullMessage, files: filesForMessage as any });
         setInput('');
         setAttachedFiles([]);
       } catch (error) {
         console.error('Error sending message with files:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to upload document';
+        alert(errorMessage);
+        setAttachedFiles([]);
       }
     } else {
       handleSendWithContext(input);
