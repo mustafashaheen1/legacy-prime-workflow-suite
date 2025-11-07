@@ -45,7 +45,9 @@ export default function ClockScreen() {
                   <View style={styles.projectInfo}>
                     <Text style={styles.projectName}>{project.name}</Text>
                   </View>
-                  <ChevronDown size={20} color="#6B7280" style={{ transform: [{ rotate: '-90deg' }] }} />
+                  <View style={{ transform: [{ rotate: '-90deg' }] }}>
+                    <ChevronDown size={20} color="#6B7280" />
+                  </View>
                 </TouchableOpacity>
               ))
             ) : (

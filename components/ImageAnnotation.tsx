@@ -8,6 +8,8 @@ import {
   Dimensions,
   Modal,
   Alert,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import Svg, { Path, Circle, Rect, Line, Text as SvgText } from 'react-native-svg';
@@ -395,27 +397,39 @@ export default function ImageAnnotation({
             <View style={styles.textInputContainer}>
               <Text style={styles.textInputTitle}>Add Text</Text>
               <View style={styles.textInputWrapper}>
-                <input
-                  type="text"
-                  style={{
-                    fontSize: '16px',
-                    padding: '12px',
-                    border: '1px solid #E5E7EB',
-                    borderRadius: '8px',
-                    color: '#1F2937',
-                    width: '100%',
-                    outline: 'none',
-                  }}
-                  placeholder="Enter text..."
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleTextSubmit();
-                    }
-                  }}
-                  autoFocus
-                />
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="text"
+                    style={{
+                      fontSize: '16px',
+                      padding: '12px',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: '8px',
+                      color: '#1F2937',
+                      width: '100%',
+                      outline: 'none',
+                    }}
+                    placeholder="Enter text..."
+                    value={textInput}
+                    onChange={(e: any) => setTextInput(e.target.value)}
+                    onKeyPress={(e: any) => {
+                      if (e.key === 'Enter') {
+                        handleTextSubmit();
+                      }
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <TextInput
+                    style={styles.nativeTextInput}
+                    value={textInput}
+                    onChangeText={setTextInput}
+                    placeholder="Enter text..."
+                    placeholderTextColor="#9CA3AF"
+                    onSubmitEditing={handleTextSubmit}
+                    autoFocus
+                  />
+                )}
               </View>
               <View style={styles.textInputActions}>
                 <TouchableOpacity
@@ -583,6 +597,15 @@ const styles = StyleSheet.create({
   },
   textInputWrapper: {
     marginBottom: 16,
+  },
+  nativeTextInput: {
+    fontSize: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    color: '#1F2937',
+    width: '100%',
   },
   textInputActions: {
     flexDirection: 'row',
