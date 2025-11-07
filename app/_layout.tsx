@@ -4,9 +4,11 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppProvider } from "@/contexts/AppContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import GlobalAIChat from "@/components/GlobalAIChat";
 import FloatingChatButton from "@/components/FloatingChatButton";
 import { trpc, trpcClient } from "@/lib/trpc";
+import '@/lib/i18n';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -32,11 +34,13 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <AppProvider>
-            <RootLayoutNav />
-            <GlobalAIChat />
-            <FloatingChatButton />
-          </AppProvider>
+          <LanguageProvider>
+            <AppProvider>
+              <RootLayoutNav />
+              <GlobalAIChat />
+              <FloatingChatButton />
+            </AppProvider>
+          </LanguageProvider>
         </GestureHandlerRootView>
       </trpc.Provider>
     </QueryClientProvider>
