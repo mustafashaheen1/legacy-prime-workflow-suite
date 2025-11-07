@@ -538,6 +538,55 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           });
         },
       }),
+      
+      generateFloorLayout: createRorkTool({
+        description: 'Generate a basic floor layout/plan with notes and annotations. Use this when user asks for floor plans, layouts, or architectural sketches.',
+        zodSchema: z.object({
+          description: z.string().describe('Detailed description of the floor layout including rooms, dimensions, layout type (e.g., "3 bedroom house with open concept kitchen and living room, 2 bathrooms, total 1500 sq ft")'),
+          notes: z.string().optional().describe('Important notes, specifications, or annotations to include on the plan (e.g., "12x15 master bedroom, 10x12 kitchen with island")'),
+          style: z.enum(['basic', 'detailed', 'schematic']).optional().describe('Style of the floor plan (basic, detailed, schematic)'),
+        }),
+        async execute(input) {
+          console.log('[Floor Layout] Generating floor layout:', input);
+          
+          try {
+            const style = input.style || 'basic';
+            const prompt = `Create a clean, professional floor plan/layout drawing. ${input.description}. ${input.notes ? `Include these notes and dimensions: ${input.notes}` : ''}. Style: ${style === 'basic' ? 'Simple black and white architectural floor plan with room labels' : style === 'detailed' ? 'Detailed architectural floor plan with dimensions, furniture placement, and annotations' : 'Schematic architectural floor plan with clear room divisions and basic measurements'}. Professional architectural drawing style, top-down view, clean lines, labeled rooms.`;
+            
+            const response = await fetch('https://toolkit.rork.com/images/generate/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                prompt,
+                size: '1024x1024',
+              }),
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to generate floor layout');
+            }
+            
+            const data = await response.json();
+            
+            return JSON.stringify({
+              success: true,
+              message: 'Floor layout generated successfully',
+              imageData: data.image.base64Data,
+              mimeType: data.image.mimeType,
+              description: input.description,
+              notes: input.notes || 'No additional notes',
+            });
+          } catch (error) {
+            console.error('[Floor Layout] Error generating layout:', error);
+            return JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : 'Failed to generate floor layout',
+            });
+          }
+        },
+      }),
     },
   });
 
@@ -1152,6 +1201,28 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                         }
                         
                         if (part.state === 'output-available') {
+                          if (toolName === 'generateFloorLayout' && part.output) {
+                            try {
+                              const outputData = JSON.parse(part.output as string);
+                              if (outputData.success && outputData.imageData) {
+                                return (
+                                  <View key={i} style={styles.floorLayoutContainer}>
+                                    <Text style={styles.toolSuccessText}>✓ Floor layout generated</Text>
+                                    <Image 
+                                      source={{ uri: `data:${outputData.mimeType};base64,${outputData.imageData}` }} 
+                                      style={styles.floorLayoutImage}
+                                      resizeMode="contain"
+                                    />
+                                    {outputData.notes && (
+                                      <Text style={styles.floorLayoutNotes}>{outputData.notes}</Text>
+                                    )}
+                                  </View>
+                                );
+                              }
+                            } catch (e) {
+                              console.error('Failed to parse floor layout output:', e);
+                            }
+                          }
                           return (
                             <View key={i} style={styles.toolSuccess}>
                               <Text style={styles.toolSuccessText}>✓ {toolName} completed</Text>
@@ -1921,5 +1992,26 @@ const styles = StyleSheet.create({
   micButtonActive: {
     backgroundColor: '#10B981',
     borderRadius: 22,
+  },
+  floorLayoutContainer: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  floorLayoutImage: {
+    width: '100%',
+    height: 300,
+    marginTop: 8,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  floorLayoutNotes: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#166534',
+    fontStyle: 'italic',
   },
 });
