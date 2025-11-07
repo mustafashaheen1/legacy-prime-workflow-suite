@@ -459,7 +459,7 @@ export default function ScheduleScreen() {
           <View style={styles.categoriesSection}>
             <Text style={styles.sectionTitle}>Construction Phases</Text>
             <Text style={styles.sectionSubtitle}>Tap to add to schedule</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} style={styles.categoriesList}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.categoriesList}>
               {CONSTRUCTION_CATEGORIES.map(category => (
                 <TouchableOpacity
                   key={category.name}
@@ -479,7 +479,7 @@ export default function ScheduleScreen() {
               <ScrollView 
                 ref={timelineRef}
                 horizontal 
-                showsHorizontalScrollIndicator={Platform.OS === 'web'}
+                showsHorizontalScrollIndicator={true}
                 style={styles.timelineScroll}
               >
                 <View style={styles.datesContainer}>
@@ -497,7 +497,7 @@ export default function ScheduleScreen() {
 
             <ScrollView 
               style={styles.tasksArea}
-              showsVerticalScrollIndicator={Platform.OS === 'web'}
+              showsVerticalScrollIndicator={true}
             >
               <View style={styles.tasksContainer}>
                 <View style={styles.hourLabels}>
@@ -515,7 +515,7 @@ export default function ScheduleScreen() {
                 
                 <ScrollView 
                   horizontal 
-                  showsHorizontalScrollIndicator={Platform.OS === 'web'}
+                  showsHorizontalScrollIndicator={true}
                   scrollEnabled={true}
                   style={styles.tasksScrollView}
                 >
