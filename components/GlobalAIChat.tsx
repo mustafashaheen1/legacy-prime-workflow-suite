@@ -1270,16 +1270,21 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                           if ((toolName === 'generateFloorLayout' || toolName === 'generate3DSketch') && part.output) {
                             try {
                               const outputData = JSON.parse(part.output as string);
+                              console.log('[Sketch Inline] Output:', toolName, 'success:', outputData.success, 'hasImage:', !!outputData.imageData);
                               if (outputData.success && outputData.imageData) {
+                                const imageUri = `data:${outputData.mimeType};base64,${outputData.imageData}`;
+                                console.log('[Sketch Inline] Image URI length:', imageUri.length);
                                 return (
                                   <View key={i} style={styles.floorLayoutContainer}>
                                     <Text style={styles.toolSuccessText}>
                                       ✓ {toolName === 'generateFloorLayout' ? 'Floor layout' : '3D sketch'} generated
                                     </Text>
                                     <Image 
-                                      source={{ uri: `data:${outputData.mimeType};base64,${outputData.imageData}` }} 
+                                      source={{ uri: imageUri }} 
                                       style={styles.floorLayoutImage}
                                       resizeMode="contain"
+                                      onLoad={() => console.log('[Sketch Inline] Image loaded')}
+                                      onError={(error) => console.error('[Sketch Inline] Image error:', error.nativeEvent)}
                                     />
                                     {outputData.notes && (
                                       <Text style={styles.floorLayoutNotes}>{outputData.notes}</Text>
@@ -1291,9 +1296,11 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                                     )}
                                   </View>
                                 );
+                              } else {
+                                console.warn('[Sketch Inline] Missing image data');
                               }
                             } catch (e) {
-                              console.error('Failed to parse image output:', e);
+                              console.error('[Sketch Inline] Parse error:', e);
                             }
                           }
                           return (
@@ -1554,16 +1561,21 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                               if ((toolName === 'generateFloorLayout' || toolName === 'generate3DSketch') && part.output) {
                                 try {
                                   const outputData = JSON.parse(part.output as string);
+                                  console.log('[Sketch Modal] Output:', toolName, 'success:', outputData.success, 'hasImage:', !!outputData.imageData);
                                   if (outputData.success && outputData.imageData) {
+                                    const imageUri = `data:${outputData.mimeType};base64,${outputData.imageData}`;
+                                    console.log('[Sketch Modal] Image URI length:', imageUri.length);
                                     return (
                                       <View key={i} style={styles.floorLayoutContainer}>
                                         <Text style={styles.toolSuccessText}>
                                           ✓ {toolName === 'generateFloorLayout' ? 'Floor layout' : '3D sketch'} generated
                                         </Text>
                                         <Image 
-                                          source={{ uri: `data:${outputData.mimeType};base64,${outputData.imageData}` }} 
+                                          source={{ uri: imageUri }} 
                                           style={styles.floorLayoutImage}
                                           resizeMode="contain"
+                                          onLoad={() => console.log('[Sketch Modal] Image loaded')}
+                                          onError={(error) => console.error('[Sketch Modal] Image error:', error.nativeEvent)}
                                         />
                                         {outputData.notes && (
                                           <Text style={styles.floorLayoutNotes}>{outputData.notes}</Text>
@@ -1575,9 +1587,11 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                                         )}
                                       </View>
                                     );
+                                  } else {
+                                    console.warn('[Sketch Modal] Missing image data');
                                   }
                                 } catch (e) {
-                                  console.error('Failed to parse image output:', e);
+                                  console.error('[Sketch Modal] Parse error:', e);
                                 }
                               }
                               return (
