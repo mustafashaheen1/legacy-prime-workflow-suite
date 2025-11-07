@@ -926,9 +926,44 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               console.error('Failed to convert PDF to base64:', error);
               throw new Error(`Failed to process PDF: ${file.name}`);
             }
+          } else if (
+            file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            file.mimeType === 'application/msword' ||
+            file.mimeType.includes('word')
+          ) {
+            try {
+              const base64 = await convertFileToBase64(file);
+              console.log('Word document converted to base64, length:', base64.length);
+              filesForMessage.push({
+                type: 'file',
+                mimeType: file.mimeType,
+                uri: `data:${file.mimeType};base64,${base64}`,
+              });
+            } catch (error) {
+              console.error('Failed to convert Word document to base64:', error);
+              throw new Error(`Failed to process Word document: ${file.name}`);
+            }
+          } else if (
+            file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            file.mimeType === 'application/vnd.ms-excel' ||
+            file.mimeType.includes('excel') ||
+            file.mimeType.includes('spreadsheet')
+          ) {
+            try {
+              const base64 = await convertFileToBase64(file);
+              console.log('Excel document converted to base64, length:', base64.length);
+              filesForMessage.push({
+                type: 'file',
+                mimeType: file.mimeType,
+                uri: `data:${file.mimeType};base64,${base64}`,
+              });
+            } catch (error) {
+              console.error('Failed to convert Excel document to base64:', error);
+              throw new Error(`Failed to process Excel document: ${file.name}`);
+            }
           } else {
             console.warn('Unsupported file type:', file.mimeType, 'for file:', file.name);
-            throw new Error(`Sorry, I can only analyze images and PDFs. Please select an image or PDF file.`);
+            throw new Error(`Sorry, I can only analyze images, PDFs, Word documents (.doc, .docx), and Excel files (.xls, .xlsx). Please select a supported file type.`);
           }
         }
         
@@ -1007,7 +1042,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               <Bot size={56} color="#D1D5DB" strokeWidth={2} />
               <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
               <Text style={styles.emptyStateText}>
-                I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze documents, images, plans, and PDFs you attach! You can also use voice to talk to me.
+                I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze images, PDFs, Word documents (.doc, .docx), and Excel files (.xls, .xlsx) you attach! You can also use voice to talk to me.
               </Text>
             </View>
           )}
@@ -1262,7 +1297,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   <Bot size={56} color="#D1D5DB" strokeWidth={2} />
                   <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
                   <Text style={styles.emptyStateText}>
-                    I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze documents, images, plans, and PDFs you attach! You can also use voice to talk to me.
+                    I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze images, PDFs, Word documents (.doc, .docx), and Excel files (.xls, .xlsx) you attach! You can also use voice to talk to me.
                   </Text>
                 </View>
               )}
