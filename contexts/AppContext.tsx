@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
+import { checkAndSeedData, getDefaultCompany, getDefaultUser } from '@/lib/seed-data';
+import { fixtureClockEntries } from '@/mocks/fixtures';
 
 interface AppState {
   user: User | null;
@@ -115,8 +117,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   };
 
-  const loadData = async () => {
-    try {
+  const loadData = async () => {   try {
+      await checkAndSeedData();
+      
       const storedUser = await AsyncStorage.getItem('user');
       const storedCompany = await AsyncStorage.getItem('company');
       const storedSubscription = await AsyncStorage.getItem('subscription');
@@ -196,6 +199,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       setClients(mockClients);
       setPhotos(mockPhotos);
       setTasks(mockTasks);
+      setClockEntries(fixtureClockEntries);
+
+      if (!storedUser) {
+        const defaultUser = await getDefaultUser();
+        setUserState(defaultUser);
+        await AsyncStorage.setItem('user', JSON.stringify(defaultUser));
+        console.log('[App] Loaded default user:', defaultUser.name);
+      }
+
+      if (!storedCompany) {
+        const defaultCompany = await getDefaultCompany();
+        setCompanyState(defaultCompany);
+        await AsyncStorage.setItem('company', JSON.stringify(defaultCompany));
+        console.log('[App] Loaded default company:', defaultCompany.name);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
