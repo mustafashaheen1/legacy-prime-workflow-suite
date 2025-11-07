@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions, KeyboardAvoidingView } from 'react-native';
 import { useState, useMemo } from 'react';
 import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -496,12 +496,16 @@ export default function ChatScreen() {
               <GlobalAIChat inline />
             </View>
           ) : selectedChat ? (
-            <>
+            <KeyboardAvoidingView
+              style={{ flex: 1 }}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? (isSmallScreen ? 100 : 0) : 0}
+            >
               {!isSmallScreen && <View style={styles.chatHeader}>
                 <Text style={styles.chatTitle}>{selectedConversation?.name}</Text>
               </View>}
 
-              <ScrollView style={styles.messagesContainer} showsVerticalScrollIndicator={false}>
+              <ScrollView style={styles.messagesContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {messages.map((message) => (
                   <View
                     key={message.id}
@@ -550,35 +554,33 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View>
-                  <View style={styles.inputContainer}>
-                    <TouchableOpacity 
-                      style={styles.attachButton}
-                      onPress={() => setShowAttachMenu(true)}
-                    >
-                      <Paperclip size={20} color="#6B7280" />
+                <View style={styles.inputContainer}>
+                  <TouchableOpacity 
+                    style={styles.attachButton}
+                    onPress={() => setShowAttachMenu(true)}
+                  >
+                    <Paperclip size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.messageInput}
+                    placeholder="Type a message..."
+                    placeholderTextColor="#9CA3AF"
+                    value={messageText}
+                    onChangeText={setMessageText}
+                    multiline
+                  />
+                  {messageText.trim() ? (
+                    <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
+                      <Send size={20} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <TextInput
-                      style={styles.messageInput}
-                      placeholder="Type a message..."
-                      placeholderTextColor="#9CA3AF"
-                      value={messageText}
-                      onChangeText={setMessageText}
-                      multiline
-                    />
-                    {messageText.trim() ? (
-                      <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
-                        <Send size={20} color="#FFFFFF" />
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity style={styles.voiceButton} onPress={startRecording}>
-                        <Mic size={20} color="#2563EB" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                  ) : (
+                    <TouchableOpacity style={styles.voiceButton} onPress={startRecording}>
+                      <Mic size={20} color="#2563EB" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
-            </>
+            </KeyboardAvoidingView>
           ) : (
             <View style={styles.noChatSelected}>
               <Users size={64} color="#D1D5DB" />
