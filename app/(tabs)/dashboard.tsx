@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData } from '@/types';
 import { generateText } from '@rork/toolkit-sdk';
-import LanguageSwitcher from '@/components/LanguageSwitcher';
+
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
@@ -464,7 +464,6 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
               </TouchableOpacity>
             </View>
             <View style={styles.headerActions}>
-              <LanguageSwitcher />
               <TouchableOpacity style={styles.iconButton}>
                 <Search size={20} color="#2563EB" />
               </TouchableOpacity>

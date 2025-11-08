@@ -2,8 +2,7 @@ import { Tabs } from "expo-router";
 import { LayoutDashboard, Users, Clock, DollarSign, Camera, Calendar, MessageSquare, Settings } from "lucide-react-native";
 import React from "react";
 import { useTranslation } from 'react-i18next';
-import LanguageSwitcher from '@/components/LanguageSwitcher';
-import { View, StyleSheet } from 'react-native';
+
 
 export default function TabLayout() {
   const { t } = useTranslation();
@@ -14,11 +13,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: '#2563EB',
         tabBarInactiveTintColor: '#9CA3AF',
         headerShown: true,
-        headerRight: () => (
-          <View style={styles.headerRight}>
-            <LanguageSwitcher />
-          </View>
-        ),
+
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
@@ -87,8 +82,3 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  headerRight: {
-    marginRight: 16,
-  },
-});
