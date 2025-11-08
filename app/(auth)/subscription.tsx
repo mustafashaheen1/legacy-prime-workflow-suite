@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'rea
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Check } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,13 @@ export default function SubscriptionScreen() {
 
   const createCompanyMutation = trpc.companies.createCompany.useMutation();
   const createUserMutation = trpc.users.createUser.useMutation();
+
+  useEffect(() => {
+    if (!params.accountType) {
+      console.log('[Subscription] No account type provided, redirecting to signup');
+      router.replace('/(auth)/signup');
+    }
+  }, [params.accountType]);
 
   const employeeCount = parseInt(params.employeeCount || '2');
   
@@ -79,17 +86,21 @@ export default function SubscriptionScreen() {
 
       console.log('[Subscription] Admin user created:', newUser.user.name);
 
-      await setCompany({
-        ...newCompany.company,
-        id: companyCode,
-      });
+      try {
+        await setCompany({
+          ...newCompany.company,
+          id: companyCode,
+        });
 
-      await setUser(newUser.user);
+        await setUser(newUser.user);
 
-      await setSubscription({
-        type: selectedPlan,
-        startDate: new Date().toISOString(),
-      });
+        await setSubscription({
+          type: selectedPlan,
+          startDate: new Date().toISOString(),
+        });
+      } catch (storageError) {
+        console.error('[Subscription] Storage error:', storageError);
+      }
 
       Alert.alert(
         t('subscription.success'),
@@ -106,6 +117,10 @@ export default function SubscriptionScreen() {
       Alert.alert(t('common.error'), t('subscription.errorMessage'));
     }
   };
+
+  if (!params.accountType) {
+    return null;
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
