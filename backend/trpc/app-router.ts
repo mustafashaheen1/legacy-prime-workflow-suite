@@ -12,6 +12,11 @@ import { updateUserProcedure } from "./routes/users/update-user/route";
 import { createCompanyProcedure } from "./routes/companies/create-company/route";
 import { getCompaniesProcedure } from "./routes/companies/get-companies/route";
 import { updateCompanyProcedure } from "./routes/companies/update-company/route";
+import { sendSmsProcedure } from "./routes/twilio/send-sms/route";
+import { makeCallProcedure } from "./routes/twilio/make-call/route";
+import { getCallLogsProcedure } from "./routes/twilio/get-call-logs/route";
+import { createVirtualAssistantProcedure } from "./routes/twilio/create-virtual-assistant/route";
+import { sendBulkSmsProcedure } from "./routes/twilio/send-bulk-sms/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -38,6 +43,13 @@ export const appRouter = createTRPCRouter({
     addChangeOrder: addChangeOrderProcedure,
     getChangeOrders: getChangeOrdersProcedure,
     updateChangeOrder: updateChangeOrderProcedure,
+  }),
+  twilio: createTRPCRouter({
+    sendSms: sendSmsProcedure,
+    makeCall: makeCallProcedure,
+    getCallLogs: getCallLogsProcedure,
+    createVirtualAssistant: createVirtualAssistantProcedure,
+    sendBulkSms: sendBulkSmsProcedure,
   }),
 });
 
