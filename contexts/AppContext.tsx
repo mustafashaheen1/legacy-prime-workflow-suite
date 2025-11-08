@@ -39,6 +39,7 @@ interface AppState {
   updateClient: (id: string, updates: Partial<Client>) => void;
   addExpense: (expense: Expense) => void;
   addPhoto: (photo: Photo) => void;
+  updatePhoto: (id: string, updates: Partial<Photo>) => void;
   addTask: (task: Task) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   addClockEntry: (entry: ClockEntry) => void;
@@ -300,6 +301,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   const addPhoto = useCallback((photo: Photo) => {
     setPhotos(prev => [...prev, photo]);
+  }, []);
+
+  const updatePhoto = useCallback((id: string, updates: Partial<Photo>) => {
+    setPhotos(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    console.log('[Photo] Updated photo:', id, 'with updates:', updates);
   }, []);
 
   const addTask = useCallback((task: Task) => {
@@ -572,6 +578,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     updateClient,
     addExpense,
     addPhoto,
+    updatePhoto,
     addTask,
     updateTask,
     addClockEntry,
@@ -633,6 +640,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     updateClient,
     addExpense,
     addPhoto,
+    updatePhoto,
     addTask,
     updateTask,
     addClockEntry,

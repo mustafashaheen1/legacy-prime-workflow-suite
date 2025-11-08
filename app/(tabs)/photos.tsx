@@ -1,16 +1,23 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, ActivityIndicator, Pressable, Alert } from 'react-native';
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Camera, Upload } from 'lucide-react-native';
+import { Camera, Upload, Edit2, X, Sparkles, Check } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { photoCategories } from '@/mocks/data';
+import { generateText } from '@rork/toolkit-sdk';
+import { Photo } from '@/types';
+import { useMutation } from '@tanstack/react-query';
 
 export default function PhotosScreen() {
-  const { photos, addPhoto } = useApp();
+  const { photos, addPhoto, updatePhoto } = useApp();
   const [category, setCategory] = useState<string>('Foundation');
   const [notes, setNotes] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
+  const [showCategoryModal, setShowCategoryModal] = useState<boolean>(false);
+  const [aiSuggestedCategory, setAiSuggestedCategory] = useState<string | null>(null);
+  const [tempCategory, setTempCategory] = useState<string>('');
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -46,6 +53,48 @@ export default function PhotosScreen() {
     }
   };
 
+  const suggestCategoryMutation = useMutation({
+    mutationFn: async (imageUri: string) => {
+      console.log('[AI] Suggesting category for image...');
+      const prompt = `Analyze this construction image and suggest the most appropriate category from this list: ${photoCategories.join(', ')}. Only respond with the category name, nothing else.`;
+      
+      const base64 = await fetch(imageUri)
+        .then(res => res.blob())
+        .then(blob => new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        }));
+      
+      const suggestion = await generateText({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image', image: base64 }
+            ]
+          }
+        ]
+      });
+      
+      const cleanSuggestion = suggestion.trim();
+      const matchedCategory = photoCategories.find(
+        cat => cat.toLowerCase() === cleanSuggestion.toLowerCase()
+      );
+      
+      console.log('[AI] Suggested category:', matchedCategory || cleanSuggestion);
+      return matchedCategory || cleanSuggestion;
+    },
+    onSuccess: (suggestedCat) => {
+      setAiSuggestedCategory(suggestedCat);
+    },
+    onError: (error) => {
+      console.error('[AI] Error suggesting category:', error);
+      Alert.alert('Error', 'Could not get AI suggestion. Please select manually.');
+    }
+  });
+
   const handleSave = () => {
     if (!selectedImage) return;
 
@@ -60,6 +109,31 @@ export default function PhotosScreen() {
 
     setSelectedImage(null);
     setNotes('');
+    setAiSuggestedCategory(null);
+  };
+
+  const handleEditCategory = (photo: Photo) => {
+    setEditingPhoto(photo);
+    setTempCategory(photo.category);
+    setShowCategoryModal(true);
+    suggestCategoryMutation.mutate(photo.url);
+  };
+
+  const handleSaveCategory = () => {
+    if (!editingPhoto) return;
+    
+    updatePhoto(editingPhoto.id, { category: tempCategory });
+    
+    setShowCategoryModal(false);
+    setEditingPhoto(null);
+    setAiSuggestedCategory(null);
+    setTempCategory('');
+  };
+
+  const handleUseSuggestion = () => {
+    if (aiSuggestedCategory) {
+      setTempCategory(aiSuggestedCategory);
+    }
   };
 
   return (
@@ -118,12 +192,109 @@ export default function PhotosScreen() {
             {photos.map((photo) => (
               <View key={photo.id} style={styles.galleryItem}>
                 <Image source={{ uri: photo.url }} style={styles.thumbnail} contentFit="cover" />
-                <Text style={styles.thumbnailLabel}>{photo.category}</Text>
+                <View style={styles.thumbnailFooter}>
+                  <Text style={styles.thumbnailLabel}>{photo.category}</Text>
+                  <TouchableOpacity 
+                    onPress={() => handleEditCategory(photo)}
+                    style={styles.editButton}
+                  >
+                    <Edit2 size={14} color="#2563EB" />
+                  </TouchableOpacity>
+                </View>
+                {photo.notes && (
+                  <Text style={styles.photoNotes} numberOfLines={2}>{photo.notes}</Text>
+                )}
               </View>
             ))}
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showCategoryModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCategoryModal(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setShowCategoryModal(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Category</Text>
+              <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {editingPhoto && (
+              <Image 
+                source={{ uri: editingPhoto.url }} 
+                style={styles.modalImage} 
+                contentFit="cover" 
+              />
+            )}
+
+            {suggestCategoryMutation.isPending && (
+              <View style={styles.aiSuggestionLoading}>
+                <ActivityIndicator size="small" color="#2563EB" />
+                <Text style={styles.aiSuggestionText}>AI is analyzing the image...</Text>
+              </View>
+            )}
+
+            {aiSuggestedCategory && !suggestCategoryMutation.isPending && (
+              <View style={styles.aiSuggestionContainer}>
+                <View style={styles.aiSuggestionHeader}>
+                  <Sparkles size={16} color="#8B5CF6" />
+                  <Text style={styles.aiSuggestionTitle}>AI Suggestion</Text>
+                </View>
+                <TouchableOpacity 
+                  style={styles.aiSuggestionButton}
+                  onPress={handleUseSuggestion}
+                >
+                  <Text style={styles.aiSuggestionCategory}>{aiSuggestedCategory}</Text>
+                  {tempCategory === aiSuggestedCategory && (
+                    <Check size={16} color="#10B981" />
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.aiSuggestionHint}>Tap to use this suggestion</Text>
+              </View>
+            )}
+
+            <Text style={styles.modalLabel}>Select Category</Text>
+            <ScrollView style={styles.categoryList} showsVerticalScrollIndicator={false}>
+              {photoCategories.map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.categoryOption,
+                    tempCategory === cat && styles.categoryOptionSelected
+                  ]}
+                  onPress={() => setTempCategory(cat)}
+                >
+                  <Text style={[
+                    styles.categoryOptionText,
+                    tempCategory === cat && styles.categoryOptionTextSelected
+                  ]}>
+                    {cat}
+                  </Text>
+                  {tempCategory === cat && (
+                    <Check size={18} color="#FFFFFF" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={styles.modalSaveButton}
+              onPress={handleSaveCategory}
+            >
+              <Text style={styles.modalSaveButtonText}>Save Category</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -260,6 +431,151 @@ const styles = StyleSheet.create({
   thumbnailLabel: {
     fontSize: 12,
     color: '#1F2937',
+    flex: 1,
+  },
+  thumbnailFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  editButton: {
+    padding: 4,
+  },
+  photoNotes: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  modalImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  categoryList: {
+    maxHeight: 280,
+    marginBottom: 16,
+  },
+  categoryOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  categoryOptionSelected: {
+    backgroundColor: '#2563EB',
+    borderColor: '#1D4ED8',
+  },
+  categoryOptionText: {
+    fontSize: 15,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+  },
+  categoryOptionTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
+  },
+  modalSaveButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalSaveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  aiSuggestionContainer: {
+    backgroundColor: '#F3F4F6',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
+  },
+  aiSuggestionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  aiSuggestionTitle: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#8B5CF6',
+    textTransform: 'uppercase' as const,
+  },
+  aiSuggestionButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  aiSuggestionCategory: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  aiSuggestionHint: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 6,
     textAlign: 'center',
+  },
+  aiSuggestionLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  aiSuggestionText: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });
