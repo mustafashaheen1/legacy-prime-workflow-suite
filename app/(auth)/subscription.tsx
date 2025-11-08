@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,13 +6,34 @@ import { useState, useMemo, useEffect } from 'react';
 import { Check } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
-import { useStripe } from '@stripe/stripe-react-native';
 
-export default function SubscriptionScreen() {
+type StripeHook = {
+  initPaymentSheet: (params: any) => Promise<{ error: any }>;
+  presentPaymentSheet: () => Promise<{ error: any }>;
+};
+
+let StripeProvider: any = null;
+let useStripe: () => StripeHook = () => ({
+  initPaymentSheet: async () => ({ error: null }),
+  presentPaymentSheet: async () => ({ error: null })
+});
+
+if (Platform.OS !== 'web') {
+  try {
+    const stripe = require('@stripe/stripe-react-native');
+    StripeProvider = stripe.StripeProvider;
+    useStripe = stripe.useStripe;
+  } catch {
+    console.log('[Subscription] Stripe not available on this platform');
+  }
+}
+
+function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  
   const params = useLocalSearchParams<{
     name?: string;
     email?: string;
@@ -57,6 +78,12 @@ export default function SubscriptionScreen() {
         return;
       }
 
+      if (Platform.OS === 'web') {
+        console.log('[Subscription] Web platform - Stripe native not available');
+        setPaymentReady(true);
+        return;
+      }
+
       try {
         console.log('[Subscription] Initializing payment sheet...');
         
@@ -91,7 +118,7 @@ export default function SubscriptionScreen() {
     };
 
     initializePaymentSheet();
-  }, [selectedPlan]);
+  }, [selectedPlan, params.email, params.companyName, params.name, pricing, createPaymentIntentMutation, initPaymentSheet, t]);
 
   const handleConfirmSubscription = async () => {
     if (!paymentReady) {
@@ -102,6 +129,15 @@ export default function SubscriptionScreen() {
     try {
       setIsProcessing(true);
       console.log('[Subscription] Opening payment sheet...');
+      
+      if (Platform.OS === 'web') {
+        Alert.alert(
+          t('common.info'),
+          'Web payment is not available. Please use the mobile app for payment processing.',
+          [{ text: t('common.ok'), onPress: () => setIsProcessing(false) }]
+        );
+        return;
+      }
       
       const { error } = await presentPaymentSheet();
 
@@ -281,6 +317,18 @@ export default function SubscriptionScreen() {
         <Text style={styles.disclaimer}>{t('subscription.disclaimer')}</Text>
       </ScrollView>
     </View>
+  );
+}
+
+export default function SubscriptionScreen() {
+  if (Platform.OS === 'web' || !StripeProvider) {
+    return <SubscriptionContent />;
+  }
+  
+  return (
+    <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}>
+      <SubscriptionContent />
+    </StripeProvider>
   );
 }
 
