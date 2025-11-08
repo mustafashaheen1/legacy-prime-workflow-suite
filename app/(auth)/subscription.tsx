@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,36 +7,10 @@ import { Check } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
 
-type StripeHook = {
-  initPaymentSheet: (params: any) => Promise<{ error: any }>;
-  presentPaymentSheet: () => Promise<{ error: any }>;
-};
-
-let StripeProvider: any = null;
-let useStripe: () => StripeHook = () => ({
-  initPaymentSheet: async () => ({ error: null }),
-  presentPaymentSheet: async () => ({ error: null })
-});
-
-if (Platform.OS === 'web') {
-  const webStub = require('@/lib/stripe-web-stub.tsx');
-  StripeProvider = webStub.StripeProvider;
-  useStripe = webStub.useStripe;
-} else {
-  try {
-    const stripe = require('@stripe/stripe-react-native');
-    StripeProvider = stripe.StripeProvider;
-    useStripe = stripe.useStripe;
-  } catch (error) {
-    console.log('[Subscription] Stripe not available on this platform', error);
-  }
-}
-
 function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   
   const params = useLocalSearchParams<{
     name?: string;
@@ -48,12 +22,10 @@ function SubscriptionContent() {
   }>();
 
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium'>('premium');
-  const [paymentReady, setPaymentReady] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   const createCompanyMutation = trpc.companies.createCompany.useMutation();
   const createUserMutation = trpc.users.createUser.useMutation();
-  const createPaymentIntentMutation = trpc.stripe.createPaymentIntent.useMutation();
 
   useEffect(() => {
     if (!params.accountType) {
@@ -76,83 +48,10 @@ function SubscriptionContent() {
     };
   }, [employeeCount]);
 
-  useEffect(() => {
-    const initializePaymentSheet = async () => {
-      if (!params.email || !params.companyName) {
-        return;
-      }
-
-      if (Platform.OS === 'web') {
-        console.log('[Subscription] Web platform - Stripe native not available');
-        setPaymentReady(true);
-        return;
-      }
-
-      try {
-        console.log('[Subscription] Initializing payment sheet...');
-        
-        const paymentIntent = await createPaymentIntentMutation.mutateAsync({
-          amount: pricing[selectedPlan],
-          currency: 'usd',
-          companyName: params.companyName,
-          email: params.email,
-          subscriptionPlan: selectedPlan,
-        });
-
-        const { error } = await initPaymentSheet({
-          merchantDisplayName: 'Legacy Prime',
-          paymentIntentClientSecret: paymentIntent.clientSecret || '',
-          defaultBillingDetails: {
-            email: params.email,
-            name: params.name,
-          },
-        });
-
-        if (error) {
-          console.error('[Subscription] Payment sheet init error:', error);
-          Alert.alert(t('common.error'), error.message);
-        } else {
-          setPaymentReady(true);
-          console.log('[Subscription] Payment sheet ready');
-        }
-      } catch (error: any) {
-        console.error('[Subscription] Payment intent error:', error);
-        Alert.alert(t('common.error'), error.message || t('subscription.errorMessage'));
-      }
-    };
-
-    initializePaymentSheet();
-  }, [selectedPlan, params.email, params.companyName, params.name, pricing, createPaymentIntentMutation, initPaymentSheet, t]);
-
   const handleConfirmSubscription = async () => {
-    if (!paymentReady) {
-      Alert.alert(t('common.error'), t('subscription.paymentNotReady'));
-      return;
-    }
-
     try {
       setIsProcessing(true);
-      console.log('[Subscription] Opening payment sheet...');
-      
-      if (Platform.OS === 'web') {
-        Alert.alert(
-          t('common.info'),
-          'Web payment is not available. Please use the mobile app for payment processing.',
-          [{ text: t('common.ok'), onPress: () => setIsProcessing(false) }]
-        );
-        return;
-      }
-      
-      const { error } = await presentPaymentSheet();
-
-      if (error) {
-        console.error('[Subscription] Payment error:', error);
-        Alert.alert(t('common.error'), error.message);
-        setIsProcessing(false);
-        return;
-      }
-
-      console.log('[Subscription] Payment successful, creating company...');
+      console.log('[Subscription] Creating company (Payment disabled for testing)...');
       
       const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
@@ -299,41 +198,33 @@ function SubscriptionContent() {
         <TouchableOpacity
           style={[
             styles.continueButton,
-            (!paymentReady || isProcessing || createCompanyMutation.isPending || createUserMutation.isPending) &&
+            (isProcessing || createCompanyMutation.isPending || createUserMutation.isPending) &&
               styles.continueButtonDisabled,
           ]}
           onPress={handleConfirmSubscription}
-          disabled={!paymentReady || isProcessing || createCompanyMutation.isPending || createUserMutation.isPending}
+          disabled={isProcessing || createCompanyMutation.isPending || createUserMutation.isPending}
         >
-          {isProcessing || createPaymentIntentMutation.isPending ? (
+          {isProcessing ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.continueButtonText}>
-              {!paymentReady
-                ? t('subscription.preparingPayment')
-                : createCompanyMutation.isPending || createUserMutation.isPending
+              {createCompanyMutation.isPending || createUserMutation.isPending
                 ? t('common.loading')
-                : t('subscription.proceedToPayment')}
+                : t('subscription.createAccount')}
             </Text>
           )}
         </TouchableOpacity>
 
-        <Text style={styles.disclaimer}>{t('subscription.disclaimer')}</Text>
+        <Text style={styles.disclaimer}>
+          {t('subscription.testMode')} - Payment integration disabled for testing
+        </Text>
       </ScrollView>
     </View>
   );
 }
 
 export default function SubscriptionScreen() {
-  if (Platform.OS === 'web' || !StripeProvider) {
-    return <SubscriptionContent />;
-  }
-  
-  return (
-    <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}>
-      <SubscriptionContent />
-    </StripeProvider>
-  );
+  return <SubscriptionContent />;
 }
 
 const styles = StyleSheet.create({
