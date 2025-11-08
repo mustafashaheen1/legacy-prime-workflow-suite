@@ -16,7 +16,7 @@ SplashScreen.preventAutoHideAsync();
 if (Platform.OS === 'web') {
   const originalError = console.error;
   console.error = (...args) => {
-    const message = args[0]?.toString() || '';
+    const message = JSON.stringify(args);
     if (message.includes('transform-origin') || message.includes('transformOrigin')) {
       return;
     }
