@@ -398,25 +398,13 @@ export default function ImageAnnotation({
               <Text style={styles.textInputTitle}>Add Text</Text>
               <View style={styles.textInputWrapper}>
                 {Platform.OS === 'web' ? (
-                  <input
-                    type="text"
-                    style={{
-                      fontSize: '16px',
-                      padding: '12px',
-                      border: '1px solid #E5E7EB',
-                      borderRadius: '8px',
-                      color: '#1F2937',
-                      width: '100%',
-                      outline: 'none',
-                    }}
-                    placeholder="Enter text..."
+                  <TextInput
+                    style={styles.nativeTextInput}
                     value={textInput}
-                    onChange={(e: any) => setTextInput(e.target.value)}
-                    onKeyPress={(e: any) => {
-                      if (e.key === 'Enter') {
-                        handleTextSubmit();
-                      }
-                    }}
+                    onChangeText={setTextInput}
+                    placeholder="Enter text..."
+                    placeholderTextColor="#9CA3AF"
+                    onSubmitEditing={handleTextSubmit}
                     autoFocus
                   />
                 ) : (
