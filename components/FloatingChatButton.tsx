@@ -20,7 +20,7 @@ export default function FloatingChatButton() {
   }, [conversations, user]);
 
   const isOnChatScreen = pathname === '/chat';
-  const isOnAuthScreen = pathname === '/login' || pathname === '/subscription' || pathname === '/signup';
+  const isOnAuthScreen = pathname?.includes('/login') || pathname?.includes('/subscription') || pathname?.includes('/signup') || pathname?.includes('/(auth)');
 
   if (isOnChatScreen || isOnAuthScreen || !user) {
     return null;

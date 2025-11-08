@@ -45,7 +45,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const audioChunksRef = useRef<Blob[]>([]);
   const pathname = usePathname();
   const isOnChatScreen = pathname === '/chat';
-  const isOnAuthScreen = pathname === '/login' || pathname === '/subscription' || pathname === '/signup';
+  const isOnAuthScreen = pathname?.includes('/login') || pathname?.includes('/subscription') || pathname?.includes('/signup');
   const { user, projects, clients, expenses, photos, tasks, clockEntries, estimates, addEstimate } = useApp();
 
   const getContextForCurrentPage = () => {
