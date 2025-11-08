@@ -9,7 +9,6 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import GlobalAIChat from "@/components/GlobalAIChat";
 import FloatingChatButton from "@/components/FloatingChatButton";
 import { trpc, trpcClient } from "@/lib/trpc";
-import { StripeProvider } from '@stripe/stripe-react-native';
 import '@/lib/i18n';
 
 SplashScreen.preventAutoHideAsync();
@@ -27,6 +26,13 @@ if (Platform.OS === 'web') {
 
 const queryClient = new QueryClient();
 
+let StripeProvider: React.ComponentType<{ publishableKey: string; children: React.ReactNode }> | null = null;
+
+if (Platform.OS !== 'web') {
+  const StripeModule = require('@stripe/stripe-react-native');
+  StripeProvider = StripeModule.StripeProvider;
+}
+
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
@@ -43,20 +49,28 @@ export default function RootLayout() {
     SplashScreen.hideAsync();
   }, []);
 
+  const content = (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <LanguageProvider>
+        <AppProvider>
+          <RootLayoutNav />
+          <GlobalAIChat />
+          <FloatingChatButton />
+        </AppProvider>
+      </LanguageProvider>
+    </GestureHandlerRootView>
+  );
+
   return (
     <QueryClientProvider client={queryClient}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <LanguageProvider>
-              <AppProvider>
-                <RootLayoutNav />
-                <GlobalAIChat />
-                <FloatingChatButton />
-              </AppProvider>
-            </LanguageProvider>
-          </GestureHandlerRootView>
-        </StripeProvider>
+        {StripeProvider ? (
+          <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}>
+            {content}
+          </StripeProvider>
+        ) : (
+          content
+        )}
       </trpc.Provider>
     </QueryClientProvider>
   );
