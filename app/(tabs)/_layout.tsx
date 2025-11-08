@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { LayoutDashboard, Users, Clock, DollarSign, Camera, Calendar, MessageSquare, Settings } from "lucide-react-native";
 import React from "react";
 import { useTranslation } from 'react-i18next';
+import UserAvatar from '@/components/UserAvatar';
 
 
 export default function TabLayout() {
@@ -13,7 +14,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: '#2563EB',
         tabBarInactiveTintColor: '#9CA3AF',
         headerShown: true,
-
+        headerLeft: () => <UserAvatar />,
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
