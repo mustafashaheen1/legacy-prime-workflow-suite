@@ -17,6 +17,12 @@ export const makeCallProcedure = publicProcedure
   )
   .mutation(async ({ input }) => {
     try {
+      const twilioPhoneNumber = process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER;
+      
+      if (!twilioPhoneNumber) {
+        throw new Error("Twilio phone number not configured");
+      }
+
       const twiml = new twilio.twiml.VoiceResponse();
       
       if (input.message) {
@@ -27,7 +33,7 @@ export const makeCallProcedure = publicProcedure
         twiml: input.twimlUrl ? undefined : twiml.toString(),
         url: input.twimlUrl,
         to: input.to,
-        from: process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER,
+        from: twilioPhoneNumber,
       });
 
       return {
