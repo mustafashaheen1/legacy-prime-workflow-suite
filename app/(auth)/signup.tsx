@@ -135,7 +135,7 @@ export default function SignupScreen() {
         return;
       }
       router.push({
-        pathname: '/(auth)/subscription',
+        pathname: '/(auth)/phone-verification',
         params: {
           name: name.trim(),
           email: email.toLowerCase().trim(),

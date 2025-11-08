@@ -1,0 +1,323 @@
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
+import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, Phone, Shield } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { trpc } from '@/lib/trpc';
+import * as Haptics from 'expo-haptics';
+
+export default function PhoneVerificationScreen() {
+  const params = useLocalSearchParams<{
+    name: string;
+    email: string;
+    password: string;
+    companyName?: string;
+    employeeCount?: string;
+    accountType: 'company' | 'employee';
+    companyCode?: string;
+  }>();
+
+  const [step, setStep] = useState<'phone' | 'code'>('phone');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [verificationCode, setVerificationCode] = useState<string>('');
+  const [, setExpiresAt] = useState<string>('');
+  
+  const insets = useSafeAreaInsets();
+
+  const sendCodeMutation = trpc.auth.sendVerificationCode.useMutation({
+    onSuccess: (data) => {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      setExpiresAt(data.expiresAt);
+      setStep('code');
+      Alert.alert(
+        'Código enviado',
+        `Hemos enviado un código de verificación al ${phoneNumber}`
+      );
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message);
+    },
+  });
+
+  const verifyCodeMutation = trpc.auth.verifyCode.useMutation({
+    onSuccess: () => {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      
+      if (params.accountType === 'company') {
+        router.push({
+          pathname: '/(auth)/subscription',
+          params: {
+            ...params,
+            phoneNumber,
+            phoneVerified: 'true',
+          },
+        });
+      } else {
+        router.push({
+          pathname: '/(auth)/subscription',
+          params: {
+            ...params,
+            phoneNumber,
+            phoneVerified: 'true',
+          },
+        });
+      }
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message);
+    },
+  });
+
+  const handleSendCode = () => {
+    if (!phoneNumber.trim() || phoneNumber.length < 10) {
+      Alert.alert('Error', 'Por favor ingresa un número de teléfono válido');
+      return;
+    }
+
+    const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+    sendCodeMutation.mutate({ phoneNumber: formattedPhone });
+  };
+
+  const handleVerifyCode = () => {
+    if (!verificationCode.trim() || verificationCode.length !== 6) {
+      Alert.alert('Error', 'Por favor ingresa el código de 6 dígitos');
+      return;
+    }
+
+    const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+    verifyCodeMutation.mutate({
+      phoneNumber: formattedPhone,
+      code: verificationCode,
+    });
+  };
+
+  const handleResendCode = () => {
+    const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+    sendCodeMutation.mutate({ phoneNumber: formattedPhone });
+  };
+
+  const handleSkip = () => {
+    if (params.accountType === 'company') {
+      router.push({
+        pathname: '/(auth)/subscription',
+        params: {
+          ...params,
+          phoneVerified: 'false',
+        },
+      });
+    } else {
+      router.push({
+        pathname: '/(auth)/subscription',
+        params: {
+          ...params,
+          phoneVerified: 'false',
+        },
+      });
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+      <TouchableOpacity 
+        style={styles.backButton}
+        onPress={() => step === 'code' ? setStep('phone') : router.back()}
+      >
+        <ArrowLeft size={24} color="#2563EB" />
+      </TouchableOpacity>
+
+      <View style={styles.content}>
+        <View style={styles.header}>
+          {step === 'phone' ? (
+            <Phone size={48} color="#2563EB" strokeWidth={2} />
+          ) : (
+            <Shield size={48} color="#2563EB" strokeWidth={2} />
+          )}
+          <Text style={styles.title}>
+            {step === 'phone' ? 'Verificar teléfono' : 'Ingresa el código'}
+          </Text>
+          <Text style={styles.subtitle}>
+            {step === 'phone'
+              ? 'Enviaremos un código de verificación a tu teléfono para mayor seguridad'
+              : `Ingresa el código de 6 dígitos que enviamos a ${phoneNumber}`}
+          </Text>
+        </View>
+
+        <View style={styles.form}>
+          {step === 'phone' ? (
+            <>
+              <Text style={styles.label}>Número de teléfono</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="+1 (555) 123-4567"
+                placeholderTextColor="#9CA3AF"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+                autoFocus
+              />
+              <Text style={styles.hint}>
+                Incluye el código de país (ej: +1 para USA, +52 para México)
+              </Text>
+
+              <TouchableOpacity 
+                style={[styles.primaryButton, sendCodeMutation.isPending && styles.buttonDisabled]} 
+                onPress={handleSendCode}
+                disabled={sendCodeMutation.isPending}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {sendCodeMutation.isPending ? 'Enviando...' : 'Enviar código'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.label}>Código de verificación</Text>
+              <TextInput
+                style={[styles.input, styles.codeInput]}
+                placeholder="000000"
+                placeholderTextColor="#9CA3AF"
+                value={verificationCode}
+                onChangeText={setVerificationCode}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+              />
+              
+              <TouchableOpacity 
+                style={styles.resendButton}
+                onPress={handleResendCode}
+                disabled={sendCodeMutation.isPending}
+              >
+                <Text style={styles.resendText}>
+                  {sendCodeMutation.isPending ? 'Reenviando...' : '¿No recibiste el código? Reenviar'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.primaryButton, verifyCodeMutation.isPending && styles.buttonDisabled]} 
+                onPress={handleVerifyCode}
+                disabled={verifyCodeMutation.isPending}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {verifyCodeMutation.isPending ? 'Verificando...' : 'Verificar código'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          <TouchableOpacity 
+            style={styles.skipButton}
+            onPress={handleSkip}
+          >
+            <Text style={styles.skipText}>Omitir por ahora</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  backButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 48,
+    marginTop: 40,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginTop: 24,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginTop: 12,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    lineHeight: 22,
+  },
+  form: {
+    width: '100%',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#374151',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  codeInput: {
+    fontSize: 24,
+    fontWeight: '600' as const,
+    letterSpacing: 8,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  hint: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 24,
+  },
+  primaryButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  buttonDisabled: {
+    backgroundColor: '#93C5FD',
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  resendButton: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  resendText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#2563EB',
+  },
+  skipButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  skipText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#6B7280',
+  },
+});

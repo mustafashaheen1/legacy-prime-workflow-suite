@@ -6,6 +6,8 @@ import { addChangeOrderProcedure } from "./routes/change-orders/add-change-order
 import { getChangeOrdersProcedure } from "./routes/change-orders/get-change-orders/route";
 import { updateChangeOrderProcedure } from "./routes/change-orders/update-change-order/route";
 import { loginProcedure } from "./routes/auth/login/route";
+import { sendVerificationCodeProcedure } from "./routes/auth/send-verification-code/route";
+import { verifyCodeProcedure } from "./routes/auth/verify-code/route";
 import { createUserProcedure } from "./routes/users/create-user/route";
 import { getUsersProcedure } from "./routes/users/get-users/route";
 import { updateUserProcedure } from "./routes/users/update-user/route";
@@ -27,6 +29,8 @@ export const appRouter = createTRPCRouter({
   }),
   auth: createTRPCRouter({
     login: loginProcedure,
+    sendVerificationCode: sendVerificationCodeProcedure,
+    verifyCode: verifyCodeProcedure,
   }),
   users: createTRPCRouter({
     createUser: createUserProcedure,
