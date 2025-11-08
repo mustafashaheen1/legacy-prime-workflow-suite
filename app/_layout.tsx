@@ -9,6 +9,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import GlobalAIChat from "@/components/GlobalAIChat";
 import FloatingChatButton from "@/components/FloatingChatButton";
 import { trpc, trpcClient } from "@/lib/trpc";
+import { StripeProvider } from '@stripe/stripe-react-native';
 import '@/lib/i18n';
 
 SplashScreen.preventAutoHideAsync();
@@ -45,15 +46,17 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <LanguageProvider>
-            <AppProvider>
-              <RootLayoutNav />
-              <GlobalAIChat />
-              <FloatingChatButton />
-            </AppProvider>
-          </LanguageProvider>
-        </GestureHandlerRootView>
+        <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <LanguageProvider>
+              <AppProvider>
+                <RootLayoutNav />
+                <GlobalAIChat />
+                <FloatingChatButton />
+              </AppProvider>
+            </LanguageProvider>
+          </GestureHandlerRootView>
+        </StripeProvider>
       </trpc.Provider>
     </QueryClientProvider>
   );

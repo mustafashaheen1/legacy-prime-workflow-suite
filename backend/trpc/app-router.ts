@@ -17,6 +17,9 @@ import { makeCallProcedure } from "./routes/twilio/make-call/route";
 import { getCallLogsProcedure } from "./routes/twilio/get-call-logs/route";
 import { createVirtualAssistantProcedure } from "./routes/twilio/create-virtual-assistant/route";
 import { sendBulkSmsProcedure } from "./routes/twilio/send-bulk-sms/route";
+import { createPaymentIntentProcedure } from "./routes/stripe/create-payment-intent/route";
+import { createSubscriptionProcedure } from "./routes/stripe/create-subscription/route";
+import { verifyPaymentProcedure } from "./routes/stripe/verify-payment/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -50,6 +53,11 @@ export const appRouter = createTRPCRouter({
     getCallLogs: getCallLogsProcedure,
     createVirtualAssistant: createVirtualAssistantProcedure,
     sendBulkSms: sendBulkSmsProcedure,
+  }),
+  stripe: createTRPCRouter({
+    createPaymentIntent: createPaymentIntentProcedure,
+    createSubscription: createSubscriptionProcedure,
+    verifyPayment: verifyPaymentProcedure,
   }),
 });
 

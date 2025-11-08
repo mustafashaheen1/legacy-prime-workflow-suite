@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,11 +6,13 @@ import { useState, useMemo, useEffect } from 'react';
 import { Check } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
+import { useStripe } from '@stripe/stripe-react-native';
 
 export default function SubscriptionScreen() {
   const { setSubscription, setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const params = useLocalSearchParams<{
     name?: string;
     email?: string;
@@ -21,9 +23,12 @@ export default function SubscriptionScreen() {
   }>();
 
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium'>('premium');
+  const [paymentReady, setPaymentReady] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   const createCompanyMutation = trpc.companies.createCompany.useMutation();
   const createUserMutation = trpc.users.createUser.useMutation();
+  const createPaymentIntentMutation = trpc.stripe.createPaymentIntent.useMutation();
 
   useEffect(() => {
     if (!params.accountType) {
@@ -46,9 +51,68 @@ export default function SubscriptionScreen() {
     };
   }, [employeeCount]);
 
+  useEffect(() => {
+    const initializePaymentSheet = async () => {
+      if (!params.email || !params.companyName) {
+        return;
+      }
+
+      try {
+        console.log('[Subscription] Initializing payment sheet...');
+        
+        const paymentIntent = await createPaymentIntentMutation.mutateAsync({
+          amount: pricing[selectedPlan],
+          currency: 'usd',
+          companyName: params.companyName,
+          email: params.email,
+          subscriptionPlan: selectedPlan,
+        });
+
+        const { error } = await initPaymentSheet({
+          merchantDisplayName: 'Legacy Prime',
+          paymentIntentClientSecret: paymentIntent.clientSecret || '',
+          defaultBillingDetails: {
+            email: params.email,
+            name: params.name,
+          },
+        });
+
+        if (error) {
+          console.error('[Subscription] Payment sheet init error:', error);
+          Alert.alert(t('common.error'), error.message);
+        } else {
+          setPaymentReady(true);
+          console.log('[Subscription] Payment sheet ready');
+        }
+      } catch (error: any) {
+        console.error('[Subscription] Payment intent error:', error);
+        Alert.alert(t('common.error'), error.message || t('subscription.errorMessage'));
+      }
+    };
+
+    initializePaymentSheet();
+  }, [selectedPlan]);
+
   const handleConfirmSubscription = async () => {
+    if (!paymentReady) {
+      Alert.alert(t('common.error'), t('subscription.paymentNotReady'));
+      return;
+    }
+
     try {
-      console.log('[Subscription] Creating company...');
+      setIsProcessing(true);
+      console.log('[Subscription] Opening payment sheet...');
+      
+      const { error } = await presentPaymentSheet();
+
+      if (error) {
+        console.error('[Subscription] Payment error:', error);
+        Alert.alert(t('common.error'), error.message);
+        setIsProcessing(false);
+        return;
+      }
+
+      console.log('[Subscription] Payment successful, creating company...');
       
       const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
@@ -112,9 +176,11 @@ export default function SubscriptionScreen() {
           },
         ]
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Subscription] Error:', error);
-      Alert.alert(t('common.error'), t('subscription.errorMessage'));
+      Alert.alert(t('common.error'), error.message || t('subscription.errorMessage'));
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -193,17 +259,23 @@ export default function SubscriptionScreen() {
         <TouchableOpacity
           style={[
             styles.continueButton,
-            (createCompanyMutation.isPending || createUserMutation.isPending) &&
+            (!paymentReady || isProcessing || createCompanyMutation.isPending || createUserMutation.isPending) &&
               styles.continueButtonDisabled,
           ]}
           onPress={handleConfirmSubscription}
-          disabled={createCompanyMutation.isPending || createUserMutation.isPending}
+          disabled={!paymentReady || isProcessing || createCompanyMutation.isPending || createUserMutation.isPending}
         >
-          <Text style={styles.continueButtonText}>
-            {createCompanyMutation.isPending || createUserMutation.isPending
-              ? t('common.loading')
-              : t('subscription.confirmSubscription')}
-          </Text>
+          {isProcessing || createPaymentIntentMutation.isPending ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.continueButtonText}>
+              {!paymentReady
+                ? t('subscription.preparingPayment')
+                : createCompanyMutation.isPending || createUserMutation.isPending
+                ? t('common.loading')
+                : t('subscription.proceedToPayment')}
+            </Text>
+          )}
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>{t('subscription.disclaimer')}</Text>
