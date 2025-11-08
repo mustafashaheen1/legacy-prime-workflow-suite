@@ -164,6 +164,8 @@ export interface Company {
   subscriptionPlan: 'basic' | 'pro' | 'enterprise';
   subscriptionStartDate: string;
   subscriptionEndDate?: string;
+  employeeCount?: number;
+  companyCode?: string;
   settings: CompanySettings;
   createdAt: string;
   updatedAt: string;

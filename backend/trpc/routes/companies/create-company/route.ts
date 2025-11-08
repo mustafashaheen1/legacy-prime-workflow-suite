@@ -9,6 +9,22 @@ export const createCompanyProcedure = publicProcedure
       logo: z.string().optional(),
       brandColor: z.string().default('#2563EB'),
       subscriptionPlan: z.enum(['basic', 'pro', 'enterprise']).default('basic'),
+      subscriptionStatus: z.enum(['trial', 'active', 'suspended', 'cancelled']).default('active'),
+      settings: z.object({
+        features: z.object({
+          crm: z.boolean(),
+          estimates: z.boolean(),
+          schedule: z.boolean(),
+          expenses: z.boolean(),
+          photos: z.boolean(),
+          chat: z.boolean(),
+          reports: z.boolean(),
+          clock: z.boolean(),
+          dashboard: z.boolean(),
+        }),
+        maxUsers: z.number(),
+        maxProjects: z.number(),
+      }),
     })
   )
   .mutation(async ({ input }) => {
@@ -17,33 +33,16 @@ export const createCompanyProcedure = publicProcedure
     const companiesData = await AsyncStorage.getItem('system:companies');
     const companies = companiesData ? JSON.parse(companiesData) : [];
 
-    const maxUsers = input.subscriptionPlan === 'basic' ? 5 : input.subscriptionPlan === 'pro' ? 20 : 100;
-    const maxProjects = input.subscriptionPlan === 'basic' ? 10 : input.subscriptionPlan === 'pro' ? 50 : 500;
-
     const newCompany = {
       id: `company-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: input.name,
       logo: input.logo,
       brandColor: input.brandColor,
-      subscriptionStatus: 'trial' as const,
+      subscriptionStatus: input.subscriptionStatus,
       subscriptionPlan: input.subscriptionPlan,
       subscriptionStartDate: new Date().toISOString(),
-      subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      settings: {
-        features: {
-          crm: true,
-          estimates: true,
-          schedule: true,
-          expenses: true,
-          photos: true,
-          chat: true,
-          reports: input.subscriptionPlan !== 'basic',
-          clock: true,
-          dashboard: true,
-        },
-        maxUsers,
-        maxProjects,
-      },
+      subscriptionEndDate: input.subscriptionStatus === 'trial' ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+      settings: input.settings,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

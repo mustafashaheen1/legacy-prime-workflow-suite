@@ -13,10 +13,13 @@ import { useApp } from '@/contexts/AppContext';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function SignupScreen() {
+  const [accountType, setAccountType] = useState<'company' | 'employee' | null>(null);
   const [name, setName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [companyName, setCompanyName] = useState<string>('');
+  const [employeeCount, setEmployeeCount] = useState<string>('2');
   const [companyCode, setCompanyCode] = useState<string>('');
   const [isLoadingSocial, setIsLoadingSocial] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
@@ -122,28 +125,50 @@ export default function SignupScreen() {
       return;
     }
 
-    if (!companyCode.trim()) {
-      Alert.alert(t('common.error'), t('signup.companyCodeRequired'));
-      return;
+    if (accountType === 'company') {
+      if (!companyName.trim()) {
+        Alert.alert(t('common.error'), t('signup.companyNameRequired'));
+        return;
+      }
+      if (!employeeCount || parseInt(employeeCount) < 1) {
+        Alert.alert(t('common.error'), t('signup.employeeCountRequired'));
+        return;
+      }
+      router.push({
+        pathname: '/(auth)/subscription',
+        params: {
+          name: name.trim(),
+          email: email.toLowerCase().trim(),
+          password,
+          companyName: companyName.trim(),
+          employeeCount: employeeCount,
+          accountType: 'company',
+        },
+      });
+    } else {
+      if (!companyCode.trim()) {
+        Alert.alert(t('common.error'), t('signup.companyCodeRequired'));
+        return;
+      }
+
+      const company = getCompaniesMutation.data?.companies.find(
+        (c: any) => c.id.toLowerCase() === companyCode.toLowerCase() || 
+             c.name.toLowerCase().includes(companyCode.toLowerCase())
+      );
+
+      if (!company) {
+        Alert.alert(t('common.error'), t('signup.invalidCompanyCode'));
+        return;
+      }
+
+      createUserMutation.mutate({
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        password,
+        role: 'field-employee',
+        companyId: company.id,
+      });
     }
-
-    const company = getCompaniesMutation.data?.companies.find(
-      (c: any) => c.id.toLowerCase() === companyCode.toLowerCase() || 
-           c.name.toLowerCase().includes(companyCode.toLowerCase())
-    );
-
-    if (!company) {
-      Alert.alert(t('common.error'), t('signup.invalidCompanyCode'));
-      return;
-    }
-
-    createUserMutation.mutate({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      password,
-      role: 'field-employee',
-      companyId: company.id,
-    });
   };
 
   return (
@@ -163,37 +188,67 @@ export default function SignupScreen() {
         <View style={styles.header}>
           <Wrench size={40} color="#2563EB" strokeWidth={2.5} />
           <Text style={styles.title}>{t('signup.title')}</Text>
-          <Text style={styles.subtitle}>{t('signup.subtitle')}</Text>
+          <Text style={styles.subtitle}>{accountType ? (accountType === 'company' ? t('signup.subtitleCompany') : t('signup.subtitleEmployee')) : t('signup.subtitle')}</Text>
         </View>
 
+        {!accountType ? (
+          <View style={styles.form}>
+            <Text style={styles.accountTypeTitle}>{t('signup.accountTypeTitle')}</Text>
+            <Text style={styles.accountTypeSubtitle}>{t('signup.accountTypeSubtitle')}</Text>
+            
+            <TouchableOpacity 
+              style={styles.accountTypeButton}
+              onPress={() => setAccountType('company')}
+            >
+              <View style={styles.accountTypeContent}>
+                <Text style={styles.accountTypeButtonTitle}>{t('signup.companyAccount')}</Text>
+                <Text style={styles.accountTypeButtonText}>{t('signup.companyAccountDesc')}</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.accountTypeButton}
+              onPress={() => setAccountType('employee')}
+            >
+              <View style={styles.accountTypeContent}>
+                <Text style={styles.accountTypeButtonTitle}>{t('signup.employeeAccount')}</Text>
+                <Text style={styles.accountTypeButtonText}>{t('signup.employeeAccountDesc')}</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <View style={styles.form}>
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Sign up with</Text>
-            <View style={styles.dividerLine} />
-          </View>
+          {accountType === 'company' && (
+            <>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>Sign up with</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-          <TouchableOpacity 
-            style={[styles.socialButton, isLoadingSocial && styles.socialButtonDisabled]}
-            onPress={() => handleSocialSignup('google')}
-            disabled={isLoadingSocial}
-          >
-            <Text style={styles.socialButtonText}>{isLoadingSocial ? 'Loading...' : 'Sign up with Google'}</Text>
-          </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.socialButton, isLoadingSocial && styles.socialButtonDisabled]}
+                onPress={() => handleSocialSignup('google')}
+                disabled={isLoadingSocial}
+              >
+                <Text style={styles.socialButtonText}>{isLoadingSocial ? 'Loading...' : 'Sign up with Google'}</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.socialButton, styles.appleButton, isLoadingSocial && styles.appleButtonDisabled]}
-            onPress={() => handleSocialSignup('apple')}
-            disabled={isLoadingSocial}
-          >
-            <Text style={[styles.socialButtonText, styles.appleButtonText]}>{isLoadingSocial ? 'Loading...' : 'Sign up with Apple'}</Text>
-          </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.socialButton, styles.appleButton, isLoadingSocial && styles.appleButtonDisabled]}
+                onPress={() => handleSocialSignup('apple')}
+                disabled={isLoadingSocial}
+              >
+                <Text style={[styles.socialButtonText, styles.appleButtonText]}>{isLoadingSocial ? 'Loading...' : 'Sign up with Apple'}</Text>
+              </TouchableOpacity>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Or with email</Text>
-            <View style={styles.dividerLine} />
-          </View>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>Or with email</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            </>
+          )}
           <Text style={styles.label}>{t('signup.fullName')}</Text>
           <TextInput
             style={styles.input}
@@ -235,16 +290,45 @@ export default function SignupScreen() {
             secureTextEntry
           />
 
-          <Text style={styles.label}>{t('signup.companyCode')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('signup.companyCodePlaceholder')}
-            placeholderTextColor="#9CA3AF"
-            value={companyCode}
-            onChangeText={setCompanyCode}
-            autoCapitalize="characters"
-          />
-          <Text style={styles.hint}>{t('signup.companyCodeHint')}</Text>
+          {accountType === 'company' && (
+            <>
+              <Text style={styles.label}>{t('signup.companyName')}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={t('signup.companyNamePlaceholder')}
+                placeholderTextColor="#9CA3AF"
+                value={companyName}
+                onChangeText={setCompanyName}
+                autoCapitalize="words"
+              />
+
+              <Text style={styles.label}>{t('signup.employeeCount')}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={t('signup.employeeCountPlaceholder')}
+                placeholderTextColor="#9CA3AF"
+                value={employeeCount}
+                onChangeText={setEmployeeCount}
+                keyboardType="number-pad"
+              />
+              <Text style={styles.hint}>{t('signup.employeeCountHint')}</Text>
+            </>
+          )}
+
+          {accountType === 'employee' && (
+            <>
+              <Text style={styles.label}>{t('signup.companyCode')}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={t('signup.companyCodePlaceholder')}
+                placeholderTextColor="#9CA3AF"
+                value={companyCode}
+                onChangeText={setCompanyCode}
+                autoCapitalize="characters"
+              />
+              <Text style={styles.hint}>{t('signup.companyCodeHint')}</Text>
+            </>
+          )}
 
           <TouchableOpacity 
             style={[styles.signupButton, (createUserMutation.isPending || isLoadingSocial) && styles.signupButtonDisabled]} 
@@ -252,14 +336,20 @@ export default function SignupScreen() {
             disabled={createUserMutation.isPending || isLoadingSocial}
           >
             <Text style={styles.signupButtonText}>
-              {(createUserMutation.isPending || isLoadingSocial) ? t('common.loading') : t('signup.createAccount')}
+              {(createUserMutation.isPending || isLoadingSocial) ? t('common.loading') : (accountType === 'company' ? t('signup.continueToPayment') : t('signup.createAccount'))}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
-            <Text style={styles.loginText}>{t('signup.alreadyHaveAccount')}</Text>
-          </TouchableOpacity>
+          <View style={styles.bottomLinks}>
+            <TouchableOpacity onPress={() => setAccountType(null)}>
+              <Text style={styles.backToTypeText}>{t('signup.backToAccountType')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
+              <Text style={styles.loginText}>{t('signup.alreadyHaveAccount')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -344,6 +434,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#2563EB',
+    textAlign: 'center',
+  },
+  accountTypeTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  accountTypeSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  accountTypeButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 16,
+  },
+  accountTypeContent: {
+    alignItems: 'center',
+  },
+  accountTypeButtonTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  accountTypeButtonText: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  bottomLinks: {
+    gap: 8,
+  },
+  backToTypeText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#6B7280',
     textAlign: 'center',
   },
   socialButton: {
