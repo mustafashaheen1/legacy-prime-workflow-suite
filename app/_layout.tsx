@@ -26,13 +26,6 @@ if (Platform.OS === 'web') {
 
 const queryClient = new QueryClient();
 
-let StripeProvider: React.ComponentType<{ publishableKey: string; children: React.ReactNode }> | null = null;
-
-if (Platform.OS !== 'web') {
-  const StripeModule = require('@stripe/stripe-react-native');
-  StripeProvider = StripeModule.StripeProvider;
-}
-
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
@@ -64,13 +57,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        {StripeProvider ? (
-          <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}>
-            {content}
-          </StripeProvider>
-        ) : (
-          content
-        )}
+        {content}
       </trpc.Provider>
     </QueryClientProvider>
   );
