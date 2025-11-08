@@ -1,6 +1,5 @@
 import { publicProcedure } from "@/backend/trpc/create-context";
 import { z } from "zod";
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const createCompanyProcedure = publicProcedure
   .input(
@@ -30,9 +29,6 @@ export const createCompanyProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Companies] Creating new company:', input.name);
 
-    const companiesData = await AsyncStorage.getItem('system:companies');
-    const companies = companiesData ? JSON.parse(companiesData) : [];
-
     const newCompany = {
       id: `company-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: input.name,
@@ -46,9 +42,6 @@ export const createCompanyProcedure = publicProcedure
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-
-    companies.push(newCompany);
-    await AsyncStorage.setItem('system:companies', JSON.stringify(companies));
 
     console.log('[Companies] Company created successfully:', newCompany.id);
 

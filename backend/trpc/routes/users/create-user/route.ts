@@ -1,6 +1,5 @@
 import { publicProcedure } from "@/backend/trpc/create-context";
 import { z } from "zod";
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const createUserProcedure = publicProcedure
   .input(
@@ -16,14 +15,6 @@ export const createUserProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Users] Creating new user:', input.email);
 
-    const usersData = await AsyncStorage.getItem('system:users');
-    const users = usersData ? JSON.parse(usersData) : [];
-
-    const existingUser = users.find((u: any) => u.email === input.email);
-    if (existingUser) {
-      throw new Error('User with this email already exists');
-    }
-
     const newUser = {
       id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: input.name,
@@ -34,9 +25,6 @@ export const createUserProcedure = publicProcedure
       createdAt: new Date().toISOString(),
       isActive: true,
     };
-
-    users.push(newUser);
-    await AsyncStorage.setItem('system:users', JSON.stringify(users));
 
     console.log('[Users] User created successfully:', newUser.id);
 
