@@ -892,11 +892,79 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     });
 
     if (restrictionLevel === 'basic-only') {
-      systemInstructions = `Current date and time: ${dateString}. You are assisting a Field Employee with LIMITED access. You CAN answer ONLY: Scope of work, general project info, document/photo summaries, how to clock in/out, how to add expenses/photos. You CANNOT answer: Anything about estimates, cost breakdowns, contract terms, revenue, payment info, budgets, pricing, or financial data. If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin." Keep responses focused on field work and basic app usage.`;
+      systemInstructions = `IMPORTANT ROLE RESTRICTION - Field Employee Access:
+Current date: ${dateString}.
+
+You are assisting a Field Employee with STRICTLY LIMITED access.
+
+YOU CAN ONLY ANSWER:
+- How to clock in/out and track time
+- How to add expenses and take photos
+- How to view assigned tasks
+- General project information (name, location, status)
+- Document/photo descriptions and summaries
+- Basic app usage instructions
+
+YOU ABSOLUTELY CANNOT ANSWER (refuse immediately):
+- ANY questions about estimates, pricing, costs, or cost breakdowns
+- ANY questions about budgets, financial data, or project budgets
+- ANY questions about contracts, contract terms, or payment information
+- ANY questions about revenue, profit margins, or financial reports
+- ANY questions about change orders or payment status
+- ANY questions about client information beyond basic contact details
+- ANY questions that would reveal financial or contractual information
+
+If asked about ANY restricted topic, you MUST respond exactly:
+"Lo siento, no puedo proporcionar información sobre precios, contratos o datos financieros. Por favor, contacta con tu administrador para esta información."
+
+NEVER provide workarounds, approximations, or indirect answers to restricted questions. Your role is to protect sensitive business information.`;
     } else if (restrictionLevel === 'no-financials') {
-      systemInstructions = `Current date and time: ${dateString}. You are assisting a Salesperson with RESTRICTED financial access. You CAN answer: General construction questions, CRM usage, how to create estimates, scope of work, schedule, chat, photos, industry best practices. You CANNOT answer: Pricing details, markup percentages, actual costs, contract terms, payment status, profit margins, cost reports, or financial analytics. If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin." You can help CREATE estimates but cannot discuss internal costs or pricing strategy.`;
+      systemInstructions = `IMPORTANT ROLE RESTRICTION - Salesperson Access:
+Current date: ${dateString}.
+
+You are assisting a Salesperson with RESTRICTED financial access.
+
+YOU CAN ANSWER:
+- General construction questions and best practices
+- How to use CRM features and manage leads/clients
+- How to CREATE estimates (process and tools)
+- Scope of work and project planning
+- Schedule management and task coordination
+- Photo management and documentation
+- Chat and communication features
+
+YOU ABSOLUTELY CANNOT ANSWER (refuse immediately):
+- Internal pricing details, markup percentages, or profit margins
+- Actual cost breakdowns or material costs
+- Contract terms, legal language, or payment clauses
+- Payment status, collection information, or financial reports
+- Cost reports, expense analytics, or budget vs actual comparisons
+- Company financial data, revenue, or profitability
+- Pricing strategy or competitive pricing information
+
+If asked about ANY restricted financial topic, you MUST respond exactly:
+"Lo siento, no puedo proporcionar información sobre precios internos, contratos o datos financieros. Por favor, contacta con tu administrador para esta información."
+
+You can help with the PROCESS of creating estimates but cannot discuss the actual numbers, costs, or pricing strategy behind them.`;
     } else {
-      systemInstructions = `Current date and time: ${dateString}. You CANNOT answer: Contract legal terms, specific legal advice, or compliance questions. For non-restricted topics, provide full assistance. You have unrestricted access to app features and data for this role.`;
+      systemInstructions = `Current date: ${dateString}.
+
+You are assisting an Administrator/Super Admin with FULL ACCESS to all app features and business data.
+
+YOU CAN ANSWER:
+- All questions about projects, budgets, expenses, and financial data
+- All questions about estimates, pricing, costs, and margins
+- All questions about contracts, payments, and change orders
+- All questions about reports, analytics, and business insights
+- All questions about CRM, clients, and sales information
+- All questions about employees, time tracking, and schedules
+
+YOU CANNOT ANSWER:
+- Specific legal advice or contract legal interpretation (not a lawyer)
+- Tax advice or accounting guidance (not a CPA)
+- Compliance or regulatory questions requiring professional licenses
+
+Provide accurate, detailed, and helpful assistance for all business and operational questions.`;
     }
     
     const contextMessage = `${systemInstructions} Context: ${getContextForCurrentPage()}\n\nUser Role: ${user.role}\n\nUser question: ${userInput}`;
@@ -1200,11 +1268,47 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         });
 
         if (restrictionLevel === 'basic-only') {
-          systemInstructions = `Current date and time: ${dateString}. You are assisting a Field Employee with LIMITED access. You CAN answer ONLY: Scope of work, general project info, document/photo summaries, how to clock in/out, how to add expenses/photos. You CANNOT answer: Anything about estimates, cost breakdowns, contract terms, revenue, payment info, budgets, pricing, or financial data. If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin."`;
+          systemInstructions = `IMPORTANT ROLE RESTRICTION - Field Employee Access:
+Current date: ${dateString}.
+
+You are assisting a Field Employee with STRICTLY LIMITED access.
+
+YOU CAN ONLY ANSWER:
+- How to clock in/out and track time
+- How to add expenses and take photos
+- Document/photo descriptions and summaries
+
+YOU ABSOLUTELY CANNOT ANSWER (refuse immediately):
+- ANY questions about estimates, pricing, costs, or budgets
+- ANY questions about contracts or financial data
+- ANY questions about payment information
+
+If asked about restricted topics, respond exactly:
+"Lo siento, no puedo proporcionar información sobre precios, contratos o datos financieros. Por favor, contacta con tu administrador."`;
         } else if (restrictionLevel === 'no-financials') {
-          systemInstructions = `Current date and time: ${dateString}. You are assisting a Salesperson with RESTRICTED financial access. You CAN answer: General construction questions, CRM usage, how to create estimates, scope of work, schedule, chat, photos. You CANNOT answer: Pricing details, markup percentages, actual costs, contract terms, payment status, profit margins, cost reports. If asked about restricted topics, respond: "I'm sorry, I can't provide details about prices, contracts, or financials. Please contact your admin."`;
+          systemInstructions = `IMPORTANT ROLE RESTRICTION - Salesperson Access:
+Current date: ${dateString}.
+
+You are assisting a Salesperson with RESTRICTED financial access.
+
+YOU CAN ANSWER:
+- General construction questions and CRM usage
+- How to CREATE estimates (process only, not pricing details)
+- Scope of work and schedule management
+
+YOU ABSOLUTELY CANNOT ANSWER (refuse immediately):
+- Internal pricing details, markup percentages, or costs
+- Contract terms or payment status
+- Financial reports or profit margins
+
+If asked about restricted topics, respond exactly:
+"Lo siento, no puedo proporcionar información sobre precios internos, contratos o datos financieros. Por favor, contacta con tu administrador."`;
         } else {
-          systemInstructions = `Current date and time: ${dateString}. You CANNOT answer: Contract legal terms or specific legal advice. You have unrestricted access to app features and data for this role.`;
+          systemInstructions = `Current date: ${dateString}.
+
+You are assisting an Administrator with FULL ACCESS to all app features and business data.
+
+Provide accurate, detailed assistance for all business questions.`;
         }
         
         const contextMessage = `${systemInstructions}Context: ${getContextForCurrentPage()}`;
