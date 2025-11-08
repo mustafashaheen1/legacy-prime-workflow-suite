@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, MessageSquare, Plus, Clock, Trash2 } from 'lucide-react-native';
+import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, MessageSquare, Plus, Clock, Trash2, Image as ImageIcon } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useState, useRef, useEffect } from 'react';
@@ -32,6 +33,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [input, setInput] = useState<string>('');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [showAttachMenu, setShowAttachMenu] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
@@ -942,6 +944,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   }, [messages, status, voiceMode]);
 
   const handlePickFile = async () => {
+    setShowAttachMenu(false);
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
@@ -1028,6 +1031,61 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
 
   const removeFile = (index: number) => {
     setAttachedFiles(attachedFiles.filter((_, i) => i !== index));
+  };
+
+  const handlePickImage = async () => {
+    setShowAttachMenu(false);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        const newFile: AttachedFile = {
+          uri: file.uri,
+          name: file.fileName || `image_${Date.now()}.jpg`,
+          mimeType: file.mimeType || 'image/jpeg',
+          size: file.fileSize || 0,
+          type: 'file',
+        };
+        setAttachedFiles([...attachedFiles, newFile]);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    setShowAttachMenu(false);
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('Camera permission denied');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        const newFile: AttachedFile = {
+          uri: file.uri,
+          name: file.fileName || `photo_${Date.now()}.jpg`,
+          mimeType: file.mimeType || 'image/jpeg',
+          size: file.fileSize || 0,
+          type: 'file',
+        };
+        setAttachedFiles([...attachedFiles, newFile]);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+    }
   };
 
   const convertFileToBase64 = async (file: AttachedFile): Promise<string> => {
@@ -1404,7 +1462,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.attachButton}
-              onPress={handlePickFile}
+              onPress={() => setShowAttachMenu(true)}
               disabled={isLoading || isRecording || voiceMode}
             >
               <Paperclip size={22} color={voiceMode ? '#D1D5DB' : '#6B7280'} />
@@ -1695,7 +1753,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.attachButton}
-                  onPress={handlePickFile}
+                  onPress={() => setShowAttachMenu(true)}
                   disabled={isLoading || isRecording || voiceMode}
                 >
                   <Paperclip size={22} color={voiceMode ? '#D1D5DB' : '#6B7280'} />
@@ -1742,6 +1800,42 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showAttachMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAttachMenu(false)}
+      >
+        <TouchableOpacity 
+          style={styles.attachModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAttachMenu(false)}
+        >
+          <View style={styles.attachMenu}>
+            <TouchableOpacity style={styles.attachOption} onPress={handleTakePhoto}>
+              <View style={[styles.attachIconContainer, { backgroundColor: '#EF4444' }]}>
+                <ImageIcon size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.attachOptionText}>Take Photo</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.attachOption} onPress={handlePickImage}>
+              <View style={[styles.attachIconContainer, { backgroundColor: '#8B5CF6' }]}>
+                <ImageIcon size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.attachOptionText}>Photo Library</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.attachOption} onPress={handlePickFile}>
+              <View style={[styles.attachIconContainer, { backgroundColor: '#3B82F6' }]}>
+                <Paperclip size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.attachOptionText}>Document</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </>
   );
@@ -2130,6 +2224,38 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     color: '#166534',
-    fontStyle: 'italic',
+    fontStyle: 'italic' as const,
+  },
+  attachModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+    zIndex: 99999,
+  },
+  attachMenu: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    paddingBottom: 40,
+    gap: 16,
+  },
+  attachOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 12,
+  },
+  attachIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachOptionText: {
+    fontSize: 16,
+    fontWeight: '500' as const,
+    color: '#1F2937',
   },
 });
