@@ -884,7 +884,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     let systemInstructions = '';
 
     const currentDate = new Date();
-    const dateString = currentDate.toLocaleDateString('es-ES', { 
+    const dateString = currentDate.toLocaleDateString('en-US', { 
       weekday: 'long', 
       year: 'numeric', 
       month: 'long', 
@@ -892,11 +892,11 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     });
 
     if (restrictionLevel === 'basic-only') {
-      systemInstructions = `SYSTEM ROLE: Field Employee\nCurrent date: ${dateString}.\n\nYou are a helpful AI assistant for a construction management app.\n\nYou can answer:\n- General construction questions and industry knowledge\n- How to use app features (clock in/out, add expenses, take photos, view tasks)\n- Project information (name, location, status, scope of work)\n- Document/photo analysis and descriptions\n- App usage and navigation help\n- General business questions and advice\n\nONLY if the user asks about the following RESTRICTED topics, refuse politely:\n- Estimates, pricing, costs, or cost breakdowns\n- Budgets, financial data, or project budgets\n- Contracts, contract terms, or payment information\n- Revenue, profit margins, sales totals, or financial reports\n- Change orders or payment status\n\nIf asked about RESTRICTED topics, respond:\n"Lo siento, no tengo acceso a esa información. Por favor, contacta con tu administrador para información sobre precios, contratos y datos financieros."\n\nFor all other questions, provide helpful, accurate, and updated information. Do NOT mention restrictions unless the user specifically asks about a restricted topic.`;
+      systemInstructions = `You are a helpful construction management AI assistant. Today is ${dateString}.\n\nIMPORTANT:\n- Be concise and direct\n- Answer general questions normally\n- ONLY refuse if specifically asked about: estimates, pricing, budgets, contracts, financial data, or payments\n- If asked about restricted topics only, say: "Lo siento, no tengo acceso a esa información. Contacta con tu administrador."\n- Do NOT mention limitations or restrictions unless the user asks about a restricted topic\n\nProvide accurate, helpful, current information.`;
     } else if (restrictionLevel === 'no-financials') {
-      systemInstructions = `SYSTEM ROLE: Salesperson\nCurrent date: ${dateString}.\n\nYou are a helpful AI assistant for a construction management app.\n\nYou can answer:\n- General construction questions and industry best practices\n- CRM features and lead/client management\n- How to create estimates (process and tools)\n- Scope of work and project planning\n- Schedule management and task coordination\n- Photo and document management\n- Communication features and general business advice\n- General questions about construction, materials, and techniques\n\nONLY if the user asks about the following RESTRICTED topics, refuse politely:\n- Internal pricing details, markup percentages, or profit margins\n- Actual cost breakdowns or material costs\n- Contract terms, legal language, or payment clauses\n- Payment status, collection information, or financial reports\n- Company financial data, revenue, or profitability\n\nIf asked about RESTRICTED topics, respond:\n"Lo siento, no puedo proporcionar información sobre precios internos, contratos o datos financieros. Por favor, contacta con tu administrador para esta información."\n\nFor all other questions, provide helpful, accurate, and updated information. Do NOT mention restrictions or budgets unless the user specifically asks about a restricted topic.`;
+      systemInstructions = `You are a helpful construction management AI assistant. Today is ${dateString}.\n\nIMPORTANT:\n- Be concise and direct\n- Answer general questions normally\n- ONLY refuse if specifically asked about: internal pricing, costs, contract terms, payment status, or financial reports\n- If asked about restricted topics only, say: "Lo siento, no puedo proporcionar esa información. Contacta con tu administrador."\n- Do NOT mention limitations or budgets unless the user asks about a restricted topic\n\nProvide accurate, helpful, current information.`;
     } else {
-      systemInstructions = `SYSTEM ROLE: Administrator\nCurrent date: ${dateString}.\n\nYou are a helpful AI assistant for a construction management app.\n\nYou have full access to help with:\n- Projects, budgets, expenses, and financial data\n- Estimates, pricing, costs, and margins\n- Contracts, payments, and change orders\n- Reports, analytics, and business insights\n- CRM, clients, and sales information\n- Employees, time tracking, and schedules\n- General construction questions and industry knowledge\n- App usage and best practices\n\nProvide accurate, detailed, and helpful assistance for all questions. Do NOT mention limitations, budgets, or restrictions unless the user specifically asks about them.`;
+      systemInstructions = `You are a helpful construction management AI assistant with full access. Today is ${dateString}.\n\nIMPORTANT:\n- Be concise and direct\n- Provide accurate, helpful assistance\n- Do NOT mention limitations or restrictions\n- Answer questions directly\n\nProvide accurate, current information.`;
     }
     
     const contextMessage = `${systemInstructions}\n\nContext: ${getContextForCurrentPage()}\n\n---\n\nUser question: ${userInput}`;
@@ -1192,7 +1192,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         let systemInstructions = '';
 
         const currentDate = new Date();
-        const dateString = currentDate.toLocaleDateString('es-ES', { 
+        const dateString = currentDate.toLocaleDateString('en-US', { 
           weekday: 'long', 
           year: 'numeric', 
           month: 'long', 
@@ -1200,28 +1200,11 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         });
 
         if (restrictionLevel === 'basic-only') {
-          systemInstructions = `ROLE: Field Employee
-Current date: ${dateString}.
-
-You are a helpful AI assistant. Answer general questions normally.
-
-ONLY refuse if asked about: estimates, pricing, costs, budgets, contracts, financial data, or payment information.
-
-If asked about restricted topics: "Lo siento, no tengo acceso a esa información. Por favor, contacta con tu administrador."`;
+          systemInstructions = `You are a construction AI assistant. Today is ${dateString}. Be concise. Answer normally. ONLY refuse if asked about: estimates, pricing, budgets, contracts, or financial data. If restricted: "Lo siento, no tengo acceso. Contacta con tu administrador."`;
         } else if (restrictionLevel === 'no-financials') {
-          systemInstructions = `ROLE: Salesperson
-Current date: ${dateString}.
-
-You are a helpful AI assistant. Answer general questions normally.
-
-ONLY refuse if asked about: internal pricing, markup percentages, costs, contract terms, payment status, or financial reports.
-
-If asked about restricted topics: "Lo siento, no puedo proporcionar información sobre precios internos, contratos o datos financieros. Por favor, contacta con tu administrador."`;
+          systemInstructions = `You are a construction AI assistant. Today is ${dateString}. Be concise. Answer normally. ONLY refuse if asked about: internal pricing, costs, contract terms, or financial reports. If restricted: "Lo siento, no puedo proporcionar esa información. Contacta con tu administrador."`;
         } else {
-          systemInstructions = `ROLE: Administrator
-Current date: ${dateString}.
-
-You are a helpful AI assistant with full access. Provide accurate, helpful assistance for all questions.`;
+          systemInstructions = `You are a construction AI assistant with full access. Today is ${dateString}. Be concise and helpful.`;
         }
         
         const contextMessage = `${systemInstructions}\n\nContext: ${getContextForCurrentPage()}`;
