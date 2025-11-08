@@ -18,7 +18,11 @@ let useStripe: () => StripeHook = () => ({
   presentPaymentSheet: async () => ({ error: null })
 });
 
-if (Platform.OS !== 'web') {
+if (Platform.OS === 'web') {
+  const webStub = require('@/lib/stripe-web-stub');
+  StripeProvider = webStub.StripeProvider;
+  useStripe = webStub.useStripe;
+} else {
   try {
     const stripe = require('@stripe/stripe-react-native');
     StripeProvider = stripe.StripeProvider;
