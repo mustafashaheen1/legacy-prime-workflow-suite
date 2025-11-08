@@ -1,9 +1,9 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, MessageSquare, Plus, Clock, Trash2, Image as ImageIcon } from 'lucide-react-native';
+import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createRorkTool, useRorkAgent } from '@rork/toolkit-sdk';
 import { z } from 'zod';
 import { useApp } from '@/contexts/AppContext';
@@ -11,8 +11,7 @@ import { masterPriceList, priceListCategories } from '@/mocks/priceList';
 import { usePathname } from 'expo-router';
 import { Audio } from 'expo-av';
 import { shouldBlockChatbotQuery, getChatbotRestrictionLevel } from '@/lib/permissions';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AIChatSession } from '@/types';
+
 
 interface GlobalAIChatProps {
   currentPageContext?: string;
@@ -88,8 +87,8 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     return context;
   };
 
-  const { messages, error, sendMessage, status } = useRorkAgent({
-    tools: {
+  const tools = useMemo(() => ({
+    
       getProjectExpenses: createRorkTool({
         description: 'Get expenses for a project or all projects today',
         zodSchema: z.object({
@@ -657,7 +656,10 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           }
         },
       }),
-    },
+  }), [projects, clients, expenses, clockEntries, tasks, estimates, addEstimate]);
+
+  const { messages, error, sendMessage, status } = useRorkAgent({
+    tools,
   });
 
   const isLoading = status === 'streaming';
@@ -769,14 +771,14 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     }
   };
 
-  const stopSpeaking = async () => {
+  const stopSpeaking = useCallback(async () => {
     if (soundInstance) {
       await soundInstance.stopAsync();
       await soundInstance.unloadAsync();
       setSoundInstance(null);
     }
     setIsSpeaking(false);
-  };
+  }, [soundInstance]);
 
   const transcribeAudio = async (audio: Blob | { uri: string; name: string; type: string }) => {
     try {
@@ -814,7 +816,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     }
   };
 
-  const speakText = async (text: string, autoNext = false) => {
+  const speakText = useCallback(async (text: string, autoNext = false) => {
     try {
       if (isSpeaking && !autoNext) {
         await stopSpeaking();
@@ -853,7 +855,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       console.error('TTS error:', error);
       setIsSpeaking(false);
     }
-  };
+  }, [isSpeaking, stopSpeaking, voiceMode]);
 
   useEffect(() => {
     return () => {
@@ -875,16 +877,6 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     const blockCheck = shouldBlockChatbotQuery(user.role, userInput);
     if (blockCheck.shouldBlock) {
       console.log('[Chat] Query blocked for role:', user.role);
-      const blockedMessage = {
-        id: `msg-${Date.now()}`,
-        role: 'assistant' as const,
-        parts: [
-          {
-            type: 'text' as const,
-            text: blockCheck.reason || "I'm sorry, I can't provide details about prices, payments, or contracts. Please contact your admin.",
-          },
-        ],
-      };
       return;
     }
 
@@ -941,7 +933,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         }
       }
     }
-  }, [messages, status, voiceMode]);
+  }, [messages, status, voiceMode, speakText]);
 
   const handlePickFile = async () => {
     setShowAttachMenu(false);
