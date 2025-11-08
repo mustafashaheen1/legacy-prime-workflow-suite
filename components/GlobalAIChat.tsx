@@ -39,6 +39,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
   const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
   const [voiceMode, setVoiceMode] = useState<boolean>(false);
+  const [isListening, setIsListening] = useState<boolean>(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -668,6 +669,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
 
   const startRecording = async () => {
     try {
+      setIsListening(true);
       if (Platform.OS === 'web') {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioChunksRef.current = [];
@@ -731,7 +733,10 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const stopRecording = async () => {
     try {
       setIsRecording(false);
-      setIsTranscribing(true);
+      setIsListening(false);
+      if (!voiceMode) {
+        setIsTranscribing(true);
+      }
 
       if (Platform.OS === 'web') {
         if (mediaRecorderRef.current) {
@@ -803,18 +808,19 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
 
       const data = await response.json();
       const transcribedText = data.text;
-      setInput(transcribedText);
       
       if (voiceMode && transcribedText.trim()) {
-        setTimeout(() => {
-          handleSendWithContext(transcribedText);
-          setInput('');
-        }, 300);
+        handleSendWithContext(transcribedText);
+      } else {
+        setInput(transcribedText);
       }
     } catch (error) {
       console.error('Transcription error:', error);
     } finally {
-      setIsTranscribing(false);
+      if (!voiceMode) {
+        setIsTranscribing(false);
+      }
+      setIsListening(false);
     }
   };
 
@@ -848,8 +854,9 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           
           if (voiceMode && autoNext) {
             setTimeout(() => {
+              setIsListening(true);
               startRecording();
-            }, 500);
+            }, 800);
           }
         }
       });
@@ -1383,7 +1390,26 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         <View style={styles.inputWrapper}>
           {(isTranscribing || isRecording) && (
             <View style={styles.recordingBanner}>
-              {isTranscribing ? (
+              {voiceMode ? (
+                <>
+                  {isSpeaking ? (
+                    <>
+                      <Volume2 size={18} color="#10B981" />
+                      <Text style={styles.voiceModeText}>AI está hablando...</Text>
+                    </>
+                  ) : isListening ? (
+                    <>
+                      <Mic size={18} color="#2563EB" />
+                      <Text style={styles.voiceModeText}>Escuchando...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <ActivityIndicator size="small" color="#F59E0B" />
+                      <Text style={styles.voiceModeText}>Procesando...</Text>
+                    </>
+                  )}
+                </>
+              ) : isTranscribing ? (
                 <>
                   <ActivityIndicator size="small" color="#2563EB" />
                   <Text style={styles.recordingText}>Transcribing audio...</Text>
@@ -1431,8 +1457,16 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               onPress={() => {
                 const newVoiceMode = !voiceMode;
                 setVoiceMode(newVoiceMode);
-                if (!newVoiceMode && isSpeaking) {
-                  stopSpeaking();
+                if (newVoiceMode) {
+                  console.log('[Voice Mode] Activating conversational voice mode');
+                } else {
+                  console.log('[Voice Mode] Deactivating voice mode');
+                  if (isSpeaking) {
+                    stopSpeaking();
+                  }
+                  if (isRecording) {
+                    stopRecording();
+                  }
                 }
               }}
               disabled={isLoading || isRecording}
@@ -1462,7 +1496,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   style={styles.input}
                   value={input}
                   onChangeText={setInput}
-                  placeholder={voiceMode ? "Voice mode active - tap mic to talk" : "Ask me anything or tap mic..."}
+                  placeholder={voiceMode ? "Modo de voz activo - toca el micrófono para hablar" : "Pregunta algo o toca el micrófono..."}
                   placeholderTextColor="#9CA3AF"
                   multiline
                   maxLength={500}
@@ -1753,7 +1787,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                       style={styles.input}
                       value={input}
                       onChangeText={setInput}
-                      placeholder={voiceMode ? "Voice mode active - tap mic to talk" : "Ask me anything or tap mic..."}
+                      placeholder={voiceMode ? "Modo de voz activo - toca el micrófono para hablar" : "Pregunta algo o toca el micrófono..."}
                       placeholderTextColor="#9CA3AF"
                       multiline
                       maxLength={500}
@@ -2122,6 +2156,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#92400E',
+  },
+  voiceModeText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#10B981',
   },
   recordingDot: {
     width: 8,
