@@ -1,9 +1,11 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 
 export default function UserAvatar() {
   const { user } = useApp();
+  const router = useRouter();
 
   if (!user) {
     return null;
@@ -16,8 +18,12 @@ export default function UserAvatar() {
     .toUpperCase()
     .slice(0, 2);
 
+  const handlePress = () => {
+    router.push('/profile');
+  };
+
   return (
-    <TouchableOpacity style={styles.container} activeOpacity={0.8}>
+    <TouchableOpacity style={styles.container} activeOpacity={0.8} onPress={handlePress}>
       {user.avatar ? (
         <Image
           source={{ uri: user.avatar }}

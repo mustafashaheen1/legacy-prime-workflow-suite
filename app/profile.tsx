@@ -1,0 +1,388 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { useApp } from '@/contexts/AppContext';
+import { getRoleDisplayName } from '@/lib/permissions';
+import { Camera, Mail, Briefcase, Building2, LogOut } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
+
+export default function ProfileScreen() {
+  const { user, company, setUser, logout } = useApp();
+  const { t } = useTranslation();
+  const router = useRouter();
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+
+  if (!user) {
+    return null;
+  }
+
+  const initials = user.name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const handlePickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert(
+          t('common.error'),
+          'Se requiere permiso para acceder a las fotos'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images' as any,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setIsUploadingPhoto(true);
+        const imageUri = result.assets[0].uri;
+        
+        const updatedUser = { ...user, avatar: imageUri };
+        await setUser(updatedUser);
+        
+        Alert.alert(t('common.success'), 'Foto de perfil actualizada');
+        setIsUploadingPhoto(false);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert(t('common.error'), 'No se pudo cargar la foto');
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert(
+          t('common.error'),
+          'Se requiere permiso para acceder a la cámara'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setIsUploadingPhoto(true);
+        const imageUri = result.assets[0].uri;
+        
+        const updatedUser = { ...user, avatar: imageUri };
+        await setUser(updatedUser);
+        
+        Alert.alert(t('common.success'), 'Foto de perfil actualizada');
+        setIsUploadingPhoto(false);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert(t('common.error'), 'No se pudo tomar la foto');
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleChangePhoto = () => {
+    Alert.alert(
+      'Cambiar foto de perfil',
+      'Selecciona una opción',
+      [
+        {
+          text: 'Tomar foto',
+          onPress: handleTakePhoto,
+        },
+        {
+          text: 'Seleccionar de galería',
+          onPress: handlePickImage,
+        },
+        {
+          text: t('common.cancel'),
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Estás seguro que quieres cerrar sesión?',
+      [
+        {
+          text: t('common.cancel'),
+          style: 'cancel',
+        },
+        {
+          text: 'Cerrar sesión',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <View style={styles.outerContainer}>
+      <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          title: 'Mi Perfil',
+          headerStyle: {
+            backgroundColor: '#2563EB',
+          },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: {
+            fontWeight: '700' as const,
+          },
+        }}
+      />
+      
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.headerSection}>
+          <View style={styles.avatarContainer}>
+            {user.avatar ? (
+              <Image
+                source={{ uri: user.avatar }}
+                style={styles.avatar}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarInitials}>{initials}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.editPhotoButton}
+              onPress={handleChangePhoto}
+              disabled={isUploadingPhoto}
+            >
+              <Camera size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.userName}>{user.name}</Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText}>{getRoleDisplayName(user.role)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Información Personal</Text>
+          
+          <View style={styles.infoCard}>
+            <View style={styles.infoItem}>
+              <View style={styles.infoIcon}>
+                <Mail size={20} color="#2563EB" />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoValue}>{user.email}</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoItem}>
+              <View style={styles.infoIcon}>
+                <Briefcase size={20} color="#2563EB" />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Rol</Text>
+                <Text style={styles.infoValue}>{getRoleDisplayName(user.role)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoItem}>
+              <View style={styles.infoIcon}>
+                <Building2 size={20} color="#2563EB" />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Empresa</Text>
+                <Text style={styles.infoValue}>{company?.name || 'N/A'}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <LogOut size={20} color="#DC2626" />
+            <Text style={styles.logoutText}>Cerrar Sesión</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: '#2563EB',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  headerSection: {
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    paddingTop: 32,
+    paddingBottom: 40,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+  },
+  avatarPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#1E40AF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+  },
+  avatarInitials: {
+    fontSize: 48,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  editPhotoButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#16A34A',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  userName: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  roleBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  roleText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  section: {
+    padding: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#111827',
+    marginBottom: 16,
+  },
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  infoIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#111827',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginHorizontal: 16,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    gap: 12,
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#DC2626',
+  },
+});
