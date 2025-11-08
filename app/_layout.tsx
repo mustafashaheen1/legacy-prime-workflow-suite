@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppProvider } from "@/contexts/AppContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -11,6 +12,17 @@ import { trpc, trpcClient } from "@/lib/trpc";
 import '@/lib/i18n';
 
 SplashScreen.preventAutoHideAsync();
+
+if (Platform.OS === 'web') {
+  const originalError = console.error;
+  console.error = (...args) => {
+    const message = args[0]?.toString() || '';
+    if (message.includes('transform-origin') || message.includes('transformOrigin')) {
+      return;
+    }
+    originalError(...args);
+  };
+}
 
 const queryClient = new QueryClient();
 
