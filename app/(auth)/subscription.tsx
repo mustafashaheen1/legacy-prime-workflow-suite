@@ -19,7 +19,7 @@ let useStripe: () => StripeHook = () => ({
 });
 
 if (Platform.OS === 'web') {
-  const webStub = require('@/lib/stripe-web-stub');
+  const webStub = require('@/lib/stripe-web-stub.tsx');
   StripeProvider = webStub.StripeProvider;
   useStripe = webStub.useStripe;
 } else {
@@ -27,8 +27,8 @@ if (Platform.OS === 'web') {
     const stripe = require('@stripe/stripe-react-native');
     StripeProvider = stripe.StripeProvider;
     useStripe = stripe.useStripe;
-  } catch {
-    console.log('[Subscription] Stripe not available on this platform');
+  } catch (error) {
+    console.log('[Subscription] Stripe not available on this platform', error);
   }
 }
 
