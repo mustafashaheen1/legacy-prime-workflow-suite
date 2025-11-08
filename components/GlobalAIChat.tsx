@@ -87,8 +87,8 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     return context;
   };
 
-  const tools = useMemo(() => ({
-    
+  const tools = useMemo(() => {
+    const toolsObj = {
       getProjectExpenses: createRorkTool({
         description: 'Get expenses for a project or all projects today',
         zodSchema: z.object({
@@ -656,7 +656,9 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           }
         },
       }),
-  }), [projects, clients, expenses, clockEntries, tasks, estimates, addEstimate]);
+    };
+    return toolsObj;
+  }, [projects, clients, expenses, clockEntries, tasks, estimates, addEstimate]);
 
   const { messages, error, sendMessage, status } = useRorkAgent({
     tools,
