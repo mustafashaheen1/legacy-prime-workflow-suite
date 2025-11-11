@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Phone, Shield } from 'lucide-react-native';
@@ -121,15 +121,23 @@ export default function PhoneVerificationScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-      <TouchableOpacity 
-        style={styles.backButton}
-        onPress={() => step === 'code' ? setStep('phone') : router.back()}
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
+        keyboardShouldPersistTaps="handled"
       >
-        <ArrowLeft size={24} color="#2563EB" />
-      </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => step === 'code' ? setStep('phone') : router.back()}
+        >
+          <ArrowLeft size={24} color="#2563EB" />
+        </TouchableOpacity>
 
-      <View style={styles.content}>
+        <View style={styles.content}>
         <View style={styles.header}>
           {step === 'phone' ? (
             <Phone size={48} color="#2563EB" strokeWidth={2} />
@@ -216,8 +224,9 @@ export default function PhoneVerificationScreen() {
             <Text style={styles.skipText}>Omitir por ahora</Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -226,13 +235,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   backButton: {
     paddingHorizontal: 24,
     paddingVertical: 8,
     marginBottom: 8,
   },
   content: {
-    flex: 1,
     paddingHorizontal: 24,
   },
   header: {
