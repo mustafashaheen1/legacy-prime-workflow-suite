@@ -215,6 +215,82 @@ function SubscriptionContent() {
           )}
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.skipButton}
+          onPress={async () => {
+            try {
+              setIsProcessing(true);
+              console.log('[Subscription] Skipping payment, creating company...');
+              
+              const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+              
+              const newCompany = await createCompanyMutation.mutateAsync({
+                name: params.companyName || 'New Company',
+                subscriptionPlan: 'basic',
+                subscriptionStatus: 'trial',
+                settings: {
+                  features: {
+                    crm: true,
+                    estimates: true,
+                    schedule: true,
+                    expenses: true,
+                    photos: true,
+                    chat: true,
+                    reports: true,
+                    clock: true,
+                    dashboard: true,
+                  },
+                  maxUsers: parseInt(params.employeeCount || '2'),
+                  maxProjects: 999,
+                },
+              });
+
+              console.log('[Subscription] Company created:', newCompany.company.name);
+
+              const newUser = await createUserMutation.mutateAsync({
+                name: params.name || 'Admin',
+                email: params.email || 'admin@example.com',
+                password: params.password || 'password',
+                role: 'admin',
+                companyId: newCompany.company.id,
+              });
+
+              console.log('[Subscription] Admin user created:', newUser.user.name);
+
+              await setCompany({
+                ...newCompany.company,
+                id: companyCode,
+              });
+
+              await setUser(newUser.user);
+
+              await setSubscription({
+                type: 'basic',
+                startDate: new Date().toISOString(),
+              });
+
+              Alert.alert(
+                'Cuenta Creada',
+                `Tu cuenta ha sido creada exitosamente. Código de compañía: ${companyCode}`,
+                [
+                  {
+                    text: t('common.ok'),
+                    onPress: () => router.replace('/dashboard'),
+                  },
+                ]
+              );
+            } catch (error: any) {
+              console.error('[Subscription] Error:', error);
+              Alert.alert(t('common.error'), error.message || 'Error al crear la cuenta');
+            } finally {
+              setIsProcessing(false);
+            }
+          }}
+          disabled={isProcessing || createCompanyMutation.isPending || createUserMutation.isPending}
+        >
+          <Text style={styles.skipButtonText}>Crear Cuenta Sin Pago (Por Ahora)</Text>
+        </TouchableOpacity>
+
         <Text style={styles.disclaimer}>
           {t('subscription.testMode')} - Payment integration disabled for testing
         </Text>
@@ -336,5 +412,19 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     marginTop: 16,
+  },
+  skipButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  skipButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#2563EB',
   },
 });
