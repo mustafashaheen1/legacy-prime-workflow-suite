@@ -1,7 +1,8 @@
 import { createTRPCReact } from "@trpc/react-query";
-import { httpLink } from "@trpc/client";
+import { httpLink, TRPCClientError } from "@trpc/client";
 import type { AppRouter } from "@/backend/trpc/app-router";
 import superjson from "superjson";
+
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -20,6 +21,26 @@ export const trpcClient = trpc.createClient({
     httpLink({
       url: `${getBaseUrl()}/api/trpc`,
       transformer: superjson,
+      async fetch(url, options) {
+        try {
+          const response = await fetch(url, {
+            ...options,
+            headers: {
+              ...options?.headers,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (!response.ok) {
+            console.error('[tRPC] HTTP error:', response.status, response.statusText);
+          }
+          
+          return response;
+        } catch (error) {
+          console.error('[tRPC] Network error:', error);
+          throw new Error('No se pudo conectar al servidor. Por favor verifica tu conexión a internet.');
+        }
+      },
     }),
   ],
 });

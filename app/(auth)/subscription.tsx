@@ -55,37 +55,49 @@ function SubscriptionContent() {
       
       const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
-      const newCompany = await createCompanyMutation.mutateAsync({
-        name: params.companyName || 'New Company',
-        subscriptionPlan: selectedPlan === 'premium' ? 'pro' : 'basic',
-        subscriptionStatus: 'active',
-        settings: {
-          features: {
-            crm: true,
-            estimates: true,
-            schedule: selectedPlan === 'premium',
-            expenses: true,
-            photos: true,
-            chat: selectedPlan === 'premium',
-            reports: selectedPlan === 'premium',
-            clock: selectedPlan === 'premium',
-            dashboard: true,
+      let newCompany;
+      try {
+        newCompany = await createCompanyMutation.mutateAsync({
+          name: params.companyName || 'New Company',
+          subscriptionPlan: selectedPlan === 'premium' ? 'pro' : 'basic',
+          subscriptionStatus: 'active',
+          settings: {
+            features: {
+              crm: true,
+              estimates: true,
+              schedule: selectedPlan === 'premium',
+              expenses: true,
+              photos: true,
+              chat: selectedPlan === 'premium',
+              reports: selectedPlan === 'premium',
+              clock: selectedPlan === 'premium',
+              dashboard: true,
+            },
+            maxUsers: employeeCount,
+            maxProjects: selectedPlan === 'premium' ? 999 : 20,
           },
-          maxUsers: employeeCount,
-          maxProjects: selectedPlan === 'premium' ? 999 : 20,
-        },
-      });
+        });
+      } catch (companyError: any) {
+        console.error('[Subscription] Company creation error:', companyError);
+        throw new Error('No se pudo crear la compañía. Por favor intenta de nuevo.');
+      }
 
       console.log('[Subscription] Company created:', newCompany.company.name);
       console.log('[Subscription] Company Code:', companyCode);
 
-      const newUser = await createUserMutation.mutateAsync({
-        name: params.name || 'Admin',
-        email: params.email || 'admin@example.com',
-        password: params.password || 'password',
-        role: 'admin',
-        companyId: newCompany.company.id,
-      });
+      let newUser;
+      try {
+        newUser = await createUserMutation.mutateAsync({
+          name: params.name || 'Admin',
+          email: params.email || 'admin@example.com',
+          password: params.password || 'password',
+          role: 'admin',
+          companyId: newCompany.company.id,
+        });
+      } catch (userError: any) {
+        console.error('[Subscription] User creation error:', userError);
+        throw new Error('No se pudo crear el usuario. Por favor intenta de nuevo.');
+      }
 
       console.log('[Subscription] Admin user created:', newUser.user.name);
 
@@ -117,7 +129,8 @@ function SubscriptionContent() {
       );
     } catch (error: any) {
       console.error('[Subscription] Error:', error);
-      Alert.alert(t('common.error'), error.message || t('subscription.errorMessage'));
+      const errorMessage = error?.message || t('subscription.errorMessage');
+      Alert.alert(t('common.error'), errorMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -224,36 +237,48 @@ function SubscriptionContent() {
               
               const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
               
-              const newCompany = await createCompanyMutation.mutateAsync({
-                name: params.companyName || 'New Company',
-                subscriptionPlan: 'basic',
-                subscriptionStatus: 'trial',
-                settings: {
-                  features: {
-                    crm: true,
-                    estimates: true,
-                    schedule: true,
-                    expenses: true,
-                    photos: true,
-                    chat: true,
-                    reports: true,
-                    clock: true,
-                    dashboard: true,
+              let newCompany;
+              try {
+                newCompany = await createCompanyMutation.mutateAsync({
+                  name: params.companyName || 'New Company',
+                  subscriptionPlan: 'basic',
+                  subscriptionStatus: 'trial',
+                  settings: {
+                    features: {
+                      crm: true,
+                      estimates: true,
+                      schedule: true,
+                      expenses: true,
+                      photos: true,
+                      chat: true,
+                      reports: true,
+                      clock: true,
+                      dashboard: true,
+                    },
+                    maxUsers: parseInt(params.employeeCount || '2'),
+                    maxProjects: 999,
                   },
-                  maxUsers: parseInt(params.employeeCount || '2'),
-                  maxProjects: 999,
-                },
-              });
+                });
+              } catch (companyError: any) {
+                console.error('[Subscription] Company creation error:', companyError);
+                throw new Error('No se pudo crear la compañía. Por favor intenta de nuevo.');
+              }
 
               console.log('[Subscription] Company created:', newCompany.company.name);
 
-              const newUser = await createUserMutation.mutateAsync({
-                name: params.name || 'Admin',
-                email: params.email || 'admin@example.com',
-                password: params.password || 'password',
-                role: 'admin',
-                companyId: newCompany.company.id,
-              });
+              let newUser;
+              try {
+                newUser = await createUserMutation.mutateAsync({
+                  name: params.name || 'Admin',
+                  email: params.email || 'admin@example.com',
+                  password: params.password || 'password',
+                  role: 'admin',
+                  companyId: newCompany.company.id,
+                });
+              } catch (userError: any) {
+                console.error('[Subscription] User creation error:', userError);
+                throw new Error('No se pudo crear el usuario. Por favor intenta de nuevo.');
+              }
 
               console.log('[Subscription] Admin user created:', newUser.user.name);
 
@@ -281,7 +306,8 @@ function SubscriptionContent() {
               );
             } catch (error: any) {
               console.error('[Subscription] Error:', error);
-              Alert.alert(t('common.error'), error.message || 'Error al crear la cuenta');
+              const errorMessage = error?.message || 'Error al crear la cuenta';
+              Alert.alert(t('common.error'), errorMessage);
             } finally {
               setIsProcessing(false);
             }
