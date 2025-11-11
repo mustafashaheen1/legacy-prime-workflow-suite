@@ -5,7 +5,7 @@ import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, Fil
 import { Project, Client, CallLog } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
-import { createRorkTool, useRorkAgent } from '@rork/toolkit-sdk';
+import { createRorkTool, useRorkAgent } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
 
 type MessageType = 'email' | 'sms';

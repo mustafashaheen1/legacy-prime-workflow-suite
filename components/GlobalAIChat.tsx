@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { createRorkTool, useRorkAgent } from '@rork/toolkit-sdk';
+import { createRorkTool, useRorkAgent } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
 import { useApp } from '@/contexts/AppContext';
 import { masterPriceList, priceListCategories } from '@/mocks/priceList';

@@ -5,7 +5,7 @@ import { priceListCategories } from '@/mocks/priceList';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { generateObject } from '@rork/toolkit-sdk';
+import { generateObject } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
 import { Image } from 'expo-image';
 import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File } from 'lucide-react-native';

@@ -150,7 +150,7 @@ const users = await trpcClient.users.getUsers.query();
 - Speech-to-text
 
 ```typescript
-import { useRorkAgent, generateText, generateObject } from '@rork/toolkit-sdk';
+import { useRorkAgent, generateText, generateObject } from '@rork-ai/toolkit-sdk';
 
 // For chat
 const { messages, sendMessage } = useRorkAgent({

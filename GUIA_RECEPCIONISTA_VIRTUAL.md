@@ -241,7 +241,7 @@ await sendSms.mutateAsync({
 Puedes usar la API de OpenAI o similar para generar respuestas dinámicas:
 
 ```typescript
-import { generateText } from '@rork/toolkit-sdk';
+import { generateText } from '@rork-ai/toolkit-sdk';
 
 const response = await generateText({
   messages: [

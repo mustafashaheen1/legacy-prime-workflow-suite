@@ -7,7 +7,7 @@ import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData } from '@/types';
-import { generateText } from '@rork/toolkit-sdk';
+import { generateText } from '@rork-ai/toolkit-sdk';
 
 
 export default function DashboardScreen() {

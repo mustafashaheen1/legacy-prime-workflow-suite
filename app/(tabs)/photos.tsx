@@ -5,7 +5,7 @@ import { Camera, Upload, Edit2, X, Sparkles, Check } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { photoCategories } from '@/mocks/data';
-import { generateText } from '@rork/toolkit-sdk';
+import { generateText } from '@rork-ai/toolkit-sdk';
 import { Photo } from '@/types';
 import { useMutation } from '@tanstack/react-query';
 
