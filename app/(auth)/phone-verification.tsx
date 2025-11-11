@@ -132,7 +132,15 @@ export default function PhoneVerificationScreen() {
       >
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => step === 'code' ? setStep('phone') : router.back()}
+          onPress={() => {
+            if (step === 'code') {
+              setStep('phone');
+            } else if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(auth)/signup');
+            }
+          }}
         >
           <ArrowLeft size={24} color="#2563EB" />
         </TouchableOpacity>
