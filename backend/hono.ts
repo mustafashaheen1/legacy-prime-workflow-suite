@@ -12,9 +12,12 @@ app.use("*", cors());
 app.use(
   "/trpc/*",
   trpcServer({
-    endpoint: "/api/trpc",
+    endpoint: "/trpc",
     router: appRouter,
     createContext,
+    onError({ path, error }) {
+      console.error(`[tRPC Error] ${path}:`, error);
+    },
   })
 );
 

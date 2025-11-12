@@ -52,6 +52,8 @@ function SubscriptionContent() {
     try {
       setIsProcessing(true);
       console.log('[Subscription] Creating company (Payment disabled for testing)...');
+      console.log('[Subscription] Company name:', params.companyName || 'New Company');
+      console.log('[Subscription] Plan:', selectedPlan);
       
       const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
@@ -79,7 +81,9 @@ function SubscriptionContent() {
         });
       } catch (companyError: any) {
         console.error('[Subscription] Company creation error:', companyError);
-        throw new Error('No se pudo crear la compañía. Por favor intenta de nuevo.');
+        console.error('[Subscription] Error details:', JSON.stringify(companyError, null, 2));
+        const errorMessage = companyError?.message || companyError?.data?.message || 'Error desconocido';
+        throw new Error(`No se pudo crear la compañía: ${errorMessage}`);
       }
 
       console.log('[Subscription] Company created:', newCompany.company.name);
@@ -101,20 +105,25 @@ function SubscriptionContent() {
 
       console.log('[Subscription] Admin user created:', newUser.user.name);
 
+      console.log('[Subscription] Saving to local storage...');
       try {
         await setCompany({
           ...newCompany.company,
           id: companyCode,
         });
+        console.log('[Subscription] Company saved to storage');
 
         await setUser(newUser.user);
+        console.log('[Subscription] User saved to storage');
 
         await setSubscription({
           type: selectedPlan,
           startDate: new Date().toISOString(),
         });
+        console.log('[Subscription] Subscription saved to storage');
       } catch (storageError) {
         console.error('[Subscription] Storage error:', storageError);
+        throw storageError;
       }
 
       Alert.alert(
@@ -261,7 +270,9 @@ function SubscriptionContent() {
                 });
               } catch (companyError: any) {
                 console.error('[Subscription] Company creation error:', companyError);
-                throw new Error('No se pudo crear la compañía. Por favor intenta de nuevo.');
+                console.error('[Subscription] Error details:', JSON.stringify(companyError, null, 2));
+                const errorMessage = companyError?.message || companyError?.data?.message || 'Error desconocido';
+                throw new Error(`No se pudo crear la compañía: ${errorMessage}`);
               }
 
               console.log('[Subscription] Company created:', newCompany.company.name);
@@ -314,7 +325,11 @@ function SubscriptionContent() {
           }}
           disabled={isProcessing || createCompanyMutation.isPending || createUserMutation.isPending}
         >
-          <Text style={styles.skipButtonText}>Crear Cuenta Sin Pago (Por Ahora)</Text>
+          {isProcessing ? (
+            <ActivityIndicator color="#2563EB" />
+          ) : (
+            <Text style={styles.skipButtonText}>Crear Cuenta Sin Pago (Por Ahora)</Text>
+          )}
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>
