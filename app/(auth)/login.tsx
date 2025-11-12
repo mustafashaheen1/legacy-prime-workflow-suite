@@ -21,7 +21,7 @@ export default function LoginScreen() {
   const handleLogin = () => {
     const user = mockUsers[0];
     setUser(user);
-    router.replace('/(auth)/subscription');
+    router.replace('/dashboard');
   };
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function LoginScreen() {
         console.log(`[Auth] ${queryParams.provider} login successful`);
         const user = mockUsers[0];
         setUser(user);
-        router.replace('/(auth)/subscription');
+        router.replace('/dashboard');
       } else if (queryParams?.error) {
         Alert.alert('Error', queryParams.error as string || 'Authentication failed');
       }
@@ -73,7 +73,7 @@ export default function LoginScreen() {
           console.log(`[Auth] ${provider} authorization code received`);
           const user = mockUsers[0];
           setUser(user);
-          router.replace('/(auth)/subscription');
+          router.replace('/dashboard');
         }
       } else if (result.type === 'cancel') {
         console.log(`[Auth] ${provider} login cancelled`);

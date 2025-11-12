@@ -27,14 +27,21 @@ export default function SignupScreen() {
   const { setUser } = useApp();
 
   const createUserMutation = trpc.users.createUser.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       Alert.alert(
         t('signup.successTitle'),
         t('signup.successMessage'),
         [
           {
             text: t('common.ok'),
-            onPress: () => router.replace('/(auth)/login'),
+            onPress: () => {
+              if (data.user) {
+                setUser(data.user);
+                router.replace('/dashboard');
+              } else {
+                router.replace('/(auth)/login');
+              }
+            },
           }
         ]
       );
@@ -52,7 +59,7 @@ export default function SignupScreen() {
       
       if (queryParams?.provider && queryParams?.success === 'true') {
         console.log(`[Auth] ${queryParams.provider} signup successful`);
-        router.replace('/(auth)/subscription');
+        router.replace('/dashboard');
       } else if (queryParams?.error) {
         Alert.alert(t('common.error'), queryParams.error as string || 'Authentication failed');
       }
@@ -91,7 +98,7 @@ export default function SignupScreen() {
         
         if (queryParams?.code) {
           console.log(`[Auth] ${provider} authorization code received`);
-          router.replace('/(auth)/subscription');
+          router.replace('/dashboard');
         }
       } else if (result.type === 'cancel') {
         console.log(`[Auth] ${provider} signup cancelled`);
@@ -134,16 +141,14 @@ export default function SignupScreen() {
         Alert.alert(t('common.error'), t('signup.employeeCountRequired'));
         return;
       }
-      router.push({
-        pathname: '/(auth)/phone-verification',
-        params: {
-          name: name.trim(),
-          email: email.toLowerCase().trim(),
-          password,
-          companyName: companyName.trim(),
-          employeeCount: employeeCount,
-          accountType: 'company',
-        },
+      
+      createUserMutation.mutate({
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        password,
+        role: 'company-owner',
+        companyName: companyName.trim(),
+        employeeCount: parseInt(employeeCount),
       });
     } else {
       if (!companyCode.trim()) {

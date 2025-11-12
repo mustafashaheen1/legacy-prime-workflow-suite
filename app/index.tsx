@@ -5,7 +5,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Index() {
-  const { user, subscription, isLoading } = useApp();
+  const { user, isLoading } = useApp();
   const insets = useSafeAreaInsets();
 
   if (isLoading) {
@@ -18,10 +18,6 @@ export default function Index() {
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
-  }
-
-  if (!subscription) {
-    return <Redirect href="/(auth)/subscription" />;
   }
 
   return <Redirect href="/dashboard" />;
