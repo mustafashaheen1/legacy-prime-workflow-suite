@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { Wrench, ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { trpc } from '@/lib/trpc';
+
 import { useTranslation } from 'react-i18next';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
@@ -24,34 +24,11 @@ export default function SignupScreen() {
   const [isLoadingSocial, setIsLoadingSocial] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { setUser } = useApp();
+  const { setUser, setCompany, setSubscription } = useApp();
 
-  const createUserMutation = trpc.users.createUser.useMutation({
-    onSuccess: (data) => {
-      Alert.alert(
-        t('signup.successTitle'),
-        t('signup.successMessage'),
-        [
-          {
-            text: t('common.ok'),
-            onPress: () => {
-              if (data.user) {
-                setUser(data.user);
-                router.replace('/dashboard');
-              } else {
-                router.replace('/(auth)/login');
-              }
-            },
-          }
-        ]
-      );
-    },
-    onError: (error) => {
-      Alert.alert(t('common.error'), error.message);
-    },
-  });
+  const [isCreatingAccount, setIsCreatingAccount] = useState<boolean>(false);
 
-  const getCompaniesMutation = trpc.companies.getCompanies.useQuery();
+
 
   useEffect(() => {
     const handleDeepLink = (event: { url: string }) => {
@@ -111,7 +88,7 @@ export default function SignupScreen() {
     }
   };
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!name.trim()) {
       Alert.alert(t('common.error'), t('signup.nameRequired'));
       return;
@@ -132,47 +109,109 @@ export default function SignupScreen() {
       return;
     }
 
-    if (accountType === 'company') {
-      if (!companyName.trim()) {
-        Alert.alert(t('common.error'), t('signup.companyNameRequired'));
-        return;
-      }
-      if (!employeeCount || parseInt(employeeCount) < 1) {
-        Alert.alert(t('common.error'), t('signup.employeeCountRequired'));
-        return;
-      }
-      
-      createUserMutation.mutate({
-        name: name.trim(),
-        email: email.toLowerCase().trim(),
-        password,
-        role: 'company-owner',
-        companyName: companyName.trim(),
-        employeeCount: parseInt(employeeCount),
-      });
-    } else {
-      if (!companyCode.trim()) {
-        Alert.alert(t('common.error'), t('signup.companyCodeRequired'));
-        return;
-      }
+    try {
+      setIsCreatingAccount(true);
+      console.log('[Signup] Creating account without backend...');
 
-      const company = getCompaniesMutation.data?.companies.find(
-        (c: any) => c.id.toLowerCase() === companyCode.toLowerCase() || 
-             c.name.toLowerCase().includes(companyCode.toLowerCase())
-      );
+      if (accountType === 'company') {
+        if (!companyName.trim()) {
+          Alert.alert(t('common.error'), t('signup.companyNameRequired'));
+          return;
+        }
+        if (!employeeCount || parseInt(employeeCount) < 1) {
+          Alert.alert(t('common.error'), t('signup.employeeCountRequired'));
+          return;
+        }
+        
+        const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        const newCompany = {
+          id: companyCode,
+          name: companyName.trim(),
+          logo: undefined,
+          brandColor: '#2563EB',
+          subscriptionStatus: 'trial' as const,
+          subscriptionPlan: 'basic' as const,
+          subscriptionStartDate: new Date().toISOString(),
+          subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          settings: {
+            features: {
+              crm: true,
+              estimates: true,
+              schedule: true,
+              expenses: true,
+              photos: true,
+              chat: true,
+              reports: true,
+              clock: true,
+              dashboard: true,
+            },
+            maxUsers: parseInt(employeeCount),
+            maxProjects: 999,
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
 
-      if (!company) {
-        Alert.alert(t('common.error'), t('signup.invalidCompanyCode'));
-        return;
+        const newUser = {
+          id: `user-${Date.now()}`,
+          name: name.trim(),
+          email: email.toLowerCase().trim(),
+          password,
+          role: 'admin' as const,
+          companyId: companyCode,
+          phone: '',
+          avatar: undefined,
+          permissions: {
+            canManageProjects: true,
+            canManageClients: true,
+            canManageExpenses: true,
+            canViewReports: true,
+            canManageUsers: true,
+            canManageCompany: true,
+            canClockInOut: true,
+            canChat: true,
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        await setCompany(newCompany);
+        await setUser(newUser);
+        await setSubscription({
+          type: 'basic',
+          startDate: new Date().toISOString(),
+        });
+
+        console.log('[Signup] Account created successfully');
+        console.log('[Signup] Company Code:', companyCode);
+
+        Alert.alert(
+          t('signup.successTitle'),
+          `${t('signup.successMessage')}\n\n${t('subscription.companyCode')}: ${companyCode}`,
+          [
+            {
+              text: t('common.ok'),
+              onPress: () => router.replace('/dashboard'),
+            },
+          ]
+        );
+      } else {
+        if (!companyCode.trim()) {
+          Alert.alert(t('common.error'), t('signup.companyCodeRequired'));
+          return;
+        }
+
+        Alert.alert(
+          t('common.error'),
+          'La función de unirse a una compañía existente no está disponible en modo offline. Por favor, crea una cuenta de compañía para continuar.'
+        );
       }
-
-      createUserMutation.mutate({
-        name: name.trim(),
-        email: email.toLowerCase().trim(),
-        password,
-        role: 'field-employee',
-        companyId: company.id,
-      });
+    } catch (error: any) {
+      console.error('[Signup] Error:', error);
+      Alert.alert(t('common.error'), error?.message || 'Error al crear la cuenta');
+    } finally {
+      setIsCreatingAccount(false);
     }
   };
 
@@ -342,12 +381,12 @@ export default function SignupScreen() {
           )}
 
           <TouchableOpacity 
-            style={[styles.signupButton, (createUserMutation.isPending || isLoadingSocial) && styles.signupButtonDisabled]} 
+            style={[styles.signupButton, (isCreatingAccount || isLoadingSocial) && styles.signupButtonDisabled]} 
             onPress={handleSignup}
-            disabled={createUserMutation.isPending || isLoadingSocial}
+            disabled={isCreatingAccount || isLoadingSocial}
           >
             <Text style={styles.signupButtonText}>
-              {(createUserMutation.isPending || isLoadingSocial) ? t('common.loading') : (accountType === 'company' ? t('signup.continueToPayment') : t('signup.createAccount'))}
+              {(isCreatingAccount || isLoadingSocial) ? t('common.loading') : t('signup.createAccount')}
             </Text>
           </TouchableOpacity>
 
