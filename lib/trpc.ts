@@ -11,9 +11,12 @@ const getBaseUrl = () => {
     return process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
   }
 
-  throw new Error(
-    "No base url found, please set EXPO_PUBLIC_RORK_API_BASE_URL"
-  );
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  console.warn('[tRPC] EXPO_PUBLIC_RORK_API_BASE_URL not set, using fallback');
+  return 'http://localhost:8081';
 };
 
 export const trpcClient = trpc.createClient({
@@ -23,6 +26,7 @@ export const trpcClient = trpc.createClient({
       transformer: superjson,
       async fetch(url, options) {
         try {
+          console.log('[tRPC] Fetching:', url);
           const response = await fetch(url, {
             ...options,
             headers: {
@@ -32,13 +36,15 @@ export const trpcClient = trpc.createClient({
           });
           
           if (!response.ok) {
-            console.error('[tRPC] HTTP error:', response.status, response.statusText);
+            const text = await response.text();
+            console.error('[tRPC] HTTP error:', response.status, response.statusText, text);
           }
           
           return response;
         } catch (error) {
           console.error('[tRPC] Network error:', error);
-          throw new Error('No se pudo conectar al servidor. Por favor verifica tu conexión a internet.');
+          console.error('[tRPC] Base URL:', getBaseUrl());
+          throw error;
         }
       },
     }),
