@@ -21,14 +21,14 @@ interface FolderConfig {
 const PREDEFINED_FOLDERS: FolderConfig[] = [
   {
     type: 'photos',
-    name: 'Fotos',
+    name: 'Photos',
     icon: ImageIcon,
     color: '#3B82F6',
     description: 'Fotografías del proyecto',
   },
   {
     type: 'receipts',
-    name: 'Recibos',
+    name: 'Receipts',
     icon: Receipt,
     color: '#10B981',
     description: 'Recibos y gastos',
