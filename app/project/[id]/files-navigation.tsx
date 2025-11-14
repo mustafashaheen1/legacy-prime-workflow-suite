@@ -2,19 +2,61 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput,
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useState, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Folder, Image as ImageIcon, Receipt, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Search } from 'lucide-react-native';
+import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { FileCategory, ProjectFile } from '@/types';
 
-type FolderType = 'photos' | 'expenses' | 'documents' | 'plans' | 'reports' | 'other';
+type FolderType = 'photos' | 'receipts' | 'permit-files' | 'inspections' | 'agreements';
 
-interface FolderData {
+interface FolderConfig {
   type: FolderType;
   name: string;
   icon: any;
   color: string;
+  description: string;
+}
+
+const PREDEFINED_FOLDERS: FolderConfig[] = [
+  {
+    type: 'photos',
+    name: 'Fotos',
+    icon: ImageIcon,
+    color: '#3B82F6',
+    description: 'Fotografías del proyecto',
+  },
+  {
+    type: 'receipts',
+    name: 'Recibos',
+    icon: Receipt,
+    color: '#10B981',
+    description: 'Recibos y gastos',
+  },
+  {
+    type: 'permit-files',
+    name: 'Permit Files',
+    icon: FileCheck,
+    color: '#F59E0B',
+    description: 'Documentos de permisos',
+  },
+  {
+    type: 'inspections',
+    name: 'Inspections',
+    icon: FileSignature,
+    color: '#8B5CF6',
+    description: 'Reportes de inspección',
+  },
+  {
+    type: 'agreements',
+    name: 'Agreements',
+    icon: FileText,
+    color: '#EF4444',
+    description: 'Contratos y acuerdos',
+  },
+];
+
+interface FolderWithData extends FolderConfig {
   count: number;
   categories: string[];
 }
@@ -26,9 +68,11 @@ export default function FilesNavigationScreen() {
   const [selectedFolder, setSelectedFolder] = useState<FolderType | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
-  const [uploadType, setUploadType] = useState<'photo' | 'document' | 'receipt'>('document');
   const [fileNotes, setFileNotes] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [newFolderModalVisible, setNewFolderModalVisible] = useState<boolean>(false);
+  const [newFolderName, setNewFolderName] = useState<string>('');
+  const [customFolders, setCustomFolders] = useState<FolderConfig[]>([]);
 
   const project = projects.find(p => p.id === id);
 
@@ -44,119 +88,66 @@ export default function FilesNavigationScreen() {
     return projectFiles.filter(f => f.projectId === id);
   }, [projectFiles, id]);
 
-  const folders = useMemo((): FolderData[] => {
-    const foldersData: FolderData[] = [];
+  const folders = useMemo((): FolderWithData[] => {
+    const allFolders = [...PREDEFINED_FOLDERS, ...customFolders];
+    
+    return allFolders.map(folderConfig => {
+      let count = 0;
+      let categories: string[] = [];
 
-    // Photos folder
-    const photosByCategory = projectPhotos.reduce((acc, photo) => {
-      if (!acc[photo.category]) acc[photo.category] = 0;
-      acc[photo.category]++;
-      return acc;
-    }, {} as Record<string, number>);
+      if (folderConfig.type === 'photos') {
+        count = projectPhotos.length;
+        const photosByCategory = projectPhotos.reduce((acc, photo) => {
+          if (!acc[photo.category]) acc[photo.category] = 0;
+          acc[photo.category]++;
+          return acc;
+        }, {} as Record<string, number>);
+        categories = Object.keys(photosByCategory).sort();
+      } else if (folderConfig.type === 'receipts') {
+        count = projectExpenses.length;
+        const expensesByCategory = projectExpenses.reduce((acc, expense) => {
+          const category = expense.subcategory || expense.type;
+          if (!acc[category]) acc[category] = 0;
+          acc[category]++;
+          return acc;
+        }, {} as Record<string, number>);
+        categories = Object.keys(expensesByCategory).sort();
+      } else if (folderConfig.type === 'permit-files') {
+        const files = currentProjectFiles.filter(f => f.category === 'permits');
+        count = files.length;
+        categories = count > 0 ? ['Todos los Permisos'] : [];
+      } else if (folderConfig.type === 'inspections') {
+        const files = currentProjectFiles.filter(f => f.category === 'inspections');
+        count = files.length;
+        categories = count > 0 ? ['Todas las Inspecciones'] : [];
+      } else if (folderConfig.type === 'agreements') {
+        const files = currentProjectFiles.filter(f => f.category === 'agreements');
+        count = files.length;
+        categories = count > 0 ? ['Todos los Contratos'] : [];
+      }
 
-    if (Object.keys(photosByCategory).length > 0) {
-      foldersData.push({
-        type: 'photos',
-        name: 'Photos',
-        icon: ImageIcon,
-        color: '#3B82F6',
-        count: projectPhotos.length,
-        categories: Object.keys(photosByCategory),
-      });
-    }
-
-    // Expenses folder
-    const expensesByCategory = projectExpenses.reduce((acc, expense) => {
-      const category = expense.subcategory || expense.type;
-      if (!acc[category]) acc[category] = 0;
-      acc[category]++;
-      return acc;
-    }, {} as Record<string, number>);
-
-    if (Object.keys(expensesByCategory).length > 0) {
-      foldersData.push({
-        type: 'expenses',
-        name: 'Receipts',
-        icon: Receipt,
-        color: '#10B981',
-        count: projectExpenses.length,
-        categories: Object.keys(expensesByCategory),
-      });
-    }
-
-    // Documents folder (files categorized as documentation)
-    const documentFiles = currentProjectFiles.filter(f => 
-      f.category === 'documentation' || f.category === 'other'
-    );
-    const docsByType = documentFiles.reduce((acc, file) => {
-      const type = file.fileType.includes('pdf') ? 'PDF' : 
-                   file.fileType.includes('image') ? 'Images' : 
-                   file.fileType.includes('word') ? 'Documents' : 'Other';
-      if (!acc[type]) acc[type] = 0;
-      acc[type]++;
-      return acc;
-    }, {} as Record<string, number>);
-
-    if (Object.keys(docsByType).length > 0) {
-      foldersData.push({
-        type: 'documents',
-        name: 'Documents',
-        icon: FileIcon,
-        color: '#6B7280',
-        count: documentFiles.length,
-        categories: Object.keys(docsByType),
-      });
-    }
-
-    // Plans folder
-    const planFiles = currentProjectFiles.filter(f => f.category === 'plans');
-    if (planFiles.length > 0) {
-      foldersData.push({
-        type: 'plans',
-        name: 'Plans',
-        icon: FileIcon,
-        color: '#F59E0B',
-        count: planFiles.length,
-        categories: ['All Plans'],
-      });
-    }
-
-    // Reports folder
-    const reportFiles = currentProjectFiles.filter(f => f.category === 'reports');
-    if (reportFiles.length > 0) {
-      foldersData.push({
-        type: 'reports',
-        name: 'Reports',
-        icon: FileIcon,
-        color: '#8B5CF6',
-        count: reportFiles.length,
-        categories: ['All Reports'],
-      });
-    }
-
-    return foldersData;
-  }, [projectPhotos, projectExpenses, currentProjectFiles]);
+      return {
+        ...folderConfig,
+        count,
+        categories,
+      };
+    });
+  }, [projectPhotos, projectExpenses, currentProjectFiles, customFolders]);
 
   const getFilesForCategory = (folderType: FolderType, category: string) => {
     if (folderType === 'photos') {
       return projectPhotos.filter(p => p.category === category);
-    } else if (folderType === 'expenses') {
+    } else if (folderType === 'receipts') {
       return projectExpenses.filter(e => {
         const expenseCategory = e.subcategory || e.type;
         return expenseCategory === category;
       });
-    } else if (folderType === 'documents') {
-      return currentProjectFiles.filter(f => {
-        if (f.category !== 'documentation' && f.category !== 'other') return false;
-        const type = f.fileType.includes('pdf') ? 'PDF' : 
-                     f.fileType.includes('image') ? 'Images' : 
-                     f.fileType.includes('word') ? 'Documents' : 'Other';
-        return type === category;
-      });
-    } else if (folderType === 'plans') {
-      return currentProjectFiles.filter(f => f.category === 'plans');
-    } else if (folderType === 'reports') {
-      return currentProjectFiles.filter(f => f.category === 'reports');
+    } else if (folderType === 'permit-files') {
+      return currentProjectFiles.filter(f => f.category === 'permits');
+    } else if (folderType === 'inspections') {
+      return currentProjectFiles.filter(f => f.category === 'inspections');
+    } else if (folderType === 'agreements') {
+      return currentProjectFiles.filter(f => f.category === 'agreements');
     }
     return [];
   };
@@ -180,19 +171,19 @@ export default function FilesNavigationScreen() {
       addPhoto(newPhoto);
       setFileNotes('');
       setUploadModalVisible(false);
-      Alert.alert('Success', 'Photo added successfully!');
+      Alert.alert('Éxito', '¡Foto agregada correctamente!');
     }
   };
 
   const handleTakePhoto = async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Not Available', 'Camera is not available on web');
+      Alert.alert('No Disponible', 'La cámara no está disponible en web');
       return;
     }
 
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Camera access is required');
+      Alert.alert('Permiso Denegado', 'Se requiere acceso a la cámara');
       return;
     }
 
@@ -213,7 +204,7 @@ export default function FilesNavigationScreen() {
       addPhoto(newPhoto);
       setFileNotes('');
       setUploadModalVisible(false);
-      Alert.alert('Success', 'Photo added successfully!');
+      Alert.alert('Éxito', '¡Foto agregada correctamente!');
     }
   };
 
@@ -226,12 +217,17 @@ export default function FilesNavigationScreen() {
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
+        
+        let category: FileCategory = 'documentation';
+        if (selectedFolder === 'permit-files') category = 'permits';
+        else if (selectedFolder === 'inspections') category = 'inspections';
+        else if (selectedFolder === 'agreements') category = 'agreements';
+        
         const file: ProjectFile = {
           id: Date.now().toString(),
           projectId: id as string,
           name: asset.name,
-          category: selectedFolder === 'plans' ? 'plans' : 
-                   selectedFolder === 'reports' ? 'reports' : 'documentation',
+          category,
           fileType: asset.mimeType || 'unknown',
           fileSize: asset.size || 0,
           uri: asset.uri,
@@ -242,56 +238,98 @@ export default function FilesNavigationScreen() {
         addProjectFile(file);
         setFileNotes('');
         setUploadModalVisible(false);
-        Alert.alert('Success', 'File uploaded successfully!');
+        Alert.alert('Éxito', '¡Archivo subido correctamente!');
       }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to pick document. Please try again.');
+      Alert.alert('Error', 'No se pudo subir el archivo. Intenta de nuevo.');
     }
+  };
+
+  const handleCreateNewFolder = () => {
+    if (!newFolderName.trim()) {
+      Alert.alert('Error', 'Por favor ingresa un nombre para el folder');
+      return;
+    }
+
+    const newFolder: FolderConfig = {
+      type: newFolderName.toLowerCase().replace(/\s+/g, '-') as FolderType,
+      name: newFolderName.trim(),
+      icon: Folder,
+      color: '#6B7280',
+      description: 'Folder personalizado',
+    };
+
+    setCustomFolders(prev => [...prev, newFolder]);
+    setNewFolderName('');
+    setNewFolderModalVisible(false);
+    Alert.alert('Éxito', '¡Folder creado correctamente!');
+  };
+
+  const handleDeleteFolder = (folderType: FolderType) => {
+    Alert.alert(
+      'Eliminar Folder',
+      '¿Estás seguro que deseas eliminar este folder?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            setCustomFolders(prev => prev.filter(f => f.type !== folderType));
+            Alert.alert('Éxito', 'Folder eliminado');
+          },
+        },
+      ]
+    );
   };
 
   const renderFolderView = () => {
     if (!selectedFolder) {
       return (
-        <View style={styles.foldersGrid}>
-          {folders.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Folder size={64} color="#D1D5DB" />
-              <Text style={styles.emptyStateTitle}>No files yet</Text>
-              <Text style={styles.emptyStateText}>
-                Start uploading photos, receipts, or documents to organize your project files
-              </Text>
-            </View>
-          ) : (
-            folders.map((folder) => {
-              const FolderIcon = folder.icon;
+        <View style={styles.foldersContainer}>
+          <View style={styles.foldersGrid}>
+            {folders.map((folder) => {
+              const FolderIcon = Folder;
+              const isCustomFolder = !PREDEFINED_FOLDERS.find(f => f.type === folder.type);
+              
               return (
-                <TouchableOpacity
-                  key={folder.type}
-                  style={styles.folderCard}
-                  onPress={() => setSelectedFolder(folder.type)}
-                >
-                  <View style={[styles.folderIconContainer, { backgroundColor: `${folder.color}20` }]}>
-                    <FolderIcon size={32} color={folder.color} />
-                  </View>
-                  <Text style={styles.folderName}>{folder.name}</Text>
-                  <Text style={styles.folderCount}>{folder.count} items</Text>
-                  <View style={styles.folderCategoriesPreview}>
-                    {folder.categories.slice(0, 3).map((cat, idx) => (
-                      <Text key={idx} style={styles.folderCategoryChip} numberOfLines={1}>
-                        {cat}
-                      </Text>
-                    ))}
-                    {folder.categories.length > 3 && (
-                      <Text style={styles.folderCategoryMore}>
-                        +{folder.categories.length - 3} more
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
+                <View key={folder.type} style={styles.folderWrapper}>
+                  <TouchableOpacity
+                    style={styles.folderCard}
+                    onPress={() => setSelectedFolder(folder.type)}
+                  >
+                    <View style={[styles.folderIconContainer, { backgroundColor: `${folder.color}20` }]}>
+                      <FolderIcon size={48} color={folder.color} />
+                    </View>
+                    <Text style={styles.folderName} numberOfLines={1}>{folder.name}</Text>
+                    <Text style={styles.folderCount}>
+                      {folder.count} {folder.count === 1 ? 'item' : 'items'}
+                    </Text>
+                  </TouchableOpacity>
+                  {isCustomFolder && (
+                    <TouchableOpacity
+                      style={styles.deleteFolderButton}
+                      onPress={() => handleDeleteFolder(folder.type)}
+                    >
+                      <Trash2 size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               );
-            })
-          )}
+            })}
+            
+            <TouchableOpacity
+              style={[styles.folderCard, styles.addFolderCard]}
+              onPress={() => setNewFolderModalVisible(true)}
+            >
+              <View style={[styles.folderIconContainer, { backgroundColor: '#F3F4F620' }]}>
+                <Plus size={48} color="#9CA3AF" />
+              </View>
+              <Text style={[styles.folderName, { color: '#6B7280' }]}>Nuevo Folder</Text>
+              <Text style={styles.folderCount}>Crear</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
@@ -300,38 +338,51 @@ export default function FilesNavigationScreen() {
     if (!folder) return null;
 
     if (!selectedCategory) {
+      const hasCategories = folder.categories.length > 0;
+      
       return (
         <View style={styles.categoriesView}>
           <View style={styles.categoriesHeader}>
-            <Text style={styles.categoriesTitle}>Categories in {folder.name}</Text>
+            <Text style={styles.categoriesTitle}>{folder.name}</Text>
             <TouchableOpacity 
               style={styles.addButton}
               onPress={() => setUploadModalVisible(true)}
             >
               <Plus size={20} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Add</Text>
+              <Text style={styles.addButtonText}>Agregar</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.categoriesList} showsVerticalScrollIndicator={false}>
-            {folder.categories.map((category) => {
-              const files = getFilesForCategory(folder.type, category);
-              return (
-                <TouchableOpacity
-                  key={category}
-                  style={styles.categoryCard}
-                  onPress={() => setSelectedCategory(category)}
-                >
-                  <View style={[styles.categoryIcon, { backgroundColor: `${folder.color}20` }]}>
-                    <Folder size={24} color={folder.color} />
-                  </View>
-                  <View style={styles.categoryInfo}>
-                    <Text style={styles.categoryName}>{category}</Text>
-                    <Text style={styles.categoryCount}>{files.length} items</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          
+          {!hasCategories ? (
+            <View style={styles.emptyFolderState}>
+              <Folder size={64} color="#D1D5DB" />
+              <Text style={styles.emptyStateTitle}>Folder vacío</Text>
+              <Text style={styles.emptyStateText}>
+                Aún no hay archivos en este folder. Toca "Agregar" para comenzar.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.categoriesList} showsVerticalScrollIndicator={false}>
+              {folder.categories.map((category) => {
+                const files = getFilesForCategory(folder.type, category);
+                return (
+                  <TouchableOpacity
+                    key={category}
+                    style={styles.categoryCard}
+                    onPress={() => setSelectedCategory(category)}
+                  >
+                    <View style={[styles.categoryIcon, { backgroundColor: `${folder.color}20` }]}>
+                      <Folder size={24} color={folder.color} />
+                    </View>
+                    <View style={styles.categoryInfo}>
+                      <Text style={styles.categoryName}>{category}</Text>
+                      <Text style={styles.categoryCount}>{files.length} items</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
         </View>
       );
     }
@@ -349,7 +400,7 @@ export default function FilesNavigationScreen() {
             onPress={() => setUploadModalVisible(true)}
           >
             <Plus size={20} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>Add</Text>
+            <Text style={styles.addButtonText}>Agregar</Text>
           </TouchableOpacity>
         </View>
         <ScrollView style={styles.filesList} showsVerticalScrollIndicator={false}>
@@ -369,7 +420,7 @@ export default function FilesNavigationScreen() {
                   </View>
                 </View>
               );
-            } else if (folder.type === 'expenses') {
+            } else if (folder.type === 'receipts') {
               return (
                 <View key={file.id} style={styles.expenseCard}>
                   <View style={styles.expenseHeader}>
@@ -458,16 +509,16 @@ export default function FilesNavigationScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add to {selectedCategory || selectedFolder}</Text>
+                <Text style={styles.modalTitle}>Agregar a {selectedCategory || folders.find(f => f.type === selectedFolder)?.name}</Text>
                 <TouchableOpacity onPress={() => setUploadModalVisible(false)}>
                   <X size={24} color="#6B7280" />
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.modalLabel}>Notes (Optional)</Text>
+              <Text style={styles.modalLabel}>Notas (Opcional)</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="Add notes..."
+                placeholder="Agregar notas..."
                 placeholderTextColor="#9CA3AF"
                 multiline
                 numberOfLines={3}
@@ -484,14 +535,14 @@ export default function FilesNavigationScreen() {
                       onPress={handleTakePhoto}
                     >
                       <Camera size={20} color="#FFFFFF" />
-                      <Text style={styles.modalActionButtonText}>Take Photo</Text>
+                      <Text style={styles.modalActionButtonText}>Tomar Foto</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.modalActionButton}
                       onPress={handlePickPhoto}
                     >
                       <Upload size={20} color="#FFFFFF" />
-                      <Text style={styles.modalActionButtonText}>Upload Photo</Text>
+                      <Text style={styles.modalActionButtonText}>Subir Foto</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -500,10 +551,46 @@ export default function FilesNavigationScreen() {
                     onPress={handleUploadDocument}
                   >
                     <Upload size={20} color="#FFFFFF" />
-                    <Text style={styles.modalActionButtonText}>Upload File</Text>
+                    <Text style={styles.modalActionButtonText}>Subir Archivo</Text>
                   </TouchableOpacity>
                 )}
               </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={newFolderModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setNewFolderModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Crear Nuevo Folder</Text>
+                <TouchableOpacity onPress={() => setNewFolderModalVisible(false)}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalLabel}>Nombre del Folder</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ej: Planos, Reportes Diarios, etc."
+                placeholderTextColor="#9CA3AF"
+                value={newFolderName}
+                onChangeText={setNewFolderName}
+                autoFocus
+              />
+
+              <TouchableOpacity
+                style={[styles.modalActionButton, { flex: 1 }]}
+                onPress={handleCreateNewFolder}
+              >
+                <Plus size={20} color="#FFFFFF" />
+                <Text style={styles.modalActionButtonText}>Crear Folder</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -537,14 +624,21 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  foldersContainer: {
+    flex: 1,
+  },
   foldersGrid: {
     padding: 16,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
   },
-  folderCard: {
+  folderWrapper: {
     width: '47%',
+    position: 'relative',
+  },
+  folderCard: {
+    width: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
@@ -553,11 +647,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    alignItems: 'center',
+  },
+  addFolderCard: {
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    backgroundColor: '#F9FAFB',
   },
   folderIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
+    width: 72,
+    height: 72,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -567,36 +668,35 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#1F2937',
     marginBottom: 4,
+    textAlign: 'center',
   },
   folderCount: {
     fontSize: 13,
     color: '#6B7280',
-    marginBottom: 12,
+    textAlign: 'center',
   },
-  folderCategoriesPreview: {
-    gap: 6,
-  },
-  folderCategoryChip: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  folderCategoryMore: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '600' as const,
-    marginTop: 4,
+  deleteFolderButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 20,
+    padding: 8,
+    zIndex: 10,
   },
   emptyState: {
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 40,
-    minHeight: 400,
+    minHeight: 300,
+  },
+  emptyFolderState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    minHeight: 300,
   },
   emptyStateTitle: {
     fontSize: 18,
@@ -847,6 +947,8 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700' as const,
     color: '#1F2937',
+    flex: 1,
+    marginRight: 12,
   },
   modalLabel: {
     fontSize: 14,
