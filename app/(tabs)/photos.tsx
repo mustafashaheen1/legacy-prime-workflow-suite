@@ -1,21 +1,24 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, ActivityIndicator, Pressable, Alert } from 'react-native';
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Camera, Upload, Edit2, X, Sparkles, Check } from 'lucide-react-native';
+import { Camera, Upload, Edit2, X, Sparkles, Check, Plus, Trash2, Settings } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { photoCategories } from '@/mocks/data';
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { Photo } from '@/types';
 import { useMutation } from '@tanstack/react-query';
 
 export default function PhotosScreen() {
-  const { photos, addPhoto, updatePhoto } = useApp();
-  const [category, setCategory] = useState<string>('Foundation');
+  const { photos, addPhoto, updatePhoto, photoCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory } = useApp();
+  const [category, setCategory] = useState<string>(photoCategories[0] || 'Other');
   const [notes, setNotes] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState<boolean>(false);
+  const [showManageCategoriesModal, setShowManageCategoriesModal] = useState<boolean>(false);
+  const [newCategoryName, setNewCategoryName] = useState<string>('');
+  const [editingCategoryName, setEditingCategoryName] = useState<string | null>(null);
+  const [editedCategoryValue, setEditedCategoryValue] = useState<string>('');
   const [aiSuggestedCategory, setAiSuggestedCategory] = useState<string | null>(null);
   const [tempCategory, setTempCategory] = useState<string>('');
 
@@ -112,6 +115,48 @@ export default function PhotosScreen() {
     setAiSuggestedCategory(null);
   };
 
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) {
+      Alert.alert('Error', 'Please enter a category name');
+      return;
+    }
+    if (photoCategories.includes(newCategoryName.trim())) {
+      Alert.alert('Error', 'This category already exists');
+      return;
+    }
+    addPhotoCategory(newCategoryName.trim());
+    setNewCategoryName('');
+  };
+
+  const handleUpdateCategory = (oldName: string) => {
+    if (!editedCategoryValue.trim()) {
+      Alert.alert('Error', 'Please enter a category name');
+      return;
+    }
+    if (photoCategories.includes(editedCategoryValue.trim()) && oldName !== editedCategoryValue.trim()) {
+      Alert.alert('Error', 'This category already exists');
+      return;
+    }
+    updatePhotoCategory(oldName, editedCategoryValue.trim());
+    setEditingCategoryName(null);
+    setEditedCategoryValue('');
+  };
+
+  const handleDeleteCategory = (categoryName: string) => {
+    Alert.alert(
+      'Delete Category',
+      `Are you sure you want to delete "${categoryName}"? This won\'t delete the photos, but they will keep their current category.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deletePhotoCategory(categoryName),
+        },
+      ]
+    );
+  };
+
   const handleEditCategory = (photo: Photo) => {
     setEditingPhoto(photo);
     setTempCategory(photo.category);
@@ -119,13 +164,20 @@ export default function PhotosScreen() {
     suggestCategoryMutation.mutate(photo.url);
   };
 
+  const handleOpenCategoryModal = () => {
+    setTempCategory(category);
+    setShowCategoryModal(true);
+  };
+
   const handleSaveCategory = () => {
-    if (!editingPhoto) return;
-    
-    updatePhoto(editingPhoto.id, { category: tempCategory });
+    if (editingPhoto) {
+      updatePhoto(editingPhoto.id, { category: tempCategory });
+      setEditingPhoto(null);
+    } else {
+      setCategory(tempCategory);
+    }
     
     setShowCategoryModal(false);
-    setEditingPhoto(null);
     setAiSuggestedCategory(null);
     setTempCategory('');
   };
@@ -154,10 +206,23 @@ export default function PhotosScreen() {
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Category</Text>
-          <View style={styles.picker}>
-            <Text style={styles.pickerText}>{category}</Text>
+          <View style={styles.categoryHeader}>
+            <Text style={styles.label}>Category</Text>
+            <TouchableOpacity 
+              onPress={() => setShowManageCategoriesModal(true)}
+              style={styles.manageCategoriesButton}
+            >
+              <Settings size={16} color="#2563EB" />
+              <Text style={styles.manageCategoriesText}>Manage</Text>
+            </TouchableOpacity>
           </View>
+          <TouchableOpacity 
+            style={styles.picker}
+            onPress={handleOpenCategoryModal}
+          >
+            <Text style={styles.pickerText}>{category}</Text>
+            <Edit2 size={16} color="#6B7280" />
+          </TouchableOpacity>
 
           <Text style={styles.label}>Notes</Text>
           <TextInput
@@ -295,6 +360,104 @@ export default function PhotosScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={showManageCategoriesModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowManageCategoriesModal(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setShowManageCategoriesModal(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Manage Categories</Text>
+              <TouchableOpacity onPress={() => setShowManageCategoriesModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.addCategorySection}>
+              <TextInput
+                style={styles.categoryInput}
+                placeholder="Enter new category name..."
+                placeholderTextColor="#9CA3AF"
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+              />
+              <TouchableOpacity 
+                style={styles.addCategoryButton}
+                onPress={handleAddCategory}
+              >
+                <Plus size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalLabel}>Existing Categories</Text>
+            <ScrollView style={styles.categoriesList} showsVerticalScrollIndicator={false}>
+              {photoCategories.map((cat) => (
+                <View key={cat} style={styles.categoryManageItem}>
+                  {editingCategoryName === cat ? (
+                    <View style={styles.editCategoryRow}>
+                      <TextInput
+                        style={styles.editCategoryInput}
+                        value={editedCategoryValue}
+                        onChangeText={setEditedCategoryValue}
+                        autoFocus
+                      />
+                      <TouchableOpacity 
+                        onPress={() => handleUpdateCategory(cat)}
+                        style={styles.editCategoryAction}
+                      >
+                        <Check size={20} color="#10B981" />
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        onPress={() => {
+                          setEditingCategoryName(null);
+                          setEditedCategoryValue('');
+                        }}
+                        style={styles.editCategoryAction}
+                      >
+                        <X size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.categoryManageText}>{cat}</Text>
+                      <View style={styles.categoryManageActions}>
+                        <TouchableOpacity 
+                          onPress={() => {
+                            setEditingCategoryName(cat);
+                            setEditedCategoryValue(cat);
+                          }}
+                          style={styles.categoryActionButton}
+                        >
+                          <Edit2 size={16} color="#2563EB" />
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          onPress={() => handleDeleteCategory(cat)}
+                          style={styles.categoryActionButton}
+                        >
+                          <Trash2 size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowManageCategoriesModal(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Done</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -351,6 +514,24 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 8,
   },
+  categoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  manageCategoriesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  manageCategoriesText: {
+    fontSize: 13,
+    color: '#2563EB',
+    fontWeight: '600' as const,
+  },
   picker: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
@@ -359,6 +540,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   pickerText: {
     fontSize: 14,
@@ -577,5 +761,87 @@ const styles = StyleSheet.create({
   aiSuggestionText: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  addCategorySection: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
+  },
+  categoryInput: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  addCategoryButton: {
+    backgroundColor: '#2563EB',
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoriesList: {
+    maxHeight: 320,
+    marginBottom: 16,
+  },
+  categoryManageItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  categoryManageText: {
+    fontSize: 15,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+    flex: 1,
+  },
+  categoryManageActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  categoryActionButton: {
+    padding: 4,
+  },
+  editCategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  editCategoryInput: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  editCategoryAction: {
+    padding: 4,
+  },
+  modalCloseButton: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '600' as const,
   },
 });

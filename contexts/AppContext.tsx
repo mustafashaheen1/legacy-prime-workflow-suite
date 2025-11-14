@@ -20,6 +20,7 @@ interface AppState {
   estimates: Estimate[];
   customPriceListItems: CustomPriceListItem[];
   customCategories: CustomCategory[];
+  photoCategories: string[];
   callLogs: CallLog[];
   conversations: ChatConversation[];
   reports: Report[];
@@ -51,6 +52,9 @@ interface AppState {
   deleteCustomPriceListItem: (id: string) => void;
   addCustomCategory: (category: CustomCategory) => void;
   deleteCustomCategory: (id: string) => void;
+  addPhotoCategory: (category: string) => void;
+  updatePhotoCategory: (oldName: string, newName: string) => void;
+  deletePhotoCategory: (category: string) => void;
   addCallLog: (log: CallLog) => void;
   updateCallLog: (id: string, updates: Partial<CallLog>) => void;
   deleteCallLog: (id: string) => void;
@@ -85,6 +89,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [estimates, setEstimates] = useState<Estimate[]>([]);
   const [customPriceListItems, setCustomPriceListItems] = useState<CustomPriceListItem[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
+  const [photoCategories, setPhotoCategories] = useState<string[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
@@ -126,6 +131,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const storedSubscription = await AsyncStorage.getItem('subscription');
       const storedCustomItems = await AsyncStorage.getItem('customPriceListItems');
       const storedCustomCategories = await AsyncStorage.getItem('customCategories');
+      const storedPhotoCategories = await AsyncStorage.getItem('photoCategories');
       const storedExpenses = await AsyncStorage.getItem('expenses');
       const storedConversations = await AsyncStorage.getItem('conversations');
       const storedReports = await AsyncStorage.getItem('reports');
@@ -157,6 +163,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const parsedCustomCategories = safeJsonParse<CustomCategory[]>(storedCustomCategories, 'customCategories', []);
       if (Array.isArray(parsedCustomCategories)) {
         setCustomCategories(parsedCustomCategories);
+      }
+
+      const defaultPhotoCategories = [
+        'Foundation',
+        'Framing',
+        'Electrical',
+        'Plumbing',
+        'HVAC',
+        'Drywall',
+        'Painting',
+        'Flooring',
+        'Exterior',
+        'Landscaping',
+        'Other',
+      ];
+      const parsedPhotoCategories = safeJsonParse<string[]>(storedPhotoCategories, 'photoCategories', defaultPhotoCategories);
+      if (Array.isArray(parsedPhotoCategories)) {
+        setPhotoCategories(parsedPhotoCategories);
       }
 
       const parsedExpenses = safeJsonParse<Expense[]>(storedExpenses, 'expenses', mockExpenses);
@@ -367,6 +391,34 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updatedItems));
   }, [customCategories, customPriceListItems]);
 
+  const addPhotoCategory = useCallback(async (category: string) => {
+    if (photoCategories.includes(category)) {
+      console.log('[PhotoCategory] Category already exists:', category);
+      return;
+    }
+    const updated = [...photoCategories, category];
+    setPhotoCategories(updated);
+    await AsyncStorage.setItem('photoCategories', JSON.stringify(updated));
+    console.log('[PhotoCategory] Added category:', category);
+  }, [photoCategories]);
+
+  const updatePhotoCategory = useCallback(async (oldName: string, newName: string) => {
+    const updated = photoCategories.map(cat => cat === oldName ? newName : cat);
+    setPhotoCategories(updated);
+    await AsyncStorage.setItem('photoCategories', JSON.stringify(updated));
+    
+    const updatedPhotos = photos.map(p => p.category === oldName ? { ...p, category: newName } : p);
+    setPhotos(updatedPhotos);
+    console.log('[PhotoCategory] Updated category:', oldName, 'to', newName);
+  }, [photoCategories, photos]);
+
+  const deletePhotoCategory = useCallback(async (category: string) => {
+    const updated = photoCategories.filter(cat => cat !== category);
+    setPhotoCategories(updated);
+    await AsyncStorage.setItem('photoCategories', JSON.stringify(updated));
+    console.log('[PhotoCategory] Deleted category:', category);
+  }, [photoCategories]);
+
   const addCallLog = useCallback((log: CallLog) => {
     setCallLogs(prev => [log, ...prev]);
   }, []);
@@ -560,6 +612,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     estimates,
     customPriceListItems,
     customCategories,
+    photoCategories,
     callLogs,
     conversations,
     reports,
@@ -590,6 +643,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     deleteCustomPriceListItem,
     addCustomCategory,
     deleteCustomCategory,
+    addPhotoCategory,
+    updatePhotoCategory,
+    deletePhotoCategory,
     addCallLog,
     updateCallLog,
     deleteCallLog,
@@ -622,6 +678,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     estimates,
     customPriceListItems,
     customCategories,
+    photoCategories,
     callLogs,
     conversations,
     reports,
@@ -652,6 +709,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     deleteCustomPriceListItem,
     addCustomCategory,
     deleteCustomCategory,
+    addPhotoCategory,
+    updatePhotoCategory,
+    deletePhotoCategory,
     addCallLog,
     updateCallLog,
     deleteCallLog,
