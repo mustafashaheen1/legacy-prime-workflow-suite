@@ -312,7 +312,7 @@ export default function FilesNavigationScreen() {
                       style={styles.deleteFolderButton}
                       onPress={() => handleDeleteFolder(folder.type)}
                     >
-                      <Trash2 size={16} color="#EF4444" />
+                      <X size={18} color="#FFFFFF" />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -677,12 +677,20 @@ const styles = StyleSheet.create({
   },
   deleteFolderButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#FEE2E2',
+    top: -8,
+    right: -8,
+    backgroundColor: '#EF4444',
     borderRadius: 20,
-    padding: 8,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   emptyState: {
     width: '100%',
