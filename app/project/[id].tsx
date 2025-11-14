@@ -104,14 +104,43 @@ export default function ProjectDetailScreen() {
     return photos.filter(p => p.projectId === id);
   }, [photos, id]);
 
+  useEffect(() => {
+    projectPhotos.forEach(photo => {
+      const existingFile = projectFiles.find(f => 
+        f.category === 'photos' && 
+        f.uri === photo.url && 
+        f.projectId === id
+      );
+      
+      if (!existingFile) {
+        const photoFile: ProjectFile = {
+          id: `photo-file-${photo.id}`,
+          projectId: id as string,
+          name: `${photo.category} - ${new Date(photo.date).toLocaleDateString()}`,
+          category: 'photos',
+          fileType: 'image/jpeg',
+          fileSize: 0,
+          uri: photo.url,
+          uploadDate: photo.date,
+          notes: photo.notes || `Category: ${photo.category}`,
+        };
+        addProjectFile(photoFile);
+        console.log('[Files] Auto-synced photo to files:', photoFile.name);
+      }
+    });
+  }, [projectPhotos, projectFiles, id, addProjectFile]);
+
   const projectReports = useMemo(() => {
     return reports.filter(r => r.projectIds.includes(id as string));
   }, [reports, id]);
 
   const filesByCategory = useMemo(() => {
-    const byCategory: { [key: string]: number } = {};
+    const byCategory: { [key: string]: ProjectFile[] } = {};
     currentProjectFiles.forEach(file => {
-      byCategory[file.category] = (byCategory[file.category] || 0) + 1;
+      if (!byCategory[file.category]) {
+        byCategory[file.category] = [];
+      }
+      byCategory[file.category].push(file);
     });
     return byCategory;
   }, [currentProjectFiles]);
@@ -852,7 +881,7 @@ export default function ProjectDetailScreen() {
                   style={[styles.categoryFilterChip, categoryFilter === 'all' && styles.categoryFilterChipActive]}
                   onPress={() => setCategoryFilter('all')}
                 >
-                  <Text style={[styles.categoryFilterText, categoryFilter === 'all' && styles.categoryFilterTextActive]}>All ({projectFiles.filter(f => f.projectId === id).length})</Text>
+                  <Text style={[styles.categoryFilterText, categoryFilter === 'all' && styles.categoryFilterTextActive]}>All ({currentProjectFiles.length})</Text>
                 </TouchableOpacity>
                 {(['receipts', 'photos', 'reports', 'plans', 'estimates', 'documentation'] as FileCategory[]).map(cat => (
                   <TouchableOpacity
@@ -861,17 +890,18 @@ export default function ProjectDetailScreen() {
                     onPress={() => setCategoryFilter(cat)}
                   >
                     <Text style={[styles.categoryFilterText, categoryFilter === cat && styles.categoryFilterTextActive]}>
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)} ({filesByCategory[cat] || 0})
+                      {cat.charAt(0).toUpperCase() + cat.slice(1)} ({filesByCategory[cat]?.length || 0})
                     </Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
 
-            <FlatList
-              data={currentProjectFiles}
-              keyExtractor={(item) => item.id}
-              ListEmptyComponent={
+            <ScrollView 
+              style={styles.filesList}
+              showsVerticalScrollIndicator={false}
+            >
+              {Object.keys(filesByCategory).length === 0 ? (
                 <View style={styles.emptyFilesState}>
                   <FolderOpen size={64} color="#D1D5DB" />
                   <Text style={styles.emptyFilesTitle}>No files yet</Text>
@@ -884,61 +914,83 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.emptyUploadButtonText}>Upload First File</Text>
                   </TouchableOpacity>
                 </View>
-              }
-              renderItem={({ item }) => {
-                  const CategoryIcon = getCategoryIcon(item.category);
-                  const categoryColor = getCategoryColor(item.category);
+              ) : (
+                Object.entries(filesByCategory).map(([category, files]) => {
+                  const CategoryIcon = getCategoryIcon(category as FileCategory);
+                  const categoryColor = getCategoryColor(category as FileCategory);
                   
                   return (
-                    <View style={styles.fileCard}>
-                      <View style={styles.fileCardContent}>
-                        <View style={[styles.fileIconContainer, { backgroundColor: `${categoryColor}20` }]}>
-                          <CategoryIcon size={24} color={categoryColor} />
+                    <View key={category} style={styles.categoryFolderSection}>
+                      <View style={styles.categoryFolderHeader}>
+                        <View style={[styles.categoryFolderIcon, { backgroundColor: `${categoryColor}20` }]}>
+                          <CategoryIcon size={20} color={categoryColor} />
                         </View>
-                        <View style={styles.fileInfo}>
-                          <Text style={styles.fileName} numberOfLines={1}>{item.name}</Text>
-                          <View style={styles.fileMetaRow}>
-                            <View style={styles.fileCategoryBadge}>
-                              <Text style={styles.fileCategoryText}>{item.category}</Text>
-                            </View>
-                            <Text style={styles.fileSize}>{formatFileSize(item.fileSize)}</Text>
-                            <Text style={styles.fileDate}>
-                              {new Date(item.uploadDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </Text>
-                          </View>
-                          {item.notes && (
-                            <Text style={styles.fileNotes} numberOfLines={2}>{item.notes}</Text>
-                          )}
+                        <Text style={styles.categoryFolderTitle}>
+                          {category.charAt(0).toUpperCase() + category.slice(1)}
+                        </Text>
+                        <View style={[styles.categoryFolderCount, { backgroundColor: `${categoryColor}20` }]}>
+                          <Text style={[styles.categoryFolderCountText, { color: categoryColor }]}>
+                            {files.length}
+                          </Text>
                         </View>
                       </View>
-                      <View style={styles.fileActions}>
-                        {Platform.OS === 'web' && (
-                          <TouchableOpacity 
-                            style={styles.fileActionButton}
-                            onPress={() => {
-                              const link = document.createElement('a');
-                              link.href = item.uri;
-                              link.download = item.name;
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                            }}
-                          >
-                            <Download size={18} color="#2563EB" />
-                          </TouchableOpacity>
-                        )}
-                        <TouchableOpacity 
-                          style={styles.fileActionButton}
-                          onPress={() => handleDeleteFile(item.id, item.name)}
-                        >
-                          <Trash2 size={18} color="#EF4444" />
-                        </TouchableOpacity>
+                      
+                      <View style={styles.categoryFolderFiles}>
+                        {files.map((item) => {
+                          const ItemCategoryIcon = getCategoryIcon(item.category);
+                          const itemCategoryColor = getCategoryColor(item.category);
+                          
+                          return (
+                            <View key={item.id} style={styles.fileCard}>
+                              <View style={styles.fileCardContent}>
+                                <View style={[styles.fileIconContainer, { backgroundColor: `${itemCategoryColor}20` }]}>
+                                  <ItemCategoryIcon size={24} color={itemCategoryColor} />
+                                </View>
+                                <View style={styles.fileInfo}>
+                                  <Text style={styles.fileName} numberOfLines={1}>{item.name}</Text>
+                                  <View style={styles.fileMetaRow}>
+                                    <Text style={styles.fileSize}>{formatFileSize(item.fileSize)}</Text>
+                                    <Text style={styles.fileDate}>
+                                      {new Date(item.uploadDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    </Text>
+                                  </View>
+                                  {item.notes && (
+                                    <Text style={styles.fileNotes} numberOfLines={2}>{item.notes}</Text>
+                                  )}
+                                </View>
+                              </View>
+                              <View style={styles.fileActions}>
+                                {Platform.OS === 'web' && (
+                                  <TouchableOpacity 
+                                    style={styles.fileActionButton}
+                                    onPress={() => {
+                                      const link = document.createElement('a');
+                                      link.href = item.uri;
+                                      link.download = item.name;
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    }}
+                                  >
+                                    <Download size={18} color="#2563EB" />
+                                  </TouchableOpacity>
+                                )}
+                                <TouchableOpacity 
+                                  style={styles.fileActionButton}
+                                  onPress={() => handleDeleteFile(item.id, item.name)}
+                                >
+                                  <Trash2 size={18} color="#EF4444" />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        })}
                       </View>
                     </View>
                   );
-                }}
-              contentContainerStyle={styles.filesList}
-            />
+                })
+              )}
+            </ScrollView>
 
             <Modal
               visible={uploadModalVisible}
@@ -2402,7 +2454,51 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   filesList: {
+    flex: 1,
     padding: 16,
+  },
+  categoryFolderSection: {
+    marginBottom: 24,
+  },
+  categoryFolderHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  categoryFolderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  categoryFolderTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    flex: 1,
+  },
+  categoryFolderCount: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryFolderCountText: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+  },
+  categoryFolderFiles: {
+    paddingLeft: 8,
   },
   fileCard: {
     flexDirection: 'row',
