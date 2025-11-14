@@ -21,6 +21,8 @@ export default function PhotosScreen() {
   const [editedCategoryValue, setEditedCategoryValue] = useState<string>('');
   const [aiSuggestedCategory, setAiSuggestedCategory] = useState<string | null>(null);
   const [tempCategory, setTempCategory] = useState<string>('');
+  const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
+  const [previewNotes, setPreviewNotes] = useState<string>('');
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -30,7 +32,12 @@ export default function PhotosScreen() {
     });
 
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+      const imageUri = result.assets[0].uri;
+      setSelectedImage(imageUri);
+      setPreviewNotes('');
+      setTempCategory(category);
+      setShowPreviewModal(true);
+      suggestCategoryMutation.mutate(imageUri);
     }
   };
 
@@ -52,7 +59,12 @@ export default function PhotosScreen() {
     });
 
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+      const imageUri = result.assets[0].uri;
+      setSelectedImage(imageUri);
+      setPreviewNotes('');
+      setTempCategory(category);
+      setShowPreviewModal(true);
+      suggestCategoryMutation.mutate(imageUri);
     }
   };
 
@@ -98,21 +110,23 @@ export default function PhotosScreen() {
     }
   });
 
-  const handleSave = () => {
+  const handleSaveFromPreview = () => {
     if (!selectedImage) return;
 
     addPhoto({
       id: Date.now().toString(),
       projectId: '1',
-      category,
-      notes,
+      category: tempCategory,
+      notes: previewNotes,
       url: selectedImage,
       date: new Date().toISOString(),
     });
 
     setSelectedImage(null);
-    setNotes('');
+    setPreviewNotes('');
     setAiSuggestedCategory(null);
+    setShowPreviewModal(false);
+    setTempCategory('');
   };
 
   const handleAddCategory = () => {
@@ -188,6 +202,14 @@ export default function PhotosScreen() {
     }
   };
 
+  const handleCancelPreview = () => {
+    setShowPreviewModal(false);
+    setSelectedImage(null);
+    setPreviewNotes('');
+    setAiSuggestedCategory(null);
+    setTempCategory('');
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -207,7 +229,7 @@ export default function PhotosScreen() {
 
         <View style={styles.form}>
           <View style={styles.categoryHeader}>
-            <Text style={styles.label}>Category</Text>
+            <Text style={styles.label}>Default Category</Text>
             <TouchableOpacity 
               onPress={() => setShowManageCategoriesModal(true)}
               style={styles.manageCategoriesButton}
@@ -223,32 +245,7 @@ export default function PhotosScreen() {
             <Text style={styles.pickerText}>{category}</Text>
             <Edit2 size={16} color="#6B7280" />
           </TouchableOpacity>
-
-          <Text style={styles.label}>Notes</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Add notes about this photo..."
-            placeholderTextColor="#9CA3AF"
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={4}
-          />
-
-          {selectedImage && (
-            <View style={styles.previewContainer}>
-              <Text style={styles.label}>Preview</Text>
-              <Image source={{ uri: selectedImage }} style={styles.preview} contentFit="cover" />
-            </View>
-          )}
-
-          <TouchableOpacity 
-            style={[styles.saveButton, !selectedImage && styles.saveButtonDisabled]} 
-            onPress={handleSave}
-            disabled={!selectedImage}
-          >
-            <Text style={styles.saveButtonText}>Save Photo</Text>
-          </TouchableOpacity>
+          <Text style={styles.helperText}>This is the default category for new photos. You can change it when adding a photo.</Text>
         </View>
 
         <View style={styles.gallery}>
@@ -457,6 +454,122 @@ export default function PhotosScreen() {
             </TouchableOpacity>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showPreviewModal}
+        transparent
+        animationType="slide"
+        onRequestClose={handleCancelPreview}
+      >
+        <View style={styles.previewModalOverlay}>
+          <View style={styles.previewModalContent}>
+            <View style={styles.previewModalHeader}>
+              <Text style={styles.previewModalTitle}>Preview Photo</Text>
+              <TouchableOpacity onPress={handleCancelPreview}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.previewModalScroll} showsVerticalScrollIndicator={false}>
+              {selectedImage && (
+                <Image 
+                  source={{ uri: selectedImage }} 
+                  style={styles.previewModalImage} 
+                  contentFit="cover" 
+                />
+              )}
+
+              {suggestCategoryMutation.isPending && (
+                <View style={styles.aiSuggestionLoading}>
+                  <ActivityIndicator size="small" color="#2563EB" />
+                  <Text style={styles.aiSuggestionText}>AI is analyzing the image...</Text>
+                </View>
+              )}
+
+              {aiSuggestedCategory && !suggestCategoryMutation.isPending && (
+                <View style={styles.aiSuggestionContainer}>
+                  <View style={styles.aiSuggestionHeader}>
+                    <Sparkles size={16} color="#8B5CF6" />
+                    <Text style={styles.aiSuggestionTitle}>AI Suggestion</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.aiSuggestionButton}
+                    onPress={handleUseSuggestion}
+                  >
+                    <Text style={styles.aiSuggestionCategory}>{aiSuggestedCategory}</Text>
+                    {tempCategory === aiSuggestedCategory && (
+                      <Check size={16} color="#10B981" />
+                    )}
+                  </TouchableOpacity>
+                  <Text style={styles.aiSuggestionHint}>Tap to use this suggestion</Text>
+                </View>
+              )}
+
+              <View style={styles.previewFormSection}>
+                <Text style={styles.previewLabel}>Category</Text>
+                <TextInput
+                  style={styles.previewCategoryInput}
+                  value={tempCategory}
+                  onChangeText={setTempCategory}
+                  placeholder="Enter or edit category..."
+                  placeholderTextColor="#9CA3AF"
+                />
+                
+                <Text style={styles.previewLabel}>Quick Select</Text>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.quickCategoriesScroll}
+                >
+                  {photoCategories.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.quickCategoryChip,
+                        tempCategory === cat && styles.quickCategoryChipSelected
+                      ]}
+                      onPress={() => setTempCategory(cat)}
+                    >
+                      <Text style={[
+                        styles.quickCategoryChipText,
+                        tempCategory === cat && styles.quickCategoryChipTextSelected
+                      ]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <Text style={styles.previewLabel}>Notes (Optional)</Text>
+                <TextInput
+                  style={[styles.previewInput, styles.previewTextArea]}
+                  placeholder="Add notes about this photo..."
+                  placeholderTextColor="#9CA3AF"
+                  value={previewNotes}
+                  onChangeText={setPreviewNotes}
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.previewModalActions}>
+              <TouchableOpacity 
+                style={styles.previewCancelButton}
+                onPress={handleCancelPreview}
+              >
+                <Text style={styles.previewCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.previewSaveButton}
+                onPress={handleSaveFromPreview}
+              >
+                <Text style={styles.previewSaveButtonText}>Save Photo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -841,6 +954,135 @@ const styles = StyleSheet.create({
   },
   modalCloseButtonText: {
     color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  previewModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  previewModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    paddingBottom: 20,
+  },
+  previewModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  previewModalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  previewModalScroll: {
+    flex: 1,
+  },
+  previewModalImage: {
+    width: '100%',
+    height: 250,
+    marginBottom: 16,
+  },
+  previewFormSection: {
+    padding: 20,
+  },
+  previewLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  previewCategoryInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: '#1F2937',
+    fontWeight: '600' as const,
+  },
+  quickCategoriesScroll: {
+    marginBottom: 8,
+  },
+  quickCategoryChip: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  quickCategoryChipSelected: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  quickCategoryChipText: {
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+  },
+  quickCategoryChipTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
+  },
+  previewInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  previewTextArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  previewModalActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 12,
+  },
+  previewCancelButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  previewCancelButtonText: {
+    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  previewSaveButton: {
+    flex: 1,
+    backgroundColor: '#2563EB',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  previewSaveButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600' as const,
   },
