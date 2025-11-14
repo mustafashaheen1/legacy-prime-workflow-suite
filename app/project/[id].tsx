@@ -856,13 +856,22 @@ export default function ProjectDetailScreen() {
                   <Text style={styles.filesTitle}>Project Files</Text>
                   <Text style={styles.filesSubtitle}>{currentProjectFiles.length} files • {projectPhotos.length} photos • {projectReports.length} reports</Text>
                 </View>
-                <TouchableOpacity 
-                  style={styles.uploadButton}
-                  onPress={() => setUploadModalVisible(true)}
-                >
-                  <Upload size={18} color="#FFFFFF" />
-                  <Text style={styles.uploadButtonText}>Upload</Text>
-                </TouchableOpacity>
+                <View style={styles.filesHeaderButtons}>
+                  <TouchableOpacity 
+                    style={styles.organizedViewButton}
+                    onPress={() => router.push(`/project/${id}/files-navigation` as any)}
+                  >
+                    <Folder size={18} color="#2563EB" />
+                    <Text style={styles.organizedViewButtonText}>Organized</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.uploadButton}
+                    onPress={() => setUploadModalVisible(true)}
+                  >
+                    <Upload size={18} color="#FFFFFF" />
+                    <Text style={styles.uploadButtonText}>Upload</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.searchBar}>
@@ -2354,6 +2363,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 16,
+  },
+  filesHeaderButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  organizedViewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2563EB',
+  },
+  organizedViewButtonText: {
+    color: '#2563EB',
+    fontSize: 14,
+    fontWeight: '600' as const,
   },
   filesTitle: {
     fontSize: 20,
