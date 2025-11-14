@@ -42,6 +42,10 @@ export default function ProjectDetailScreen() {
     if (activeTab === 'expenses') {
       router.push(`/project/${id}/expenses` as any);
     }
+    if (activeTab === 'files') {
+      router.push(`/project/${id}/files-navigation` as any);
+      setActiveTab('overview');
+    }
   }, [activeTab, id, router]);
 
   const budgetRemaining = useMemo(() => {
