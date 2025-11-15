@@ -1,11 +1,12 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal, Dimensions, Platform, ActivityIndicator, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { ArrowLeft, Upload, Plus, Trash2, Check, X, Ruler, Square, MapPin, Save, Sparkles, Tag, ZoomIn, ZoomOut, Download, Settings, Grid3x3, Edit3 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { masterPriceList, PriceListItem, priceListCategories } from '@/mocks/priceList';
 import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate } from '@/types';
 import Svg, { Circle, Polygon, Path, Line, Text as SvgText } from 'react-native-svg';
@@ -53,6 +54,12 @@ export default function TakeoffScreen() {
   const [showTotalsPanel, setShowTotalsPanel] = useState<boolean>(true);
   const [estimateName, setEstimateName] = useState<string>('');
   const [imageLayout, setImageLayout] = useState<{ width: number; height: number; x: number; y: number } | null>(null);
+  const [takeoffMode, setTakeoffMode] = useState<'manual' | 'ai' | null>(null);
+  const [showModeSelection, setShowModeSelection] = useState<boolean>(false);
+  const [aiProcessing, setAiProcessing] = useState<boolean>(false);
+  const [showCategorySelection, setShowCategorySelection] = useState<boolean>(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [aiResults, setAiResults] = useState<string>('');
 
   const project = projects.find(p => p.id === id);
 
@@ -83,6 +90,130 @@ export default function TakeoffScreen() {
       };
       setPlans(prev => [...prev, newPlan]);
       setActivePlanIndex(plans.length);
+      setShowModeSelection(true);
+    }
+  };
+
+  const convertImageToBase64 = async (uri: string): Promise<string> => {
+    try {
+      if (Platform.OS === 'web') {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            resolve(base64.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: 'base64' as any,
+        });
+        return base64;
+      }
+    } catch (error) {
+      console.error('Error converting image to base64:', error);
+      throw error;
+    }
+  };
+
+  const handleAITakeoff = async () => {
+    if (!activePlan || selectedCategories.length === 0) {
+      Alert.alert('Error', 'Please select at least one category for analysis');
+      return;
+    }
+
+    try {
+      setAiProcessing(true);
+      setShowCategorySelection(false);
+
+      console.log('[AI Takeoff] Starting analysis for categories:', selectedCategories);
+
+      const base64Image = await convertImageToBase64(activePlan.uri);
+      const imageData = `data:image/jpeg;base64,${base64Image}`;
+
+      const categoryText = selectedCategories.length === priceListCategories.length 
+        ? 'ALL categories' 
+        : selectedCategories.join(', ');
+
+      const prompt = `Analyze this construction blueprint and provide a detailed material takeoff for the following categories: ${categoryText}.
+
+For each item you identify:
+1. Specify the exact item name and category
+2. Provide the quantity
+3. Specify the unit (SF for square feet, LF for linear feet, EA for each item, etc.)
+4. Include any relevant notes or specifications
+
+Format your response as a structured list with:
+- Item name
+- Category
+- Quantity
+- Unit
+- Notes (if applicable)
+
+Be specific and thorough. If you identify multiple items in a category, list them separately.`;
+
+      const response = await fetch('https://toolkit.rork.com/agent/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                { type: 'image', image: imageData },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI analysis failed');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      let fullText = '';
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('0:')) {
+            try {
+              const jsonStr = line.substring(2);
+              const data = JSON.parse(jsonStr);
+              if (data.type === 'text' && data.text) {
+                fullText += data.text;
+                setAiResults(fullText);
+              }
+            } catch (e) {
+              console.error('[AI Takeoff] Parse error:', e);
+            }
+          }
+        }
+      }
+
+      console.log('[AI Takeoff] Analysis complete:', fullText.length, 'characters');
+      Alert.alert('AI Analysis Complete', 'Review the results below and adjust as needed.');
+    } catch (error) {
+      console.error('[AI Takeoff] Error:', error);
+      Alert.alert('Error', 'Failed to analyze blueprint. Please try again.');
+    } finally {
+      setAiProcessing(false);
     }
   };
 
@@ -426,9 +557,18 @@ export default function TakeoffScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.toolButton}>
-                  <Sparkles size={18} color="#2563EB" />
-                  <Text style={styles.toolButtonText}>Takeoff with AI</Text>
+                <TouchableOpacity 
+                  style={[styles.toolButton, takeoffMode === 'ai' && styles.activeToolButton]}
+                  onPress={() => {
+                    if (activePlan) {
+                      setShowCategorySelection(true);
+                    } else {
+                      Alert.alert('No Blueprint', 'Please upload a blueprint first');
+                    }
+                  }}
+                >
+                  <Sparkles size={18} color={takeoffMode === 'ai' ? '#FFFFFF' : '#2563EB'} />
+                  <Text style={[styles.toolButtonText, takeoffMode === 'ai' && styles.activeToolButtonText]}>AI Takeoff</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.toolButton}>
@@ -711,6 +851,149 @@ export default function TakeoffScreen() {
             </View>
           </View>
         </Modal>
+
+        <Modal
+          visible={showCategorySelection}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowCategorySelection(false)}
+        >
+          <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={[styles.categorySelectionModal, { maxHeight: SCREEN_HEIGHT * 0.8 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Categories for AI Analysis</Text>
+                <TouchableOpacity onPress={() => setShowCategorySelection(false)}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.categorySelectionSubtitle}>
+                Choose which categories you want the AI to analyze in the blueprint. Select all for a complete takeoff.
+              </Text>
+
+              <View style={styles.categorySelectAllContainer}>
+                <TouchableOpacity
+                  style={styles.selectAllButton}
+                  onPress={() => {
+                    if (selectedCategories.length === priceListCategories.length) {
+                      setSelectedCategories([]);
+                    } else {
+                      setSelectedCategories([...priceListCategories]);
+                    }
+                  }}
+                >
+                  <Check 
+                    size={18} 
+                    color={selectedCategories.length === priceListCategories.length ? '#10B981' : '#9CA3AF'} 
+                  />
+                  <Text style={styles.selectAllButtonText}>
+                    {selectedCategories.length === priceListCategories.length ? 'Deselect All' : 'Select All'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.categorySelectionList}>
+                {priceListCategories.map((category) => {
+                  const isSelected = selectedCategories.includes(category);
+                  return (
+                    <TouchableOpacity
+                      key={category}
+                      style={[styles.categorySelectionItem, isSelected && styles.categorySelectionItemActive]}
+                      onPress={() => {
+                        if (isSelected) {
+                          setSelectedCategories(selectedCategories.filter(c => c !== category));
+                        } else {
+                          setSelectedCategories([...selectedCategories, category]);
+                        }
+                      }}
+                    >
+                      <View style={[styles.categoryCheckbox, isSelected && styles.categoryCheckboxActive]}>
+                        {isSelected && <Check size={16} color="#FFFFFF" />}
+                      </View>
+                      <Text style={[styles.categorySelectionText, isSelected && styles.categorySelectionTextActive]}>
+                        {category}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.categorySelectionFooter}>
+                <Text style={styles.categorySelectionCount}>
+                  {selectedCategories.length} of {priceListCategories.length} selected
+                </Text>
+                <TouchableOpacity
+                  style={[styles.startAnalysisButton, selectedCategories.length === 0 && styles.startAnalysisButtonDisabled]}
+                  onPress={handleAITakeoff}
+                  disabled={selectedCategories.length === 0}
+                >
+                  <Sparkles size={18} color="#FFFFFF" />
+                  <Text style={styles.startAnalysisButtonText}>Start AI Analysis</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={aiProcessing}
+          transparent
+          animationType="fade"
+        >
+          <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={styles.aiProcessingModal}>
+              <ActivityIndicator size="large" color="#2563EB" />
+              <Text style={styles.aiProcessingTitle}>Analyzing Blueprint...</Text>
+              <Text style={styles.aiProcessingText}>
+                The AI is analyzing your blueprint for {selectedCategories.length === priceListCategories.length ? 'all categories' : `${selectedCategories.length} categories`}
+              </Text>
+              {aiResults && (
+                <ScrollView style={styles.aiResultsPreview}>
+                  <Text style={styles.aiResultsText}>{aiResults}</Text>
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {aiResults && !aiProcessing && (
+          <Modal
+            visible={true}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setAiResults('')}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.aiResultsModal}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>AI Takeoff Results</Text>
+                  <TouchableOpacity onPress={() => setAiResults('')}>
+                    <X size={24} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.aiResultsInstructions}>
+                  Review the AI analysis below. You can now use the manual tools to add these items to your takeoff or adjust as needed.
+                </Text>
+
+                <ScrollView style={styles.aiResultsScroll}>
+                  <View style={styles.aiResultsContent}>
+                    <Text style={styles.aiResultsText}>{aiResults}</Text>
+                  </View>
+                </ScrollView>
+
+                <View style={styles.aiResultsFooter}>
+                  <TouchableOpacity
+                    style={styles.aiResultsCloseButton}
+                    onPress={() => setAiResults('')}
+                  >
+                    <Text style={styles.aiResultsCloseButtonText}>Close & Continue Takeoff</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        )}
       </View>
     </>
   );
@@ -1221,5 +1504,176 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     textAlign: 'center',
     marginTop: 40,
+  },
+  categorySelectionModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    maxWidth: 500,
+  },
+  categorySelectionSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  categorySelectAllContainer: {
+    marginBottom: 16,
+  },
+  selectAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  selectAllButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  categorySelectionList: {
+    maxHeight: 400,
+  },
+  categorySelectionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 8,
+  },
+  categorySelectionItemActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+  },
+  categoryCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryCheckboxActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  categorySelectionText: {
+    fontSize: 15,
+    color: '#1F2937',
+    flex: 1,
+  },
+  categorySelectionTextActive: {
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  categorySelectionFooter: {
+    marginTop: 20,
+    gap: 12,
+  },
+  categorySelectionCount: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  startAnalysisButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563EB',
+    paddingVertical: 14,
+    borderRadius: 8,
+  },
+  startAnalysisButtonDisabled: {
+    opacity: 0.5,
+  },
+  startAnalysisButtonText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  aiProcessingModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 32,
+    width: '90%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  aiProcessingTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  aiProcessingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  aiResultsPreview: {
+    maxHeight: 200,
+    width: '100%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+  },
+  aiResultsModal: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: '85%',
+    paddingTop: 20,
+  },
+  aiResultsInstructions: {
+    fontSize: 14,
+    color: '#6B7280',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  aiResultsScroll: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  aiResultsContent: {
+    paddingBottom: 20,
+  },
+  aiResultsText: {
+    fontSize: 14,
+    color: '#1F2937',
+    lineHeight: 22,
+  },
+  aiResultsFooter: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  aiResultsCloseButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  aiResultsCloseButtonText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
 });

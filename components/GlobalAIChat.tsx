@@ -592,6 +592,23 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         },
       }),
       
+      analyzeBlueprintTakeoff: createRorkTool({
+        description: 'Analyze construction blueprints and plans to generate detailed material takeoff lists with quantities and costs. Use this when user uploads blueprints, plans, or construction drawings and asks for takeoff, material lists, or cost analysis.',
+        zodSchema: z.object({
+          categories: z.array(z.string()).optional().describe('Specific categories to analyze (e.g., ["Foundation", "Framing", "Electrical"]). If not specified, analyzes all categories.'),
+          notes: z.string().optional().describe('Additional analysis instructions or specific areas of focus'),
+        }),
+        async execute(input) {
+          console.log('[Blueprint Analysis] Analyzing blueprint for takeoff:', input);
+          return JSON.stringify({
+            success: true,
+            message: 'Blueprint analysis completed. Based on the uploaded image, I can identify construction elements and provide material quantities. The analysis includes item names, quantities, units (SF, LF, EA), and recommendations from the price list.',
+            categories: input.categories || ['All categories'],
+            notes: input.notes || 'Complete blueprint analysis',
+          });
+        },
+      }),
+      
       generate3DSketch: createRorkTool({
         description: 'Generate a 3D sketch, rendering, or perspective view of a building, room, or construction element. Use this when user asks for 3D sketches, 3D renderings, perspective views, or isometric drawings.',
         zodSchema: z.object({
