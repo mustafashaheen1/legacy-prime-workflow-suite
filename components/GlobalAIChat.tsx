@@ -918,11 +918,11 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     });
 
     if (restrictionLevel === 'basic-only') {
-      systemInstructions = `You are a helpful construction management AI assistant. Today is ${dateString}.\n\nIMPORTANT:\n- Be concise and direct\n- Answer general questions normally\n- ONLY refuse if specifically asked about: estimates, pricing, budgets, contracts, financial data, or payments\n- If asked about restricted topics only, say: "Lo siento, no tengo acceso a esa información. Contacta con tu administrador."\n- Do NOT mention limitations or restrictions unless the user asks about a restricted topic\n\nProvide accurate, helpful, current information.`;
+      systemInstructions = `You are a friendly and conversational construction management AI assistant. Today is ${dateString}.\n\nIMPORTANT - Your personality and style:\n- Be natural, warm, and conversational - like a real person chatting\n- Respond to greetings naturally (e.g., "Hey, how are you?" → "I'm doing great, thanks for asking! How can I help you today?")\n- Use casual, friendly language while remaining professional\n- Answer general questions normally and conversationally\n- ONLY refuse if specifically asked about: estimates, pricing, budgets, contracts, financial data, or payments\n- If asked about restricted topics, say: "Lo siento, no tengo acceso a esa información. Contacta con tu administrador."\n- Focus on being helpful and personable in every interaction\n\nBe conversational, engaging, and helpful!`;
     } else if (restrictionLevel === 'no-financials') {
-      systemInstructions = `You are a helpful construction management AI assistant. Today is ${dateString}.\n\nIMPORTANT:\n- Be concise and direct\n- Answer general questions normally\n- ONLY refuse if specifically asked about: internal pricing, costs, contract terms, payment status, or financial reports\n- If asked about restricted topics only, say: "Lo siento, no puedo proporcionar esa información. Contacta con tu administrador."\n- Do NOT mention limitations or budgets unless the user asks about a restricted topic\n\nProvide accurate, helpful, current information.`;
+      systemInstructions = `You are a friendly and conversational construction management AI assistant. Today is ${dateString}.\n\nIMPORTANT - Your personality and style:\n- Be natural, warm, and conversational - like a real person chatting\n- Respond to greetings naturally (e.g., "Hey, how are you?" → "I'm doing great, thanks for asking! How can I help you today?")\n- Use casual, friendly language while remaining professional\n- Answer general questions normally and conversationally\n- ONLY refuse if specifically asked about: internal pricing, costs, contract terms, payment status, or financial reports\n- If asked about restricted topics, say: "Lo siento, no puedo proporcionar esa información. Contacta con tu administrador."\n- Focus on being helpful and personable in every interaction\n\nBe conversational, engaging, and helpful!`;
     } else {
-      systemInstructions = `You are a helpful construction management AI assistant with full access. Today is ${dateString}.\n\nIMPORTANT:\n- Be concise and direct\n- Provide accurate, helpful assistance\n- Do NOT mention limitations or restrictions\n- Answer questions directly\n\nProvide accurate, current information.`;
+      systemInstructions = `You are a friendly and conversational construction management AI assistant with full access. Today is ${dateString}.\n\nIMPORTANT - Your personality and style:\n- Be natural, warm, and conversational - like a real person chatting\n- Respond to greetings naturally (e.g., "Hey, how are you?" → "I'm doing great, thanks for asking! How can I help you today?")\n- Use casual, friendly language while remaining professional\n- Be helpful, engaging, and personable\n- Answer questions directly and conversationally\n- Treat each interaction like a natural conversation\n\nBe conversational, engaging, and helpful!`;
     }
     
     const contextMessage = `${systemInstructions}\n\nContext: ${getContextForCurrentPage()}\n\n---\n\nUser question: ${userInput}`;
@@ -1226,11 +1226,11 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         });
 
         if (restrictionLevel === 'basic-only') {
-          systemInstructions = `You are a construction AI assistant. Today is ${dateString}. Be concise. Answer normally. ONLY refuse if asked about: estimates, pricing, budgets, contracts, or financial data. If restricted: "Lo siento, no tengo acceso. Contacta con tu administrador."`;
+          systemInstructions = `You are a friendly, conversational construction AI assistant. Today is ${dateString}. Be natural and personable - respond to greetings warmly. ONLY refuse if asked about: estimates, pricing, budgets, contracts, or financial data. If restricted: "Lo siento, no tengo acceso. Contacta con tu administrador."`;
         } else if (restrictionLevel === 'no-financials') {
-          systemInstructions = `You are a construction AI assistant. Today is ${dateString}. Be concise. Answer normally. ONLY refuse if asked about: internal pricing, costs, contract terms, or financial reports. If restricted: "Lo siento, no puedo proporcionar esa información. Contacta con tu administrador."`;
+          systemInstructions = `You are a friendly, conversational construction AI assistant. Today is ${dateString}. Be natural and personable - respond to greetings warmly. ONLY refuse if asked about: internal pricing, costs, contract terms, or financial reports. If restricted: "Lo siento, no puedo proporcionar esa información. Contacta con tu administrador."`;
         } else {
-          systemInstructions = `You are a construction AI assistant with full access. Today is ${dateString}. Be concise and helpful.`;
+          systemInstructions = `You are a friendly, conversational construction AI assistant with full access. Today is ${dateString}. Be natural, warm, and conversational - like chatting with a helpful colleague.`;
         }
         
         const contextMessage = `${systemInstructions}\n\nContext: ${getContextForCurrentPage()}`;
@@ -1270,7 +1270,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               <Bot size={56} color="#D1D5DB" strokeWidth={2} />
               <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
               <Text style={styles.emptyStateText}>
-                I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze images, PDFs, Word documents (.doc, .docx), and Excel files (.xls, .xlsx) you attach! You can also use voice to talk to me.
+                Hey there! I'm here to chat and help with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'anything you need'}. Feel free to say hi, ask me how I'm doing, or jump right into questions! I can analyze images, PDFs, Word documents, and Excel files. You can also use voice to chat with me naturally.
               </Text>
             </View>
           )}
@@ -1513,7 +1513,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   style={styles.input}
                   value={input}
                   onChangeText={setInput}
-                  placeholder={voiceMode ? "Modo de voz activo - toca el micrófono para hablar" : "Pregunta algo o toca el micrófono..."}
+                  placeholder={voiceMode ? "Modo de voz activo - toca el micrófono para hablar" : "Say hi or ask me anything..."}
                   placeholderTextColor="#9CA3AF"
                   multiline
                   maxLength={500}
@@ -1588,7 +1588,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   <Bot size={56} color="#D1D5DB" strokeWidth={2} />
                   <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
                   <Text style={styles.emptyStateText}>
-                    I can help you with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'any questions'}. I can analyze images, PDFs, Word documents (.doc, .docx), and Excel files (.xls, .xlsx) you attach! I can also generate 2D floor layouts and 3D sketches for you. You can use voice to talk to me.
+                    Hey there! I'm here to chat and help with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'anything you need'}. Feel free to say hi, ask me how I'm doing, or jump right into questions! I can analyze images, PDFs, Word docs, and Excel files. I can also create 2D floor layouts and 3D sketches. You can use voice to chat with me naturally too!
                   </Text>
                 </View>
               )}
@@ -1804,7 +1804,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                       style={styles.input}
                       value={input}
                       onChangeText={setInput}
-                      placeholder={voiceMode ? "Modo de voz activo - toca el micrófono para hablar" : "Pregunta algo o toca el micrófono..."}
+                      placeholder={voiceMode ? "Modo de voz activo - toca el micrófono para hablar" : "Say hi or ask me anything..."}
                       placeholderTextColor="#9CA3AF"
                       multiline
                       maxLength={500}
