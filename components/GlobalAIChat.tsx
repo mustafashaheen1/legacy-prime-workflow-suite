@@ -755,7 +755,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       }
 
       if (Platform.OS === 'web') {
-        if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
           mediaRecorderRef.current.stop();
           mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
           
@@ -769,23 +769,34 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         }
       } else {
         if (recordingInstance) {
-          await recordingInstance.stopAndUnloadAsync();
-          await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-          
-          const uri = recordingInstance.getURI();
-          if (uri) {
-            const uriParts = uri.split('.');
-            const fileType = uriParts[uriParts.length - 1];
-            
-            const audioFile = {
-              uri,
-              name: `recording.${fileType}`,
-              type: `audio/${fileType}`,
-            };
-            
-            await transcribeAudio(audioFile);
+          try {
+            const status = await recordingInstance.getStatusAsync();
+            if (status.canRecord || status.isRecording) {
+              await recordingInstance.stopAndUnloadAsync();
+              const uri = recordingInstance.getURI();
+              if (uri) {
+                const uriParts = uri.split('.');
+                const fileType = uriParts[uriParts.length - 1];
+                
+                const audioFile = {
+                  uri,
+                  name: `recording.${fileType}`,
+                  type: `audio/${fileType}`,
+                };
+                
+                await transcribeAudio(audioFile);
+              }
+            }
+          } catch (recordError) {
+            console.error('Error stopping recording:', recordError);
+          } finally {
+            try {
+              await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+            } catch (audioModeError) {
+              console.error('Error resetting audio mode:', audioModeError);
+            }
+            setRecordingInstance(null);
           }
-          setRecordingInstance(null);
         }
       }
     } catch (error) {
@@ -797,9 +808,17 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
 
   const stopSpeaking = useCallback(async () => {
     if (soundInstance) {
-      await soundInstance.stopAsync();
-      await soundInstance.unloadAsync();
-      setSoundInstance(null);
+      try {
+        const status = await soundInstance.getStatusAsync();
+        if (status.isLoaded) {
+          await soundInstance.stopAsync();
+          await soundInstance.unloadAsync();
+        }
+      } catch (error) {
+        console.error('Error stopping sound:', error);
+      } finally {
+        setSoundInstance(null);
+      }
     }
     setIsSpeaking(false);
   }, [soundInstance]);
@@ -875,7 +894,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
           setIsSpeaking(false);
-          sound.unloadAsync();
+          sound.unloadAsync().catch(console.error);
           setSoundInstance(null);
           
           if (voiceMode && autoNext) {
@@ -896,10 +915,18 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   useEffect(() => {
     return () => {
       if (soundInstance) {
-        soundInstance.unloadAsync();
+        soundInstance.getStatusAsync().then((status) => {
+          if (status.isLoaded) {
+            soundInstance.unloadAsync().catch(console.error);
+          }
+        }).catch(console.error);
       }
       if (recordingInstance) {
-        recordingInstance.stopAndUnloadAsync();
+        recordingInstance.getStatusAsync().then((status) => {
+          if (status.canRecord || status.isRecording) {
+            recordingInstance.stopAndUnloadAsync().catch(console.error);
+          }
+        }).catch(console.error);
       }
     };
   }, [soundInstance, recordingInstance]);
