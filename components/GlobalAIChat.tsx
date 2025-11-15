@@ -750,7 +750,6 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const stopRecording = async () => {
     try {
       setIsRecording(false);
-      setIsListening(false);
       if (!voiceMode) {
         setIsTranscribing(true);
       }
@@ -792,6 +791,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     } catch (error) {
       console.error('Failed to stop recording:', error);
       setIsTranscribing(false);
+      setIsListening(false);
     }
   };
 
@@ -826,18 +826,27 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       const data = await response.json();
       const transcribedText = data.text;
       
+      console.log('[Voice Mode] Transcribed:', transcribedText);
+      
       if (voiceMode && transcribedText.trim()) {
+        console.log('[Voice Mode] Sending message in voice conversation mode');
         handleSendWithContext(transcribedText);
       } else {
         setInput(transcribedText);
       }
     } catch (error) {
       console.error('Transcription error:', error);
+      if (voiceMode) {
+        console.log('[Voice Mode] Transcription failed, restarting listening');
+        setTimeout(() => {
+          setIsListening(true);
+          startRecording();
+        }, 1000);
+      }
     } finally {
       if (!voiceMode) {
         setIsTranscribing(false);
       }
-      setIsListening(false);
     }
   };
 
@@ -870,10 +879,11 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           setSoundInstance(null);
           
           if (voiceMode && autoNext) {
+            console.log('[Voice Mode] AI finished speaking, listening again');
             setTimeout(() => {
               setIsListening(true);
               startRecording();
-            }, 800);
+            }, 500);
           }
         }
       });
@@ -942,9 +952,10 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           if (textParts.length > 0) {
             const lastTextPart = textParts[textParts.length - 1];
             if (lastTextPart.type === 'text' && lastTextPart.text) {
+              console.log('[Voice Mode] AI response received, speaking now');
               setTimeout(() => {
                 speakText(lastTextPart.text, true);
-              }, 500);
+              }, 300);
             }
           }
         }
