@@ -41,7 +41,8 @@
     "allActiveProjects": "Todos los Proyectos Activos",
     "selectProjects": "Seleccionar Proyectos",
     "cancelSelection": "Cancelar Selección",
-    "generateReportButton": "Generar Reporte"
+    "generateReportButton": "Generar Reporte",
+    "searchProjects": "Buscar proyectos..."
   },
   "crm": {
     "title": "Legacy Prime CRM",

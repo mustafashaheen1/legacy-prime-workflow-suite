@@ -31,10 +31,20 @@ export default function DashboardScreen() {
   const [showAICustomModal, setShowAICustomModal] = useState<boolean>(false);
   const [aiReportPrompt, setAiReportPrompt] = useState<string>('');
   const [isGeneratingAI, setIsGeneratingAI] = useState<boolean>(false);
+  const [showSearch, setShowSearch] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
-  const displayProjects = showArchived ? archivedProjects : activeProjects;
+  
+  const filteredActiveProjects = activeProjects.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredArchivedProjects = archivedProjects.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
+  const displayProjects = showArchived ? filteredArchivedProjects : filteredActiveProjects;
 
   const totalBudget = activeProjects.reduce((sum, p) => sum + p.budget, 0);
   const totalExpenses = activeProjects.reduce((sum, p) => sum + p.expenses, 0);
@@ -474,7 +484,10 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
               </View>
             </View>
             <View style={styles.headerActions}>
-              <TouchableOpacity style={styles.iconButton}>
+              <TouchableOpacity 
+                style={styles.iconButton}
+                onPress={() => setShowSearch(!showSearch)}
+              >
                 <Search size={20} color="#2563EB" />
               </TouchableOpacity>
               <TouchableOpacity 
@@ -506,6 +519,25 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
             </View>
           </View>
         </View>
+
+        {showSearch && (
+          <View style={styles.searchContainer}>
+            <Search size={18} color="#6B7280" style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder={t('dashboard.searchProjects')}
+              placeholderTextColor="#9CA3AF"
+              autoFocus
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <X size={18} color="#6B7280" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {showReportMenu && !showReportTypeMenu && (
           <View style={styles.reportMenu}>
@@ -1657,5 +1689,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700' as const,
+  },
+  searchContainer: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1F2937',
+    paddingVertical: 4,
   },
 });
