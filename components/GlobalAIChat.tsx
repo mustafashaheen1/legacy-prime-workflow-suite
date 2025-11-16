@@ -994,6 +994,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const handlePickFile = async () => {
     setShowAttachMenu(false);
     try {
+      console.log('[Attachment] Opening document picker...');
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'image/*',
@@ -1007,12 +1008,12 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         multiple: false,
       });
 
-      console.log('Document picker result:', result);
+      console.log('[Attachment] Document picker result:', JSON.stringify(result, null, 2));
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         
-        console.log('Selected file:', file.name, file.mimeType, file.size);
+        console.log('[Attachment] Selected file:', file.name, 'Type:', file.mimeType, 'Size:', file.size);
         
         let mimeType = file.mimeType || 'application/octet-stream';
         
@@ -1063,16 +1064,16 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           size: file.size || 0,
           type: 'file',
         };
+        console.log('[Attachment] File successfully attached:', newFile.name);
         setAttachedFiles([...attachedFiles, newFile]);
       } else {
-        console.log('Document picker canceled or no assets');
+        console.log('[Attachment] Document picker canceled or no assets');
       }
     } catch (error) {
-      console.error('Error picking file:', error);
+      console.error('[Attachment] Error picking file:', error);
       if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-        alert(`Error picking file: ${error.message}`);
+        console.error('[Attachment] Error message:', error.message);
+        console.error('[Attachment] Error stack:', error.stack);
       }
     }
   };
@@ -1084,6 +1085,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const handlePickImage = async () => {
     setShowAttachMenu(false);
     try {
+      console.log('[Attachment] Opening image picker...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
@@ -1099,21 +1101,28 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           size: file.fileSize || 0,
           type: 'file',
         };
+        console.log('[Attachment] Image successfully attached:', newFile.name);
         setAttachedFiles([...attachedFiles, newFile]);
+      } else {
+        console.log('[Attachment] Image picker canceled');
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      console.error('[Attachment] Error picking image:', error);
     }
   };
 
   const handleTakePhoto = async () => {
     setShowAttachMenu(false);
     try {
+      console.log('[Attachment] Requesting camera permission...');
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        console.warn('Camera permission denied');
+        console.warn('[Attachment] Camera permission denied');
+        alert('Camera permission is required to take photos. Please enable it in your device settings.');
         return;
       }
+      
+      console.log('[Attachment] Opening camera...');
 
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
@@ -1129,10 +1138,13 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           size: file.fileSize || 0,
           type: 'file',
         };
+        console.log('[Attachment] Photo successfully captured:', newFile.name);
         setAttachedFiles([...attachedFiles, newFile]);
+      } else {
+        console.log('[Attachment] Camera canceled');
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
+      console.error('[Attachment] Error taking photo:', error);
     }
   };
 
