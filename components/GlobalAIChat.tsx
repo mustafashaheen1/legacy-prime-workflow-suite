@@ -1150,27 +1150,56 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
 
   const convertFileToBase64 = async (file: AttachedFile): Promise<string> => {
     try {
+      console.log('[File Conversion] Starting conversion for:', file.name, 'Platform:', Platform.OS);
+      
       if (Platform.OS === 'web') {
+        console.log('[File Conversion Web] File URI:', file.uri.substring(0, 50));
+        
+        // Check if the URI is already a data URL
+        if (file.uri.startsWith('data:')) {
+          console.log('[File Conversion Web] URI is already a data URL');
+          const base64 = file.uri.split(',')[1];
+          return base64;
+        }
+        
+        // For blob: URLs on web
         const response = await fetch(file.uri);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+        }
+        
         const blob = await response.blob();
+        console.log('[File Conversion Web] Blob size:', blob.size, 'Type:', blob.type);
+        
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => {
             const base64 = reader.result as string;
-            resolve(base64.split(',')[1]);
+            const base64Data = base64.split(',')[1];
+            console.log('[File Conversion Web] Conversion successful, base64 length:', base64Data.length);
+            resolve(base64Data);
           };
-          reader.onerror = reject;
+          reader.onerror = (error) => {
+            console.error('[File Conversion Web] FileReader error:', error);
+            reject(error);
+          };
           reader.readAsDataURL(blob);
         });
       } else {
+        console.log('[File Conversion Native] Reading file from:', file.uri);
         const base64 = await FileSystem.readAsStringAsync(file.uri, {
           encoding: 'base64' as any,
         });
+        console.log('[File Conversion Native] Conversion successful, base64 length:', base64.length);
         return base64;
       }
     } catch (error) {
-      console.error('Error converting file to base64:', error);
-      throw error;
+      console.error('[File Conversion] Error converting file to base64:', error);
+      if (error instanceof Error) {
+        console.error('[File Conversion] Error message:', error.message);
+        console.error('[File Conversion] Error stack:', error.stack);
+      }
+      throw new Error(`Failed to convert file ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
