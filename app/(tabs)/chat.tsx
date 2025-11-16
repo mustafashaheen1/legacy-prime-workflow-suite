@@ -287,7 +287,10 @@ export default function ChatScreen() {
         const today = new Date().toISOString().split('T')[0];
         const lastTipDate = await AsyncStorage.getItem('lastDailyTipDate_chat');
         
+        console.log('[Daily Tip Chat] Checking daily tip - today:', today, 'lastTipDate:', lastTipDate, 'dailyTipSent:', dailyTipSent);
+        
         if (lastTipDate !== today && !dailyTipSent) {
+          console.log('[Daily Tip Chat] Sending daily construction tip');
           const tip = getTipOfTheDay();
           const tipMessage: ChatMessage = {
             id: `daily-tip-${Date.now()}`,
@@ -298,11 +301,15 @@ export default function ChatScreen() {
           };
           
           setTimeout(() => {
+            console.log('[Daily Tip Chat] Adding tip message to conversation');
             addMessageToConversation('ai-assistant', tipMessage);
           }, 800);
           
           await AsyncStorage.setItem('lastDailyTipDate_chat', today);
           setDailyTipSent(true);
+          console.log('[Daily Tip Chat] Daily tip sent successfully');
+        } else {
+          console.log('[Daily Tip Chat] Daily tip already sent or conditions not met');
         }
       } catch (error) {
         console.error('[Daily Tip] Error sending daily tip:', error);
