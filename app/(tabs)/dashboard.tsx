@@ -453,15 +453,25 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
           <View style={styles.headerTop}>
             <View style={styles.headerLeft}>
               <Text style={styles.headerTitle}>{t('dashboard.title')}</Text>
-              <TouchableOpacity
-                style={[styles.filterChip, showArchived && styles.filterChipActive]}
-                onPress={() => setShowArchived(!showArchived)}
-              >
-                <Archive size={16} color={showArchived ? '#FFFFFF' : '#6B7280'} />
-                <Text style={[styles.filterChipText, showArchived && styles.filterChipTextActive]}>
-                  {showArchived ? `${t('dashboard.archivedProjects')} (${archivedProjects.length})` : `${t('dashboard.activeProjects')} (${activeProjects.length})`}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.filterChipsRow}>
+                <TouchableOpacity
+                  style={[styles.filterChip, !showArchived && styles.filterChipActive]}
+                  onPress={() => setShowArchived(false)}
+                >
+                  <Text style={[styles.filterChipText, !showArchived && styles.filterChipTextActive]}>
+                    {t('dashboard.activeProjects')} ({activeProjects.length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterChip, showArchived && styles.filterChipActive]}
+                  onPress={() => setShowArchived(true)}
+                >
+                  <Archive size={16} color={showArchived ? '#FFFFFF' : '#6B7280'} />
+                  <Text style={[styles.filterChipText, showArchived && styles.filterChipTextActive]}>
+                    {t('dashboard.archivedProjects')} ({archivedProjects.length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
             <View style={styles.headerActions}>
               <TouchableOpacity style={styles.iconButton}>
@@ -1111,6 +1121,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700' as const,
     color: '#1F2937',
+  },
+  filterChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   filterChip: {
     flexDirection: 'row',
