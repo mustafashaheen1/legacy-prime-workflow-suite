@@ -1444,28 +1444,33 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         </ScrollView>
 
         <View style={styles.inputWrapper}>
-          {(isTranscribing || isRecording) && (
-            <View style={styles.recordingBanner}>
-              {voiceMode ? (
+          {voiceMode && (
+            <View style={[styles.recordingBanner, isSpeaking ? styles.recordingBannerSpeaking : styles.recordingBannerListening]}>
+              {isSpeaking ? (
                 <>
-                  {isSpeaking ? (
-                    <>
-                      <Volume2 size={18} color="#10B981" />
-                      <Text style={styles.voiceModeText}>AI está hablando...</Text>
-                    </>
-                  ) : isListening ? (
-                    <>
-                      <Mic size={18} color="#2563EB" />
-                      <Text style={styles.voiceModeText}>Escuchando...</Text>
-                    </>
-                  ) : (
-                    <>
-                      <ActivityIndicator size="small" color="#F59E0B" />
-                      <Text style={styles.voiceModeText}>Procesando...</Text>
-                    </>
-                  )}
+                  <Volume2 size={20} color="#10B981" />
+                  <Text style={[styles.voiceModeText, { color: '#10B981' }]}>AI is speaking...</Text>
                 </>
-              ) : isTranscribing ? (
+              ) : isListening ? (
+                <>
+                  <View style={styles.listeningAnimation}>
+                    <View style={[styles.listeningDot, styles.listeningDot1]} />
+                    <View style={[styles.listeningDot, styles.listeningDot2]} />
+                    <View style={[styles.listeningDot, styles.listeningDot3]} />
+                  </View>
+                  <Text style={[styles.voiceModeText, { color: '#2563EB' }]}>Listening... speak now</Text>
+                </>
+              ) : (
+                <>
+                  <ActivityIndicator size="small" color="#F59E0B" />
+                  <Text style={[styles.voiceModeText, { color: '#F59E0B' }]}>Processing...</Text>
+                </>
+              )}
+            </View>
+          )}
+          {!voiceMode && (isTranscribing || isRecording) && (
+            <View style={styles.recordingBanner}>
+              {isTranscribing ? (
                 <>
                   <ActivityIndicator size="small" color="#2563EB" />
                   <Text style={styles.recordingText}>Transcribing audio...</Text>
@@ -1512,7 +1517,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               style={[styles.voiceModeButton, voiceMode && styles.voiceModeButtonActive]}
               onPress={() => {
                 if (!voiceMode) {
-                  console.log('[Voice Mode] Starting voice conversation');
+                  console.log('[Voice Mode] Starting voice conversation - tap Voice button again to stop');
                   setVoiceMode(true);
                   setTimeout(() => {
                     setIsListening(true);
@@ -1532,7 +1537,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               }}
               disabled={isLoading && !voiceMode}
             >
-              <Volume2 size={20} color={voiceMode ? '#FFFFFF' : '#6B7280'} />
+              <Volume2 size={22} color={voiceMode ? '#FFFFFF' : '#6B7280'} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.attachButton}
@@ -1557,7 +1562,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   style={styles.input}
                   value={input}
                   onChangeText={setInput}
-                  placeholder={voiceMode ? "Modo de voz activo - toca el micrófono para hablar" : "Say hi or ask me anything..."}
+                  placeholder={voiceMode ? "Voice mode active - tap Voice button to stop" : "Say hi or ask me anything..."}
                   placeholderTextColor="#9CA3AF"
                   multiline
                   maxLength={500}
@@ -1861,7 +1866,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                       style={styles.input}
                       value={input}
                       onChangeText={setInput}
-                      placeholder={voiceMode ? "Voice mode active - talking..." : "Say hi or ask me anything..."}
+                      placeholder={voiceMode ? "Voice mode active - tap Voice button to stop" : "Say hi or ask me anything..."}
                       placeholderTextColor="#9CA3AF"
                       multiline
                       maxLength={500}
@@ -2225,6 +2230,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
     borderBottomWidth: 1,
     borderBottomColor: '#FDE68A',
+  },
+  recordingBannerListening: {
+    backgroundColor: '#DBEAFE',
+    borderBottomColor: '#93C5FD',
+  },
+  recordingBannerSpeaking: {
+    backgroundColor: '#D1FAE5',
+    borderBottomColor: '#6EE7B7',
+  },
+  listeningAnimation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  listeningDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#2563EB',
+  },
+  listeningDot1: {
+    opacity: 0.4,
+  },
+  listeningDot2: {
+    opacity: 0.7,
+  },
+  listeningDot3: {
+    opacity: 1,
   },
   recordingText: {
     fontSize: 14,
