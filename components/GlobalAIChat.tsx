@@ -1511,16 +1511,16 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
             <TouchableOpacity
               style={[styles.voiceModeButton, voiceMode && styles.voiceModeButtonActive]}
               onPress={() => {
-                const newVoiceMode = !voiceMode;
-                setVoiceMode(newVoiceMode);
-                if (newVoiceMode) {
-                  console.log('[Voice Mode] Activating conversational voice mode');
+                if (!voiceMode) {
+                  console.log('[Voice Mode] Starting voice conversation');
+                  setVoiceMode(true);
                   setTimeout(() => {
-                    console.log('[Voice Mode] Auto-starting recording');
+                    setIsListening(true);
                     startRecording();
                   }, 300);
                 } else {
-                  console.log('[Voice Mode] Deactivating voice mode');
+                  console.log('[Voice Mode] Stopping voice conversation');
+                  setVoiceMode(false);
                   setIsListening(false);
                   if (isSpeaking) {
                     stopSpeaking();
@@ -1530,7 +1530,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   }
                 }
               }}
-              disabled={isLoading || isRecording}
+              disabled={isLoading && !voiceMode}
             >
               <Volume2 size={20} color={voiceMode ? '#FFFFFF' : '#6B7280'} />
             </TouchableOpacity>
@@ -1815,16 +1815,16 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                 <TouchableOpacity
                   style={[styles.voiceModeButton, voiceMode && styles.voiceModeButtonActive]}
                   onPress={() => {
-                    const newVoiceMode = !voiceMode;
-                    setVoiceMode(newVoiceMode);
-                    if (newVoiceMode) {
-                      console.log('[Voice Mode] Activating conversational voice mode');
+                    if (!voiceMode) {
+                      console.log('[Voice Mode] Starting voice conversation');
+                      setVoiceMode(true);
                       setTimeout(() => {
-                        console.log('[Voice Mode] Auto-starting recording');
+                        setIsListening(true);
                         startRecording();
                       }, 300);
                     } else {
-                      console.log('[Voice Mode] Deactivating voice mode');
+                      console.log('[Voice Mode] Stopping voice conversation');
+                      setVoiceMode(false);
                       setIsListening(false);
                       if (isSpeaking) {
                         stopSpeaking();
@@ -1834,7 +1834,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                       }
                     }
                   }}
-                  disabled={isLoading || isRecording}
+                  disabled={isLoading && !voiceMode}
                 >
                   <Volume2 size={20} color={voiceMode ? '#FFFFFF' : '#6B7280'} />
                 </TouchableOpacity>
@@ -1861,7 +1861,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                       style={styles.input}
                       value={input}
                       onChangeText={setInput}
-                      placeholder={voiceMode ? "Modo de voz activo - toca el micrófono para hablar" : "Say hi or ask me anything..."}
+                      placeholder={voiceMode ? "Voice mode active - talking..." : "Say hi or ask me anything..."}
                       placeholderTextColor="#9CA3AF"
                       multiline
                       maxLength={500}
