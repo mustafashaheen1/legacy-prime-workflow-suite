@@ -1171,10 +1171,14 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         if (file.uri.startsWith('data:')) {
           console.log('[File Conversion Web] URI is already a data URL');
           const base64 = file.uri.split(',')[1];
+          if (!base64) {
+            throw new Error('Invalid data URL format');
+          }
           return base64;
         }
         
         // For blob: URLs on web
+        console.log('[File Conversion Web] Fetching blob from:', file.uri);
         const response = await fetch(file.uri);
         if (!response.ok) {
           throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
@@ -1183,17 +1187,33 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         const blob = await response.blob();
         console.log('[File Conversion Web] Blob size:', blob.size, 'Type:', blob.type);
         
+        if (blob.size === 0) {
+          throw new Error('File is empty');
+        }
+        
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => {
-            const base64 = reader.result as string;
-            const base64Data = base64.split(',')[1];
-            console.log('[File Conversion Web] Conversion successful, base64 length:', base64Data.length);
-            resolve(base64Data);
+            try {
+              const result = reader.result as string;
+              if (!result) {
+                reject(new Error('FileReader returned empty result'));
+                return;
+              }
+              const base64Data = result.split(',')[1];
+              if (!base64Data) {
+                reject(new Error('Failed to extract base64 data'));
+                return;
+              }
+              console.log('[File Conversion Web] Conversion successful, base64 length:', base64Data.length);
+              resolve(base64Data);
+            } catch (err) {
+              reject(err);
+            }
           };
           reader.onerror = (error) => {
             console.error('[File Conversion Web] FileReader error:', error);
-            reject(error);
+            reject(new Error('FileReader failed to read file'));
           };
           reader.readAsDataURL(blob);
         });
@@ -1202,6 +1222,9 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         const base64 = await FileSystem.readAsStringAsync(file.uri, {
           encoding: 'base64' as any,
         });
+        if (!base64 || base64.length === 0) {
+          throw new Error('Failed to read file or file is empty');
+        }
         console.log('[File Conversion Native] Conversion successful, base64 length:', base64.length);
         return base64;
       }
@@ -1211,7 +1234,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         console.error('[File Conversion] Error message:', error.message);
         console.error('[File Conversion] Error stack:', error.stack);
       }
-      throw new Error(`Failed to convert file ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`No se pudo procesar el archivo ${file.name}: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   };
 
@@ -1220,17 +1243,23 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     
     if (attachedFiles.length > 0) {
       try {
-        console.log('Processing attached files:', attachedFiles.length);
+        console.log('[Send] Processing attached files:', attachedFiles.length);
         const filesForMessage: AgentMessageFile[] = [];
         
-        for (const file of attachedFiles) {
-          console.log('Processing file:', file.name, file.mimeType, 'size bytes:', file.size);
+        for (let i = 0; i < attachedFiles.length; i++) {
+          const file = attachedFiles[i];
+          console.log(`[Send] Processing file ${i + 1}/${attachedFiles.length}:`, file.name, file.mimeType, 'size bytes:', file.size);
+          
           if (file.size && file.size > MAX_FILE_SIZE_BYTES) {
-            throw new Error(`File ${file.name} is too large. Please upload files under ${Math.floor(MAX_FILE_SIZE_BYTES / (1024 * 1024))}MB.`);
+            const sizeMB = Math.floor(MAX_FILE_SIZE_BYTES / (1024 * 1024));
+            alert(`El archivo ${file.name} es demasiado grande. Por favor sube archivos menores a ${sizeMB}MB.`);
+            return;
           }
+          
           try {
             const base64 = await convertFileToBase64(file);
-            console.log('File converted to base64, length:', base64.length);
+            console.log(`[Send] File ${i + 1} converted successfully, base64 length:`, base64.length);
+            
             filesForMessage.push({
               type: 'file',
               mimeType: file.mimeType,
@@ -1239,22 +1268,28 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               uri: `data:${file.mimeType};base64,${base64}`,
               size: file.size,
             });
-          } catch (error) {
-            console.error('Failed to convert file to base64:', error);
-            throw new Error(`Failed to process ${file.name}`);
+          } catch (conversionError) {
+            console.error(`[Send] Failed to convert file ${file.name}:`, conversionError);
+            const errorMsg = conversionError instanceof Error ? conversionError.message : 'Error desconocido';
+            alert(`Error al procesar ${file.name}: ${errorMsg}`);
+            return;
           }
         }
         
-        const userMessage = input.trim() || 'Please analyze the attached file(s)';
+        console.log('[Send] All files converted successfully, preparing to send message');
+        
+        const userMessage = input.trim() || 'Por favor analiza los archivos adjuntos';
         
         if (!user) {
-          console.warn('[Chat] No user found, blocking request');
+          console.warn('[Send] No user found, blocking request');
+          alert('Usuario no encontrado. Por favor inicia sesión.');
           return;
         }
 
         const blockCheck = shouldBlockChatbotQuery(user.role, userMessage);
         if (blockCheck.shouldBlock) {
-          console.log('[Chat] Query blocked for role:', user.role);
+          console.log('[Send] Query blocked for role:', user.role);
+          alert('No tienes permisos para realizar esta consulta.');
           return;
         }
 
@@ -1280,14 +1315,21 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         const contextMessage = `${systemInstructions}\n\nContext: ${getContextForCurrentPage()}`;
         const fullMessage = `${contextMessage}\n\n---\n\nUser has attached ${filesForMessage.length} file(s) for analysis.\n\nUser question: ${userMessage}`;
         
-        console.log('Sending message with', filesForMessage.length, 'files');
+        console.log('[Send] Sending message with', filesForMessage.length, 'files to AI');
+        console.log('[Send] Files:', filesForMessage.map(f => ({ name: f.name, type: f.mimeType, dataLength: f.data?.length || 0 })));
+        
         sendMessage({ text: fullMessage, files: filesForMessage as any });
+        
+        console.log('[Send] Message sent successfully, clearing input and files');
         setInput('');
         setAttachedFiles([]);
       } catch (error) {
-        console.error('Error sending message with files:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to upload document';
-        alert(errorMessage);
+        console.error('[Send] Error sending message with files:', error);
+        if (error instanceof Error) {
+          console.error('[Send] Error details:', error.message, error.stack);
+        }
+        const errorMessage = error instanceof Error ? error.message : 'Error al subir el documento';
+        alert(`Error: ${errorMessage}`);
       }
     } else {
       handleSendWithContext(input);
