@@ -1,9 +1,10 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions, KeyboardAvoidingView } from 'react-native';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
@@ -12,6 +13,7 @@ import { mockUsers } from '@/mocks/data';
 import { ChatMessage } from '@/types';
 import GlobalAIChat from '@/components/GlobalAIChat';
 import ImageAnnotation from '@/components/ImageAnnotation';
+import { getTipOfTheDay } from '@/constants/construction-tips';
 
 export default function ChatScreen() {
   const { t } = useTranslation();
@@ -30,6 +32,7 @@ export default function ChatScreen() {
   const [newChatSearch, setNewChatSearch] = useState<string>('');
 
   const [pendingAnnotation, setPendingAnnotation] = useState<string | null>(null);
+  const [dailyTipSent, setDailyTipSent] = useState<boolean>(false);
 
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
@@ -276,6 +279,39 @@ export default function ChatScreen() {
     setPendingAnnotation(null);
   };
 
+  useEffect(() => {
+    const checkAndSendDailyTip = async () => {
+      if (selectedChat !== 'ai-assistant') return;
+      
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const lastTipDate = await AsyncStorage.getItem('lastDailyTipDate_chat');
+        
+        if (lastTipDate !== today && !dailyTipSent) {
+          const tip = getTipOfTheDay();
+          const tipMessage: ChatMessage = {
+            id: `daily-tip-${Date.now()}`,
+            senderId: 'ai-assistant',
+            type: 'text',
+            text: `🏗️ **Daily Construction Tip** (${tip.category})\n\n${tip.tip}\n\n💡 Have questions about this or need help with your project? I'm here to help!`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          
+          setTimeout(() => {
+            addMessageToConversation('ai-assistant', tipMessage);
+          }, 800);
+          
+          await AsyncStorage.setItem('lastDailyTipDate_chat', today);
+          setDailyTipSent(true);
+        }
+      } catch (error) {
+        console.error('[Daily Tip] Error sending daily tip:', error);
+      }
+    };
+
+    checkAndSendDailyTip();
+  }, [selectedChat, dailyTipSent, addMessageToConversation]);
+
 
 
   const handlePasteText = async () => {
@@ -310,9 +346,14 @@ export default function ChatScreen() {
   const renderMessageContent = (message: ChatMessage) => {
     switch (message.type) {
       case 'text':
+        const isTipMessage = message.id?.includes('daily-tip');
         return (
           <Text 
-            style={[styles.messageText, message.senderId === user?.id && styles.messageTextOwn]}
+            style={[
+              styles.messageText, 
+              message.senderId === user?.id && styles.messageTextOwn,
+              isTipMessage && styles.dailyTipText
+            ]}
             selectable
           >
             {message.text}
@@ -527,6 +568,7 @@ export default function ChatScreen() {
                       style={[
                         styles.messageBubble,
                         message.senderId === user?.id ? styles.messageBubbleRight : styles.messageBubbleLeft,
+                        message.id?.includes('daily-tip') && styles.dailyTipBubble,
                       ]}
                     >
                       {renderMessageContent(message)}
@@ -1243,6 +1285,15 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 4,
     textAlign: 'center',
+  },
+  dailyTipBubble: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+  },
+  dailyTipText: {
+    color: '#78350F',
+    fontWeight: '600' as const,
   },
 
   mobileHeader: {
