@@ -11,6 +11,8 @@ import { masterPriceList, priceListCategories } from '@/mocks/priceList';
 import { usePathname } from 'expo-router';
 import { Audio } from 'expo-av';
 import { shouldBlockChatbotQuery, getChatbotRestrictionLevel } from '@/lib/permissions';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getTipOfTheDay } from '@/constants/construction-tips';
 
 
 interface GlobalAIChatProps {
@@ -75,6 +77,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
   const [voiceMode, setVoiceMode] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
+  const [dailyTipSent, setDailyTipSent] = useState<boolean>(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -713,9 +716,45 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     return toolsObj;
   }, [projects, clients, expenses, clockEntries, tasks, estimates, addEstimate]);
 
-  const { messages, error, sendMessage, status } = useRorkAgent({
+  const { messages, error, sendMessage, status, setMessages } = useRorkAgent({
     tools,
   });
+
+  useEffect(() => {
+    const checkAndSendDailyTip = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const lastTipDate = await AsyncStorage.getItem('lastDailyTipDate');
+        
+        if (lastTipDate !== today && messages.length === 0 && !dailyTipSent) {
+          const tip = getTipOfTheDay();
+          const tipMessage = `🏗️ **Daily Construction Tip** (${tip.category})\n\n${tip.tip}\n\n💡 Have questions about this or need help with your project? I'm here to help!`;
+          
+          setTimeout(() => {
+            setMessages([
+              {
+                id: `daily-tip-${Date.now()}`,
+                role: 'assistant',
+                parts: [
+                  {
+                    type: 'text',
+                    text: tipMessage,
+                  },
+                ],
+              },
+            ]);
+          }, 800);
+          
+          await AsyncStorage.setItem('lastDailyTipDate', today);
+          setDailyTipSent(true);
+        }
+      } catch (error) {
+        console.error('[Daily Tip] Error sending daily tip:', error);
+      }
+    };
+
+    checkAndSendDailyTip();
+  }, [messages.length, dailyTipSent, setMessages]);
 
   const isLoading = status === 'streaming';
 
@@ -1396,12 +1435,12 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                 </View>
               ) : (
                 <View style={styles.assistantMessageContainer}>
-                  <View style={styles.assistantMessage}>
+                  <View style={[styles.assistantMessage, message.id?.includes('daily-tip') && styles.dailyTipMessage]}>
                     {message.parts.map((part, i) => {
                       if (part.type === 'text') {
                         return (
                           <View key={i}>
-                            <Text style={styles.assistantMessageText} selectable>
+                            <Text style={[styles.assistantMessageText, message.id?.includes('daily-tip') && styles.dailyTipText]} selectable>
                               {part.text}
                             </Text>
                             {part.text && (
@@ -2154,6 +2193,21 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderBottomLeftRadius: 4,
     maxWidth: '80%',
+  },
+  dailyTipMessage: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderBottomLeftRadius: 4,
+    maxWidth: '90%',
+  },
+  dailyTipText: {
+    fontSize: 15,
+    color: '#78350F',
+    lineHeight: 20,
   },
   assistantMessageText: {
     fontSize: 15,
