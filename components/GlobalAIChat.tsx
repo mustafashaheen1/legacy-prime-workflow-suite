@@ -686,6 +686,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
 
   const startRecording = async () => {
     try {
+      console.log('[Voice Mode] Starting recording...');
       setIsListening(true);
       if (Platform.OS === 'web') {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1514,8 +1515,13 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                 setVoiceMode(newVoiceMode);
                 if (newVoiceMode) {
                   console.log('[Voice Mode] Activating conversational voice mode');
+                  setTimeout(() => {
+                    console.log('[Voice Mode] Auto-starting recording');
+                    startRecording();
+                  }, 300);
                 } else {
                   console.log('[Voice Mode] Deactivating voice mode');
+                  setIsListening(false);
                   if (isSpeaking) {
                     stopSpeaking();
                   }
@@ -1811,8 +1817,21 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   onPress={() => {
                     const newVoiceMode = !voiceMode;
                     setVoiceMode(newVoiceMode);
-                    if (!newVoiceMode && isSpeaking) {
-                      stopSpeaking();
+                    if (newVoiceMode) {
+                      console.log('[Voice Mode] Activating conversational voice mode');
+                      setTimeout(() => {
+                        console.log('[Voice Mode] Auto-starting recording');
+                        startRecording();
+                      }, 300);
+                    } else {
+                      console.log('[Voice Mode] Deactivating voice mode');
+                      setIsListening(false);
+                      if (isSpeaking) {
+                        stopSpeaking();
+                      }
+                      if (isRecording) {
+                        stopRecording();
+                      }
                     }
                   }}
                   disabled={isLoading || isRecording}
