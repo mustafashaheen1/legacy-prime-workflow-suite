@@ -1027,9 +1027,12 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   }, [messages, status, voiceMode, speakText]);
 
   const handlePickFile = async () => {
-    setShowAttachMenu(false);
     try {
       console.log('[Attachment] Opening document picker...');
+      setShowAttachMenu(false);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'image/*',
@@ -1065,7 +1068,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         const isSupported = supportedTypes.some(type => mimeType === type) || isImage;
         
         if (!isSupported) {
-          alert(`Unsupported file type: ${mimeType}\n\nSupported types:\n- Images (PNG, JPG, GIF, WebP)\n- PDF\n- Word (.doc, .docx)\n- Excel (.xls, .xlsx)`);
+          alert(`Tipo de archivo no compatible: ${mimeType}\n\nTipos compatibles:\n- Imágenes (PNG, JPG, GIF, WebP)\n- PDF\n- Word (.doc, .docx)\n- Excel (.xls, .xlsx)`);
           return;
         }
         
@@ -1086,6 +1089,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       if (error instanceof Error) {
         console.error('[Attachment] Error message:', error.message);
         console.error('[Attachment] Error stack:', error.stack);
+        alert(`Error al seleccionar archivo: ${error.message}`);
       }
     }
   };
@@ -1095,9 +1099,12 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   };
 
   const handlePickImage = async () => {
-    setShowAttachMenu(false);
     try {
       console.log('[Attachment] Opening image picker...');
+      setShowAttachMenu(false);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
@@ -1120,21 +1127,27 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       }
     } catch (error) {
       console.error('[Attachment] Error picking image:', error);
+      if (error instanceof Error) {
+        alert(`Error al seleccionar imagen: ${error.message}`);
+      }
     }
   };
 
   const handleTakePhoto = async () => {
-    setShowAttachMenu(false);
     try {
       console.log('[Attachment] Requesting camera permission...');
+      setShowAttachMenu(false);
+      
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         console.warn('[Attachment] Camera permission denied');
-        alert('Camera permission is required to take photos. Please enable it in your device settings.');
+        alert('Se requiere permiso de cámara para tomar fotos. Por favor habilítalo en la configuración de tu dispositivo.');
         return;
       }
       
       console.log('[Attachment] Opening camera...');
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
@@ -1157,6 +1170,9 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       }
     } catch (error) {
       console.error('[Attachment] Error taking photo:', error);
+      if (error instanceof Error) {
+        alert(`Error al tomar foto: ${error.message}`);
+      }
     }
   };
 
