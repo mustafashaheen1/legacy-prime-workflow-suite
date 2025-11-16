@@ -1909,7 +1909,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       <Modal
         visible={showAttachMenu}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowAttachMenu(false)}
       >
         <TouchableOpacity 
@@ -1917,7 +1917,15 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
           activeOpacity={1}
           onPress={() => setShowAttachMenu(false)}
         >
-          <View style={styles.attachMenu}>
+          <TouchableOpacity 
+            style={styles.attachMenu}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.attachMenuHandle} />
+            
+            <Text style={styles.attachMenuTitle}>Attach File</Text>
+            
             <TouchableOpacity style={styles.attachOption} onPress={handleTakePhoto}>
               <View style={[styles.attachIconContainer, { backgroundColor: '#EF4444' }]}>
                 <ImageIcon size={24} color="#FFFFFF" />
@@ -1936,9 +1944,16 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               <View style={[styles.attachIconContainer, { backgroundColor: '#3B82F6' }]}>
                 <Paperclip size={24} color="#FFFFFF" />
               </View>
-              <Text style={styles.attachOptionText}>Document</Text>
+              <Text style={styles.attachOptionText}>Document / PDF</Text>
             </TouchableOpacity>
-          </View>
+            
+            <TouchableOpacity 
+              style={styles.attachCancelButton}
+              onPress={() => setShowAttachMenu(false)}
+            >
+              <Text style={styles.attachCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </>
@@ -2367,21 +2382,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
-    zIndex: 99999,
   },
   attachMenu: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 12,
     paddingBottom: 40,
-    gap: 16,
+  },
+  attachMenuHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  attachMenuTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 20,
+    textAlign: 'center',
   },
   attachOption: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    padding: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    marginBottom: 12,
   },
   attachIconContainer: {
     width: 48,
@@ -2392,7 +2425,20 @@ const styles = StyleSheet.create({
   },
   attachOptionText: {
     fontSize: 16,
-    fontWeight: '500' as const,
+    fontWeight: '600' as const,
     color: '#1F2937',
+  },
+  attachCancelButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  attachCancelText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
   },
 });
