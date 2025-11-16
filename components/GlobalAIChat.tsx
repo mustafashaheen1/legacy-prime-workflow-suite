@@ -18,12 +18,47 @@ interface GlobalAIChatProps {
   inline?: boolean;
 }
 
+const extensionMimeTypeMap: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+};
+
+const MAX_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+
 type AttachedFile = {
   uri: string;
   name: string;
   mimeType: string;
   size: number;
   type: 'file';
+};
+
+type AgentMessageFile = {
+  type: 'file';
+  mimeType: string;
+  name: string;
+  data?: string;
+  uri?: string;
+  size?: number;
+};
+
+const getSanitizedMimeType = (initialMimeType: string | undefined, fileName: string): string => {
+  if (initialMimeType && initialMimeType !== 'application/octet-stream') {
+    return initialMimeType;
+  }
+  const extension = fileName.toLowerCase().split('.').pop();
+  if (extension && extensionMimeTypeMap[extension]) {
+    return extensionMimeTypeMap[extension];
+  }
+  return 'application/octet-stream';
 };
 
 export default function GlobalAIChat({ currentPageContext, inline = false }: GlobalAIChatProps) {
@@ -1015,30 +1050,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         
         console.log('[Attachment] Selected file:', file.name, 'Type:', file.mimeType, 'Size:', file.size);
         
-        let mimeType = file.mimeType || 'application/octet-stream';
-        
-        if (!mimeType || mimeType === 'application/octet-stream') {
-          const extension = file.name.toLowerCase().split('.').pop();
-          if (extension === 'pdf') {
-            mimeType = 'application/pdf';
-          } else if (extension === 'doc') {
-            mimeType = 'application/msword';
-          } else if (extension === 'docx') {
-            mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-          } else if (extension === 'xls') {
-            mimeType = 'application/vnd.ms-excel';
-          } else if (extension === 'xlsx') {
-            mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-          } else if (extension === 'png') {
-            mimeType = 'image/png';
-          } else if (extension === 'jpg' || extension === 'jpeg') {
-            mimeType = 'image/jpeg';
-          } else if (extension === 'gif') {
-            mimeType = 'image/gif';
-          } else if (extension === 'webp') {
-            mimeType = 'image/webp';
-          }
-        }
+        const mimeType = getSanitizedMimeType(file.mimeType, file.name);
         
         const supportedTypes = [
           'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp',
@@ -1060,7 +1072,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         const newFile: AttachedFile = {
           uri: file.uri,
           name: file.name,
-          mimeType: mimeType,
+          mimeType,
           size: file.size || 0,
           type: 'file',
         };
@@ -1097,7 +1109,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         const newFile: AttachedFile = {
           uri: file.uri,
           name: file.fileName || `image_${Date.now()}.jpg`,
-          mimeType: file.mimeType || 'image/jpeg',
+          mimeType: getSanitizedMimeType(file.mimeType, file.fileName || `image_${Date.now()}.jpg`),
           size: file.fileSize || 0,
           type: 'file',
         };
@@ -1134,7 +1146,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         const newFile: AttachedFile = {
           uri: file.uri,
           name: file.fileName || `photo_${Date.now()}.jpg`,
-          mimeType: file.mimeType || 'image/jpeg',
+          mimeType: getSanitizedMimeType(file.mimeType, file.fileName || `photo_${Date.now()}.jpg`),
           size: file.fileSize || 0,
           type: 'file',
         };
@@ -1209,75 +1221,27 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     if (attachedFiles.length > 0) {
       try {
         console.log('Processing attached files:', attachedFiles.length);
-        const filesForMessage: {type: 'file'; mimeType: string; uri: string}[] = [];
+        const filesForMessage: AgentMessageFile[] = [];
         
         for (const file of attachedFiles) {
-          console.log('Processing file:', file.name, file.mimeType);
-          
-          if (file.mimeType.startsWith('image/')) {
-            try {
-              const base64 = await convertFileToBase64(file);
-              console.log('Image converted to base64, length:', base64.length);
-              filesForMessage.push({
-                type: 'file',
-                mimeType: file.mimeType,
-                uri: `data:${file.mimeType};base64,${base64}`,
-              });
-            } catch (error) {
-              console.error('Failed to convert image to base64:', error);
-              throw new Error(`Failed to process image: ${file.name}`);
-            }
-          } else if (file.mimeType === 'application/pdf' || file.mimeType.includes('pdf')) {
-            try {
-              const base64 = await convertFileToBase64(file);
-              console.log('PDF converted to base64, length:', base64.length);
-              filesForMessage.push({
-                type: 'file',
-                mimeType: 'application/pdf',
-                uri: `data:application/pdf;base64,${base64}`,
-              });
-            } catch (error) {
-              console.error('Failed to convert PDF to base64:', error);
-              throw new Error(`Failed to process PDF: ${file.name}`);
-            }
-          } else if (
-            file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-            file.mimeType === 'application/msword' ||
-            file.mimeType.includes('word')
-          ) {
-            try {
-              const base64 = await convertFileToBase64(file);
-              console.log('Word document converted to base64, length:', base64.length);
-              filesForMessage.push({
-                type: 'file',
-                mimeType: file.mimeType,
-                uri: `data:${file.mimeType};base64,${base64}`,
-              });
-            } catch (error) {
-              console.error('Failed to convert Word document to base64:', error);
-              throw new Error(`Failed to process Word document: ${file.name}`);
-            }
-          } else if (
-            file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-            file.mimeType === 'application/vnd.ms-excel' ||
-            file.mimeType.includes('excel') ||
-            file.mimeType.includes('spreadsheet')
-          ) {
-            try {
-              const base64 = await convertFileToBase64(file);
-              console.log('Excel document converted to base64, length:', base64.length);
-              filesForMessage.push({
-                type: 'file',
-                mimeType: file.mimeType,
-                uri: `data:${file.mimeType};base64,${base64}`,
-              });
-            } catch (error) {
-              console.error('Failed to convert Excel document to base64:', error);
-              throw new Error(`Failed to process Excel document: ${file.name}`);
-            }
-          } else {
-            console.warn('Unsupported file type:', file.mimeType, 'for file:', file.name);
-            throw new Error(`Sorry, I can only analyze images, PDFs, Word documents (.doc, .docx), and Excel files (.xls, .xlsx). Please select a supported file type.`);
+          console.log('Processing file:', file.name, file.mimeType, 'size bytes:', file.size);
+          if (file.size && file.size > MAX_FILE_SIZE_BYTES) {
+            throw new Error(`File ${file.name} is too large. Please upload files under ${Math.floor(MAX_FILE_SIZE_BYTES / (1024 * 1024))}MB.`);
+          }
+          try {
+            const base64 = await convertFileToBase64(file);
+            console.log('File converted to base64, length:', base64.length);
+            filesForMessage.push({
+              type: 'file',
+              mimeType: file.mimeType,
+              name: file.name,
+              data: base64,
+              uri: `data:${file.mimeType};base64,${base64}`,
+              size: file.size,
+            });
+          } catch (error) {
+            console.error('Failed to convert file to base64:', error);
+            throw new Error(`Failed to process ${file.name}`);
           }
         }
         
@@ -1324,7 +1288,6 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         console.error('Error sending message with files:', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to upload document';
         alert(errorMessage);
-        setAttachedFiles([]);
       }
     } else {
       handleSendWithContext(input);
@@ -1350,7 +1313,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
               <Bot size={56} color="#D1D5DB" strokeWidth={2} />
               <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
               <Text style={styles.emptyStateText}>
-                Hey there! I'm here to chat and help with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'anything you need'}. Feel free to say hi, ask me how I'm doing, or jump right into questions! I can analyze images, PDFs, Word documents, and Excel files. You can also use voice to chat with me naturally.
+                Hey there! I’m here to chat and help with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'anything you need'}. Feel free to say hi, ask me how I’m doing, or jump right into questions! I can analyze images, PDFs, Word documents, and Excel files. You can also use voice to chat with me naturally.
               </Text>
             </View>
           )}
@@ -1678,7 +1641,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
                   <Bot size={56} color="#D1D5DB" strokeWidth={2} />
                   <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
                   <Text style={styles.emptyStateText}>
-                    Hey there! I'm here to chat and help with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'anything you need'}. Feel free to say hi, ask me how I'm doing, or jump right into questions! I can analyze images, PDFs, Word docs, and Excel files. I can also create 2D floor layouts and 3D sketches. You can use voice to chat with me naturally too!
+                    Hey there! I’m here to chat and help with {pathname.includes('dashboard') ? 'projects, budgets, and creating estimates from plans/photos' : pathname.includes('crm') ? 'clients, leads, and call notes' : pathname.includes('schedule') ? 'tasks and schedule' : pathname.includes('expenses') ? 'expenses' : pathname.includes('estimate') ? 'estimates with accurate pricing' : 'anything you need'}. Feel free to say hi, ask me how I’m doing, or jump right into questions! I can analyze images, PDFs, Word docs, and Excel files. I can also create 2D floor layouts and 3D sketches. You can use voice to chat with me naturally too!
                   </Text>
                 </View>
               )}
