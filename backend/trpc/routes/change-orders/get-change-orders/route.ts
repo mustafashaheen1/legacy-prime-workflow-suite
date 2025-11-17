@@ -1,7 +1,8 @@
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { z } from 'zod';
+import { ChangeOrder } from '@/types';
 
-const changeOrdersStore: any[] = [];
+const changeOrdersStore: ChangeOrder[] = [];
 
 export const getChangeOrdersProcedure = publicProcedure
   .input(

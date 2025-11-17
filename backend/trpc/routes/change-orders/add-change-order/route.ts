@@ -16,15 +16,22 @@ export const addChangeOrderProcedure = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
-    const changeOrder = {
-      id: `change-order-${Date.now()}`,
-      ...input,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      console.log('[Backend] Adding change order with input:', input);
+      
+      const changeOrder = {
+        id: `change-order-${Date.now()}`,
+        ...input,
+        createdAt: new Date().toISOString(),
+      };
 
-    changeOrdersStore.push(changeOrder);
-    console.log('[Backend] Change order created and stored:', changeOrder);
-    console.log('[Backend] Total change orders in store:', changeOrdersStore.length);
-    
-    return { success: true, changeOrder };
+      changeOrdersStore.push(changeOrder);
+      console.log('[Backend] Change order created and stored:', changeOrder);
+      console.log('[Backend] Total change orders in store:', changeOrdersStore.length);
+      
+      return { success: true, changeOrder };
+    } catch (error) {
+      console.error('[Backend] Error adding change order:', error);
+      throw new Error('Failed to add change order: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
   });

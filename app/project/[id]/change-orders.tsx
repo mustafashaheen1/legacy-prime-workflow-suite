@@ -27,8 +27,11 @@ export default function ChangeOrdersScreen() {
       Alert.alert('Success', 'Change order added successfully!');
     },
     onError: (error) => {
-      Alert.alert('Error', 'Failed to add change order. Please try again.');
-      console.error('[Change Order] Error:', error);
+      console.error('[Change Order] Full error:', error);
+      console.error('[Change Order] Error message:', error.message);
+      console.error('[Change Order] Error data:', error.data);
+      const errorMessage = error.message || 'Failed to add change order. Please try again.';
+      Alert.alert('Error', errorMessage);
     }
   });
   
@@ -66,14 +69,17 @@ export default function ChangeOrdersScreen() {
       return;
     }
     
-    addChangeOrderMutation.mutate({
+    const mutationData = {
       projectId: id as string,
       description: description.trim(),
       amount: amountValue,
       date: new Date().toISOString(),
-      status: 'pending',
+      status: 'pending' as const,
       notes: notes.trim() || undefined,
-    });
+    };
+    
+    console.log('[Change Order] Submitting mutation with data:', mutationData);
+    addChangeOrderMutation.mutate(mutationData);
   };
   
   const getStatusIcon = (status: ChangeOrder['status']) => {
