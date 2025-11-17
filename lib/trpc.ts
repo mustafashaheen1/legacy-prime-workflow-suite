@@ -27,8 +27,6 @@ export const trpcClient = trpc.createClient({
       async fetch(url, options) {
         try {
           console.log('[tRPC] Fetching:', url);
-          console.log('[tRPC] Base URL:', getBaseUrl());
-          
           const response = await fetch(url, {
             ...options,
             headers: {
@@ -38,8 +36,7 @@ export const trpcClient = trpc.createClient({
           });
           
           if (!response.ok) {
-            const clonedResponse = response.clone();
-            const text = await clonedResponse.text();
+            const text = await response.text();
             console.error('[tRPC] HTTP error:', response.status, response.statusText, text);
           }
           
