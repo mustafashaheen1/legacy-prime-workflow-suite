@@ -2,7 +2,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Tex
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
-import { Report, ProjectReportData, DailyLog } from '@/types';
+import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment } from '@/types';
+import { trpc } from '@/lib/trpc';
 import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
 import { Image } from 'expo-image';
@@ -17,6 +18,9 @@ export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { projects, archiveProject, user, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, dailyLogs = [] } = useApp();
+  
+  const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
+  const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string });
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<FileCategory>('documentation');
@@ -37,6 +41,14 @@ export default function ProjectDetailScreen() {
   }, []);
 
   const project = projects.find(p => p.id === id);
+  
+  const changeOrders = useMemo<ChangeOrder[]>(() => {
+    return changeOrdersQuery.data?.changeOrders || [];
+  }, [changeOrdersQuery.data]);
+  
+  const payments = useMemo<Payment[]>(() => {
+    return paymentsQuery.data?.payments || [];
+  }, [paymentsQuery.data]);
 
   useEffect(() => {
     if (activeTab === 'expenses') {
@@ -233,10 +245,20 @@ export default function ProjectDetailScreen() {
     }, 0);
   }, [projectEstimates]);
 
-  const totalPaymentsReceived = useMemo(() => {
+  const totalChangeOrdersApproved = useMemo(() => {
+    return changeOrders
+      .filter(co => co.status === 'approved')
+      .reduce((sum, co) => sum + co.amount, 0);
+  }, [changeOrders]);
+  
+  const adjustedProjectTotal = useMemo(() => {
     if (!project) return 0;
-    return project.budget * 0.65;
-  }, [project]);
+    return project.budget + totalChangeOrdersApproved;
+  }, [project, totalChangeOrdersApproved]);
+  
+  const totalPaymentsReceived = useMemo(() => {
+    return payments.reduce((sum, payment) => sum + payment.amount, 0);
+  }, [payments]);
 
   const totalLaborCost = useMemo(() => {
     return expensesByType['Labor'] || 0;
@@ -268,14 +290,12 @@ export default function ProjectDetailScreen() {
   }, [projectClockEntries]);
 
   const pendingBalance = useMemo(() => {
-    if (!project) return 0;
-    return project.budget - totalPaymentsReceived;
-  }, [project, totalPaymentsReceived]);
+    return adjustedProjectTotal - totalPaymentsReceived;
+  }, [adjustedProjectTotal, totalPaymentsReceived]);
 
   const profitMargin = useMemo(() => {
-    if (!project) return 0;
-    return project.budget - totalJobCost;
-  }, [project, totalJobCost]);
+    return adjustedProjectTotal - totalJobCost;
+  }, [adjustedProjectTotal, totalJobCost]);
   
   const estimatedHoursRemaining = useMemo(() => {
     if (!project) return 0;
@@ -324,8 +344,12 @@ export default function ProjectDetailScreen() {
                 <View style={styles.topMetrics}>
                   <View style={styles.topMetricLarge}>
                     <Text style={styles.topMetricLabel}>Job Total Agreement</Text>
-                    <Text style={styles.topMetricValue}>${project.budget.toLocaleString()}</Text>
-                    <Text style={styles.topMetricSubtext}>Contract Value</Text>
+                    <Text style={styles.topMetricValue}>${adjustedProjectTotal.toLocaleString()}</Text>
+                    <Text style={styles.topMetricSubtext}>
+                      {totalChangeOrdersApproved > 0 
+                        ? `Base: ${project.budget.toLocaleString()} + CO: ${totalChangeOrdersApproved.toLocaleString()}` 
+                        : 'Contract Value'}
+                    </Text>
                   </View>
                   <View style={styles.topMetricMedium}>
                     <Text style={styles.topMetricLabel}>Total Expenses</Text>
@@ -438,12 +462,12 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.paymentMetricValue}>${totalPaymentsReceived.toLocaleString()}</Text>
                     <View style={styles.paymentProgressBar}>
                       <View style={[styles.paymentProgressFill, { 
-                        width: `${Math.min(100, (totalPaymentsReceived / project.budget) * 100)}%`,
+                        width: `${Math.min(100, (totalPaymentsReceived / adjustedProjectTotal) * 100)}%`,
                         backgroundColor: '#10B981'
                       }]} />
                     </View>
                     <Text style={styles.paymentMetricSubtext}>
-                      {((totalPaymentsReceived / project.budget) * 100).toFixed(1)}% of contract
+                      {((totalPaymentsReceived / adjustedProjectTotal) * 100).toFixed(1)}% of contract • {payments.length} payment(s)
                     </Text>
                   </View>
 
@@ -457,12 +481,12 @@ export default function ProjectDetailScreen() {
                     </Text>
                     <View style={styles.paymentProgressBar}>
                       <View style={[styles.paymentProgressFill, { 
-                        width: `${Math.min(100, (pendingBalance / project.budget) * 100)}%`,
+                        width: `${Math.min(100, (pendingBalance / adjustedProjectTotal) * 100)}%`,
                         backgroundColor: pendingBalance > 0 ? '#F59E0B' : '#10B981'
                       }]} />
                     </View>
                     <Text style={styles.paymentMetricSubtext}>
-                      {((pendingBalance / project.budget) * 100).toFixed(1)}% remaining
+                      {((pendingBalance / adjustedProjectTotal) * 100).toFixed(1)}% remaining
                     </Text>
                   </View>
                 </View>
@@ -477,12 +501,12 @@ export default function ProjectDetailScreen() {
                   </Text>
                   <View style={styles.profitBar}>
                     <View style={[styles.profitFill, { 
-                      width: `${Math.min(100, Math.abs(profitMargin) / project.budget * 100)}%`,
+                      width: `${Math.min(100, Math.abs(profitMargin) / adjustedProjectTotal * 100)}%`,
                       backgroundColor: profitMargin >= 0 ? '#10B981' : '#EF4444'
                     }]} />
                   </View>
                   <Text style={styles.profitSubtext}>
-                    {profitMargin >= 0 ? 'Profit Margin' : 'Loss'}: {((profitMargin / project.budget) * 100).toFixed(1)}%
+                    {profitMargin >= 0 ? 'Profit Margin' : 'Loss'}: {((profitMargin / adjustedProjectTotal) * 100).toFixed(1)}%
                   </Text>
                 </View>
 
