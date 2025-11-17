@@ -721,40 +721,56 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
   });
 
   useEffect(() => {
-    const checkAndSendDailyTip = async () => {
+    const loadMessagesAndCheckTip = async () => {
       try {
         const today = new Date().toISOString().split('T')[0];
+        const storedMessages = await AsyncStorage.getItem('ai_chat_messages');
         const lastTipDate = await AsyncStorage.getItem('lastDailyTipDate');
         
-        if (lastTipDate !== today && messages.length === 0 && !dailyTipSent) {
+        let loadedMessages = [];
+        if (storedMessages) {
+          try {
+            loadedMessages = JSON.parse(storedMessages);
+            console.log('[Daily Tip] Loaded existing messages:', loadedMessages.length);
+          } catch (e) {
+            console.error('[Daily Tip] Error parsing stored messages:', e);
+          }
+        }
+        
+        if (lastTipDate !== today && !dailyTipSent) {
+          console.log('[Daily Tip] Sending new daily tip for:', today);
           const tip = getTipOfTheDay();
           const tipMessage = `🏗️ **Daily Construction Tip** (${tip.category})\n\n${tip.tip}\n\n💡 Have questions about this or need help with your project? I'm here to help!`;
           
-          setTimeout(() => {
-            setMessages([
+          const newTipMessage = {
+            id: `daily-tip-${today}`,
+            role: 'assistant' as const,
+            parts: [
               {
-                id: `daily-tip-${Date.now()}`,
-                role: 'assistant',
-                parts: [
-                  {
-                    type: 'text',
-                    text: tipMessage,
-                  },
-                ],
+                type: 'text' as const,
+                text: tipMessage,
               },
-            ]);
-          }, 800);
+            ],
+          };
           
+          loadedMessages = [newTipMessage, ...loadedMessages];
+          await AsyncStorage.setItem('ai_chat_messages', JSON.stringify(loadedMessages));
           await AsyncStorage.setItem('lastDailyTipDate', today);
           setDailyTipSent(true);
+          console.log('[Daily Tip] Daily tip saved to storage');
+        }
+        
+        if (loadedMessages.length > 0 && messages.length === 0) {
+          console.log('[Daily Tip] Setting messages from storage:', loadedMessages.length);
+          setMessages(loadedMessages);
         }
       } catch (error) {
-        console.error('[Daily Tip] Error sending daily tip:', error);
+        console.error('[Daily Tip] Error in loadMessagesAndCheckTip:', error);
       }
     };
 
-    checkAndSendDailyTip();
-  }, [messages.length, dailyTipSent, setMessages]);
+    loadMessagesAndCheckTip();
+  }, [dailyTipSent, setMessages]);
 
   const isLoading = status === 'streaming';
 
@@ -1005,6 +1021,21 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       }
     };
   }, [soundInstance, recordingInstance]);
+
+  useEffect(() => {
+    const saveMessagesToStorage = async () => {
+      try {
+        if (messages.length > 0) {
+          await AsyncStorage.setItem('ai_chat_messages', JSON.stringify(messages));
+          console.log('[Chat Storage] Messages saved:', messages.length);
+        }
+      } catch (error) {
+        console.error('[Chat Storage] Error saving messages:', error);
+      }
+    };
+
+    saveMessagesToStorage();
+  }, [messages]);
 
   const handleSendWithContext = (userInput: string) => {
     if (!user) {
