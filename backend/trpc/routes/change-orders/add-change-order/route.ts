@@ -1,5 +1,6 @@
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { z } from 'zod';
+import { changeOrdersStore } from '../get-change-orders/route';
 
 export const addChangeOrderProcedure = publicProcedure
   .input(
@@ -21,7 +22,9 @@ export const addChangeOrderProcedure = publicProcedure
       createdAt: new Date().toISOString(),
     };
 
-    console.log('[Backend] Change order created:', changeOrder);
+    changeOrdersStore.push(changeOrder);
+    console.log('[Backend] Change order created and stored:', changeOrder);
+    console.log('[Backend] Total change orders in store:', changeOrdersStore.length);
     
     return { success: true, changeOrder };
   });

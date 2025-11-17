@@ -12,7 +12,7 @@ import { useState, useMemo, useEffect } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { ProjectFile, FileCategory } from '@/types';
 
-type TabType = 'overview' | 'estimate' | 'clock' | 'expenses' | 'photos' | 'files' | 'reports';
+type TabType = 'overview' | 'estimate' | 'change-orders' | 'clock' | 'expenses' | 'photos' | 'files' | 'reports';
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -53,6 +53,9 @@ export default function ProjectDetailScreen() {
   useEffect(() => {
     if (activeTab === 'expenses') {
       router.push(`/project/${id}/expenses` as any);
+    }
+    if (activeTab === 'change-orders') {
+      router.push(`/project/${id}/change-orders` as any);
     }
     if (activeTab === 'files') {
       router.push(`/project/${id}/files-navigation` as any);
@@ -747,6 +750,10 @@ export default function ProjectDetailScreen() {
           </View>
         );
 
+      case 'change-orders':
+        router.push(`/project/${id}/change-orders` as any);
+        return null;
+
       case 'clock':
         return (
           <View style={styles.clockTabContent}>
@@ -1388,6 +1395,14 @@ export default function ProjectDetailScreen() {
           >
             <Text style={[styles.tabText, activeTab === 'estimate' && styles.activeTabText]}>
               Estimate
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'change-orders' && styles.activeTab]}
+            onPress={() => setActiveTab('change-orders')}
+          >
+            <Text style={[styles.tabText, activeTab === 'change-orders' && styles.activeTabText]}>
+              Change Orders
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
