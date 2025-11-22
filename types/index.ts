@@ -422,3 +422,62 @@ export interface AIChatSession {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Subcontractor {
+  id: string;
+  name: string;
+  companyName: string;
+  email: string;
+  phone: string;
+  trade: string;
+  rating?: number;
+  hourlyRate?: number;
+  availability: 'available' | 'busy' | 'unavailable';
+  certifications?: string[];
+  address?: string;
+  insuranceExpiry?: string;
+  notes?: string;
+  avatar?: string;
+  createdAt: string;
+  isActive: boolean;
+}
+
+export interface EstimateRequest {
+  id: string;
+  projectId: string;
+  subcontractorId: string;
+  requestedBy: string;
+  requestDate: string;
+  description: string;
+  requiredBy?: string;
+  status: 'pending' | 'viewed' | 'responded' | 'declined';
+  attachments?: ProjectFile[];
+  notes?: string;
+  createdAt: string;
+}
+
+export interface SubcontractorProposal {
+  id: string;
+  estimateRequestId: string;
+  subcontractorId: string;
+  projectId: string;
+  amount: number;
+  timeline: string;
+  proposalDate: string;
+  description: string;
+  attachments?: ProjectFile[];
+  notes?: string;
+  status: 'submitted' | 'accepted' | 'rejected' | 'negotiating';
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'estimate-received' | 'proposal-submitted' | 'payment-received' | 'change-order' | 'general';
+  title: string;
+  message: string;
+  data?: any;
+  read: boolean;
+  createdAt: string;
+}

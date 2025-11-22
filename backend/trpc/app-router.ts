@@ -19,7 +19,14 @@ import { makeCallProcedure } from "./routes/twilio/make-call/route";
 import { getCallLogsProcedure } from "./routes/twilio/get-call-logs/route";
 import { createVirtualAssistantProcedure } from "./routes/twilio/create-virtual-assistant/route";
 import { sendBulkSmsProcedure } from "./routes/twilio/send-bulk-sms/route";
-
+import { createSubcontractorProcedure } from "./routes/subcontractors/create-subcontractor/route";
+import { getSubcontractorsProcedure } from "./routes/subcontractors/get-subcontractors/route";
+import { updateSubcontractorProcedure } from "./routes/subcontractors/update-subcontractor/route";
+import { requestEstimateProcedure } from "./routes/subcontractors/request-estimate/route";
+import { submitProposalProcedure } from "./routes/subcontractors/submit-proposal/route";
+import { getProposalsProcedure } from "./routes/subcontractors/get-proposals/route";
+import { getNotificationsProcedure } from "./routes/notifications/get-notifications/route";
+import { markNotificationReadProcedure } from "./routes/notifications/mark-read/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -55,6 +62,18 @@ export const appRouter = createTRPCRouter({
     getCallLogs: getCallLogsProcedure,
     createVirtualAssistant: createVirtualAssistantProcedure,
     sendBulkSms: sendBulkSmsProcedure,
+  }),
+  subcontractors: createTRPCRouter({
+    createSubcontractor: createSubcontractorProcedure,
+    getSubcontractors: getSubcontractorsProcedure,
+    updateSubcontractor: updateSubcontractorProcedure,
+    requestEstimate: requestEstimateProcedure,
+    submitProposal: submitProposalProcedure,
+    getProposals: getProposalsProcedure,
+  }),
+  notifications: createTRPCRouter({
+    getNotifications: getNotificationsProcedure,
+    markRead: markNotificationReadProcedure,
   }),
 });
 

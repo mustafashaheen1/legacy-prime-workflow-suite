@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company } from '@/types';
+import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company, Subcontractor, SubcontractorProposal, Notification } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
 import { checkAndSeedData, getDefaultCompany, getDefaultUser } from '@/lib/seed-data';
@@ -28,6 +28,9 @@ interface AppState {
   dailyLogs: DailyLog[];
   payments: Payment[];
   changeOrders: ChangeOrder[];
+  subcontractors: Subcontractor[];
+  proposals: SubcontractorProposal[];
+  notifications: Notification[];
   isLoading: boolean;
   
   setUser: (user: User | null) => void;
@@ -73,6 +76,14 @@ interface AppState {
   addChangeOrder: (changeOrder: ChangeOrder) => Promise<void>;
   updateChangeOrder: (id: string, updates: Partial<ChangeOrder>) => Promise<void>;
   getChangeOrders: (projectId?: string) => ChangeOrder[];
+  addSubcontractor: (subcontractor: Subcontractor) => Promise<void>;
+  updateSubcontractor: (id: string, updates: Partial<Subcontractor>) => Promise<void>;
+  getSubcontractors: () => Subcontractor[];
+  addProposal: (proposal: SubcontractorProposal) => Promise<void>;
+  getProposals: (projectId?: string) => SubcontractorProposal[];
+  addNotification: (notification: Notification) => Promise<void>;
+  getNotifications: (unreadOnly?: boolean) => Notification[];
+  markNotificationRead: (id: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -97,6 +108,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [dailyLogs, setDailyLogs] = useState<DailyLog[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([]);
+  const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
+  const [proposals, setProposals] = useState<SubcontractorProposal[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -139,6 +153,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const storedDailyLogs = await AsyncStorage.getItem('dailyLogs');
       const storedPayments = await AsyncStorage.getItem('payments');
       const storedChangeOrders = await AsyncStorage.getItem('changeOrders');
+      const storedSubcontractors = await AsyncStorage.getItem('subcontractors');
+      const storedProposals = await AsyncStorage.getItem('proposals');
+      const storedNotifications = await AsyncStorage.getItem('notifications');
       
       const parsedUser = safeJsonParse<User | null>(storedUser, 'user', null);
       if (parsedUser && typeof parsedUser === 'object') {
@@ -218,6 +235,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const parsedChangeOrders = safeJsonParse<ChangeOrder[]>(storedChangeOrders, 'changeOrders', []);
       if (Array.isArray(parsedChangeOrders)) {
         setChangeOrders(parsedChangeOrders);
+      }
+
+      const parsedSubcontractors = safeJsonParse<Subcontractor[]>(storedSubcontractors, 'subcontractors', []);
+      if (Array.isArray(parsedSubcontractors)) {
+        setSubcontractors(parsedSubcontractors);
+      }
+
+      const parsedProposals = safeJsonParse<SubcontractorProposal[]>(storedProposals, 'proposals', []);
+      if (Array.isArray(parsedProposals)) {
+        setProposals(parsedProposals);
+      }
+
+      const parsedNotifications = safeJsonParse<Notification[]>(storedNotifications, 'notifications', []);
+      if (Array.isArray(parsedNotifications)) {
+        setNotifications(parsedNotifications);
       }
       
       setProjects(mockProjects);
@@ -586,8 +618,71 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     return changeOrders.filter(co => co.projectId === projectId);
   }, [changeOrders]);
 
+  const addSubcontractor = useCallback(async (subcontractor: Subcontractor) => {
+    const updated = [subcontractor, ...subcontractors];
+    setSubcontractors(updated);
+    await AsyncStorage.setItem('subcontractors', JSON.stringify(updated));
+    console.log('[Storage] Subcontractor saved successfully:', subcontractor.name);
+  }, [subcontractors]);
+
+  const updateSubcontractor = useCallback(async (id: string, updates: Partial<Subcontractor>) => {
+    const updated = subcontractors.map(sub => sub.id === id ? { ...sub, ...updates } : sub);
+    setSubcontractors(updated);
+    await AsyncStorage.setItem('subcontractors', JSON.stringify(updated));
+    console.log('[Storage] Subcontractor updated successfully');
+  }, [subcontractors]);
+
+  const getSubcontractors = useCallback(() => {
+    return subcontractors;
+  }, [subcontractors]);
+
+  const addProposal = useCallback(async (proposal: SubcontractorProposal) => {
+    const updated = [proposal, ...proposals];
+    setProposals(updated);
+    await AsyncStorage.setItem('proposals', JSON.stringify(updated));
+    console.log('[Storage] Proposal saved successfully');
+
+    const notification: Notification = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId: user?.id || 'user_current',
+      type: 'proposal-submitted',
+      title: 'New Proposal Received',
+      message: `A subcontractor has submitted a proposal for ${proposal.amount}`,
+      data: { proposalId: proposal.id, projectId: proposal.projectId },
+      read: false,
+      createdAt: new Date().toISOString(),
+    };
+    await addNotification(notification);
+  }, [proposals, user]);
+
+  const getProposals = useCallback((projectId?: string) => {
+    if (!projectId) return proposals;
+    return proposals.filter(p => p.projectId === projectId);
+  }, [proposals]);
+
+  const addNotification = useCallback(async (notification: Notification) => {
+    const updated = [notification, ...notifications];
+    setNotifications(updated);
+    await AsyncStorage.setItem('notifications', JSON.stringify(updated));
+    console.log('[Storage] Notification saved successfully');
+  }, [notifications]);
+
+  const getNotifications = useCallback((unreadOnly?: boolean) => {
+    if (unreadOnly) {
+      return notifications.filter(n => !n.read);
+    }
+    return notifications;
+  }, [notifications]);
+
+  const markNotificationRead = useCallback(async (id: string) => {
+    const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
+    setNotifications(updated);
+    await AsyncStorage.setItem('notifications', JSON.stringify(updated));
+    console.log('[Storage] Notification marked as read');
+  }, [notifications]);
+
   const logout = useCallback(async () => {
-    await AsyncStorage.multiRemove(['user', 'company', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders']);
+    await AsyncStorage.multiRemove(['user', 'company', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders', 'subcontractors', 'proposals', 'notifications']);
     setUserState(null);
     setCompanyState(null);
     setSubscriptionState(null);
@@ -597,6 +692,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setDailyLogs([]);
     setPayments([]);
     setChangeOrders([]);
+    setSubcontractors([]);
+    setProposals([]);
+    setNotifications([]);
   }, []);
 
   return useMemo(() => ({
@@ -620,6 +718,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     dailyLogs,
     payments,
     changeOrders,
+    subcontractors,
+    proposals,
+    notifications,
     isLoading,
     setUser,
     setCompany,
@@ -664,6 +765,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addChangeOrder,
     updateChangeOrder,
     getChangeOrders,
+    addSubcontractor,
+    updateSubcontractor,
+    getSubcontractors,
+    addProposal,
+    getProposals,
+    addNotification,
+    getNotifications,
+    markNotificationRead,
     logout,
   }), [
     user,
@@ -686,6 +795,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     dailyLogs,
     payments,
     changeOrders,
+    subcontractors,
+    proposals,
+    notifications,
     isLoading,
     setUser,
     setCompany,
@@ -730,6 +842,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addChangeOrder,
     updateChangeOrder,
     getChangeOrders,
+    addSubcontractor,
+    updateSubcontractor,
+    getSubcontractors,
+    addProposal,
+    getProposals,
+    addNotification,
+    getNotifications,
+    markNotificationRead,
     logout,
   ]);
 });
