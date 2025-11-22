@@ -6,6 +6,7 @@ import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment } from '@/typ
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
+import RequestEstimateComponent from '@/components/RequestEstimate';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState, useMemo, useEffect } from 'react';
@@ -746,6 +747,14 @@ export default function ProjectDetailScreen() {
                 <Ruler size={20} color="#2563EB" />
                 <Text style={styles.secondaryButtonText}>Takeoff Tool</Text>
               </TouchableOpacity>
+            </View>
+            
+            <View style={{ width: '100%', marginTop: 32, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 16, textAlign: 'center' }}>Need a Subcontractor Estimate?</Text>
+              <RequestEstimateComponent 
+                projectId={project.id} 
+                projectName={project.name} 
+              />
             </View>
           </View>
         );
