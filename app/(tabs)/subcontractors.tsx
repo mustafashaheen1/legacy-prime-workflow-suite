@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform } from 'react-native';
-import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Linking } from 'react-native';
+import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp } from 'lucide-react-native';
 import { Subcontractor, Project, ProjectFile, EstimateRequest } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { Stack } from 'expo-router';
@@ -18,6 +18,8 @@ export default function SubcontractorsScreen() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<ProjectFile[]>([]);
   const [requestNotes, setRequestNotes] = useState<string>('');
+  const [selectedSubcontractors, setSelectedSubcontractors] = useState<Set<string>>(new Set());
+  const [showStatsWidget, setShowStatsWidget] = useState<boolean>(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -33,7 +35,38 @@ export default function SubcontractorsScreen() {
     notes: '',
   });
 
-  const trades = ['Electrical', 'Plumbing', 'HVAC', 'Drywall', 'Framing', 'Roofing', 'Painting', 'Flooring'];
+  const trades = [
+    'Pre-Construction',
+    'Foundation and Waterproofing',
+    'Storm drainage & footing drainage',
+    'Lumber and hardware material',
+    'Frame Labor only',
+    'Roof material & labor',
+    'Windows and exterior doors',
+    'Siding',
+    'Plumbing',
+    'Fire sprinklers',
+    'Fire Alarm',
+    'Mechanical/HVAC',
+    'Electrical',
+    'Insulation',
+    'Drywall',
+    'Flooring & Carpet & Tile',
+    'Interior Doors',
+    'Mill/Trim Work',
+    'Painting',
+    'Kitchen',
+    'Bathroom',
+    'Appliances',
+    'Deck and Exterior Railing',
+    'Tree Removals',
+    'Exterior Finish Ground Work/Pavers/Concrete/Gravel',
+    'Landscaping',
+    'Fencing',
+    'Mitigation',
+    'Dumpster',
+    'Asphalt',
+  ];
 
   const filteredSubcontractors = subcontractors.filter((sub: Subcontractor) => {
     const matchesSearch = sub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -147,116 +180,281 @@ export default function SubcontractorsScreen() {
     }
   };
 
+  const toggleSubcontractorSelection = (subId: string) => {
+    const newSelection = new Set(selectedSubcontractors);
+    if (newSelection.has(subId)) {
+      newSelection.delete(subId);
+    } else {
+      newSelection.add(subId);
+    }
+    setSelectedSubcontractors(newSelection);
+  };
+
+  const selectAllSubcontractors = () => {
+    if (selectedSubcontractors.size === filteredSubcontractors.length) {
+      setSelectedSubcontractors(new Set());
+    } else {
+      setSelectedSubcontractors(new Set(filteredSubcontractors.map(s => s.id)));
+    }
+  };
+
+  const openMessageModal = (type: 'email' | 'sms', subId?: string) => {
+    const recipients = subId 
+      ? [subcontractors.find(s => s.id === subId)!]
+      : subcontractors.filter(s => selectedSubcontractors.has(s.id));
+
+    if (recipients.length === 0) {
+      Alert.alert('No Recipients', 'Please select at least one subcontractor.');
+      return;
+    }
+
+    if (type === 'email') {
+      const emails = recipients.map(r => r.email).join(',');
+      const emailUrl = `mailto:${emails}`;
+      
+      if (Platform.OS === 'web') {
+        window.open(emailUrl, '_blank');
+      } else {
+        Linking.openURL(emailUrl).catch(() => {
+          Alert.alert('Error', 'Unable to open email client');
+        });
+      }
+    } else {
+      recipients.forEach(recipient => {
+        const smsUrl = `sms:${recipient.phone}`;
+        Linking.openURL(smsUrl).catch(() => {
+          Alert.alert('Error', 'Unable to open messaging app');
+        });
+      });
+    }
+  };
+
+  const totalSubcontractors = subcontractors.length;
+  const availableSubcontractors = subcontractors.filter(s => s.availability === 'available').length;
+  const activeProjects = projects.filter(p => p.status === 'active').length;
+  const avgRating = subcontractors.length > 0 
+    ? (subcontractors.reduce((sum, s) => sum + (s.rating || 0), 0) / subcontractors.length).toFixed(1)
+    : '0.0';
+
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Subcontractors' }} />
+      <Stack.Screen options={{ title: 'Subcontractors Directory' }} />
 
-      <View style={styles.header}>
-        <View style={styles.searchContainer}>
-          <Search size={20} color="#9CA3AF" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search subcontractors..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor="#9CA3AF"
-          />
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Subcontractor Directory</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
+              <Plus size={20} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>Add Subcontractor</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
-          <Plus size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+        <View style={styles.searchSection}>
+          <View style={styles.searchContainer}>
+            <Search size={20} color="#9CA3AF" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by name, company, or trade..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+        </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterChip, selectedTrade === 'all' && styles.filterChipActive]}
-          onPress={() => setSelectedTrade('all')}
-        >
-          <Text style={[styles.filterChipText, selectedTrade === 'all' && styles.filterChipTextActive]}>
-            All Trades
-          </Text>
-        </TouchableOpacity>
-        {trades.map((trade) => (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
           <TouchableOpacity
-            key={trade}
-            style={[styles.filterChip, selectedTrade === trade && styles.filterChipActive]}
-            onPress={() => setSelectedTrade(trade)}
+            style={[styles.filterChip, selectedTrade === 'all' && styles.filterChipActive]}
+            onPress={() => setSelectedTrade('all')}
           >
-            <Text style={[styles.filterChipText, selectedTrade === trade && styles.filterChipTextActive]}>
-              {trade}
+            <Text style={[styles.filterChipText, selectedTrade === 'all' && styles.filterChipTextActive]}>
+              All Trades ({subcontractors.length})
             </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {trades.map((trade) => {
+            const count = subcontractors.filter(s => s.trade === trade).length;
+            return (
+              <TouchableOpacity
+                key={trade}
+                style={[styles.filterChip, selectedTrade === trade && styles.filterChipActive]}
+                onPress={() => setSelectedTrade(trade)}
+              >
+                <Text style={[styles.filterChipText, selectedTrade === trade && styles.filterChipTextActive]}>
+                  {trade} ({count})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
-      <ScrollView style={styles.list}>
-        {filteredSubcontractors.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Users size={64} color="#D1D5DB" />
-            <Text style={styles.emptyStateText}>No subcontractors found</Text>
-            <Text style={styles.emptyStateSubtext}>Add your first subcontractor to get started</Text>
-          </View>
-        ) : (
-          filteredSubcontractors.map((sub: Subcontractor) => (
-            <TouchableOpacity
-              key={sub.id}
-              style={styles.card}
-              onPress={() => {
-                setSelectedSubcontractor(sub);
-                setShowDetailsModal(true);
-              }}
-            >
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderLeft}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{sub.name.charAt(0)}</Text>
-                  </View>
-                  <View style={styles.cardHeaderInfo}>
-                    <Text style={styles.cardName}>{sub.name}</Text>
-                    <Text style={styles.cardCompany}>{sub.companyName}</Text>
-                  </View>
+        <View style={styles.content}>
+          <View style={styles.listHeader}>
+            <View style={styles.leftActions}>
+              <Text style={styles.sectionTitle}>Subcontractor List</Text>
+              {selectedSubcontractors.size > 0 && (
+                <View>
+                  <Text style={styles.selectedCount}>{selectedSubcontractors.size} selected</Text>
                 </View>
-                <View style={[styles.availabilityBadge, { backgroundColor: getAvailabilityColor(sub.availability) }]}>
-                  <Text style={styles.availabilityText}>
-                    {sub.availability.charAt(0).toUpperCase() + sub.availability.slice(1)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.cardBody}>
-                <View style={styles.tradeTag}>
-                  <Text style={styles.tradeTagText}>{sub.trade}</Text>
-                </View>
-
-                <View style={styles.cardInfo}>
-                  <View style={styles.infoRow}>
-                    <Mail size={16} color="#6B7280" />
-                    <Text style={styles.infoText}>{sub.email}</Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Phone size={16} color="#6B7280" />
-                    <Text style={styles.infoText}>{sub.phone}</Text>
-                  </View>
-                </View>
-
-                {sub.rating && sub.rating > 0 && (
-                  <View style={styles.ratingContainer}>
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        size={16}
-                        color={i < (sub.rating || 0) ? '#F59E0B' : '#D1D5DB'}
-                        fill={i < (sub.rating || 0) ? '#F59E0B' : 'transparent'}
-                      />
-                    ))}
-                    <Text style={styles.ratingText}>({sub.rating}.0)</Text>
-                  </View>
+              )}
+            </View>
+            <View style={styles.rightActions}>
+              <TouchableOpacity 
+                style={styles.selectAllButton}
+                onPress={selectAllSubcontractors}
+              >
+                {selectedSubcontractors.size === filteredSubcontractors.length ? (
+                  <CheckSquare size={20} color="#2563EB" />
+                ) : (
+                  <Square size={20} color="#6B7280" />
                 )}
+                <Text style={styles.selectAllText}>Select All</Text>
+              </TouchableOpacity>
+              {selectedSubcontractors.size > 0 && (
+                <>
+                  <TouchableOpacity 
+                    style={styles.bulkActionButton}
+                    onPress={() => openMessageModal('email')}
+                  >
+                    <Mail size={18} color="#FFFFFF" />
+                    <Text style={styles.bulkActionText}>Email</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.bulkActionButton, styles.smsButton]}
+                    onPress={() => openMessageModal('sms')}
+                  >
+                    <MessageSquare size={18} color="#FFFFFF" />
+                    <Text style={styles.bulkActionText}>SMS</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+          {filteredSubcontractors.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Users size={64} color="#D1D5DB" />
+              <Text style={styles.emptyStateText}>No subcontractors found</Text>
+              <Text style={styles.emptyStateSubtext}>Add your first subcontractor to get started</Text>
+            </View>
+          ) : (
+            filteredSubcontractors.map((sub: Subcontractor) => (
+              <View key={sub.id} style={styles.subcontractorRow}>
+                <View style={styles.subRowHeader}>
+                  <TouchableOpacity 
+                    style={styles.checkbox}
+                    onPress={() => toggleSubcontractorSelection(sub.id)}
+                  >
+                    {selectedSubcontractors.has(sub.id) ? (
+                      <CheckSquare size={24} color="#2563EB" />
+                    ) : (
+                      <Square size={24} color="#9CA3AF" />
+                    )}
+                  </TouchableOpacity>
+                  <View style={styles.subInfo}>
+                    <View style={styles.subNameRow}>
+                      <Text style={styles.subName}>{sub.name}</Text>
+                      <View style={[styles.availabilityBadge, { backgroundColor: getAvailabilityColor(sub.availability) }]}>
+                        <Text style={styles.availabilityText}>
+                          {sub.availability.charAt(0).toUpperCase() + sub.availability.slice(1)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.subCompanyRow}>
+                      <Building2 size={14} color="#6B7280" />
+                      <Text style={styles.subCompany}>{sub.companyName}</Text>
+                    </View>
+                    <View style={styles.tradeTag}>
+                      <Text style={styles.tradeTagText}>{sub.trade}</Text>
+                    </View>
+                    <Text style={styles.subEmail}>{sub.email}</Text>
+                    <Text style={styles.subPhone}>{sub.phone}</Text>
+                    {sub.hourlyRate && sub.hourlyRate > 0 && (
+                      <Text style={styles.subRate}>Rate: ${sub.hourlyRate}/hr</Text>
+                    )}
+                    {sub.rating && sub.rating > 0 && (
+                      <View style={styles.ratingContainer}>
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            size={14}
+                            color={i < (sub.rating || 0) ? '#F59E0B' : '#D1D5DB'}
+                            fill={i < (sub.rating || 0) ? '#F59E0B' : 'transparent'}
+                          />
+                        ))}
+                        <Text style={styles.ratingText}>({sub.rating}.0)</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.subActions}>
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => openMessageModal('email', sub.id)}
+                  >
+                    <Mail size={16} color="#2563EB" />
+                    <Text style={styles.actionButtonText}>Email</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => openMessageModal('sms', sub.id)}
+                  >
+                    <MessageSquare size={16} color="#059669" />
+                    <Text style={styles.actionButtonText}>SMS</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.estimateButton}
+                    onPress={() => {
+                      setSelectedSubcontractor(sub);
+                      setShowRequestModal(true);
+                    }}
+                  >
+                    <FileText size={16} color="#FFFFFF" />
+                    <Text style={styles.estimateButtonText}>Request Estimate</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.viewButton}
+                    onPress={() => {
+                      setSelectedSubcontractor(sub);
+                      setShowDetailsModal(true);
+                    }}
+                  >
+                    <FileCheck size={16} color="#8B5CF6" />
+                    <Text style={styles.viewButtonText}>View Details</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </TouchableOpacity>
-          ))
-        )}
+            ))
+          )}
+
+          <View style={styles.statsWidget}>
+            <View style={styles.statsHeader}>
+              <View style={styles.statsHeaderLeft}>
+                <TrendingUp size={20} color="#2563EB" />
+                <Text style={styles.statsHeaderTitle}>Directory Stats</Text>
+              </View>
+            </View>
+            <View style={styles.statsContent}>
+              <View style={styles.statsGrid}>
+                <View style={styles.statCard}>
+                  <Users size={24} color="#2563EB" />
+                  <Text style={styles.statValue}>{totalSubcontractors}</Text>
+                  <Text style={styles.statLabel}>Total Subs</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <CheckSquare size={24} color="#10B981" />
+                  <Text style={styles.statValue}>{availableSubcontractors}</Text>
+                  <Text style={styles.statLabel}>Available</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Star size={24} color="#F59E0B" />
+                  <Text style={styles.statValue}>{avgRating}</Text>
+                  <Text style={styles.statLabel}>Avg Rating</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
       </ScrollView>
 
       <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
@@ -642,18 +840,51 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  scrollView: {
+    flex: 1,
+  },
   header: {
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  headerActions: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    flexWrap: 'wrap' as const,
+    marginTop: 12,
+  },
+  addButton: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    paddingHorizontal: 16,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  searchSection: {
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    gap: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   searchContainer: {
-    flex: 1,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -666,18 +897,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1F2937',
   },
-  addButton: {
-    backgroundColor: '#2563EB',
-    borderRadius: 12,
-    width: 48,
-    height: 48,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-  },
   filterContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    maxHeight: 50,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    maxHeight: 60,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   filterChip: {
     paddingHorizontal: 16,
@@ -700,9 +926,69 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: '#FFFFFF',
   },
-  list: {
-    flex: 1,
-    paddingHorizontal: 16,
+  content: {
+    padding: 20,
+  },
+  listHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 16,
+    flexWrap: 'wrap' as const,
+    gap: 12,
+  },
+  leftActions: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  selectedCount: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '600' as const,
+  },
+  rightActions: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  selectAllButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  selectAllText: {
+    fontSize: 14,
+    color: '#4B5563',
+    fontWeight: '500' as const,
+  },
+  bulkActionButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+  },
+  smsButton: {
+    backgroundColor: '#059669',
+  },
+  bulkActionText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
   },
   emptyState: {
     alignItems: 'center' as const,
@@ -720,24 +1006,59 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 8,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+  subcontractorRow: {
+    backgroundColor: '#DBEAFE',
     padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  cardHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
+    borderRadius: 12,
     marginBottom: 12,
   },
-  cardHeaderLeft: {
+  subRowHeader: {
     flexDirection: 'row' as const,
-    alignItems: 'center' as const,
     gap: 12,
+    marginBottom: 12,
+  },
+  checkbox: {
+    paddingTop: 2,
+  },
+  subInfo: {
+    flex: 1,
+  },
+  subNameRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: 4,
+    flexWrap: 'wrap' as const,
+  },
+  subName: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  subCompanyRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    marginBottom: 8,
+  },
+  subCompany: {
+    fontSize: 14,
+    color: '#4B5563',
+  },
+  subEmail: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 4,
+  },
+  subPhone: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 4,
+  },
+  subRate: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 8,
   },
   avatar: {
     width: 48,
@@ -752,18 +1073,6 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#FFFFFF',
   },
-  cardHeaderInfo: {
-    gap: 4,
-  },
-  cardName: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  cardCompany: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
   availabilityBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -774,42 +1083,138 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#FFFFFF',
   },
-  cardBody: {
-    gap: 12,
-  },
   tradeTag: {
     alignSelf: 'flex-start' as const,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#EFF6FF',
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#2563EB',
+    marginBottom: 8,
   },
   tradeTagText: {
-    fontSize: 14,
-    fontWeight: '500' as const,
-    color: '#2563EB',
-  },
-  cardInfo: {
-    gap: 8,
-  },
-  infoRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#4B5563',
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   ratingContainer: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
+    gap: 2,
+    marginTop: 4,
   },
   ratingText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6B7280',
     marginLeft: 4,
+  },
+  subActions: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    flexWrap: 'wrap' as const,
+  },
+  actionButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  actionButtonText: {
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+  },
+  estimateButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    backgroundColor: '#2563EB',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  estimateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  viewButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  viewButtonText: {
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+  },
+  statsWidget: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginTop: 24,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden' as const,
+  },
+  statsHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  statsHeaderLeft: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+  },
+  statsHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  statsContent: {
+    padding: 16,
+  },
+  statsGrid: {
+    flexDirection: 'row' as const,
+    gap: 12,
+    flexWrap: 'wrap' as const,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: 100,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center' as const,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  statValue: {
+    fontSize: 32,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginTop: 4,
   },
   modalContainer: {
     flex: 1,
