@@ -67,8 +67,186 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const isOnAuthScreen = pathname?.includes('/login') || pathname?.includes('/subscription') || pathname?.includes('/signup');
   const { user } = useApp();
 
+  const { 
+    projects, 
+    expenses, 
+    clients, 
+    clockEntries, 
+    payments, 
+    changeOrders, 
+    tasks,
+    company,
+    estimates
+  } = useApp();
+
   const { messages, sendMessage } = useRorkAgent({
     tools: {
+      getProjects: createRorkTool({
+        description: 'Get information about all projects or a specific project. Shows budget, expenses, progress, status, and hours worked.',
+        zodSchema: z.object({
+          projectId: z.string().optional().describe('Optional project ID to get specific project details'),
+        }),
+        execute: (input) => {
+          if (input.projectId) {
+            const project = projects.find(p => p.id === input.projectId);
+            return JSON.stringify(project || { error: 'Project not found' }, null, 2);
+          }
+          return JSON.stringify(projects, null, 2);
+        },
+      }),
+      getProjectFinancials: createRorkTool({
+        description: 'Get detailed financial information for a specific project including budget, expenses, payments, and change orders.',
+        zodSchema: z.object({
+          projectId: z.string().describe('The ID of the project'),
+        }),
+        execute: (input) => {
+          const project = projects.find(p => p.id === input.projectId);
+          if (!project) return JSON.stringify({ error: 'Project not found' });
+          
+          const projectExpenses = expenses.filter(e => e.projectId === input.projectId);
+          const projectPayments = payments.filter(p => p.projectId === input.projectId);
+          const projectChangeOrders = changeOrders.filter(co => co.projectId === input.projectId);
+          const projectEstimates = estimates.filter(e => e.projectId === input.projectId);
+          
+          const totalExpenses = projectExpenses.reduce((sum, e) => sum + e.amount, 0);
+          const totalPayments = projectPayments.reduce((sum, p) => sum + p.amount, 0);
+          const approvedChangeOrders = projectChangeOrders
+            .filter(co => co.status === 'approved')
+            .reduce((sum, co) => sum + co.amount, 0);
+          
+          return JSON.stringify({
+            project: {
+              name: project.name,
+              budget: project.budget,
+              expenses: project.expenses,
+              progress: project.progress,
+              status: project.status,
+            },
+            expenses: {
+              total: totalExpenses,
+              count: projectExpenses.length,
+              byCategory: projectExpenses.reduce((acc, e) => {
+                acc[e.type] = (acc[e.type] || 0) + e.amount;
+                return acc;
+              }, {} as Record<string, number>),
+            },
+            payments: {
+              total: totalPayments,
+              count: projectPayments.length,
+              list: projectPayments,
+            },
+            changeOrders: {
+              total: approvedChangeOrders,
+              count: projectChangeOrders.length,
+              list: projectChangeOrders,
+            },
+            estimates: projectEstimates,
+            remaining: project.budget - project.expenses,
+          }, null, 2);
+        },
+      }),
+      getCompanyOverview: createRorkTool({
+        description: 'Get overall company information including all projects summary, total financials, and company details.',
+        zodSchema: z.object({}),
+        execute: () => {
+          const activeProjects = projects.filter(p => p.status === 'active');
+          const completedProjects = projects.filter(p => p.status === 'completed');
+          
+          const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0);
+          const totalExpenses = projects.reduce((sum, p) => sum + p.expenses, 0);
+          const totalHours = projects.reduce((sum, p) => sum + p.hoursWorked, 0);
+          
+          const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
+          const totalChangeOrders = changeOrders
+            .filter(co => co.status === 'approved')
+            .reduce((sum, co) => sum + co.amount, 0);
+          
+          return JSON.stringify({
+            company: {
+              name: company?.name,
+              subscriptionStatus: company?.subscriptionStatus,
+              subscriptionPlan: company?.subscriptionPlan,
+            },
+            projects: {
+              total: projects.length,
+              active: activeProjects.length,
+              completed: completedProjects.length,
+              archived: projects.filter(p => p.status === 'archived').length,
+            },
+            financials: {
+              totalBudget,
+              totalExpenses,
+              totalPayments,
+              totalChangeOrders,
+              remaining: totalBudget - totalExpenses,
+            },
+            time: {
+              totalHours,
+              totalClockEntries: clockEntries.length,
+            },
+            clients: {
+              total: clients.length,
+              leads: clients.filter(c => c.status === 'Lead').length,
+              active: clients.filter(c => c.status === 'Project').length,
+            },
+          }, null, 2);
+        },
+      }),
+      getExpenses: createRorkTool({
+        description: 'Get expenses information, optionally filtered by project.',
+        zodSchema: z.object({
+          projectId: z.string().optional().describe('Optional project ID to filter expenses'),
+        }),
+        execute: (input) => {
+          const filteredExpenses = input.projectId 
+            ? expenses.filter(e => e.projectId === input.projectId)
+            : expenses;
+          
+          const total = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+          const byCategory = filteredExpenses.reduce((acc, e) => {
+            acc[e.type] = (acc[e.type] || 0) + e.amount;
+            return acc;
+          }, {} as Record<string, number>);
+          
+          return JSON.stringify({
+            total,
+            count: filteredExpenses.length,
+            byCategory,
+            recentExpenses: filteredExpenses.slice(0, 10),
+          }, null, 2);
+        },
+      }),
+      getTasks: createRorkTool({
+        description: 'Get tasks information, optionally filtered by project.',
+        zodSchema: z.object({
+          projectId: z.string().optional().describe('Optional project ID to filter tasks'),
+        }),
+        execute: (input) => {
+          const filteredTasks = input.projectId 
+            ? tasks.filter(t => t.projectId === input.projectId)
+            : tasks;
+          
+          return JSON.stringify({
+            total: filteredTasks.length,
+            completed: filteredTasks.filter(t => t.completed).length,
+            pending: filteredTasks.filter(t => !t.completed).length,
+            tasks: filteredTasks,
+          }, null, 2);
+        },
+      }),
+      getClients: createRorkTool({
+        description: 'Get information about clients/customers.',
+        zodSchema: z.object({}),
+        execute: () => {
+          return JSON.stringify({
+            total: clients.length,
+            leads: clients.filter(c => c.status === 'Lead').length,
+            active: clients.filter(c => c.status === 'Project').length,
+            completed: clients.filter(c => c.status === 'Completed').length,
+            clients: clients,
+          }, null, 2);
+        },
+      }),
       analyzeImage: createRorkTool({
         description: 'Analyze construction blueprints, photos, or any images. Can perform takeoff measurements and identify materials.',
         zodSchema: z.object({
