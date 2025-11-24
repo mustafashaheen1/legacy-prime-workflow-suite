@@ -3,7 +3,7 @@ import { MessageSquare, Plus, Clock, Trash2, X } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AIChatSession } from '@/types';
-import GlobalAIChat from './GlobalAIChat';
+import GlobalAIChat from './GlobalAIChatSimple';
 
 interface ChatHistoryWrapperProps {
   currentPageContext?: string;

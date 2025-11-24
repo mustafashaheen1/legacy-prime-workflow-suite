@@ -6,7 +6,7 @@ import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppProvider } from "@/contexts/AppContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
-import GlobalAIChat from "@/components/GlobalAIChat";
+import GlobalAIChat from "@/components/GlobalAIChatSimple";
 import FloatingChatButton from "@/components/FloatingChatButton";
 import { trpc, trpcClient } from "@/lib/trpc";
 import '@/lib/i18n';

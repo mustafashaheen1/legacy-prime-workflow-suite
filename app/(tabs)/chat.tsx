@@ -11,7 +11,7 @@ import { Audio } from 'expo-av';
 import { useApp } from '@/contexts/AppContext';
 import { mockUsers } from '@/mocks/data';
 import { ChatMessage } from '@/types';
-import GlobalAIChat from '@/components/GlobalAIChat';
+import GlobalAIChat from '@/components/GlobalAIChatSimple';
 import ImageAnnotation from '@/components/ImageAnnotation';
 import { getTipOfTheDay } from '@/constants/construction-tips';
 
