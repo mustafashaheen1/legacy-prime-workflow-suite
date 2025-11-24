@@ -916,27 +916,45 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
 
   const transcribeAudio = async (audio: Blob | { uri: string; name: string; type: string }) => {
     try {
+      console.log('[STT] Starting transcription...');
       const formData = new FormData();
       
       if (audio instanceof Blob) {
         formData.append('audio', audio, 'recording.webm');
+        console.log('[STT Web] Blob size:', audio.size, 'type:', audio.type);
       } else {
         formData.append('audio', audio as any);
+        console.log('[STT Native] File:', audio.name, 'type:', audio.type);
       }
 
+      console.log('[STT] Sending request to transcription API...');
       const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
         method: 'POST',
         body: formData,
       });
 
+      console.log('[STT] Response status:', response.status);
       if (!response.ok) {
-        throw new Error('Transcription failed');
+        const errorText = await response.text();
+        console.error('[STT] Error response:', errorText);
+        throw new Error(`Transcription failed: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
       const transcribedText = data.text;
       
-      console.log('[Voice Mode] Transcribed:', transcribedText);
+      console.log('[STT] Transcription successful:', transcribedText);
+      
+      if (!transcribedText || transcribedText.trim() === '') {
+        console.warn('[STT] Empty transcription received');
+        if (voiceMode) {
+          setTimeout(() => {
+            setIsListening(true);
+            startRecording();
+          }, 1000);
+        }
+        return;
+      }
       
       if (voiceMode && transcribedText.trim()) {
         console.log('[Voice Mode] Sending message in voice conversation mode');
@@ -945,7 +963,11 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
         setInput(transcribedText);
       }
     } catch (error) {
-      console.error('Transcription error:', error);
+      console.error('[STT] Transcription error:', error);
+      if (error instanceof Error) {
+        console.error('[STT] Error details:', error.message);
+        alert(`Voice transcription failed: ${error.message}. Please try again.`);
+      }
       if (voiceMode) {
         console.log('[Voice Mode] Transcription failed, restarting listening');
         setTimeout(() => {
@@ -957,6 +979,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
       if (!voiceMode) {
         setIsTranscribing(false);
       }
+      setIsListening(false);
     }
   };
 
