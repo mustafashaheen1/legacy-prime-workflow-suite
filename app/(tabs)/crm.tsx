@@ -7,6 +7,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { createRorkTool, useRorkAgent } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
+import { useTwilioSMS, useTwilioCalls } from '@/components/TwilioIntegration';
 
 type MessageType = 'email' | 'sms';
 type MessageTemplate = {
@@ -58,6 +59,8 @@ const promotionTemplates: MessageTemplate[] = [
 export default function CRMScreen() {
   const { clients, addClient, addProject, updateClient, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog } = useApp();
   const router = useRouter();
+  const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
+  const { initiateCall, isLoadingCall } = useTwilioCalls();
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
   const [newClientName, setNewClientName] = useState<string>('');
   const [newClientAddress, setNewClientAddress] = useState<string>('');
@@ -317,13 +320,18 @@ export default function CRMScreen() {
     setAttachments(attachments.filter((_, i) => i !== index));
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const recipients = singleRecipient 
       ? [clients.find(c => c.id === singleRecipient)!]
       : clients.filter(c => selectedClients.has(c.id));
 
     if (recipients.length === 0) {
       Alert.alert('No Recipients', 'Please select at least one client.');
+      return;
+    }
+
+    if (!messageBody.trim()) {
+      Alert.alert('Error', 'Please enter a message.');
       return;
     }
 
@@ -358,23 +366,37 @@ export default function CRMScreen() {
         }}]
       );
     } else {
-      recipients.forEach(client => {
-        const personalizedBody = messageBody.replace('{name}', client.name.split(' ')[0]);
-        const smsUrl = `sms:${client.phone}${Platform.OS === 'ios' ? '&' : '?'}body=${encodeURIComponent(personalizedBody)}`;
-        
-        Linking.openURL(smsUrl).catch(() => {
-          Alert.alert('Error', 'Unable to open messaging app');
-        });
-      });
+      console.log('[CRM] Sending SMS via Twilio to', recipients.length, 'recipients');
       
-      Alert.alert(
-        'Success', 
-        `SMS prepared for ${recipients.length} client${recipients.length > 1 ? 's' : ''}. Your messaging app should open.`,
-        [{ text: 'OK', onPress: () => {
+      if (recipients.length === 1) {
+        const client = recipients[0];
+        const success = await sendSingleSMS(
+          client.phone,
+          messageBody,
+          client.name
+        );
+        
+        if (success) {
           setShowMessageModal(false);
           setSelectedClients(new Set());
-        }}]
-      );
+          setMessageBody('');
+          setMessageSubject('');
+        }
+      } else {
+        const recipientList = recipients.map(client => ({
+          phone: client.phone,
+          name: client.name,
+        }));
+        
+        const result = await sendBulkSMSMessages(recipientList, messageBody);
+        
+        if (result && result.success) {
+          setShowMessageModal(false);
+          setSelectedClients(new Set());
+          setMessageBody('');
+          setMessageSubject('');
+        }
+      }
     }
   };
 
