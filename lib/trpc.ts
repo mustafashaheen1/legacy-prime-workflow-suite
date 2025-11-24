@@ -1,5 +1,5 @@
 import { createTRPCReact } from "@trpc/react-query";
-import { httpLink, TRPCClientError } from "@trpc/client";
+import { httpLink } from "@trpc/client";
 import type { AppRouter } from "@/backend/trpc/app-router";
 import superjson from "superjson";
 
@@ -36,8 +36,7 @@ export const trpcClient = trpc.createClient({
           });
           
           if (!response.ok) {
-            const text = await response.text();
-            console.error('[tRPC] HTTP error:', response.status, response.statusText, text);
+            console.error('[tRPC] HTTP error:', response.status, response.statusText);
           }
           
           return response;
