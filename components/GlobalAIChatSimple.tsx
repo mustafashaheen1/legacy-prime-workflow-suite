@@ -1,13 +1,14 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon } from 'lucide-react-native';
+import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { trpc } from '@/lib/trpc';
+import { useRorkAgent, createRorkTool } from '@rork-ai/toolkit-sdk';
 import { Audio } from 'expo-av';
 import { usePathname } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
+import { z } from 'zod';
 
 interface GlobalAIChatProps {
   currentPageContext?: string;
@@ -33,12 +34,7 @@ type AttachedFile = {
   type: 'file';
 };
 
-type Message = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  imageUri?: string;
-};
+
 
 const getSanitizedMimeType = (initialMimeType: string | undefined, fileName: string): string => {
   if (initialMimeType && initialMimeType !== 'application/octet-stream') {
@@ -63,7 +59,6 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
   const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -72,8 +67,22 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const isOnAuthScreen = pathname?.includes('/login') || pathname?.includes('/subscription') || pathname?.includes('/signup');
   const { user } = useApp();
 
-  const chatMutation = trpc.openai.chat.useMutation();
-  const imageAnalysisMutation = trpc.openai.imageAnalysis.useMutation();
+  const { messages, sendMessage } = useRorkAgent({
+    tools: {
+      analyzeImage: createRorkTool({
+        description: 'Analyze construction blueprints, photos, or any images. Can perform takeoff measurements and identify materials.',
+        zodSchema: z.object({
+          analysis: z.string().describe('Detailed analysis of the image including measurements, materials, and recommendations'),
+          estimatedCosts: z.array(z.object({
+            item: z.string(),
+            quantity: z.number(),
+            unit: z.string(),
+            estimatedCost: z.number().optional(),
+          })).describe('List of materials and quantities identified in the image').optional(),
+        }),
+      }),
+    },
+  });
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -440,17 +449,13 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     }
   };
 
-  const convertFileToBase64 = async (file: AttachedFile): Promise<string> => {
+  const convertFileToDataUri = async (file: AttachedFile): Promise<string> => {
     try {
       console.log('[File Conversion] Starting conversion for:', file.name);
       
       if (Platform.OS === 'web') {
         if (file.uri.startsWith('data:')) {
-          const base64 = file.uri.split(',')[1];
-          if (!base64) {
-            throw new Error('Invalid data URL format');
-          }
-          return base64;
+          return file.uri;
         }
         
         const response = await fetch(file.uri);
@@ -469,12 +474,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 reject(new Error('FileReader returned empty result'));
                 return;
               }
-              const base64Data = result.split(',')[1];
-              if (!base64Data) {
-                reject(new Error('Failed to extract base64 data'));
-                return;
-              }
-              resolve(base64Data);
+              resolve(result);
             } catch (err) {
               reject(err);
             }
@@ -491,7 +491,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         if (!base64 || base64.length === 0) {
           throw new Error('Failed to read file or file is empty');
         }
-        return base64;
+        return `data:${file.mimeType};base64,${base64}`;
       }
     } catch (error) {
       console.error('[File Conversion] Error:', error);
@@ -500,108 +500,40 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && attachedFiles.length === 0) || chatMutation.isPending) return;
+    if (!input.trim() && attachedFiles.length === 0) return;
     
-    const userMessage = input.trim() || 'Please analyze the attached files';
+    const userMessage = input.trim() || 'Por favor analiza las imágenes adjuntas';
+    const hasImages = attachedFiles.some(f => f.mimeType.startsWith('image/'));
     
-    const newUserMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: userMessage,
-    };
-    
-    setMessages(prev => [...prev, newUserMessage]);
     setInput('');
 
     try {
-      if (attachedFiles.length > 0 && attachedFiles[0].mimeType.startsWith('image/')) {
-        console.log('[Send] Processing image with OpenAI Vision');
-        const file = attachedFiles[0];
-        const base64 = await convertFileToBase64(file);
+      if (hasImages) {
+        console.log('[Send] Processing with images');
+        const filesForAI: { type: 'file'; mimeType: string; uri: string; }[] = [];
         
-        setAttachedFiles([]);
-        
-        const response = await imageAnalysisMutation.mutateAsync({
-          imageBase64: base64,
-          prompt: userMessage,
-          model: 'gpt-4o',
-          maxTokens: 1000,
-        });
-
-        if (response.success && response.analysis) {
-          const assistantMessage: Message = {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: response.analysis,
-            imageUri: `data:${file.mimeType};base64,${base64}`,
-          };
-          setMessages(prev => [...prev, assistantMessage]);
-        } else {
-          throw new Error(response.error || 'Image analysis failed');
-        }
-      } else {
-        console.log('[Send] Sending text message to OpenAI');
-        setAttachedFiles([]);
-        
-        const conversationMessages = messages.map(m => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content,
-        }));
-        
-        conversationMessages.push({
-          role: 'user',
-          content: userMessage,
-        });
-
-        console.log('[Send] Calling chatMutation.mutateAsync');
-        
-        try {
-          const response = await chatMutation.mutateAsync({
-            messages: conversationMessages,
-            model: 'gpt-4o',
-            temperature: 0.7,
+        for (const file of attachedFiles.filter(f => f.mimeType.startsWith('image/'))) {
+          const dataUri = await convertFileToDataUri(file);
+          filesForAI.push({
+            type: 'file',
+            mimeType: file.mimeType,
+            uri: dataUri,
           });
-          
-          console.log('[Send] Response received:', JSON.stringify(response).substring(0, 200));
-
-          if (response.success && response.message) {
-            console.log('[Send] Success, creating assistant message');
-            const assistantMessage: Message = {
-              id: `assistant-${Date.now()}`,
-              role: 'assistant',
-              content: response.message,
-            };
-            setMessages(prev => [...prev, assistantMessage]);
-          } else {
-            console.error('[Send] Response unsuccessful:', response);
-            const errorMsg = 'error' in response ? response.error : 'Chat request failed';
-            throw new Error(errorMsg || 'Chat request failed');
-          }
-        } catch (mutationError: any) {
-          console.error('[Send] Mutation error:', mutationError);
-          console.error('[Send] Error type:', mutationError?.constructor?.name);
-          console.error('[Send] Error code:', mutationError?.data?.code);
-          console.error('[Send] Error message:', mutationError?.message);
-          
-          if (mutationError.message && mutationError.message.includes('Network request failed')) {
-            throw new Error('No se puede conectar al servidor. Verifica tu conexión a internet.');
-          }
-          
-          if (mutationError.message && mutationError.message.includes('fetch failed')) {
-            throw new Error('Error de conexión. El servidor puede estar iniciando, espera unos segundos e intenta de nuevo.');
-          }
-          
-          throw mutationError;
         }
+        
+        setAttachedFiles([]);
+        
+        await sendMessage({
+          text: userMessage,
+          files: filesForAI as any,
+        });
+      } else {
+        console.log('[Send] Sending text message');
+        setAttachedFiles([]);
+        await sendMessage(userMessage);
       }
     } catch (error) {
       console.error('[Send] Error:', error);
-      const errorMessage: Message = {
-        id: `error-${Date.now()}`,
-        role: 'assistant',
-        content: `Error: ${error instanceof Error ? error.message : 'Failed to process request'}`,
-      };
-      setMessages(prev => [...prev, errorMessage]);
     }
   };
 
@@ -621,58 +553,63 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           {messages.length === 0 && (
             <View style={styles.emptyState}>
               <Bot size={56} color="#D1D5DB" strokeWidth={2} />
-              <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
+              <Text style={styles.emptyStateTitle}>¡Pregúntame lo que quieras!</Text>
               <Text style={styles.emptyStateText}>
-                I&apos;m powered by OpenAI and can help with text, images, and voice. Ask me anything!
+                Puedo analizar imágenes de construcción, hacer takeoff de planos, y responder tus preguntas. ¡Pruébame!
               </Text>
             </View>
           )}
 
           {messages.map((message) => (
             <View key={message.id} style={styles.messageWrapper}>
-              {message.role === 'user' ? (
-                <View style={styles.userMessageContainer}>
-                  <View style={styles.userMessage}>
-                    <Text style={styles.userMessageText} selectable>
-                      {message.content}
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.assistantMessageContainer}>
-                  <View style={styles.assistantMessage}>
-                    {message.imageUri && (
-                      <Image 
-                        source={{ uri: message.imageUri }} 
-                        style={styles.messageImage}
-                        resizeMode="contain"
-                      />
-                    )}
-                    <Text style={styles.assistantMessageText} selectable>
-                      {message.content}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.speakButton}
-                      onPress={() => speakText(message.content)}
-                    >
-                      <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
-                      <Text style={styles.speakButtonText}>
-                        {isSpeaking ? 'Stop' : 'Speak'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
+              {message.parts.map((part, i) => {
+                if (part.type === 'text') {
+                  return (
+                    <View key={`${message.id}-${i}`} style={message.role === 'user' ? styles.userMessageContainer : styles.assistantMessageContainer}>
+                      <View style={message.role === 'user' ? styles.userMessage : styles.assistantMessage}>
+                        <Text style={message.role === 'user' ? styles.userMessageText : styles.assistantMessageText} selectable>
+                          {part.text}
+                        </Text>
+                        {message.role === 'assistant' && (
+                          <TouchableOpacity
+                            style={styles.speakButton}
+                            onPress={() => speakText(part.text)}
+                          >
+                            <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
+                            <Text style={styles.speakButtonText}>
+                              {isSpeaking ? 'Stop' : 'Speak'}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                }
+                if (part.type === 'tool') {
+                  if (part.state === 'input-streaming' || part.state === 'input-available') {
+                    return (
+                      <View key={`${message.id}-${i}`} style={styles.assistantMessageContainer}>
+                        <View style={[styles.assistantMessage, styles.toolMessage]}>
+                          <Loader2 size={16} color="#8B5CF6" />
+                          <Text style={styles.toolText}>Analizando {part.toolName}...</Text>
+                        </View>
+                      </View>
+                    );
+                  }
+                  if (part.state === 'output-available') {
+                    return (
+                      <View key={`${message.id}-${i}`} style={styles.assistantMessageContainer}>
+                        <View style={[styles.assistantMessage, styles.toolMessage]}>
+                          <Text style={styles.toolText}>✓ {part.toolName} completado</Text>
+                        </View>
+                      </View>
+                    );
+                  }
+                }
+                return null;
+              })}
             </View>
           ))}
-
-          {chatMutation.isPending && (
-            <View style={styles.assistantMessageContainer}>
-              <View style={styles.assistantMessage}>
-                <ActivityIndicator size="small" color="#2563EB" />
-              </View>
-            </View>
-          )}
         </ScrollView>
 
         <View style={styles.inputWrapper}>
@@ -724,7 +661,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             <TouchableOpacity
               style={styles.attachButton}
               onPress={() => setShowAttachMenu(true)}
-              disabled={chatMutation.isPending || isRecording}
+              disabled={isRecording}
             >
               <Paperclip size={22} color="#6B7280" />
             </TouchableOpacity>
@@ -748,21 +685,21 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   placeholderTextColor="#9CA3AF"
                   multiline
                   maxLength={500}
-                  editable={!chatMutation.isPending && !isTranscribing}
+                  editable={!isTranscribing}
                 />
                 <TouchableOpacity
                   style={styles.micButton}
                   onPress={startRecording}
-                  disabled={chatMutation.isPending || isTranscribing}
+                  disabled={isTranscribing}
                 >
                   <Mic size={20} color="#6B7280" />
                 </TouchableOpacity>
               </>
             )}
             <TouchableOpacity
-              style={[styles.sendButton, (chatMutation.isPending || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
+              style={[styles.sendButton, (isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
               onPress={handleSend}
-              disabled={chatMutation.isPending || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
+              disabled={isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
             >
               <Send size={20} color="#FFFFFF" />
             </TouchableOpacity>
@@ -816,58 +753,63 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               {messages.length === 0 && (
                 <View style={styles.emptyState}>
                   <Bot size={56} color="#D1D5DB" strokeWidth={2} />
-                  <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
+                  <Text style={styles.emptyStateTitle}>¡Pregúntame lo que quieras!</Text>
                   <Text style={styles.emptyStateText}>
-                    I&apos;m powered by OpenAI GPT-4 and can help with text, images, and voice. Ask me anything!
+                    Puedo analizar imágenes de construcción, hacer takeoff de planos, y responder tus preguntas. ¡Pruébame!
                   </Text>
                 </View>
               )}
 
               {messages.map((message) => (
                 <View key={message.id} style={styles.messageWrapper}>
-                  {message.role === 'user' ? (
-                    <View style={styles.userMessageContainer}>
-                      <View style={styles.userMessage}>
-                        <Text style={styles.userMessageText} selectable>
-                          {message.content}
-                        </Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <View style={styles.assistantMessageContainer}>
-                      <View style={styles.assistantMessage}>
-                        {message.imageUri && (
-                          <Image 
-                            source={{ uri: message.imageUri }} 
-                            style={styles.messageImage}
-                            resizeMode="contain"
-                          />
-                        )}
-                        <Text style={styles.assistantMessageText} selectable>
-                          {message.content}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.speakButton}
-                          onPress={() => speakText(message.content)}
-                        >
-                          <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
-                          <Text style={styles.speakButtonText}>
-                            {isSpeaking ? 'Stop' : 'Speak'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
+                  {message.parts.map((part, i) => {
+                    if (part.type === 'text') {
+                      return (
+                        <View key={`${message.id}-${i}`} style={message.role === 'user' ? styles.userMessageContainer : styles.assistantMessageContainer}>
+                          <View style={message.role === 'user' ? styles.userMessage : styles.assistantMessage}>
+                            <Text style={message.role === 'user' ? styles.userMessageText : styles.assistantMessageText} selectable>
+                              {part.text}
+                            </Text>
+                            {message.role === 'assistant' && (
+                              <TouchableOpacity
+                                style={styles.speakButton}
+                                onPress={() => speakText(part.text)}
+                              >
+                                <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
+                                <Text style={styles.speakButtonText}>
+                                  {isSpeaking ? 'Stop' : 'Speak'}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                      );
+                    }
+                    if (part.type === 'tool') {
+                      if (part.state === 'input-streaming' || part.state === 'input-available') {
+                        return (
+                          <View key={`${message.id}-${i}`} style={styles.assistantMessageContainer}>
+                            <View style={[styles.assistantMessage, styles.toolMessage]}>
+                              <Loader2 size={16} color="#8B5CF6" />
+                              <Text style={styles.toolText}>Analizando {part.toolName}...</Text>
+                            </View>
+                          </View>
+                        );
+                      }
+                      if (part.state === 'output-available') {
+                        return (
+                          <View key={`${message.id}-${i}`} style={styles.assistantMessageContainer}>
+                            <View style={[styles.assistantMessage, styles.toolMessage]}>
+                              <Text style={styles.toolText}>✓ {part.toolName} completado</Text>
+                            </View>
+                          </View>
+                        );
+                      }
+                    }
+                    return null;
+                  })}
                 </View>
               ))}
-
-              {chatMutation.isPending && (
-                <View style={styles.assistantMessageContainer}>
-                  <View style={styles.assistantMessage}>
-                    <ActivityIndicator size="small" color="#2563EB" />
-                  </View>
-                </View>
-              )}
             </ScrollView>
 
             <View style={styles.inputWrapper}>
@@ -919,7 +861,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 <TouchableOpacity
                   style={styles.attachButton}
                   onPress={() => setShowAttachMenu(true)}
-                  disabled={chatMutation.isPending || isRecording}
+                  disabled={isRecording}
                 >
                   <Paperclip size={22} color="#6B7280" />
                 </TouchableOpacity>
@@ -943,21 +885,21 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                       placeholderTextColor="#9CA3AF"
                       multiline
                       maxLength={500}
-                      editable={!chatMutation.isPending && !isTranscribing}
+                      editable={!isTranscribing}
                     />
                     <TouchableOpacity
                       style={styles.micButton}
                       onPress={startRecording}
-                      disabled={chatMutation.isPending || isTranscribing}
+                      disabled={isTranscribing}
                     >
                       <Mic size={20} color="#6B7280" />
                     </TouchableOpacity>
                   </>
                 )}
                 <TouchableOpacity
-                  style={[styles.sendButton, (chatMutation.isPending || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
+                  style={[styles.sendButton, (isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
                   onPress={handleSend}
-                  disabled={chatMutation.isPending || isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
+                  disabled={isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
                 >
                   <Send size={20} color="#FFFFFF" />
                 </TouchableOpacity>
@@ -1303,6 +1245,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500' as const,
     color: '#6B7280',
+  },
+  toolMessage: {
+    backgroundColor: '#F3E8FF',
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+  },
+  toolText: {
+    fontSize: 14,
+    color: '#7C3AED',
+    fontWeight: '500' as const,
   },
   attachModalOverlay: {
     flex: 1,
