@@ -9,6 +9,7 @@ import { Audio } from 'expo-av';
 import { usePathname } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { z } from 'zod';
+import { masterPriceList } from '@/mocks/priceList';
 
 interface GlobalAIChatProps {
   currentPageContext?: string;
@@ -258,6 +259,101 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             estimatedCost: z.number().optional(),
           })).describe('List of materials and quantities identified in the image').optional(),
         }),
+      }),
+      getPriceList: createRorkTool({
+        description: 'Get pricing information from the master price list database. Search by category, item name, or get all prices. Use this to create estimates and quote prices.',
+        zodSchema: z.object({
+          category: z.string().optional().describe('Optional category to filter prices (e.g., "Pre-Construction", "Kitchen", "Plumbing")'),
+          searchTerm: z.string().optional().describe('Optional search term to find specific items by name'),
+        }),
+        execute: (input) => {
+          let filteredPrices = masterPriceList;
+          
+          if (input.category) {
+            filteredPrices = filteredPrices.filter(item => 
+              item.category.toLowerCase().includes(input.category!.toLowerCase())
+            );
+          }
+          
+          if (input.searchTerm) {
+            const term = input.searchTerm.toLowerCase();
+            filteredPrices = filteredPrices.filter(item => 
+              item.name.toLowerCase().includes(term) ||
+              item.description.toLowerCase().includes(term) ||
+              item.category.toLowerCase().includes(term)
+            );
+          }
+          
+          const result = {
+            totalItems: filteredPrices.length,
+            items: filteredPrices.map(item => ({
+              id: item.id,
+              category: item.category,
+              name: item.name,
+              description: item.description,
+              unit: item.unit,
+              unitPrice: item.unitPrice,
+              laborCost: item.laborCost,
+              materialCost: item.materialCost,
+            })),
+          };
+          
+          return JSON.stringify(result, null, 2);
+        },
+      }),
+      calculateEstimate: createRorkTool({
+        description: 'Calculate an estimate based on items from the price list and quantities. Returns a detailed breakdown with line items and totals.',
+        zodSchema: z.object({
+          items: z.array(z.object({
+            priceListId: z.string().describe('ID of the item from the price list'),
+            quantity: z.number().describe('Quantity of the item'),
+            notes: z.string().optional().describe('Optional notes for this line item'),
+          })).describe('Array of items to include in the estimate'),
+          projectName: z.string().optional().describe('Optional project name for the estimate'),
+        }),
+        execute: (input) => {
+          const lineItems = input.items.map(item => {
+            const priceItem = masterPriceList.find(p => p.id === item.priceListId);
+            if (!priceItem) {
+              return {
+                error: `Item ${item.priceListId} not found in price list`,
+                priceListId: item.priceListId,
+              };
+            }
+            
+            const lineTotal = priceItem.unitPrice * item.quantity;
+            return {
+              priceListId: item.priceListId,
+              category: priceItem.category,
+              name: priceItem.name,
+              description: priceItem.description,
+              quantity: item.quantity,
+              unit: priceItem.unit,
+              unitPrice: priceItem.unitPrice,
+              lineTotal,
+              notes: item.notes,
+            };
+          });
+          
+          const validLineItems = lineItems.filter(item => !('error' in item));
+          const subtotal = validLineItems.reduce((sum, item) => sum + (item as any).lineTotal, 0);
+          const tax = subtotal * 0.0; // Adjust tax rate as needed
+          const total = subtotal + tax;
+          
+          const estimate = {
+            projectName: input.projectName || 'Untitled Project',
+            date: new Date().toISOString().split('T')[0],
+            lineItems,
+            summary: {
+              subtotal,
+              tax,
+              total,
+              totalItems: validLineItems.length,
+            },
+          };
+          
+          return JSON.stringify(estimate, null, 2);
+        },
       }),
     },
   });
