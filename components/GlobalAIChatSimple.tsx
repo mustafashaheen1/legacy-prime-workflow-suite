@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView,
 import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRorkAgent, createRorkTool } from '@rork-ai/toolkit-sdk';
 import { Audio } from 'expo-av';

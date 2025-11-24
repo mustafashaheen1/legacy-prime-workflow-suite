@@ -6,7 +6,7 @@ import { ArrowLeft, Upload, Plus, Trash2, Check, X, Ruler, Square, MapPin, Save,
 import { useState, useCallback } from 'react';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { masterPriceList, PriceListItem, priceListCategories } from '@/mocks/priceList';
 import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate } from '@/types';
 import Svg, { Circle, Polygon, Path, Line, Text as SvgText } from 'react-native-svg';

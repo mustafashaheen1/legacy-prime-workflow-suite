@@ -4,7 +4,7 @@ import { useApp } from '@/contexts/AppContext';
 import { priceListCategories } from '@/mocks/priceList';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { generateObject } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
 import { Image } from 'expo-image';
