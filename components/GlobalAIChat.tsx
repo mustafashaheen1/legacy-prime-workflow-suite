@@ -6,6 +6,7 @@ import * as FileSystem from 'expo-file-system';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { trpc } from '@/lib/trpc';
 import { z } from 'zod';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '@/contexts/AppContext';
 import { masterPriceList, priceListCategories } from '@/mocks/priceList';
 import { usePathname } from 'expo-router';
@@ -126,9 +127,7 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     return context;
   };
 
-  const tools = useMemo(() => {
-    const toolsObj = {
-      getProjectExpenses: createRorkTool({
+  const sendMessage = async (userInput: string | { text: string; files?: AgentMessageFile[] }) => {
         description: 'Get expenses for a project or all projects today',
         zodSchema: z.object({
           projectId: z.string().optional().describe('Specific project ID to query, or all if not provided'),
