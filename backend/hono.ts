@@ -1,13 +1,23 @@
 import { Hono } from "hono";
 import { trpcServer } from "@hono/trpc-server";
 import { cors } from "hono/cors";
+import { timeout } from "hono/timeout";
 import { appRouter } from "./trpc/app-router";
 import { createContext } from "./trpc/create-context";
 import twilio from "twilio";
 
 const app = new Hono();
 
-app.use("*", cors());
+app.use("*", cors({
+  origin: '*',
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  exposeHeaders: ['Content-Length'],
+  maxAge: 600,
+  credentials: true,
+}));
+
+app.use("/trpc/*", timeout(60000));
 
 app.use(
   "/trpc/*",
@@ -16,13 +26,19 @@ app.use(
     router: appRouter,
     createContext,
     onError({ path, error }) {
-      console.error(`[tRPC Error] ${path}:`, error);
+      console.error(`[tRPC Error] Path: ${path}`);
+      console.error(`[tRPC Error] Message:`, error.message);
+      console.error(`[tRPC Error] Stack:`, error.stack?.substring(0, 500));
     },
   })
 );
 
 app.get("/", (c) => {
-  return c.json({ status: "ok", message: "API is running" });
+  return c.json({ 
+    status: "ok", 
+    message: "API is running",
+    openai: process.env.OPENAI_API_KEY ? "configured" : "missing",
+  });
 });
 
 app.post("/twilio/assistant", async (c) => {
@@ -62,5 +78,13 @@ app.post("/twilio/assistant", async (c) => {
     'Content-Type': 'text/xml',
   });
 });
+
+console.log("[Backend] ========================================");
+console.log("[Backend] Hono server initialized");
+console.log("[Backend] OpenAI API Key:", process.env.OPENAI_API_KEY ? "✓ Configured" : "✗ Missing");
+if (process.env.OPENAI_API_KEY) {
+  console.log("[Backend] OpenAI API Key preview:", process.env.OPENAI_API_KEY.substring(0, 10) + "...");
+}
+console.log("[Backend] ========================================");
 
 export default app;

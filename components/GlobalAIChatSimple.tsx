@@ -579,9 +579,16 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           }
         } catch (mutationError: any) {
           console.error('[Send] Mutation error:', mutationError);
+          console.error('[Send] Error type:', mutationError?.constructor?.name);
+          console.error('[Send] Error code:', mutationError?.data?.code);
+          console.error('[Send] Error message:', mutationError?.message);
           
           if (mutationError.message && mutationError.message.includes('Network request failed')) {
-            throw new Error('No se puede conectar al servidor. Por favor, verifica que el backend esté funcionando o contacta con soporte.');
+            throw new Error('No se puede conectar al servidor. Verifica tu conexión a internet.');
+          }
+          
+          if (mutationError.message && mutationError.message.includes('fetch failed')) {
+            throw new Error('Error de conexión. El servidor puede estar iniciando, espera unos segundos e intenta de nuevo.');
           }
           
           throw mutationError;

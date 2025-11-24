@@ -25,11 +25,24 @@ export const chatCompletionProcedure = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
+    const startTime = Date.now();
     try {
-      console.log("[OpenAI Chat] Creating completion with model:", input.model);
+      console.log("[OpenAI Chat] ========== START ==========");
+      console.log("[OpenAI Chat] Model:", input.model);
       console.log("[OpenAI Chat] Messages count:", input.messages.length);
+      console.log("[OpenAI Chat] Temperature:", input.temperature);
+      console.log("[OpenAI Chat] Max tokens:", input.maxTokens || "auto");
+      
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        console.error("[OpenAI Chat] OPENAI_API_KEY not found in environment");
+        throw new Error("OpenAI API key is not configured");
+      }
+      console.log("[OpenAI Chat] API key found:", apiKey.substring(0, 10) + "...");
 
       const openai = getOpenAI();
+      console.log("[OpenAI Chat] Making request to OpenAI...");
+      
       const completion = await openai.chat.completions.create({
         model: input.model,
         messages: input.messages as any,
@@ -38,7 +51,11 @@ export const chatCompletionProcedure = publicProcedure
       });
 
       const responseMessage = completion.choices[0]?.message?.content || "";
-      console.log("[OpenAI Chat] Response length:", responseMessage.length);
+      const elapsed = Date.now() - startTime;
+      
+      console.log("[OpenAI Chat] Response received in", elapsed, "ms");
+      console.log("[OpenAI Chat] Response length:", responseMessage.length, "chars");
+      console.log("[OpenAI Chat] Usage:", JSON.stringify(completion.usage));
 
       const result = {
         success: true,
@@ -47,16 +64,23 @@ export const chatCompletionProcedure = publicProcedure
         model: completion.model,
       };
 
-      console.log("[OpenAI Chat] Returning result:", JSON.stringify(result).substring(0, 200));
+      console.log("[OpenAI Chat] ========== SUCCESS ==========");
       return result;
     } catch (error: any) {
-      console.error("[OpenAI Chat] Error:", error);
+      const elapsed = Date.now() - startTime;
+      console.error("[OpenAI Chat] ========== ERROR ==========");
+      console.error("[OpenAI Chat] Error after", elapsed, "ms");
+      console.error("[OpenAI Chat] Error type:", error?.constructor?.name || typeof error);
+      console.error("[OpenAI Chat] Error message:", error?.message);
+      console.error("[OpenAI Chat] Error code:", error?.code);
+      console.error("[OpenAI Chat] Full error:", JSON.stringify(error, null, 2));
+      
       const errorResult = {
         success: false,
         message: "",
-        error: error.message || "Error al procesar la solicitud",
+        error: error?.message || "Error al procesar la solicitud",
       };
-      console.log("[OpenAI Chat] Returning error:", JSON.stringify(errorResult));
+      
       return errorResult;
     }
   });

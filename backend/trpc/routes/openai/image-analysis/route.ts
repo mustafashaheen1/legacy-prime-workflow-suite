@@ -21,18 +21,25 @@ export const imageAnalysisProcedure = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
+    const startTime = Date.now();
     try {
       if (!input.imageUrl && !input.imageBase64) {
         throw new Error("Debes proporcionar imageUrl o imageBase64");
       }
 
-      console.log("[OpenAI Vision] Analyzing image");
+      console.log("[OpenAI Vision] ========== START ==========");
+      console.log("[OpenAI Vision] Model:", input.model);
+      console.log("[OpenAI Vision] Max tokens:", input.maxTokens);
+      console.log("[OpenAI Vision] Has URL:", !!input.imageUrl);
+      console.log("[OpenAI Vision] Has Base64:", !!input.imageBase64);
+      console.log("[OpenAI Vision] Prompt:", input.prompt.substring(0, 50) + "...");
 
       const openai = getOpenAI();
       const imageContent = input.imageUrl
         ? input.imageUrl
         : `data:image/jpeg;base64,${input.imageBase64}`;
 
+      console.log("[OpenAI Vision] Making request to OpenAI...");
       const response = await openai.chat.completions.create({
         model: input.model,
         messages: [
@@ -52,19 +59,32 @@ export const imageAnalysisProcedure = publicProcedure
         max_tokens: input.maxTokens,
       });
 
-      console.log("[OpenAI Vision] Image analyzed successfully");
+      const elapsed = Date.now() - startTime;
+      const analysis = response.choices[0]?.message?.content || "";
+      
+      console.log("[OpenAI Vision] Response received in", elapsed, "ms");
+      console.log("[OpenAI Vision] Analysis length:", analysis.length, "chars");
+      console.log("[OpenAI Vision] Usage:", JSON.stringify(response.usage));
+      console.log("[OpenAI Vision] ========== SUCCESS ==========");
 
       return {
         success: true,
-        analysis: response.choices[0]?.message?.content || "",
+        analysis,
         usage: response.usage,
       };
     } catch (error: any) {
-      console.error("[OpenAI Vision] Error:", error);
+      const elapsed = Date.now() - startTime;
+      console.error("[OpenAI Vision] ========== ERROR ==========");
+      console.error("[OpenAI Vision] Error after", elapsed, "ms");
+      console.error("[OpenAI Vision] Error type:", error?.constructor?.name || typeof error);
+      console.error("[OpenAI Vision] Error message:", error?.message);
+      console.error("[OpenAI Vision] Error code:", error?.code);
+      console.error("[OpenAI Vision] Full error:", JSON.stringify(error, null, 2));
+      
       return {
         success: false,
         analysis: "",
-        error: error.message || "Error al analizar la imagen",
+        error: error?.message || "Error al analizar la imagen",
       };
     }
   });
