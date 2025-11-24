@@ -31,6 +31,7 @@ import { chatCompletionProcedure } from "./routes/openai/chat/route";
 import { speechToTextProcedure } from "./routes/openai/speech-to-text/route";
 import { textToSpeechProcedure } from "./routes/openai/text-to-speech/route";
 import { imageAnalysisProcedure } from "./routes/openai/image-analysis/route";
+import { agentChatProcedure, agentToolResultProcedure } from "./routes/openai/agent-chat/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -84,6 +85,8 @@ export const appRouter = createTRPCRouter({
     speechToText: speechToTextProcedure,
     textToSpeech: textToSpeechProcedure,
     imageAnalysis: imageAnalysisProcedure,
+    agentChat: agentChatProcedure,
+    agentToolResult: agentToolResultProcedure,
   }),
 });
 
