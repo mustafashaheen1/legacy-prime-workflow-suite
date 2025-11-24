@@ -2,9 +2,13 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAI = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured in environment variables");
+  }
+  return new OpenAI({ apiKey });
+};
 
 export const imageAnalysisProcedure = publicProcedure
   .input(
@@ -24,6 +28,7 @@ export const imageAnalysisProcedure = publicProcedure
 
       console.log("[OpenAI Vision] Analyzing image");
 
+      const openai = getOpenAI();
       const imageContent = input.imageUrl
         ? input.imageUrl
         : `data:image/jpeg;base64,${input.imageBase64}`;

@@ -27,13 +27,21 @@ export const trpcClient = trpc.createClient({
       async fetch(url, options) {
         try {
           console.log('[tRPC] Fetching:', url);
+          console.log('[tRPC] Base URL:', getBaseUrl());
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+          
           const response = await fetch(url, {
             ...options,
+            signal: controller.signal,
             headers: {
               ...options?.headers,
               'Content-Type': 'application/json',
             },
           });
+          
+          clearTimeout(timeoutId);
           
           if (!response.ok) {
             console.error('[tRPC] HTTP error:', response.status, response.statusText);
@@ -41,13 +49,26 @@ export const trpcClient = trpc.createClient({
             console.error('[tRPC] Response body:', text.substring(0, 500));
           } else {
             const text = await response.clone().text();
-            console.log('[tRPC] Response preview:', text.substring(0, 300));
+            console.log('[tRPC] Response OK, preview:', text.substring(0, 300));
           }
           
           return response;
         } catch (error) {
-          console.error('[tRPC] Network error:', error);
+          console.error('[tRPC] Fetch error:', error);
           console.error('[tRPC] Base URL:', getBaseUrl());
+          console.error('[tRPC] Full URL:', url);
+          
+          if (error instanceof Error) {
+            if (error.name === 'AbortError') {
+              console.error('[tRPC] Request timed out after 30 seconds');
+            }
+            console.error('[tRPC] Error details:', {
+              name: error.name,
+              message: error.message,
+              stack: error.stack?.substring(0, 200)
+            });
+          }
+          
           throw error;
         }
       },

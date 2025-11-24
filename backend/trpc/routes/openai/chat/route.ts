@@ -2,9 +2,13 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAI = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured in environment variables");
+  }
+  return new OpenAI({ apiKey });
+};
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant", "system"]),
@@ -25,6 +29,7 @@ export const chatCompletionProcedure = publicProcedure
       console.log("[OpenAI Chat] Creating completion with model:", input.model);
       console.log("[OpenAI Chat] Messages count:", input.messages.length);
 
+      const openai = getOpenAI();
       const completion = await openai.chat.completions.create({
         model: input.model,
         messages: input.messages as any,

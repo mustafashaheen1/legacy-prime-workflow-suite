@@ -2,9 +2,13 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAI = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured in environment variables");
+  }
+  return new OpenAI({ apiKey });
+};
 
 const messagePartSchema = z.discriminatedUnion("type", [
   z.object({
@@ -97,6 +101,7 @@ export const agentChatProcedure = publicProcedure
       console.log("[OpenAI Agent] Sending request with", openaiMessages.length, "messages");
       console.log("[OpenAI Agent] Tools:", openaiTools?.length || 0);
 
+      const openai = getOpenAI();
       const completion = await openai.chat.completions.create({
         model: input.model,
         messages: openaiMessages,
@@ -198,6 +203,7 @@ export const agentToolResultProcedure = publicProcedure
         content: input.toolResult,
       });
 
+      const openai = getOpenAI();
       const completion = await openai.chat.completions.create({
         model: input.model,
         messages: openaiMessages,

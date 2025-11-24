@@ -2,9 +2,13 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAI = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured in environment variables");
+  }
+  return new OpenAI({ apiKey });
+};
 
 export const speechToTextProcedure = publicProcedure
   .input(
@@ -18,6 +22,7 @@ export const speechToTextProcedure = publicProcedure
     try {
       console.log("[OpenAI Whisper] Transcribing audio");
 
+      const openai = getOpenAI();
       const audioBuffer = Buffer.from(input.audioBase64, "base64");
       const audioBlob = new Blob([audioBuffer], { type: "audio/wav" });
       const audioFile = new File([audioBlob], "audio.wav", { type: "audio/wav" });

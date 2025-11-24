@@ -2,9 +2,13 @@ import { publicProcedure } from "../../../create-context";
 import { z } from "zod";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAI = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured in environment variables");
+  }
+  return new OpenAI({ apiKey });
+};
 
 export const textToSpeechProcedure = publicProcedure
   .input(
@@ -18,6 +22,7 @@ export const textToSpeechProcedure = publicProcedure
     try {
       console.log("[OpenAI TTS] Generating speech for text:", input.text.substring(0, 50));
 
+      const openai = getOpenAI();
       const mp3 = await openai.audio.speech.create({
         model: input.model,
         voice: input.voice,
