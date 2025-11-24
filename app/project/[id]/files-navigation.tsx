@@ -113,15 +113,15 @@ export default function FilesNavigationScreen() {
         }, {} as Record<string, number>);
         categories = Object.keys(expensesByCategory).sort();
       } else if (folderConfig.type === 'permit-files') {
-        const files = currentProjectFiles.filter(f => f.category === 'permits');
+        const files = currentProjectFiles.filter(f => f.category === 'documentation');
         count = files.length;
         categories = count > 0 ? ['Todos los Permisos'] : [];
       } else if (folderConfig.type === 'inspections') {
-        const files = currentProjectFiles.filter(f => f.category === 'inspections');
+        const files = currentProjectFiles.filter(f => f.category === 'documentation');
         count = files.length;
         categories = count > 0 ? ['Todas las Inspecciones'] : [];
       } else if (folderConfig.type === 'agreements') {
-        const files = currentProjectFiles.filter(f => f.category === 'agreements');
+        const files = currentProjectFiles.filter(f => f.category === 'documentation');
         count = files.length;
         categories = count > 0 ? ['Todos los Contratos'] : [];
       }
@@ -143,11 +143,11 @@ export default function FilesNavigationScreen() {
         return expenseCategory === category;
       });
     } else if (folderType === 'permit-files') {
-      return currentProjectFiles.filter(f => f.category === 'permits');
+      return currentProjectFiles.filter(f => f.category === 'documentation');
     } else if (folderType === 'inspections') {
-      return currentProjectFiles.filter(f => f.category === 'inspections');
+      return currentProjectFiles.filter(f => f.category === 'documentation');
     } else if (folderType === 'agreements') {
-      return currentProjectFiles.filter(f => f.category === 'agreements');
+      return currentProjectFiles.filter(f => f.category === 'documentation');
     }
     return [];
   };
@@ -219,9 +219,9 @@ export default function FilesNavigationScreen() {
         const asset = result.assets[0];
         
         let category: FileCategory = 'documentation';
-        if (selectedFolder === 'permit-files') category = 'permits';
-        else if (selectedFolder === 'inspections') category = 'inspections';
-        else if (selectedFolder === 'agreements') category = 'agreements';
+        if (selectedFolder === 'permit-files') category = 'documentation';
+        else if (selectedFolder === 'inspections') category = 'documentation';
+        else if (selectedFolder === 'agreements') category = 'documentation';
         
         const file: ProjectFile = {
           id: Date.now().toString(),

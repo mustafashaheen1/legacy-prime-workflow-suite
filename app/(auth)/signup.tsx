@@ -162,6 +162,7 @@ export default function SignupScreen() {
           companyId: companyCode,
           phone: '',
           avatar: undefined,
+          isActive: true,
           permissions: {
             canManageProjects: true,
             canManageClients: true,

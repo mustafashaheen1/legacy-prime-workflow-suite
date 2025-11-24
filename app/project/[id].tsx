@@ -338,7 +338,7 @@ export default function ProjectDetailScreen() {
               contentFit="cover"
             />
 
-            {user?.role !== 'employee' && (
+            {user?.role !== 'field-employee' && (
               <View style={styles.balancesCard}>
                 <View style={styles.cardHeader}>
                   <Wallet size={20} color="#10B981" />
@@ -628,7 +628,7 @@ export default function ProjectDetailScreen() {
               </View>
                 </View>
 
-                {user?.role !== 'employee' && (
+                {user?.role !== 'field-employee' && (
                   <View style={styles.chartCard}>
                     <View style={styles.cardHeader}>
                       <DollarSign size={20} color="#10B981" />
@@ -693,7 +693,7 @@ export default function ProjectDetailScreen() {
               </View>
                 </View>
 
-                {user?.role !== 'employee' && (
+                {user?.role !== 'field-employee' && (
                   <View style={styles.chartCard}>
                     <View style={styles.cardHeader}>
                       <FileText size={20} color="#6366F1" />

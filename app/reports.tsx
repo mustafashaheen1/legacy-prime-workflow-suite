@@ -291,19 +291,13 @@ export default function ReportsScreen() {
                             {projectLogs.logs.map((log) => (
                               <View key={log.id} style={styles.dailyLogCard}>
                                 <Text style={styles.dailyLogDate}>
-                                  {new Date(log.date).toLocaleDateString('en-US', {
+                                  {new Date(log.logDate).toLocaleDateString('en-US', {
                                     weekday: 'short',
                                     year: 'numeric',
                                     month: 'short',
                                     day: 'numeric'
                                   })}
                                 </Text>
-                                {log.category && (
-                                  <View style={styles.dailyLogRow}>
-                                    <Text style={styles.dailyLogLabel}>Category:</Text>
-                                    <Text style={styles.dailyLogValue}>{log.category}</Text>
-                                  </View>
-                                )}
                                 {log.workPerformed && (
                                   <View style={styles.dailyLogSection}>
                                     <Text style={styles.dailyLogSectionTitle}>Work Performed:</Text>
@@ -316,23 +310,22 @@ export default function ReportsScreen() {
                                     <Text style={styles.dailyLogText}>{log.issues}</Text>
                                   </View>
                                 )}
-                                {log.note && (
+                                {log.generalNotes && (
                                   <View style={styles.dailyLogSection}>
                                     <Text style={styles.dailyLogSectionTitle}>Additional Notes:</Text>
-                                    <Text style={styles.dailyLogText}>{log.note}</Text>
+                                    <Text style={styles.dailyLogText}>{log.generalNotes}</Text>
                                   </View>
                                 )}
-                                {log.reminders && log.reminders.length > 0 && (
+                                {log.tasks && log.tasks.length > 0 && (
                                   <View style={styles.dailyLogSection}>
-                                    <Text style={styles.dailyLogSectionTitle}>Reminders:</Text>
-                                    {log.reminders.map((reminder) => (
-                                      <View key={reminder.id} style={styles.reminderRow}>
-                                        <Text style={styles.reminderStatus}>{reminder.completed ? '✓' : '○'}</Text>
+                                    <Text style={styles.dailyLogSectionTitle}>Tasks:</Text>
+                                    {log.tasks.map((task) => (
+                                      <View key={task.id} style={styles.reminderRow}>
+                                        <Text style={styles.reminderStatus}>{task.completed ? '✓' : '○'}</Text>
                                         <View style={{ flex: 1 }}>
-                                          <Text style={[styles.reminderText, reminder.completed && styles.reminderTextCompleted]}>
-                                            {reminder.task}
+                                          <Text style={[styles.reminderText, task.completed && styles.reminderTextCompleted]}>
+                                            {task.description}
                                           </Text>
-                                          <Text style={styles.reminderTime}>⏰ {reminder.time}</Text>
                                         </View>
                                       </View>
                                     ))}
