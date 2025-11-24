@@ -33,6 +33,9 @@ import { textToSpeechProcedure } from "./routes/openai/text-to-speech/route";
 import { imageAnalysisProcedure } from "./routes/openai/image-analysis/route";
 import { agentChatProcedure, agentToolResultProcedure } from "./routes/openai/agent-chat/route";
 import { testConnectionProcedure } from "./routes/openai/test-connection/route";
+import { getPhotosProcedure } from "./routes/photos/get-photos/route";
+import { getExpensesDetailedProcedure } from "./routes/expenses/get-expenses-detailed/route";
+import { getClockEntriesProcedure } from "./routes/clock/get-clock-entries/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -89,6 +92,15 @@ export const appRouter = createTRPCRouter({
     agentChat: agentChatProcedure,
     agentToolResult: agentToolResultProcedure,
     testConnection: testConnectionProcedure,
+  }),
+  photos: createTRPCRouter({
+    getPhotos: getPhotosProcedure,
+  }),
+  expenses: createTRPCRouter({
+    getExpensesDetailed: getExpensesDetailedProcedure,
+  }),
+  clock: createTRPCRouter({
+    getClockEntries: getClockEntriesProcedure,
   }),
 });
 

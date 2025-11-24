@@ -10,6 +10,7 @@ import { usePathname } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { z } from 'zod';
 import { masterPriceList } from '@/mocks/priceList';
+import { mockPhotos } from '@/mocks/data';
 
 interface GlobalAIChatProps {
   currentPageContext?: string;
@@ -337,7 +338,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           
           const validLineItems = lineItems.filter(item => !('error' in item));
           const subtotal = validLineItems.reduce((sum, item) => sum + (item as any).lineTotal, 0);
-          const tax = subtotal * 0.0; // Adjust tax rate as needed
+          const tax = subtotal * 0.0;
           const total = subtotal + tax;
           
           const estimate = {
@@ -353,6 +354,220 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           };
           
           return JSON.stringify(estimate, null, 2);
+        },
+      }),
+      getPhotosUploaded: createRorkTool({
+        description: 'Get photos uploaded to projects. Can filter by project, category, and date. Use this to answer questions about which photos were uploaded today, this week, or in a specific time period.',
+        zodSchema: z.object({
+          projectId: z.string().optional().describe('Optional project ID to filter photos'),
+          category: z.string().optional().describe('Optional category to filter photos (e.g., Foundation, Framing, Plumbing)'),
+          date: z.string().optional().describe('Optional specific date to filter photos (YYYY-MM-DD format)'),
+          startDate: z.string().optional().describe('Optional start date for date range filter (YYYY-MM-DD format)'),
+          endDate: z.string().optional().describe('Optional end date for date range filter (YYYY-MM-DD format)'),
+        }),
+        execute: (input) => {
+          let filteredPhotos = [...mockPhotos];
+
+          if (input.projectId) {
+            filteredPhotos = filteredPhotos.filter(p => p.projectId === input.projectId);
+          }
+
+          if (input.category) {
+            filteredPhotos = filteredPhotos.filter(p => 
+              p.category.toLowerCase().includes(input.category!.toLowerCase())
+            );
+          }
+
+          if (input.date) {
+            filteredPhotos = filteredPhotos.filter(p => p.date.startsWith(input.date!));
+          }
+
+          if (input.startDate && input.endDate) {
+            filteredPhotos = filteredPhotos.filter(p => 
+              p.date >= input.startDate! && p.date <= input.endDate!
+            );
+          }
+
+          const byProject = filteredPhotos.reduce((acc, p) => {
+            const proj = projects.find(pr => pr.id === p.projectId);
+            const projectName = proj?.name || 'Unknown Project';
+            if (!acc[projectName]) {
+              acc[projectName] = { count: 0, categories: {} };
+            }
+            acc[projectName].count++;
+            acc[projectName].categories[p.category] = (acc[projectName].categories[p.category] || 0) + 1;
+            return acc;
+          }, {} as Record<string, { count: number; categories: Record<string, number> }>);
+
+          const byCategory = filteredPhotos.reduce((acc, p) => {
+            acc[p.category] = (acc[p.category] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+
+          return JSON.stringify({
+            total: filteredPhotos.length,
+            photos: filteredPhotos.map(p => ({
+              id: p.id,
+              projectId: p.projectId,
+              projectName: projects.find(pr => pr.id === p.projectId)?.name || 'Unknown',
+              category: p.category,
+              notes: p.notes,
+              date: p.date,
+            })),
+            byProject,
+            byCategory,
+          }, null, 2);
+        },
+      }),
+      getExpensesDetailed: createRorkTool({
+        description: 'Get detailed expenses information with filtering and analysis. Can filter by project, category, date, and employee. Use this to answer questions about expenses today, this week, by category, or by project.',
+        zodSchema: z.object({
+          projectId: z.string().optional().describe('Optional project ID to filter expenses'),
+          type: z.string().optional().describe('Optional expense type/category to filter (e.g., Material, Labor, Equipment)'),
+          date: z.string().optional().describe('Optional specific date to filter expenses (YYYY-MM-DD format)'),
+          startDate: z.string().optional().describe('Optional start date for date range filter (YYYY-MM-DD format)'),
+          endDate: z.string().optional().describe('Optional end date for date range filter (YYYY-MM-DD format)'),
+        }),
+        execute: (input) => {
+          let filteredExpenses = [...expenses];
+
+          if (input.projectId) {
+            filteredExpenses = filteredExpenses.filter(e => e.projectId === input.projectId);
+          }
+
+          if (input.type) {
+            filteredExpenses = filteredExpenses.filter(e => 
+              e.type.toLowerCase().includes(input.type!.toLowerCase())
+            );
+          }
+
+          if (input.date) {
+            filteredExpenses = filteredExpenses.filter(e => e.date.startsWith(input.date!));
+          }
+
+          if (input.startDate && input.endDate) {
+            filteredExpenses = filteredExpenses.filter(e => 
+              e.date >= input.startDate! && e.date <= input.endDate!
+            );
+          }
+
+          const totalAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+          const byCategory = filteredExpenses.reduce((acc, e) => {
+            acc[e.type] = (acc[e.type] || 0) + e.amount;
+            return acc;
+          }, {} as Record<string, number>);
+
+          const byProject = filteredExpenses.reduce((acc, e) => {
+            const proj = projects.find(p => p.id === e.projectId);
+            const projectName = proj?.name || 'Unknown Project';
+            if (!acc[projectName]) {
+              acc[projectName] = { total: 0, count: 0, byCategory: {} };
+            }
+            acc[projectName].total += e.amount;
+            acc[projectName].count++;
+            acc[projectName].byCategory[e.type] = (acc[projectName].byCategory[e.type] || 0) + e.amount;
+            return acc;
+          }, {} as Record<string, { total: number; count: number; byCategory: Record<string, number> }>);
+
+          return JSON.stringify({
+            total: totalAmount,
+            count: filteredExpenses.length,
+            byCategory,
+            byProject,
+            recentExpenses: filteredExpenses.slice(0, 20).map(e => ({
+              id: e.id,
+              projectId: e.projectId,
+              projectName: projects.find(p => p.id === e.projectId)?.name || 'Unknown',
+              type: e.type,
+              subcategory: e.subcategory,
+              amount: e.amount,
+              store: e.store,
+              date: e.date,
+            })),
+          }, null, 2);
+        },
+      }),
+      getTimeTracking: createRorkTool({
+        description: 'Get clock in/out entries and time tracking information. Can filter by project, employee, and date. Use this to answer questions about hours worked, who worked today, or time spent on projects.',
+        zodSchema: z.object({
+          projectId: z.string().optional().describe('Optional project ID to filter clock entries'),
+          employeeId: z.string().optional().describe('Optional employee ID to filter clock entries'),
+          date: z.string().optional().describe('Optional specific date to filter entries (YYYY-MM-DD format)'),
+          startDate: z.string().optional().describe('Optional start date for date range filter (YYYY-MM-DD format)'),
+          endDate: z.string().optional().describe('Optional end date for date range filter (YYYY-MM-DD format)'),
+        }),
+        execute: (input) => {
+          let filteredEntries = [...clockEntries];
+
+          if (input.projectId) {
+            filteredEntries = filteredEntries.filter(e => e.projectId === input.projectId);
+          }
+
+          if (input.employeeId) {
+            filteredEntries = filteredEntries.filter(e => e.employeeId === input.employeeId);
+          }
+
+          if (input.date) {
+            filteredEntries = filteredEntries.filter(e => e.clockIn.startsWith(input.date!));
+          }
+
+          if (input.startDate && input.endDate) {
+            filteredEntries = filteredEntries.filter(e => 
+              e.clockIn >= input.startDate! && e.clockIn <= input.endDate!
+            );
+          }
+
+          const totalHours = filteredEntries.reduce((sum, e) => {
+            if (e.clockOut) {
+              const hoursWorked = (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / (1000 * 60 * 60);
+              return sum + hoursWorked;
+            }
+            return sum;
+          }, 0);
+
+          const byEmployee = filteredEntries.reduce((acc, e) => {
+            if (!acc[e.employeeId]) {
+              acc[e.employeeId] = { count: 0, hours: 0 };
+            }
+            acc[e.employeeId].count++;
+            if (e.clockOut) {
+              const hoursWorked = (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / (1000 * 60 * 60);
+              acc[e.employeeId].hours += hoursWorked;
+            }
+            return acc;
+          }, {} as Record<string, { count: number; hours: number }>);
+
+          const byProject = filteredEntries.reduce((acc, e) => {
+            const proj = projects.find(p => p.id === e.projectId);
+            const projectName = proj?.name || 'Unknown Project';
+            if (!acc[projectName]) {
+              acc[projectName] = { count: 0, hours: 0 };
+            }
+            acc[projectName].count++;
+            if (e.clockOut) {
+              const hoursWorked = (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / (1000 * 60 * 60);
+              acc[projectName].hours += hoursWorked;
+            }
+            return acc;
+          }, {} as Record<string, { count: number; hours: number }>);
+
+          return JSON.stringify({
+            totalHours: totalHours.toFixed(2),
+            count: filteredEntries.length,
+            byEmployee,
+            byProject,
+            recentEntries: filteredEntries.slice(0, 20).map(e => ({
+              id: e.id,
+              employeeId: e.employeeId,
+              projectId: e.projectId,
+              projectName: projects.find(p => p.id === e.projectId)?.name || 'Unknown',
+              clockIn: e.clockIn,
+              clockOut: e.clockOut,
+              category: e.category,
+              workPerformed: e.workPerformed,
+            })),
+          }, null, 2);
         },
       }),
     },
