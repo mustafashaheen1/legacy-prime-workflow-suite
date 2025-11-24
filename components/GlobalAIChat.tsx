@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { createRorkTool, useRorkAgent } from '@rork-ai/toolkit-sdk';
+import { trpc } from '@/lib/trpc';
 import { z } from 'zod';
 import { useApp } from '@/contexts/AppContext';
 import { masterPriceList, priceListCategories } from '@/mocks/priceList';
@@ -716,9 +716,19 @@ export default function GlobalAIChat({ currentPageContext, inline = false }: Glo
     return toolsObj;
   }, [projects, clients, expenses, clockEntries, tasks, estimates, addEstimate]);
 
-  const { messages, error, sendMessage, status, setMessages } = useRorkAgent({
-    tools,
-  });
+  const [messages, setMessages] = useState<Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: number;
+  }>>([]);
+  const [error, setError] = useState<Error | null>(null);
+  const [status, setStatus] = useState<'idle' | 'streaming'>('idle');
+
+  const chatMutation = trpc.openai.chat.useMutation();
+  const sttMutation = trpc.openai.speechToText.useMutation();
+  const ttsMutation = trpc.openai.textToSpeech.useMutation();
+  const imageAnalysisMutation = trpc.openai.imageAnalysis.useMutation();
 
   useEffect(() => {
     const loadMessagesAndCheckTip = async () => {
