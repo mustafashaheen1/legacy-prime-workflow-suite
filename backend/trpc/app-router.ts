@@ -27,6 +27,10 @@ import { submitProposalProcedure } from "./routes/subcontractors/submit-proposal
 import { getProposalsProcedure } from "./routes/subcontractors/get-proposals/route";
 import { getNotificationsProcedure } from "./routes/notifications/get-notifications/route";
 import { markNotificationReadProcedure } from "./routes/notifications/mark-read/route";
+import { chatCompletionProcedure } from "./routes/openai/chat/route";
+import { speechToTextProcedure } from "./routes/openai/speech-to-text/route";
+import { textToSpeechProcedure } from "./routes/openai/text-to-speech/route";
+import { imageAnalysisProcedure } from "./routes/openai/image-analysis/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -74,6 +78,12 @@ export const appRouter = createTRPCRouter({
   notifications: createTRPCRouter({
     getNotifications: getNotificationsProcedure,
     markRead: markNotificationReadProcedure,
+  }),
+  openai: createTRPCRouter({
+    chat: chatCompletionProcedure,
+    speechToText: speechToTextProcedure,
+    textToSpeech: textToSpeechProcedure,
+    imageAnalysis: imageAnalysisProcedure,
   }),
 });
 
