@@ -553,13 +553,17 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           content: userMessage,
         });
 
+        console.log('[Send] Calling chatMutation.mutateAsync');
         const response = await chatMutation.mutateAsync({
           messages: conversationMessages,
           model: 'gpt-4o',
           temperature: 0.7,
         });
+        
+        console.log('[Send] Response received:', JSON.stringify(response).substring(0, 200));
 
         if (response.success && response.message) {
+          console.log('[Send] Success, creating assistant message');
           const assistantMessage: Message = {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
@@ -567,7 +571,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           };
           setMessages(prev => [...prev, assistantMessage]);
         } else {
-          throw new Error(response.error || 'Chat request failed');
+          console.error('[Send] Response unsuccessful:', response);
+          const errorMsg = 'error' in response ? response.error : 'Chat request failed';
+          throw new Error(errorMsg || 'Chat request failed');
         }
       }
     } catch (error) {

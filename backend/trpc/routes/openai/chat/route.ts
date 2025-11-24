@@ -23,6 +23,7 @@ export const chatCompletionProcedure = publicProcedure
   .mutation(async ({ input }) => {
     try {
       console.log("[OpenAI Chat] Creating completion with model:", input.model);
+      console.log("[OpenAI Chat] Messages count:", input.messages.length);
 
       const completion = await openai.chat.completions.create({
         model: input.model,
@@ -31,20 +32,26 @@ export const chatCompletionProcedure = publicProcedure
         max_tokens: input.maxTokens,
       });
 
-      console.log("[OpenAI Chat] Completion created successfully");
+      const responseMessage = completion.choices[0]?.message?.content || "";
+      console.log("[OpenAI Chat] Response length:", responseMessage.length);
 
-      return {
+      const result = {
         success: true,
-        message: completion.choices[0]?.message?.content || "",
+        message: responseMessage,
         usage: completion.usage,
         model: completion.model,
       };
+
+      console.log("[OpenAI Chat] Returning result:", JSON.stringify(result).substring(0, 200));
+      return result;
     } catch (error: any) {
       console.error("[OpenAI Chat] Error:", error);
-      return {
+      const errorResult = {
         success: false,
         message: "",
         error: error.message || "Error al procesar la solicitud",
       };
+      console.log("[OpenAI Chat] Returning error:", JSON.stringify(errorResult));
+      return errorResult;
     }
   });

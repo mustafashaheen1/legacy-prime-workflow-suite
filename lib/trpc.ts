@@ -37,6 +37,11 @@ export const trpcClient = trpc.createClient({
           
           if (!response.ok) {
             console.error('[tRPC] HTTP error:', response.status, response.statusText);
+            const text = await response.clone().text();
+            console.error('[tRPC] Response body:', text.substring(0, 500));
+          } else {
+            const text = await response.clone().text();
+            console.log('[tRPC] Response preview:', text.substring(0, 300));
           }
           
           return response;
