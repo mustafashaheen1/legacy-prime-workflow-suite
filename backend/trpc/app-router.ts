@@ -36,6 +36,7 @@ import { testConnectionProcedure } from "./routes/openai/test-connection/route";
 import { getPhotosProcedure } from "./routes/photos/get-photos/route";
 import { getExpensesDetailedProcedure } from "./routes/expenses/get-expenses-detailed/route";
 import { getClockEntriesProcedure } from "./routes/clock/get-clock-entries/route";
+import { handleReceptionistCallProcedure } from "./routes/twilio/handle-receptionist-call/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -71,6 +72,7 @@ export const appRouter = createTRPCRouter({
     getCallLogs: getCallLogsProcedure,
     createVirtualAssistant: createVirtualAssistantProcedure,
     sendBulkSms: sendBulkSmsProcedure,
+    handleReceptionistCall: handleReceptionistCallProcedure,
   }),
   subcontractors: createTRPCRouter({
     createSubcontractor: createSubcontractorProcedure,
