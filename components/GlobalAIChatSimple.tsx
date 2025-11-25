@@ -688,13 +688,15 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
 
-      if (isConversationMode && conversationModeInitialized.current) {
+      if (isConversationMode && conversationModeInitialized.current && !isSpeaking && !isRecording) {
         const lastMessage = messages[messages.length - 1];
         if (lastMessage && lastMessage.role === 'assistant') {
           const textPart = lastMessage.parts.find(p => p.type === 'text');
           if (textPart && textPart.type === 'text') {
             console.log('[Conversation] Auto-speaking AI response');
-            speakText(textPart.text, true);
+            setTimeout(() => {
+              speakText(textPart.text, true);
+            }, 300);
           }
         }
       }
@@ -1009,23 +1011,29 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       const dataArray = new Uint8Array(bufferLength);
       
       let silenceStart = Date.now();
-      const SILENCE_THRESHOLD = 35;
-      const SILENCE_DURATION = 1200;
+      let hasSpoken = false;
+      const SILENCE_THRESHOLD = 30;
+      const SILENCE_DURATION = 1500;
+      const SPEECH_THRESHOLD = 40;
 
       const checkAudioLevel = () => {
-        if (!isConversationMode || !isRecording) return;
+        if (!isConversationMode || !isRecording) {
+          console.log('[Silence Detection] Stopped: conversation mode or recording inactive');
+          return;
+        }
 
         analyser.getByteFrequencyData(dataArray);
         const average = dataArray.reduce((a, b) => a + b) / bufferLength;
 
-        if (average < SILENCE_THRESHOLD) {
+        if (average > SPEECH_THRESHOLD) {
+          hasSpoken = true;
+          silenceStart = Date.now();
+        } else if (hasSpoken && average < SILENCE_THRESHOLD) {
           if (Date.now() - silenceStart > SILENCE_DURATION) {
-            console.log('[Silence Detection] Detected silence, stopping recording');
+            console.log('[Silence Detection] Detected silence after speech, stopping recording');
             stopRecording(true);
             return;
           }
-        } else {
-          silenceStart = Date.now();
         }
 
         silenceTimerRef.current = setTimeout(checkAudioLevel, 100) as any;
@@ -1118,16 +1126,19 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       console.log('[Attachment] Photo library permission status:', permissionResult.status);
       
       if (permissionResult.status !== 'granted') {
+        console.log('[Attachment] Permission denied');
         alert('Photo library permission is required to attach images. Please enable it in your device settings.');
         return;
       }
       
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images' as any,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.8,
         allowsMultipleSelection: Platform.OS !== 'web',
       });
+
+      console.log('[Attachment] Image picker result:', result.canceled, result.assets?.length);
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const newFiles = result.assets.map((asset) => {
@@ -1138,10 +1149,11 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             size: asset.fileSize || 0,
             type: 'file',
           };
-          console.log('[Attachment] Image successfully attached:', newFile.name);
+          console.log('[Attachment] Image successfully attached:', newFile.name, 'URI:', asset.uri.substring(0, 50));
           return newFile;
         });
-        setAttachedFiles([...attachedFiles, ...newFiles]);
+        setAttachedFiles(prev => [...prev, ...newFiles]);
+        console.log('[Attachment] Total attached files:', attachedFiles.length + newFiles.length);
       } else {
         console.log('[Attachment] Image picker was canceled');
       }
@@ -1162,6 +1174,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       console.log('[Attachment] Camera permission status:', status);
       
       if (status !== 'granted') {
+        console.log('[Attachment] Camera permission denied');
         alert('Camera permission is required to take photos. Please enable it in your device settings.');
         return;
       }
@@ -1173,6 +1186,8 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         quality: 0.8,
       });
 
+      console.log('[Attachment] Camera result:', result.canceled, result.assets?.length);
+
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         const newFile: AttachedFile = {
@@ -1182,8 +1197,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           size: file.fileSize || 0,
           type: 'file',
         };
-        console.log('[Attachment] Photo successfully captured:', newFile.name);
-        setAttachedFiles([...attachedFiles, newFile]);
+        console.log('[Attachment] Photo successfully captured:', newFile.name, 'URI:', file.uri.substring(0, 50));
+        setAttachedFiles(prev => [...prev, newFile]);
+        console.log('[Attachment] Total attached files:', attachedFiles.length + 1);
       } else {
         console.log('[Attachment] Camera was canceled');
       }
