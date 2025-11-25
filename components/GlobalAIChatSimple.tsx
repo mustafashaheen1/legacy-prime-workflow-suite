@@ -8,6 +8,7 @@ import { useRorkAgent, createRorkTool } from '@rork-ai/toolkit-sdk';
 import { Audio } from 'expo-av';
 import { usePathname } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
+import { trpc } from '@/lib/trpc';
 import { z } from 'zod';
 import { masterPriceList } from '@/mocks/priceList';
 import { mockPhotos } from '@/mocks/data';
@@ -690,9 +691,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           const textPart = lastMessage.parts.find(p => p.type === 'text');
           if (textPart && textPart.type === 'text') {
             console.log('[Conversation] Auto-speaking AI response');
-            setTimeout(() => {
-              speakText(textPart.text, true);
-            }, 300);
+            speakText(textPart.text, true);
           }
         }
       }
@@ -919,6 +918,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     setIsSpeaking(false);
   }, [soundInstance]);
 
+  const ttsQueue = useRef<string[]>([]);
+  const isProcessingTTS = useRef<boolean>(false);
+
   const speakText = useCallback(async (text: string, autoStartRecording = false) => {
     try {
       if (isSpeaking) {
@@ -926,16 +928,35 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         return;
       }
 
-      console.log('[TTS] Speaking:', text.substring(0, 50));
-      const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
+      console.log('[TTS] Generating speech with OpenAI:', text.substring(0, 50));
+      setIsSpeaking(true);
+      
+      const response = await fetch('https://toolkit.rork.com/tts/speak/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          voice: 'nova',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('TTS request failed');
+      }
+
+      const data = await response.json();
+      const audioBase64 = data.audio;
+      
+      console.log('[TTS] Audio generated, playing...');
       
       const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
+        { uri: `data:audio/mpeg;base64,${audioBase64}` },
         { shouldPlay: true }
       );
 
       setSoundInstance(sound);
-      setIsSpeaking(true);
 
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
@@ -948,15 +969,18 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             console.log('[Conversation] Starting recording after speech');
             setTimeout(() => {
               startRecording();
-            }, 800);
+            }, 300);
           }
         }
       });
     } catch (error) {
-      console.error('TTS error:', error);
+      console.error('[TTS] Error:', error);
       setIsSpeaking(false);
       if (autoStartRecording && isConversationMode) {
-        startRecording();
+        console.log('[Conversation] Retrying recording after TTS error');
+        setTimeout(() => {
+          startRecording();
+        }, 500);
       }
     }
   }, [isSpeaking, stopSpeaking, isConversationMode]);
@@ -978,8 +1002,8 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       const dataArray = new Uint8Array(bufferLength);
       
       let silenceStart = Date.now();
-      const SILENCE_THRESHOLD = 30;
-      const SILENCE_DURATION = 1500;
+      const SILENCE_THRESHOLD = 35;
+      const SILENCE_DURATION = 1200;
 
       const checkAudioLevel = () => {
         if (!isConversationMode || !isRecording) return;
