@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2, Phone, PhoneOff } from 'lucide-react-native';
+import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2, Phone, PhoneOff, Copy } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -61,10 +62,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [isConversationMode, setIsConversationMode] = useState<boolean>(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const conversationModeInitialized = useRef<boolean>(false);
   const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
   const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -685,7 +688,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
 
-      if (isConversationMode) {
+      if (isConversationMode && conversationModeInitialized.current) {
         const lastMessage = messages[messages.length - 1];
         if (lastMessage && lastMessage.role === 'assistant') {
           const textPart = lastMessage.parts.find(p => p.type === 'text');
@@ -928,7 +931,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         return;
       }
 
-      console.log('[TTS] Generating speech with OpenAI:', text.substring(0, 50));
+      console.log('[TTS] Generating speech:', text.substring(0, 50));
       setIsSpeaking(true);
       
       const response = await fetch('https://toolkit.rork.com/tts/speak/', {
@@ -965,22 +968,26 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           sound.unloadAsync().catch(console.error);
           setSoundInstance(null);
           
-          if (autoStartRecording && isConversationMode) {
+          if (autoStartRecording && isConversationMode && conversationModeInitialized.current) {
             console.log('[Conversation] Starting recording after speech');
             setTimeout(() => {
-              startRecording();
-            }, 300);
+              if (isConversationMode && conversationModeInitialized.current) {
+                startRecording();
+              }
+            }, 500);
           }
         }
       });
     } catch (error) {
       console.error('[TTS] Error:', error);
       setIsSpeaking(false);
-      if (autoStartRecording && isConversationMode) {
+      if (autoStartRecording && isConversationMode && conversationModeInitialized.current) {
         console.log('[Conversation] Retrying recording after TTS error');
         setTimeout(() => {
-          startRecording();
-        }, 500);
+          if (isConversationMode && conversationModeInitialized.current) {
+            startRecording();
+          }
+        }, 800);
       }
     }
   }, [isSpeaking, stopSpeaking, isConversationMode]);
@@ -1105,7 +1112,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       console.log('[Attachment] Opening image picker...');
       setShowAttachMenu(false);
       
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       console.log('[Attachment] Photo library permission status:', permissionResult.status);
@@ -1116,10 +1123,10 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       }
       
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images' as any,
         allowsEditing: false,
         quality: 0.8,
-        allowsMultipleSelection: true,
+        allowsMultipleSelection: Platform.OS !== 'web',
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -1149,7 +1156,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       console.log('[Attachment] Requesting camera permission...');
       setShowAttachMenu(false);
       
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       console.log('[Attachment] Camera permission status:', status);
@@ -1308,15 +1315,30 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                           {part.text}
                         </Text>
                         {message.role === 'assistant' && (
-                          <TouchableOpacity
-                            style={styles.speakButton}
-                            onPress={() => speakText(part.text)}
-                          >
-                            <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
-                            <Text style={styles.speakButtonText}>
-                              {isSpeaking ? 'Stop' : 'Speak'}
-                            </Text>
-                          </TouchableOpacity>
+                          <View style={styles.messageActions}>
+                            <TouchableOpacity
+                              style={styles.speakButton}
+                              onPress={() => speakText(part.text)}
+                            >
+                              <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
+                              <Text style={styles.speakButtonText}>
+                                {isSpeaking ? 'Stop' : 'Speak'}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.copyButton}
+                              onPress={async () => {
+                                await Clipboard.setStringAsync(part.text);
+                                setCopiedMessageId(message.id);
+                                setTimeout(() => setCopiedMessageId(null), 2000);
+                              }}
+                            >
+                              <Copy size={14} color="#6B7280" />
+                              <Text style={styles.copyButtonText}>
+                                {copiedMessageId === message.id ? 'Copied' : 'Copy'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
                         )}
                       </View>
                     </View>
@@ -1479,7 +1501,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   onPress={async () => {
                     if (isConversationMode) {
                       console.log('[Conversation] Ending conversation mode');
+                      conversationModeInitialized.current = false;
                       setIsConversationMode(false);
+                      
                       if (isRecording) {
                         await stopRecording(false);
                       }
@@ -1502,8 +1526,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                       console.log('[Conversation] Starting conversation mode');
                       setIsConversationMode(true);
                       setTimeout(() => {
+                        conversationModeInitialized.current = true;
                         startRecording();
-                      }, 500);
+                      }, 800);
                     }
                   }}
                 >
@@ -1556,15 +1581,30 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                               {part.text}
                             </Text>
                             {message.role === 'assistant' && (
-                              <TouchableOpacity
-                                style={styles.speakButton}
-                                onPress={() => speakText(part.text)}
-                              >
-                                <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
-                                <Text style={styles.speakButtonText}>
-                                  {isSpeaking ? 'Stop' : 'Speak'}
-                                </Text>
-                              </TouchableOpacity>
+                              <View style={styles.messageActions}>
+                                <TouchableOpacity
+                                  style={styles.speakButton}
+                                  onPress={() => speakText(part.text)}
+                                >
+                                  <Volume2 size={14} color={isSpeaking ? '#DC2626' : '#6B7280'} />
+                                  <Text style={styles.speakButtonText}>
+                                    {isSpeaking ? 'Stop' : 'Speak'}
+                                  </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={styles.copyButton}
+                                  onPress={async () => {
+                                    await Clipboard.setStringAsync(part.text);
+                                    setCopiedMessageId(message.id);
+                                    setTimeout(() => setCopiedMessageId(null), 2000);
+                                  }}
+                                >
+                                  <Copy size={14} color="#6B7280" />
+                                  <Text style={styles.copyButtonText}>
+                                    {copiedMessageId === message.id ? 'Copied' : 'Copy'}
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
                             )}
                           </View>
                         </View>
@@ -2067,18 +2107,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  messageActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
   speakButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 12,
     backgroundColor: '#F9FAFB',
-    alignSelf: 'flex-start',
   },
   speakButtonText: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: '#6B7280',
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+  },
+  copyButtonText: {
     fontSize: 12,
     fontWeight: '500' as const,
     color: '#6B7280',
