@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2, Phone, PhoneOff, Copy } from 'lucide-react-native';
+import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2, Phone, PhoneOff, Copy, Sparkles } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -9,7 +9,7 @@ import { useRorkAgent, createRorkTool } from '@rork-ai/toolkit-sdk';
 import { Audio } from 'expo-av';
 import { usePathname } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
-import { trpc } from '@/lib/trpc';
+import { trpc, trpcClient } from '@/lib/trpc';
 import { z } from 'zod';
 import { masterPriceList } from '@/mocks/priceList';
 import { mockPhotos } from '@/mocks/data';
@@ -63,6 +63,8 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [isConversationMode, setIsConversationMode] = useState<boolean>(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
+  const [generatedImages, setGeneratedImages] = useState<{ url: string; prompt: string }[]>([]);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -701,7 +703,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         }
       }
     }
-  }, [messages, isConversationMode]);
+  }, [messages, isConversationMode, isSpeaking, isRecording]);
 
   const startRecording = async () => {
     try {
@@ -831,22 +833,15 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     try {
       console.log('[STT] Transcribing audio via OpenAI Whisper...');
       
-      const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          audio: base64,
-        }),
+      const result = await trpcClient.openai.speechToText.mutate({
+        audioBase64: base64,
       });
 
-      if (!response.ok) {
-        throw new Error('Transcription failed');
+      if (!result.success || !result.text) {
+        throw new Error(result.error || 'Transcription failed');
       }
 
-      const data = await response.json();
-      const transcribedText = data.text;
+      const transcribedText = result.text;
       
       console.log('[STT] Transcription successful:', transcribedText);
       setIsTranscribing(false);
@@ -871,20 +866,19 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const transcribeAudio = async (audio: Blob, sendImmediately = false) => {
     try {
       console.log('[STT] Starting transcription...');
-      const formData = new FormData();
-      formData.append('audio', audio, 'recording.webm');
-
-      const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
-        method: 'POST',
-        body: formData,
+      
+      const arrayBuffer = await audio.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      
+      const result = await trpcClient.openai.speechToText.mutate({
+        audioBase64: base64,
       });
 
-      if (!response.ok) {
-        throw new Error('Transcription failed');
+      if (!result.success || !result.text) {
+        throw new Error(result.error || 'Transcription failed');
       }
 
-      const data = await response.json();
-      const transcribedText = data.text;
+      const transcribedText = result.text;
       
       console.log('[STT] Transcription successful:', transcribedText);
       setIsTranscribing(false);
@@ -923,9 +917,6 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     setIsSpeaking(false);
   }, [soundInstance]);
 
-  const ttsQueue = useRef<string[]>([]);
-  const isProcessingTTS = useRef<boolean>(false);
-
   const speakText = useCallback(async (text: string, autoStartRecording = false) => {
     try {
       if (isSpeaking) {
@@ -936,23 +927,17 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       console.log('[TTS] Generating speech:', text.substring(0, 50));
       setIsSpeaking(true);
       
-      const response = await fetch('https://toolkit.rork.com/tts/speak/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: text,
-          voice: 'nova',
-        }),
+      const result = await trpcClient.openai.textToSpeech.mutate({
+        text: text,
+        voice: 'nova',
+        model: 'tts-1',
       });
 
-      if (!response.ok) {
-        throw new Error('TTS request failed');
+      if (!result.success || !result.audioBase64) {
+        throw new Error(result.error || 'TTS request failed');
       }
 
-      const data = await response.json();
-      const audioBase64 = data.audio;
+      const audioBase64 = result.audioBase64;
       
       console.log('[TTS] Audio generated, playing...');
       
@@ -1259,11 +1244,59 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     }
   };
 
+  const generateImage = async (prompt: string) => {
+    try {
+      console.log('[Image Generation] Starting generation with prompt:', prompt);
+      setIsGeneratingImage(true);
+      
+      const response = await fetch('https://toolkit.rork.com/images/generate/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: prompt,
+          size: '1024x1024',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Image generation failed');
+      }
+
+      const data = await response.json();
+      const imageData = `data:${data.image.mimeType};base64,${data.image.base64Data}`;
+      
+      console.log('[Image Generation] Image generated successfully');
+      setGeneratedImages(prev => [...prev, { url: imageData, prompt }]);
+      
+      await sendMessage(`Generated image for: "${prompt}"`);
+      
+      setIsGeneratingImage(false);
+    } catch (error) {
+      console.error('[Image Generation] Error:', error);
+      setIsGeneratingImage(false);
+      alert('Error generating image. Please try again.');
+    }
+  };
+
   const handleSend = async (speakResponse = false) => {
     if (!input.trim() && attachedFiles.length === 0) return;
     
     const userMessage = input.trim() || 'Por favor analiza las imágenes adjuntas';
     const hasImages = attachedFiles.some(f => f.mimeType.startsWith('image/'));
+    
+    const isImageGenerationRequest = userMessage.toLowerCase().includes('genera') && 
+      (userMessage.toLowerCase().includes('imagen') || userMessage.toLowerCase().includes('image'));
+    
+    if (isImageGenerationRequest && !hasImages) {
+      const prompt = userMessage.replace(/genera(r)?\s+(una?\s+)?imagen\s+(de|con)?\s*/i, '').trim();
+      if (prompt) {
+        setInput('');
+        await generateImage(prompt);
+        return;
+      }
+    }
     
     setInput('');
 
@@ -1315,7 +1348,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               <Bot size={56} color="#D1D5DB" strokeWidth={2} />
               <Text style={styles.emptyStateTitle}>¡Pregúntame lo que quieras!</Text>
               <Text style={styles.emptyStateText}>
-                Puedo analizar imágenes de construcción, hacer takeoff de planos, y responder tus preguntas. ¡Pruébame!
+                Puedo analizar imágenes, hacer takeoff de planos, generar imágenes, y responder tus preguntas. ¡Pruébame!
               </Text>
             </View>
           )}
@@ -1436,7 +1469,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             <TouchableOpacity
               style={styles.attachButton}
               onPress={() => setShowAttachMenu(true)}
-              disabled={isRecording}
+              disabled={isRecording || isGeneratingImage}
             >
               <Paperclip size={22} color="#6B7280" />
             </TouchableOpacity>
@@ -1585,6 +1618,25 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   </Text>
                 </View>
               )}
+
+              {isGeneratingImage && (
+                <View style={styles.assistantMessageContainer}>
+                  <View style={[styles.assistantMessage, styles.toolMessage]}>
+                    <Loader2 size={16} color="#8B5CF6" />
+                    <Text style={styles.toolText}>Generando imagen...</Text>
+                  </View>
+                </View>
+              )}
+
+              {generatedImages.map((img, idx) => (
+                <View key={`img-${idx}`} style={styles.assistantMessageContainer}>
+                  <View style={styles.assistantMessage}>
+                    <Text style={styles.assistantMessageText}>Imagen generada:</Text>
+                    <Image source={{ uri: img.url }} style={styles.generatedImage} />
+                    <Text style={styles.imagePrompt}>{img.prompt}</Text>
+                  </View>
+                </View>
+              ))}
 
               {messages.map((message) => (
                 <View key={message.id} style={styles.messageWrapper}>
@@ -2228,5 +2280,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#6B7280',
+  },
+  generatedImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  imagePrompt: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontStyle: 'italic' as const,
   },
 });
