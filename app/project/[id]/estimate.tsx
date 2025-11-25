@@ -1451,11 +1451,13 @@ const styles = StyleSheet.create({
     borderTopColor: '#E5E7EB',
     paddingVertical: 12,
     paddingHorizontal: 12,
+    paddingBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+    zIndex: 998,
   },
   totalsScrollContainer: {
     maxHeight: 80,
@@ -2315,11 +2317,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
     borderWidth: 1,
     borderColor: '#F59E0B',
+    flexShrink: 1,
   },
   addBreakPointButtonText: {
     fontSize: 13,
     fontWeight: '600' as const,
     color: '#F59E0B',
+    flexShrink: 1,
   },
   previewSeparator: {
     flexDirection: 'row',
