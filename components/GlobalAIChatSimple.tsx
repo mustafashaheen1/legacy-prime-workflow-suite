@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2 } from 'lucide-react-native';
+import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2, Phone, PhoneOff } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -59,6 +59,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [isConversationMode, setIsConversationMode] = useState<boolean>(false);
   const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
   const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -745,7 +746,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     }
   };
 
-  const stopRecording = async () => {
+  const stopRecording = async (sendImmediately = false) => {
     try {
       setIsRecording(false);
       setIsTranscribing(true);
@@ -758,7 +759,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           await new Promise(resolve => setTimeout(resolve, 100));
           
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          await transcribeAudio(audioBlob);
+          await transcribeAudio(audioBlob, sendImmediately);
           
           mediaRecorderRef.current = null;
           audioChunksRef.current = [];
@@ -774,7 +775,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 const base64 = await FileSystem.readAsStringAsync(uri, {
                   encoding: 'base64' as any,
                 });
-                await transcribeAudioBase64(base64);
+                await transcribeAudioBase64(base64, sendImmediately);
               }
             }
           } catch (recordError) {
@@ -796,7 +797,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     }
   };
 
-  const transcribeAudioBase64 = async (base64: string) => {
+  const transcribeAudioBase64 = async (base64: string, sendImmediately = false) => {
     try {
       console.log('[STT] Transcribing audio via OpenAI Whisper...');
       
@@ -821,6 +822,22 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       
       if (transcribedText && transcribedText.trim()) {
         setInput(transcribedText);
+        
+        if (sendImmediately && isConversationMode) {
+          setTimeout(async () => {
+            await sendMessage(transcribedText);
+            
+            setTimeout(() => {
+              const lastMessage = messages[messages.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                const textPart = lastMessage.parts.find(p => p.type === 'text');
+                if (textPart && textPart.type === 'text') {
+                  speakText(textPart.text, true);
+                }
+              }
+            }, 500);
+          }, 100);
+        }
       }
     } catch (error) {
       console.error('[STT] Transcription error:', error);
@@ -830,7 +847,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     }
   };
 
-  const transcribeAudio = async (audio: Blob) => {
+  const transcribeAudio = async (audio: Blob, sendImmediately = false) => {
     try {
       console.log('[STT] Starting transcription...');
       const formData = new FormData();
@@ -852,6 +869,22 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       
       if (transcribedText && transcribedText.trim()) {
         setInput(transcribedText);
+        
+        if (sendImmediately && isConversationMode) {
+          setTimeout(async () => {
+            await sendMessage(transcribedText);
+            
+            setTimeout(() => {
+              const lastMessage = messages[messages.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                const textPart = lastMessage.parts.find(p => p.type === 'text');
+                if (textPart && textPart.type === 'text') {
+                  speakText(textPart.text, true);
+                }
+              }
+            }, 500);
+          }, 100);
+        }
       }
     } catch (error) {
       console.error('[STT] Transcription error:', error);
@@ -878,7 +911,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     setIsSpeaking(false);
   }, [soundInstance]);
 
-  const speakText = useCallback(async (text: string) => {
+  const speakText = useCallback(async (text: string, autoStartRecording = false) => {
     try {
       if (isSpeaking) {
         await stopSpeaking();
@@ -900,13 +933,19 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           setIsSpeaking(false);
           sound.unloadAsync().catch(console.error);
           setSoundInstance(null);
+          
+          if (autoStartRecording && isConversationMode) {
+            setTimeout(() => {
+              startRecording();
+            }, 500);
+          }
         }
       });
     } catch (error) {
       console.error('TTS error:', error);
       setIsSpeaking(false);
     }
-  }, [isSpeaking, stopSpeaking]);
+  }, [isSpeaking, stopSpeaking, isConversationMode]);
 
   useEffect(() => {
     return () => {
@@ -1105,7 +1144,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     }
   };
 
-  const handleSend = async () => {
+  const handleSend = async (speakResponse = false) => {
     if (!input.trim() && attachedFiles.length === 0) return;
     
     const userMessage = input.trim() || 'Por favor analiza las imágenes adjuntas';
@@ -1274,7 +1313,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             {isRecording ? (
               <TouchableOpacity
                 style={styles.recordingButton}
-                onPress={stopRecording}
+                onPress={() => stopRecording(false)}
               >
                 <View style={styles.recordingIndicator}>
                   <View style={styles.recordingDot} />
@@ -1304,7 +1343,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             )}
             <TouchableOpacity
               style={[styles.sendButton, (isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
-              onPress={handleSend}
+              onPress={() => handleSend()}
               disabled={isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
             >
               <Send size={20} color="#FFFFFF" />
@@ -1342,12 +1381,44 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 </View>
                 <Text style={styles.headerTitle}>AI Assistant</Text>
               </View>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setIsOpen(false)}
-              >
-                <X size={24} color="#6B7280" />
-              </TouchableOpacity>
+              <View style={styles.headerRight}>
+                <TouchableOpacity
+                  style={[styles.conversationButton, isConversationMode && styles.conversationButtonActive]}
+                  onPress={() => {
+                    if (isConversationMode) {
+                      setIsConversationMode(false);
+                      if (isRecording) {
+                        stopRecording(false);
+                      }
+                      if (isSpeaking) {
+                        stopSpeaking();
+                      }
+                    } else {
+                      setIsConversationMode(true);
+                      startRecording();
+                    }
+                  }}
+                >
+                  {isConversationMode ? (
+                    <PhoneOff size={20} color="#FFFFFF" />
+                  ) : (
+                    <Phone size={20} color="#10A37F" />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => {
+                    setIsOpen(false);
+                    if (isConversationMode) {
+                      setIsConversationMode(false);
+                      if (isRecording) stopRecording(false);
+                      if (isSpeaking) stopSpeaking();
+                    }
+                  }}
+                >
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <ScrollView
@@ -1419,6 +1490,21 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             </ScrollView>
 
             <View style={styles.inputWrapper}>
+              {isConversationMode && (
+                <View style={styles.conversationBanner}>
+                  <Phone size={16} color="#10A37F" />
+                  <Text style={styles.conversationText}>Conversation Mode Active</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIsConversationMode(false);
+                      if (isRecording) stopRecording(false);
+                      if (isSpeaking) stopSpeaking();
+                    }}
+                  >
+                    <Text style={styles.conversationEndText}>End</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {(isTranscribing || isRecording) && (
                 <View style={styles.recordingBanner}>
                   {isTranscribing ? (
@@ -1474,7 +1560,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 {isRecording ? (
                   <TouchableOpacity
                     style={styles.recordingButton}
-                    onPress={stopRecording}
+                    onPress={() => stopRecording(isConversationMode)}
                   >
                     <View style={styles.recordingIndicator}>
                       <View style={styles.recordingDot} />
@@ -1504,7 +1590,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 )}
                 <TouchableOpacity
                   style={[styles.sendButton, (isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
-                  onPress={handleSend}
+                  onPress={() => handleSend()}
                   disabled={isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
                 >
                   <Send size={20} color="#FFFFFF" />
@@ -1635,6 +1721,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700' as const,
     color: '#1F2937',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  conversationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  conversationButtonActive: {
+    backgroundColor: '#10A37F',
   },
   closeButton: {
     width: 40,
@@ -1790,6 +1892,27 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.5,
+  },
+  conversationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    backgroundColor: '#D1FAE5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#A7F3D0',
+  },
+  conversationText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#065F46',
+  },
+  conversationEndText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: '#DC2626',
+    marginLeft: 12,
   },
   recordingBanner: {
     flexDirection: 'row',
