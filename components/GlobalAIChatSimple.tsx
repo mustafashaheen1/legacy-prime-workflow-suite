@@ -60,6 +60,10 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [isConversationMode, setIsConversationMode] = useState<boolean>(false);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
   const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -679,14 +683,28 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
+
+      if (isConversationMode) {
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage && lastMessage.role === 'assistant') {
+          const textPart = lastMessage.parts.find(p => p.type === 'text');
+          if (textPart && textPart.type === 'text') {
+            console.log('[Conversation] Auto-speaking AI response');
+            setTimeout(() => {
+              speakText(textPart.text, true);
+            }, 300);
+          }
+        }
+      }
     }
-  }, [messages]);
+  }, [messages, isConversationMode]);
 
   const startRecording = async () => {
     try {
       console.log('[Voice] Starting recording...');
       if (Platform.OS === 'web') {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = stream;
         audioChunksRef.current = [];
         
         const mediaRecorder = new MediaRecorder(stream, {
@@ -702,6 +720,10 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         mediaRecorder.start();
         mediaRecorderRef.current = mediaRecorder;
         setIsRecording(true);
+
+        if (isConversationMode) {
+          startSilenceDetection(stream);
+        }
       } else {
         await Audio.requestPermissionsAsync();
         await Audio.setAudioModeAsync({
@@ -751,10 +773,14 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       setIsRecording(false);
       setIsTranscribing(true);
 
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
       if (Platform.OS === 'web') {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
           mediaRecorderRef.current.stop();
-          mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
           
           await new Promise(resolve => setTimeout(resolve, 100));
           
@@ -819,31 +845,22 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       const transcribedText = data.text;
       
       console.log('[STT] Transcription successful:', transcribedText);
+      setIsTranscribing(false);
       
       if (transcribedText && transcribedText.trim()) {
-        setInput(transcribedText);
-        
         if (sendImmediately && isConversationMode) {
-          setTimeout(async () => {
-            await sendMessage(transcribedText);
-            
-            setTimeout(() => {
-              const lastMessage = messages[messages.length - 1];
-              if (lastMessage && lastMessage.role === 'assistant') {
-                const textPart = lastMessage.parts.find(p => p.type === 'text');
-                if (textPart && textPart.type === 'text') {
-                  speakText(textPart.text, true);
-                }
-              }
-            }, 500);
-          }, 100);
+          console.log('[Conversation] Auto-sending message:', transcribedText);
+          await sendMessage(transcribedText);
+        } else {
+          setInput(transcribedText);
         }
       }
     } catch (error) {
       console.error('[STT] Transcription error:', error);
-      alert('Voice transcription failed. Please try again.');
-    } finally {
       setIsTranscribing(false);
+      if (isConversationMode) {
+        startRecording();
+      }
     }
   };
 
@@ -866,31 +883,22 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       const transcribedText = data.text;
       
       console.log('[STT] Transcription successful:', transcribedText);
+      setIsTranscribing(false);
       
       if (transcribedText && transcribedText.trim()) {
-        setInput(transcribedText);
-        
         if (sendImmediately && isConversationMode) {
-          setTimeout(async () => {
-            await sendMessage(transcribedText);
-            
-            setTimeout(() => {
-              const lastMessage = messages[messages.length - 1];
-              if (lastMessage && lastMessage.role === 'assistant') {
-                const textPart = lastMessage.parts.find(p => p.type === 'text');
-                if (textPart && textPart.type === 'text') {
-                  speakText(textPart.text, true);
-                }
-              }
-            }, 500);
-          }, 100);
+          console.log('[Conversation] Auto-sending message:', transcribedText);
+          await sendMessage(transcribedText);
+        } else {
+          setInput(transcribedText);
         }
       }
     } catch (error) {
       console.error('[STT] Transcription error:', error);
-      alert('Voice transcription failed. Please try again.');
-    } finally {
       setIsTranscribing(false);
+      if (isConversationMode) {
+        startRecording();
+      }
     }
   };
 
@@ -918,6 +926,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         return;
       }
 
+      console.log('[TTS] Speaking:', text.substring(0, 50));
       const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
       
       const { sound } = await Audio.Sound.createAsync(
@@ -930,25 +939,84 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
 
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
+          console.log('[TTS] Finished speaking');
           setIsSpeaking(false);
           sound.unloadAsync().catch(console.error);
           setSoundInstance(null);
           
           if (autoStartRecording && isConversationMode) {
+            console.log('[Conversation] Starting recording after speech');
             setTimeout(() => {
               startRecording();
-            }, 500);
+            }, 800);
           }
         }
       });
     } catch (error) {
       console.error('TTS error:', error);
       setIsSpeaking(false);
+      if (autoStartRecording && isConversationMode) {
+        startRecording();
+      }
     }
   }, [isSpeaking, stopSpeaking, isConversationMode]);
 
+  const startSilenceDetection = (stream: MediaStream) => {
+    if (Platform.OS !== 'web') return;
+
+    try {
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      const microphone = audioContext.createMediaStreamSource(stream);
+      microphone.connect(analyser);
+      analyser.fftSize = 512;
+      
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      let silenceStart = Date.now();
+      const SILENCE_THRESHOLD = 30;
+      const SILENCE_DURATION = 1500;
+
+      const checkAudioLevel = () => {
+        if (!isConversationMode || !isRecording) return;
+
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+
+        if (average < SILENCE_THRESHOLD) {
+          if (Date.now() - silenceStart > SILENCE_DURATION) {
+            console.log('[Silence Detection] Detected silence, stopping recording');
+            stopRecording(true);
+            return;
+          }
+        } else {
+          silenceStart = Date.now();
+        }
+
+        silenceTimerRef.current = setTimeout(checkAudioLevel, 100) as any;
+      };
+
+      checkAudioLevel();
+    } catch (error) {
+      console.error('[Silence Detection] Error:', error);
+    }
+  };
+
   useEffect(() => {
     return () => {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(console.error);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
       if (soundInstance) {
         soundInstance.getStatusAsync().then((status) => {
           if (status.isLoaded) {
@@ -1384,18 +1452,34 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               <View style={styles.headerRight}>
                 <TouchableOpacity
                   style={[styles.conversationButton, isConversationMode && styles.conversationButtonActive]}
-                  onPress={() => {
+                  onPress={async () => {
                     if (isConversationMode) {
+                      console.log('[Conversation] Ending conversation mode');
                       setIsConversationMode(false);
                       if (isRecording) {
-                        stopRecording(false);
+                        await stopRecording(false);
                       }
                       if (isSpeaking) {
-                        stopSpeaking();
+                        await stopSpeaking();
+                      }
+                      if (silenceTimerRef.current) {
+                        clearTimeout(silenceTimerRef.current);
+                        silenceTimerRef.current = null;
+                      }
+                      if (streamRef.current) {
+                        streamRef.current.getTracks().forEach(track => track.stop());
+                        streamRef.current = null;
+                      }
+                      if (audioContextRef.current) {
+                        audioContextRef.current.close().catch(console.error);
+                        audioContextRef.current = null;
                       }
                     } else {
+                      console.log('[Conversation] Starting conversation mode');
                       setIsConversationMode(true);
-                      startRecording();
+                      setTimeout(() => {
+                        startRecording();
+                      }, 500);
                     }
                   }}
                 >
