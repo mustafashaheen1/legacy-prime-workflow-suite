@@ -8,36 +8,49 @@ import twilio from "twilio";
 
 const app = new Hono();
 
-app.use("*", cors({
-  origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-  exposeHeaders: ['Content-Length'],
-  maxAge: 600,
-  credentials: true,
-}));
+try {
+  app.use("*", cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    exposeHeaders: ['Content-Length'],
+    maxAge: 600,
+    credentials: true,
+  }));
 
-app.use("/trpc/*", timeout(60000));
+  app.use("/trpc/*", timeout(60000));
 
-app.use(
-  "/trpc/*",
-  trpcServer({
-    endpoint: "/trpc",
-    router: appRouter,
-    createContext,
-    onError({ path, error }) {
-      console.error(`[tRPC Error] Path: ${path}`);
-      console.error(`[tRPC Error] Message:`, error.message);
-      console.error(`[tRPC Error] Stack:`, error.stack?.substring(0, 500));
-    },
-  })
-);
+  app.use(
+    "/trpc/*",
+    trpcServer({
+      endpoint: "/trpc",
+      router: appRouter,
+      createContext,
+      onError({ path, error }) {
+        console.error(`[tRPC Error] Path: ${path}`);
+        console.error(`[tRPC Error] Message:`, error.message);
+        console.error(`[tRPC Error] Stack:`, error.stack?.substring(0, 500));
+      },
+    })
+  );
+} catch (error) {
+  console.error("[Backend] Failed to initialize middleware:", error);
+  throw error;
+}
 
 app.get("/", (c) => {
   return c.json({ 
     status: "ok", 
     message: "API is running",
     openai: process.env.OPENAI_API_KEY ? "configured" : "missing",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/health", (c) => {
+  return c.json({ 
+    status: "healthy",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -80,11 +93,15 @@ app.post("/twilio/assistant", async (c) => {
 });
 
 console.log("[Backend] ========================================");
-console.log("[Backend] Hono server initialized");
+console.log("[Backend] ✓ Hono server initialized successfully");
 console.log("[Backend] OpenAI API Key:", process.env.OPENAI_API_KEY ? "✓ Configured" : "✗ Missing");
 if (process.env.OPENAI_API_KEY) {
   console.log("[Backend] OpenAI API Key preview:", process.env.OPENAI_API_KEY.substring(0, 10) + "...");
 }
+console.log("[Backend] Routes registered:");
+console.log("[Backend]   - GET  /");
+console.log("[Backend]   - POST /trpc/*");
+console.log("[Backend]   - POST /twilio/assistant");
 console.log("[Backend] ========================================");
 
 export default app;
