@@ -249,17 +249,117 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           }, null, 2);
         },
       }),
-      analyzeImage: createRorkTool({
-        description: 'Analyze construction blueprints, photos, or any images. Can perform takeoff measurements and identify materials.',
+      analyzeDrawing: createRorkTool({
+        description: 'Analyze construction drawings, blueprints, and plans. Can read scale, perform quantity takeoffs, identify materials, and generate estimates based on drawings. Use this when user uploads plans or asks for takeoff analysis.',
         zodSchema: z.object({
-          analysis: z.string().describe('Detailed analysis of the image including measurements, materials, and recommendations'),
-          estimatedCosts: z.array(z.object({
-            item: z.string(),
-            quantity: z.number(),
-            unit: z.string(),
-            estimatedCost: z.number().optional(),
-          })).describe('List of materials and quantities identified in the image').optional(),
+          drawingAnalysis: z.string().describe('Detailed analysis of the drawing including scale, dimensions, and observations'),
+          scale: z.string().optional().describe('Drawing scale if detected (e.g., 1/4"=1\'-0", 1:100)'),
+          takeoffItems: z.array(z.object({
+            item: z.string().describe('Item name from price list'),
+            priceListId: z.string().optional().describe('Matching price list ID if found'),
+            category: z.string().describe('Category (e.g., Foundation, Framing, Electrical)'),
+            quantity: z.number().describe('Measured quantity from drawing'),
+            unit: z.string().describe('Unit of measurement (SF, LF, CY, EA)'),
+            notes: z.string().optional().describe('Additional notes about the measurement'),
+          })).describe('Takeoff items measured from the drawing'),
+          recommendations: z.array(z.string()).optional().describe('Construction recommendations based on the drawing'),
         }),
+        execute: (input) => {
+          console.log('[Drawing Analysis] Processed takeoff with', input.takeoffItems.length, 'items');
+          console.log('[Drawing Analysis] Scale detected:', input.scale || 'Not specified');
+          
+          const takeoffSummary = {
+            scale: input.scale,
+            totalItems: input.takeoffItems.length,
+            byCategory: input.takeoffItems.reduce((acc, item) => {
+              acc[item.category] = (acc[item.category] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>),
+            items: input.takeoffItems,
+          };
+          
+          return JSON.stringify({
+            message: 'Drawing analysis completed successfully',
+            analysis: input.drawingAnalysis,
+            scale: input.scale,
+            takeoff: takeoffSummary,
+            recommendations: input.recommendations,
+          }, null, 2);
+        },
+      }),
+      createEstimateFromDrawing: createRorkTool({
+        description: 'Create a detailed cost estimate from drawing takeoff analysis using the price list. Use this after analyzing a drawing to generate costs.',
+        zodSchema: z.object({
+          projectName: z.string().describe('Project name for the estimate'),
+          drawingReference: z.string().optional().describe('Drawing reference or sheet number'),
+          items: z.array(z.object({
+            itemName: z.string().describe('Item description'),
+            priceListId: z.string().optional().describe('ID from price list if matched'),
+            quantity: z.number().describe('Quantity from takeoff'),
+            unit: z.string().describe('Unit of measurement'),
+            unitPrice: z.number().optional().describe('Unit price if known'),
+            notes: z.string().optional().describe('Notes about this item'),
+          })).describe('Line items for the estimate'),
+        }),
+        execute: (input) => {
+          const lineItems = input.items.map(item => {
+            let priceItem;
+            let unitPrice = item.unitPrice || 0;
+            
+            if (item.priceListId) {
+              priceItem = masterPriceList.find(p => p.id === item.priceListId);
+              if (priceItem) {
+                unitPrice = priceItem.unitPrice;
+              }
+            }
+            
+            if (!priceItem && !item.unitPrice) {
+              const searchResults = masterPriceList.filter(p => 
+                p.name.toLowerCase().includes(item.itemName.toLowerCase()) ||
+                p.description.toLowerCase().includes(item.itemName.toLowerCase())
+              );
+              
+              if (searchResults.length > 0) {
+                priceItem = searchResults[0];
+                unitPrice = priceItem.unitPrice;
+                console.log(`[Estimate] Auto-matched "${item.itemName}" to "${priceItem.name}"`);
+              }
+            }
+            
+            const lineTotal = unitPrice * item.quantity;
+            
+            return {
+              itemName: item.itemName,
+              priceListId: priceItem?.id || item.priceListId,
+              matchedItem: priceItem?.name,
+              category: priceItem?.category || 'Custom',
+              quantity: item.quantity,
+              unit: item.unit,
+              unitPrice,
+              lineTotal,
+              notes: item.notes,
+            };
+          });
+          
+          const subtotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
+          const tax = 0;
+          const total = subtotal + tax;
+          
+          const estimate = {
+            projectName: input.projectName,
+            drawingReference: input.drawingReference,
+            date: new Date().toISOString().split('T')[0],
+            lineItems,
+            summary: {
+              subtotal,
+              tax,
+              total,
+              totalItems: lineItems.length,
+            },
+          };
+          
+          return JSON.stringify(estimate, null, 2);
+        },
       }),
       getPriceList: createRorkTool({
         description: 'Get pricing information from the master price list database. Search by category, item name, or get all prices. Use this to create estimates and quote prices.',
