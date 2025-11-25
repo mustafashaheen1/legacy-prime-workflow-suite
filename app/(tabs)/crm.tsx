@@ -1,13 +1,14 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform } from 'react-native';
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon } from 'lucide-react-native';
+import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon, Camera } from 'lucide-react-native';
 import { Project, Client, CallLog } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { createRorkTool, useRorkAgent } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
 import { useTwilioSMS, useTwilioCalls } from '@/components/TwilioIntegration';
+import { trpc } from '@/lib/trpc';
 
 type MessageType = 'email' | 'sms';
 type MessageTemplate = {
@@ -61,6 +62,7 @@ export default function CRMScreen() {
   const router = useRouter();
   const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
   const { initiateCall, isLoadingCall } = useTwilioCalls();
+  const sendInspectionLinkMutation = trpc.crm.sendInspectionLink.useMutation();
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
   const [newClientName, setNewClientName] = useState<string>('');
   const [newClientAddress, setNewClientAddress] = useState<string>('');
@@ -736,6 +738,41 @@ export default function CRMScreen() {
     }
   };
 
+  const sendInspectionLink = async (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    try {
+      console.log('[CRM] Sending inspection link to:', client.name, client.phone);
+      
+      const result = await sendInspectionLinkMutation.mutateAsync({
+        clientName: client.name,
+        clientPhone: client.phone,
+        projectId: clientId,
+      });
+
+      if (result.success) {
+        Alert.alert(
+          'Inspection Link Sent',
+          `We've sent an inspection link to ${client.name} at ${client.phone}.\n\nThe client will be able to record videos, take photos, and provide measurements. All data will be stored in their project folder and AI will generate a preliminary Scope of Work and estimate.`,
+          [{ text: 'OK' }]
+        );
+
+        updateClient(clientId, { 
+          lastContacted: new Date().toLocaleDateString(),
+          lastContactDate: new Date().toISOString()
+        });
+      }
+    } catch (error: any) {
+      console.error('[CRM] Error sending inspection link:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to send inspection link. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -940,6 +977,16 @@ export default function CRMScreen() {
                 >
                   <Calculator size={16} color="#FFFFFF" />
                   <Text style={styles.estimateButtonText}>Create Estimate</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.inspectionButton}
+                  onPress={() => sendInspectionLink(client.id)}
+                  disabled={sendInspectionLinkMutation.isPending}
+                >
+                  <Camera size={16} color="#FFFFFF" />
+                  <Text style={styles.inspectionButtonText}>
+                    {sendInspectionLinkMutation.isPending ? 'Sending...' : 'Send Inspection Link'}
+                  </Text>
                 </TouchableOpacity>
                 {client.status === 'Lead' && (
                   <>
@@ -3949,5 +3996,19 @@ const styles = StyleSheet.create({
   revenueSubtext: {
     fontSize: 12,
     color: '#6B7280',
+  },
+  inspectionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  inspectionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600' as const,
   },
 });
