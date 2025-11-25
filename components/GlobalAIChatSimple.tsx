@@ -1340,7 +1340,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 <View style={styles.aiIcon}>
                   <Bot size={22} color="#2563EB" strokeWidth={2.5} />
                 </View>
-                <Text style={styles.headerTitle}>OpenAI Assistant</Text>
+                <Text style={styles.headerTitle}>AI Assistant</Text>
               </View>
               <TouchableOpacity
                 style={styles.closeButton}
