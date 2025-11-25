@@ -874,29 +874,42 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       console.log('[Attachment] Opening image picker...');
       setShowAttachMenu(false);
       
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('[Attachment] Photo library permission status:', permissionResult.status);
+      
+      if (permissionResult.status !== 'granted') {
+        alert('Photo library permission is required to attach images. Please enable it in your device settings.');
+        return;
+      }
       
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.8,
+        allowsMultipleSelection: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const file = result.assets[0];
-        const newFile: AttachedFile = {
-          uri: file.uri,
-          name: file.fileName || `image_${Date.now()}.jpg`,
-          mimeType: getSanitizedMimeType(file.mimeType, file.fileName || `image_${Date.now()}.jpg`),
-          size: file.fileSize || 0,
-          type: 'file',
-        };
-        console.log('[Attachment] Image successfully attached:', newFile.name);
-        setAttachedFiles([...attachedFiles, newFile]);
+        const newFiles = result.assets.map((asset) => {
+          const newFile: AttachedFile = {
+            uri: asset.uri,
+            name: asset.fileName || `image_${Date.now()}.jpg`,
+            mimeType: getSanitizedMimeType(asset.mimeType, asset.fileName || `image_${Date.now()}.jpg`),
+            size: asset.fileSize || 0,
+            type: 'file',
+          };
+          console.log('[Attachment] Image successfully attached:', newFile.name);
+          return newFile;
+        });
+        setAttachedFiles([...attachedFiles, ...newFiles]);
+      } else {
+        console.log('[Attachment] Image picker was canceled');
       }
     } catch (error) {
       console.error('[Attachment] Error picking image:', error);
-      alert('Error selecting image.');
+      alert('Error selecting image. Please try again.');
     }
   };
 
@@ -905,15 +918,17 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       console.log('[Attachment] Requesting camera permission...');
       setShowAttachMenu(false);
       
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      console.log('[Attachment] Camera permission status:', status);
+      
       if (status !== 'granted') {
-        alert('Camera permission is required to take photos.');
+        alert('Camera permission is required to take photos. Please enable it in your device settings.');
         return;
       }
       
       console.log('[Attachment] Opening camera...');
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
 
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
@@ -931,10 +946,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         };
         console.log('[Attachment] Photo successfully captured:', newFile.name);
         setAttachedFiles([...attachedFiles, newFile]);
+      } else {
+        console.log('[Attachment] Camera was canceled');
       }
     } catch (error) {
       console.error('[Attachment] Error taking photo:', error);
-      alert('Error taking photo.');
+      alert('Error taking photo. Please try again.');
     }
   };
 
