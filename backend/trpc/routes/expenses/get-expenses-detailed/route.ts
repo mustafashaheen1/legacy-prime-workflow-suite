@@ -1,6 +1,6 @@
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { z } from 'zod';
-import { mockExpenses } from '@/mocks/data';
+import { fixtureExpenses } from '@/mocks/fixtures';
 
 const inputSchema = z.object({
   projectId: z.string().optional(),
@@ -14,7 +14,7 @@ const inputSchema = z.object({
 export const getExpensesDetailedProcedure = publicProcedure
   .input(inputSchema)
   .query(({ input }) => {
-    let filteredExpenses = [...mockExpenses];
+    let filteredExpenses = [...fixtureExpenses];
 
     if (input.projectId) {
       filteredExpenses = filteredExpenses.filter(e => e.projectId === input.projectId);

@@ -1,6 +1,6 @@
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { z } from 'zod';
-import { mockPhotos } from '@/mocks/data';
+import { fixturePhotos } from '@/mocks/fixtures';
 
 const inputSchema = z.object({
   projectId: z.string().optional(),
@@ -13,7 +13,7 @@ const inputSchema = z.object({
 export const getPhotosProcedure = publicProcedure
   .input(inputSchema)
   .query(({ input }) => {
-    let filteredPhotos = [...mockPhotos];
+    let filteredPhotos = [...fixturePhotos];
 
     if (input.projectId) {
       filteredPhotos = filteredPhotos.filter(p => p.projectId === input.projectId);

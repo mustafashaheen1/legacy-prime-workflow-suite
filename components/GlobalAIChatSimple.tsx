@@ -99,7 +99,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         zodSchema: z.object({
           projectId: z.string().optional().describe('Optional project ID to get specific project details'),
         }),
-        execute: (input) => {
+        async execute(input) {
           if (input.projectId) {
             const project = projects.find(p => p.id === input.projectId);
             return JSON.stringify(project || { error: 'Project not found' }, null, 2);
@@ -210,23 +210,21 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         zodSchema: z.object({
           projectId: z.string().optional().describe('Optional project ID to filter expenses'),
         }),
-        execute: (input) => {
-          const filteredExpenses = input.projectId 
-            ? expenses.filter(e => e.projectId === input.projectId)
-            : expenses;
-          
-          const total = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-          const byCategory = filteredExpenses.reduce((acc, e) => {
-            acc[e.type] = (acc[e.type] || 0) + e.amount;
-            return acc;
-          }, {} as Record<string, number>);
-          
-          return JSON.stringify({
-            total,
-            count: filteredExpenses.length,
-            byCategory,
-            recentExpenses: filteredExpenses.slice(0, 10),
-          }, null, 2);
+        async execute(input) {
+          try {
+            const result = await trpcClient.expenses.getExpensesDetailed.query({
+              projectId: input.projectId,
+            });
+            return JSON.stringify({
+              total: result.total,
+              count: result.count,
+              byCategory: result.byCategory,
+              recentExpenses: result.expenses.slice(0, 10),
+            }, null, 2);
+          } catch (error) {
+            console.error('[getExpenses Tool] Error:', error);
+            return JSON.stringify({ error: 'Failed to fetch expenses', count: 0, total: 0 }, null, 2);
+          }
         },
       }),
       getTasks: createRorkTool({
@@ -476,58 +474,49 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           startDate: z.string().optional().describe('Optional start date for date range filter (YYYY-MM-DD format)'),
           endDate: z.string().optional().describe('Optional end date for date range filter (YYYY-MM-DD format)'),
         }),
-        execute: (input) => {
-          let filteredPhotos = [...mockPhotos];
+        async execute(input) {
+          try {
+            const result = await trpcClient.photos.getPhotos.query({
+              projectId: input.projectId,
+              category: input.category,
+              date: input.date,
+              startDate: input.startDate,
+              endDate: input.endDate,
+            });
 
-          if (input.projectId) {
-            filteredPhotos = filteredPhotos.filter(p => p.projectId === input.projectId);
+            const byProject = result.photos.reduce((acc, p) => {
+              const proj = projects.find(pr => pr.id === p.projectId);
+              const projectName = proj?.name || 'Unknown Project';
+              if (!acc[projectName]) {
+                acc[projectName] = { count: 0, categories: {} };
+              }
+              acc[projectName].count++;
+              acc[projectName].categories[p.category] = (acc[projectName].categories[p.category] || 0) + 1;
+              return acc;
+            }, {} as Record<string, { count: number; categories: Record<string, number> }>);
+
+            const byCategory = result.photos.reduce((acc, p) => {
+              acc[p.category] = (acc[p.category] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>);
+
+            return JSON.stringify({
+              total: result.total,
+              photos: result.photos.map(p => ({
+                id: p.id,
+                projectId: p.projectId,
+                projectName: projects.find(pr => pr.id === p.projectId)?.name || 'Unknown',
+                category: p.category,
+                notes: p.notes,
+                date: p.date,
+              })),
+              byProject,
+              byCategory,
+            }, null, 2);
+          } catch (error) {
+            console.error('[getPhotosUploaded Tool] Error:', error);
+            return JSON.stringify({ error: 'Failed to fetch photos', total: 0, photos: [] }, null, 2);
           }
-
-          if (input.category) {
-            filteredPhotos = filteredPhotos.filter(p => 
-              p.category.toLowerCase().includes(input.category!.toLowerCase())
-            );
-          }
-
-          if (input.date) {
-            filteredPhotos = filteredPhotos.filter(p => p.date.startsWith(input.date!));
-          }
-
-          if (input.startDate && input.endDate) {
-            filteredPhotos = filteredPhotos.filter(p => 
-              p.date >= input.startDate! && p.date <= input.endDate!
-            );
-          }
-
-          const byProject = filteredPhotos.reduce((acc, p) => {
-            const proj = projects.find(pr => pr.id === p.projectId);
-            const projectName = proj?.name || 'Unknown Project';
-            if (!acc[projectName]) {
-              acc[projectName] = { count: 0, categories: {} };
-            }
-            acc[projectName].count++;
-            acc[projectName].categories[p.category] = (acc[projectName].categories[p.category] || 0) + 1;
-            return acc;
-          }, {} as Record<string, { count: number; categories: Record<string, number> }>);
-
-          const byCategory = filteredPhotos.reduce((acc, p) => {
-            acc[p.category] = (acc[p.category] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>);
-
-          return JSON.stringify({
-            total: filteredPhotos.length,
-            photos: filteredPhotos.map(p => ({
-              id: p.id,
-              projectId: p.projectId,
-              projectName: projects.find(pr => pr.id === p.projectId)?.name || 'Unknown',
-              category: p.category,
-              notes: p.notes,
-              date: p.date,
-            })),
-            byProject,
-            byCategory,
-          }, null, 2);
         },
       }),
       getExpensesDetailed: createRorkTool({
@@ -539,64 +528,48 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           startDate: z.string().optional().describe('Optional start date for date range filter (YYYY-MM-DD format)'),
           endDate: z.string().optional().describe('Optional end date for date range filter (YYYY-MM-DD format)'),
         }),
-        execute: (input) => {
-          let filteredExpenses = [...expenses];
+        async execute(input) {
+          try {
+            const result = await trpcClient.expenses.getExpensesDetailed.query({
+              projectId: input.projectId,
+              type: input.type,
+              date: input.date,
+              startDate: input.startDate,
+              endDate: input.endDate,
+            });
 
-          if (input.projectId) {
-            filteredExpenses = filteredExpenses.filter(e => e.projectId === input.projectId);
+            const byProject = result.expenses.reduce((acc, e) => {
+              const proj = projects.find(p => p.id === e.projectId);
+              const projectName = proj?.name || 'Unknown Project';
+              if (!acc[projectName]) {
+                acc[projectName] = { total: 0, count: 0, byCategory: {} };
+              }
+              acc[projectName].total += e.amount;
+              acc[projectName].count++;
+              acc[projectName].byCategory[e.type] = (acc[projectName].byCategory[e.type] || 0) + e.amount;
+              return acc;
+            }, {} as Record<string, { total: number; count: number; byCategory: Record<string, number> }>);
+
+            return JSON.stringify({
+              total: result.total,
+              count: result.count,
+              byCategory: result.byCategory,
+              byProject,
+              recentExpenses: result.expenses.slice(0, 20).map(e => ({
+                id: e.id,
+                projectId: e.projectId,
+                projectName: projects.find(p => p.id === e.projectId)?.name || 'Unknown',
+                type: e.type,
+                subcategory: e.subcategory,
+                amount: e.amount,
+                store: e.store,
+                date: e.date,
+              })),
+            }, null, 2);
+          } catch (error) {
+            console.error('[getExpensesDetailed Tool] Error:', error);
+            return JSON.stringify({ error: 'Failed to fetch expenses', total: 0, count: 0 }, null, 2);
           }
-
-          if (input.type) {
-            filteredExpenses = filteredExpenses.filter(e => 
-              e.type.toLowerCase().includes(input.type!.toLowerCase())
-            );
-          }
-
-          if (input.date) {
-            filteredExpenses = filteredExpenses.filter(e => e.date.startsWith(input.date!));
-          }
-
-          if (input.startDate && input.endDate) {
-            filteredExpenses = filteredExpenses.filter(e => 
-              e.date >= input.startDate! && e.date <= input.endDate!
-            );
-          }
-
-          const totalAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-          const byCategory = filteredExpenses.reduce((acc, e) => {
-            acc[e.type] = (acc[e.type] || 0) + e.amount;
-            return acc;
-          }, {} as Record<string, number>);
-
-          const byProject = filteredExpenses.reduce((acc, e) => {
-            const proj = projects.find(p => p.id === e.projectId);
-            const projectName = proj?.name || 'Unknown Project';
-            if (!acc[projectName]) {
-              acc[projectName] = { total: 0, count: 0, byCategory: {} };
-            }
-            acc[projectName].total += e.amount;
-            acc[projectName].count++;
-            acc[projectName].byCategory[e.type] = (acc[projectName].byCategory[e.type] || 0) + e.amount;
-            return acc;
-          }, {} as Record<string, { total: number; count: number; byCategory: Record<string, number> }>);
-
-          return JSON.stringify({
-            total: totalAmount,
-            count: filteredExpenses.length,
-            byCategory,
-            byProject,
-            recentExpenses: filteredExpenses.slice(0, 20).map(e => ({
-              id: e.id,
-              projectId: e.projectId,
-              projectName: projects.find(p => p.id === e.projectId)?.name || 'Unknown',
-              type: e.type,
-              subcategory: e.subcategory,
-              amount: e.amount,
-              store: e.store,
-              date: e.date,
-            })),
-          }, null, 2);
         },
       }),
       getTimeTracking: createRorkTool({
@@ -608,77 +581,50 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           startDate: z.string().optional().describe('Optional start date for date range filter (YYYY-MM-DD format)'),
           endDate: z.string().optional().describe('Optional end date for date range filter (YYYY-MM-DD format)'),
         }),
-        execute: (input) => {
-          let filteredEntries = [...clockEntries];
+        async execute(input) {
+          try {
+            const result = await trpcClient.clock.getClockEntries.query({
+              projectId: input.projectId,
+              employeeId: input.employeeId,
+              date: input.date,
+              startDate: input.startDate,
+              endDate: input.endDate,
+            });
 
-          if (input.projectId) {
-            filteredEntries = filteredEntries.filter(e => e.projectId === input.projectId);
+            const byProject = result.entries.reduce((acc, e) => {
+              const proj = projects.find(p => p.id === e.projectId);
+              const projectName = proj?.name || 'Unknown Project';
+              if (!acc[projectName]) {
+                acc[projectName] = { count: 0, hours: 0 };
+              }
+              acc[projectName].count++;
+              if (e.clockOut) {
+                const hoursWorked = (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / (1000 * 60 * 60);
+                acc[projectName].hours += hoursWorked;
+              }
+              return acc;
+            }, {} as Record<string, { count: number; hours: number }>);
+
+            return JSON.stringify({
+              totalHours: result.totalHours.toFixed(2),
+              count: result.count,
+              byEmployee: result.byEmployee,
+              byProject,
+              recentEntries: result.entries.slice(0, 20).map(e => ({
+                id: e.id,
+                employeeId: e.employeeId,
+                projectId: e.projectId,
+                projectName: projects.find(p => p.id === e.projectId)?.name || 'Unknown',
+                clockIn: e.clockIn,
+                clockOut: e.clockOut,
+                category: e.category,
+                workPerformed: e.workPerformed,
+              })),
+            }, null, 2);
+          } catch (error) {
+            console.error('[getTimeTracking Tool] Error:', error);
+            return JSON.stringify({ error: 'Failed to fetch clock entries', totalHours: '0.00', count: 0 }, null, 2);
           }
-
-          if (input.employeeId) {
-            filteredEntries = filteredEntries.filter(e => e.employeeId === input.employeeId);
-          }
-
-          if (input.date) {
-            filteredEntries = filteredEntries.filter(e => e.clockIn.startsWith(input.date!));
-          }
-
-          if (input.startDate && input.endDate) {
-            filteredEntries = filteredEntries.filter(e => 
-              e.clockIn >= input.startDate! && e.clockIn <= input.endDate!
-            );
-          }
-
-          const totalHours = filteredEntries.reduce((sum, e) => {
-            if (e.clockOut) {
-              const hoursWorked = (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / (1000 * 60 * 60);
-              return sum + hoursWorked;
-            }
-            return sum;
-          }, 0);
-
-          const byEmployee = filteredEntries.reduce((acc, e) => {
-            if (!acc[e.employeeId]) {
-              acc[e.employeeId] = { count: 0, hours: 0 };
-            }
-            acc[e.employeeId].count++;
-            if (e.clockOut) {
-              const hoursWorked = (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / (1000 * 60 * 60);
-              acc[e.employeeId].hours += hoursWorked;
-            }
-            return acc;
-          }, {} as Record<string, { count: number; hours: number }>);
-
-          const byProject = filteredEntries.reduce((acc, e) => {
-            const proj = projects.find(p => p.id === e.projectId);
-            const projectName = proj?.name || 'Unknown Project';
-            if (!acc[projectName]) {
-              acc[projectName] = { count: 0, hours: 0 };
-            }
-            acc[projectName].count++;
-            if (e.clockOut) {
-              const hoursWorked = (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / (1000 * 60 * 60);
-              acc[projectName].hours += hoursWorked;
-            }
-            return acc;
-          }, {} as Record<string, { count: number; hours: number }>);
-
-          return JSON.stringify({
-            totalHours: totalHours.toFixed(2),
-            count: filteredEntries.length,
-            byEmployee,
-            byProject,
-            recentEntries: filteredEntries.slice(0, 20).map(e => ({
-              id: e.id,
-              employeeId: e.employeeId,
-              projectId: e.projectId,
-              projectName: projects.find(p => p.id === e.projectId)?.name || 'Unknown',
-              clockIn: e.clockIn,
-              clockOut: e.clockOut,
-              category: e.category,
-              workPerformed: e.workPerformed,
-            })),
-          }, null, 2);
         },
       }),
     },

@@ -1,5 +1,6 @@
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { z } from 'zod';
+import { fixtureClockEntries } from '@/mocks/fixtures';
 
 const inputSchema = z.object({
   projectId: z.string().optional(),
@@ -12,8 +13,7 @@ const inputSchema = z.object({
 export const getClockEntriesProcedure = publicProcedure
   .input(inputSchema)
   .query(({ input }) => {
-    const clockEntries: any[] = [];
-    let filteredEntries = [...clockEntries];
+    let filteredEntries = [...fixtureClockEntries];
 
     if (input.projectId) {
       filteredEntries = filteredEntries.filter(e => e.projectId === input.projectId);
