@@ -2,10 +2,20 @@ import { z } from "zod";
 import { publicProcedure } from "../../../create-context";
 import twilio from "twilio";
 
-const twilioClient = twilio(
-  process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID,
-  process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN
-);
+let twilioClient: ReturnType<typeof twilio> | null = null;
+
+try {
+  if (process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID && process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN) {
+    twilioClient = twilio(
+      process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID,
+      process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN
+    );
+  } else {
+    console.warn('[Twilio Call Logs] Credentials not configured');
+  }
+} catch (error) {
+  console.error('[Twilio Call Logs] Failed to initialize client:', error);
+}
 
 export const getCallLogsProcedure = publicProcedure
   .input(
@@ -15,6 +25,10 @@ export const getCallLogsProcedure = publicProcedure
   )
   .query(async ({ input }) => {
     try {
+      if (!twilioClient) {
+        throw new Error('Twilio not configured. Please add EXPO_PUBLIC_TWILIO_ACCOUNT_SID and EXPO_PUBLIC_TWILIO_AUTH_TOKEN.');
+      }
+
       const calls = await twilioClient.calls.list({
         limit: input.limit,
       });

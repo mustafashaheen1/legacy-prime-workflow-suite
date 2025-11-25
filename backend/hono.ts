@@ -94,12 +94,17 @@ app.post("/twilio/assistant", async (c) => {
 
 console.log("[Backend] ========================================");
 console.log("[Backend] ✓ Hono server initialized successfully");
-console.log("[Backend] OpenAI API Key:", process.env.OPENAI_API_KEY ? "✓ Configured" : "✗ Missing");
-if (process.env.OPENAI_API_KEY) {
-  console.log("[Backend] OpenAI API Key preview:", process.env.OPENAI_API_KEY.substring(0, 10) + "...");
-}
+console.log("[Backend] ========================================");
+console.log("[Backend] Environment Configuration:");
+console.log("[Backend]   OpenAI API Key:", process.env.OPENAI_API_KEY ? "✓ Configured" : "✗ Missing");
+console.log("[Backend]   Twilio Account SID:", process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID ? "✓ Configured" : "✗ Missing");
+console.log("[Backend]   Twilio Auth Token:", process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN ? "✓ Configured" : "✗ Missing");
+console.log("[Backend]   Twilio Phone Number:", process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER ? "✓ Configured" : "✗ Missing");
+console.log("[Backend]   Stripe Secret Key:", process.env.STRIPE_SECRET_KEY ? "✓ Configured" : "✗ Missing");
+console.log("[Backend] ========================================");
 console.log("[Backend] Routes registered:");
 console.log("[Backend]   - GET  /");
+console.log("[Backend]   - GET  /health");
 console.log("[Backend]   - POST /trpc/*");
 console.log("[Backend]   - POST /twilio/assistant");
 console.log("[Backend] ========================================");
