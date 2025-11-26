@@ -45,6 +45,9 @@ import { getClockEntriesProcedure } from "./routes/clock/get-clock-entries/route
 import { handleReceptionistCallProcedure } from "./routes/twilio/handle-receptionist-call/route";
 import { sendInspectionLinkProcedure } from "./routes/crm/send-inspection-link/route";
 import { submitInspectionDataProcedure } from "./routes/crm/submit-inspection-data/route";
+import { createPaymentIntentProcedure } from "./routes/stripe/create-payment-intent/route";
+import { createSubscriptionProcedure } from "./routes/stripe/create-subscription/route";
+import { verifyPaymentProcedure } from "./routes/stripe/verify-payment/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -121,6 +124,11 @@ export const appRouter = createTRPCRouter({
   crm: createTRPCRouter({
     sendInspectionLink: sendInspectionLinkProcedure,
     submitInspectionData: submitInspectionDataProcedure,
+  }),
+  stripe: createTRPCRouter({
+    createPaymentIntent: createPaymentIntentProcedure,
+    createSubscription: createSubscriptionProcedure,
+    verifyPayment: verifyPaymentProcedure,
   }),
 });
 
