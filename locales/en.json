@@ -182,7 +182,8 @@
       "superAdmin": "Full access to all features and can manage all users",
       "admin": "Full access to most features and can manage team members",
       "salesperson": "Access to CRM, estimates, and sales tools",
-      "fieldEmployee": "Access to clock-in, photos, and basic features"
+      "fieldEmployee": "Access to clock-in, photos, and basic features",
+      "employee": "Basic access to clock-in, photos, and chat"
     }
   },
   "projects": {

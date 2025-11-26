@@ -79,6 +79,17 @@ export const rolePermissionsMap: RolePermissions[] = [
       'chatbot:basic-only',
     ],
   },
+  {
+    role: 'employee',
+    permissions: [
+      'view:photos',
+      'add:photos',
+      'clock:in-out',
+      'view:chat',
+      'send:chat',
+      'chatbot:basic-only',
+    ],
+  },
 ];
 
 export const getPermissionsForRole = (role: UserRole): Permission[] => {
@@ -156,16 +167,17 @@ export const getRoleDisplayName = (role: UserRole): string => {
     'admin': 'Admin',
     'salesperson': 'Salesperson',
     'field-employee': 'Field Employee',
+    'employee': 'Employee',
   };
   return roleNames[role];
 };
 
 export const getAvailableRolesForManagement = (userRole: UserRole): UserRole[] => {
   if (userRole === 'super-admin') {
-    return ['admin', 'salesperson', 'field-employee'];
+    return ['admin', 'salesperson', 'field-employee', 'employee'];
   }
   if (userRole === 'admin') {
-    return ['salesperson', 'field-employee'];
+    return ['salesperson', 'field-employee', 'employee'];
   }
   return [];
 };

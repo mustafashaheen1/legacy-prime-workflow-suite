@@ -33,10 +33,12 @@ export default function SettingsScreen() {
   });
 
   const handleRoleChange = (userId: string, newRole: UserRole) => {
-    updateUserMutation.mutate({
-      userId,
-      updates: { role: newRole },
-    });
+    if (newRole === 'employee' || newRole === 'field-employee' || newRole === 'salesperson' || newRole === 'admin') {
+      updateUserMutation.mutate({
+        userId,
+        updates: { role: newRole },
+      });
+    }
   };
 
   const availableRoles = currentUser ? getAvailableRolesForManagement(currentUser.role) : [];
@@ -232,6 +234,7 @@ function getRoleColor(role: UserRole): string {
     'admin': '#2563EB',
     'salesperson': '#16A34A',
     'field-employee': '#9333EA',
+    'employee': '#F59E0B',
   };
   return colors[role];
 }
@@ -242,6 +245,7 @@ function getRoleDescription(role: UserRole, t: any): string {
     'admin': t('settings.roleDescriptions.admin'),
     'salesperson': t('settings.roleDescriptions.salesperson'),
     'field-employee': t('settings.roleDescriptions.fieldEmployee'),
+    'employee': t('settings.roleDescriptions.employee'),
   };
   return descriptions[role];
 }

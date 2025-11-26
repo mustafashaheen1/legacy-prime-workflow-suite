@@ -111,7 +111,7 @@ export default function SignupScreen() {
 
     try {
       setIsCreatingAccount(true);
-      console.log('[Signup] Creating account without backend...');
+      console.log('[Signup] Starting account creation...');
 
       if (accountType === 'company') {
         if (!companyName.trim()) {
@@ -123,53 +123,43 @@ export default function SignupScreen() {
           return;
         }
         
-        const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
-        const newCompany = {
-          id: companyCode,
-          name: companyName.trim(),
-          logo: undefined,
-          brandColor: '#2563EB',
-          subscriptionStatus: 'trial' as const,
-          subscriptionPlan: 'basic' as const,
-          subscriptionStartDate: new Date().toISOString(),
-          subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          settings: {
-            features: {
-              crm: true,
-              estimates: true,
-              schedule: true,
-              expenses: true,
-              photos: true,
-              chat: true,
-              reports: true,
-              clock: true,
-              dashboard: true,
-            },
-            maxUsers: parseInt(employeeCount),
-            maxProjects: 999,
+        console.log('[Signup] Redirecting to subscription page...');
+        router.push({
+          pathname: '/(auth)/subscription',
+          params: {
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
+            password,
+            companyName: companyName.trim(),
+            employeeCount: employeeCount,
+            accountType: 'company',
           },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+        });
+      } else {
+        if (!companyCode.trim()) {
+          Alert.alert(t('common.error'), t('signup.companyCodeRequired'));
+          return;
+        }
 
+        console.log('[Signup] Creating employee account...');
+        
         const newUser = {
           id: `user-${Date.now()}`,
           name: name.trim(),
           email: email.toLowerCase().trim(),
           password,
-          role: 'admin' as const,
-          companyId: companyCode,
+          role: 'employee' as const,
+          companyId: companyCode.toUpperCase(),
           phone: '',
           avatar: undefined,
           isActive: true,
           permissions: {
-            canManageProjects: true,
-            canManageClients: true,
-            canManageExpenses: true,
-            canViewReports: true,
-            canManageUsers: true,
-            canManageCompany: true,
+            canManageProjects: false,
+            canManageClients: false,
+            canManageExpenses: false,
+            canViewReports: false,
+            canManageUsers: false,
+            canManageCompany: false,
             canClockInOut: true,
             canChat: true,
           },
@@ -177,35 +167,19 @@ export default function SignupScreen() {
           updatedAt: new Date().toISOString(),
         };
 
-        await setCompany(newCompany);
         await setUser(newUser);
-        await setSubscription({
-          type: 'basic',
-          startDate: new Date().toISOString(),
-        });
 
-        console.log('[Signup] Account created successfully');
-        console.log('[Signup] Company Code:', companyCode);
+        console.log('[Signup] Employee account created successfully');
 
         Alert.alert(
           t('signup.successTitle'),
-          `${t('signup.successMessage')}\n\n${t('subscription.companyCode')}: ${companyCode}`,
+          'Tu cuenta de empleado ha sido creada exitosamente.',
           [
             {
               text: t('common.ok'),
               onPress: () => router.replace('/dashboard'),
             },
           ]
-        );
-      } else {
-        if (!companyCode.trim()) {
-          Alert.alert(t('common.error'), t('signup.companyCodeRequired'));
-          return;
-        }
-
-        Alert.alert(
-          t('common.error'),
-          'La función de unirse a una compañía existente no está disponible en modo offline. Por favor, crea una cuenta de compañía para continuar.'
         );
       }
     } catch (error: any) {

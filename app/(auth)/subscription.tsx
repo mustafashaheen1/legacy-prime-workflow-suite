@@ -4,13 +4,10 @@ import { useApp } from '@/contexts/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useMemo, useEffect } from 'react';
 import { Check } from 'lucide-react-native';
-import { trpc } from '@/lib/trpc';
-import { useTranslation } from 'react-i18next';
 
 function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
   
   const params = useLocalSearchParams<{
     name?: string;
@@ -23,9 +20,6 @@ function SubscriptionContent() {
 
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium'>('premium');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-
-  const createCompanyMutation = trpc.companies.createCompany.useMutation();
-  const createUserMutation = trpc.users.createUser.useMutation();
 
   useEffect(() => {
     if (!params.accountType) {
@@ -48,98 +42,80 @@ function SubscriptionContent() {
     };
   }, [employeeCount]);
 
-  const handleConfirmSubscription = async () => {
+  const handleCreateAccount = async () => {
     try {
       setIsProcessing(true);
-      console.log('[Subscription] Creating company (Payment disabled for testing)...');
-      console.log('[Subscription] Company name:', params.companyName || 'New Company');
-      console.log('[Subscription] Plan:', selectedPlan);
+      console.log('[Subscription] Creating company account...');
       
       const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
-      let newCompany;
-      try {
-        newCompany = await createCompanyMutation.mutateAsync({
-          name: params.companyName || 'New Company',
-          subscriptionPlan: selectedPlan === 'premium' ? 'pro' : 'basic',
-          subscriptionStatus: 'active',
-          settings: {
-            features: {
-              crm: true,
-              estimates: true,
-              schedule: selectedPlan === 'premium',
-              expenses: true,
-              photos: true,
-              chat: selectedPlan === 'premium',
-              reports: selectedPlan === 'premium',
-              clock: selectedPlan === 'premium',
-              dashboard: true,
-            },
-            maxUsers: employeeCount,
-            maxProjects: selectedPlan === 'premium' ? 999 : 20,
+      const newCompany = {
+        id: companyCode,
+        name: params.companyName || 'New Company',
+        logo: undefined,
+        brandColor: '#2563EB',
+        subscriptionStatus: 'active' as const,
+        subscriptionPlan: selectedPlan === 'premium' ? 'pro' as const : 'basic' as const,
+        subscriptionStartDate: new Date().toISOString(),
+        subscriptionEndDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        companyCode,
+        settings: {
+          features: {
+            crm: true,
+            estimates: true,
+            schedule: selectedPlan === 'premium',
+            expenses: true,
+            photos: true,
+            chat: selectedPlan === 'premium',
+            reports: selectedPlan === 'premium',
+            clock: selectedPlan === 'premium',
+            dashboard: true,
           },
-        });
-      } catch (companyError: any) {
-        console.error('[Subscription] Company creation error:', companyError);
-        console.error('[Subscription] Error details:', JSON.stringify(companyError, null, 2));
-        const errorMessage = companyError?.message || companyError?.data?.message || 'Error desconocido';
-        throw new Error(`No se pudo crear la compañía: ${errorMessage}`);
-      }
+          maxUsers: employeeCount,
+          maxProjects: selectedPlan === 'premium' ? 999 : 20,
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-      console.log('[Subscription] Company created:', newCompany.company.name);
-      console.log('[Subscription] Company Code:', companyCode);
+      const newUser = {
+        id: `user-${Date.now()}`,
+        name: params.name || 'Admin',
+        email: params.email || 'admin@example.com',
+        role: 'admin' as const,
+        companyId: companyCode,
+        avatar: undefined,
+        createdAt: new Date().toISOString(),
+        isActive: true,
+      };
 
-      let newUser;
-      try {
-        newUser = await createUserMutation.mutateAsync({
-          name: params.name || 'Admin',
-          email: params.email || 'admin@example.com',
-          password: params.password || 'password',
-          role: 'admin',
-          companyId: newCompany.company.id,
-        });
-      } catch (userError: any) {
-        console.error('[Subscription] User creation error:', userError);
-        throw new Error('No se pudo crear el usuario. Por favor intenta de nuevo.');
-      }
+      console.log('[Subscription] Saving company to storage...');
+      await setCompany(newCompany);
 
-      console.log('[Subscription] Admin user created:', newUser.user.name);
+      console.log('[Subscription] Saving user to storage...');
+      await setUser(newUser);
 
-      console.log('[Subscription] Saving to local storage...');
-      try {
-        await setCompany({
-          ...newCompany.company,
-          id: companyCode,
-        });
-        console.log('[Subscription] Company saved to storage');
+      console.log('[Subscription] Saving subscription to storage...');
+      await setSubscription({
+        type: selectedPlan,
+        startDate: new Date().toISOString(),
+      });
 
-        await setUser(newUser.user);
-        console.log('[Subscription] User saved to storage');
-
-        await setSubscription({
-          type: selectedPlan,
-          startDate: new Date().toISOString(),
-        });
-        console.log('[Subscription] Subscription saved to storage');
-      } catch (storageError) {
-        console.error('[Subscription] Storage error:', storageError);
-        throw storageError;
-      }
+      console.log('[Subscription] Account created successfully');
 
       Alert.alert(
-        t('subscription.success'),
-        t('subscription.companyCodeMessage', { code: companyCode }),
+        'Cuenta Creada Exitosamente',
+        `Tu cuenta empresarial ha sido creada.\n\nCódigo de compañía: ${companyCode}\n\nComparte este código con tus empleados para que puedan registrarse.`,
         [
           {
-            text: t('common.ok'),
+            text: 'Entendido',
             onPress: () => router.replace('/dashboard'),
           },
         ]
       );
     } catch (error: any) {
       console.error('[Subscription] Error:', error);
-      const errorMessage = error?.message || t('subscription.errorMessage');
-      Alert.alert(t('common.error'), errorMessage);
+      Alert.alert('Error', error?.message || 'Error al crear la cuenta');
     } finally {
       setIsProcessing(false);
     }
@@ -152,9 +128,9 @@ function SubscriptionContent() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>{t('subscription.chooseYourPlan')}</Text>
+        <Text style={styles.title}>Elige Tu Plan</Text>
         <Text style={styles.subtitle}>
-          {t('subscription.forEmployees', { count: employeeCount })}
+          Para {employeeCount} empleados
         </Text>
 
         <TouchableOpacity
@@ -169,19 +145,19 @@ function SubscriptionContent() {
               <Check size={20} color="#FFFFFF" />
             </View>
           )}
-          <Text style={styles.planTitle}>{t('subscription.basicPlan')}</Text>
-          <Text style={styles.planPrice}>${pricing.basic}/{t('subscription.perMonth')}</Text>
+          <Text style={styles.planTitle}>Plan Básico</Text>
+          <Text style={styles.planPrice}>${pricing.basic}/mes</Text>
           <Text style={styles.planDescription}>
-            ${10} {t('subscription.basePrice')} + ${8} × {employeeCount - 1} {t('subscription.employees')}
+            ${10} base + ${8} × {employeeCount - 1} empleados
           </Text>
           <View style={styles.featuresContainer}>
-            <Text style={styles.featureItem}>✓ {t('subscription.dashboardAccess')}</Text>
-            <Text style={styles.featureItem}>✓ {t('subscription.crmAccess')}</Text>
-            <Text style={styles.featureItem}>✓ {t('subscription.expensesAccess')}</Text>
-            <Text style={styles.featureItem}>✓ {t('subscription.photosAccess')}</Text>
-            <Text style={styles.featureItem}>✓ {t('subscription.estimatesAccess')}</Text>
-            <Text style={styles.featureItem}>✓ {employeeCount} {t('subscription.teamMembers')}</Text>
-            <Text style={styles.featureItem}>✓ 20 {t('subscription.activeProjects')}</Text>
+            <Text style={styles.featureItem}>✓ Dashboard</Text>
+            <Text style={styles.featureItem}>✓ CRM & Gestión de Clientes</Text>
+            <Text style={styles.featureItem}>✓ Seguimiento de Gastos</Text>
+            <Text style={styles.featureItem}>✓ Fotos & Documentación</Text>
+            <Text style={styles.featureItem}>✓ Estimados & Takeoffs</Text>
+            <Text style={styles.featureItem}>✓ {employeeCount} Miembros del Equipo</Text>
+            <Text style={styles.featureItem}>✓ 20 Proyectos Activos</Text>
           </View>
         </TouchableOpacity>
 
@@ -199,141 +175,43 @@ function SubscriptionContent() {
             </View>
           )}
           <View style={styles.popularBadge}>
-            <Text style={styles.popularText}>{t('subscription.mostPopular')}</Text>
+            <Text style={styles.popularText}>MÁS POPULAR</Text>
           </View>
-          <Text style={styles.planTitle}>{t('subscription.premiumPlan')}</Text>
-          <Text style={styles.planPrice}>${pricing.premium}/{t('subscription.perMonth')}</Text>
+          <Text style={styles.planTitle}>Plan Premium</Text>
+          <Text style={styles.planPrice}>${pricing.premium}/mes</Text>
           <Text style={styles.planDescription}>
-            ${20} {t('subscription.basePrice')} + ${15} × {employeeCount - 1} {t('subscription.employees')}
+            ${20} base + ${15} × {employeeCount - 1} empleados
           </Text>
           <View style={styles.featuresContainer}>
-            <Text style={styles.featureItem}>✓ {t('subscription.allBasicFeatures')}</Text>
-            <Text style={styles.featureItem}>✓ {t('subscription.scheduleAccess')}</Text>
-            <Text style={styles.featureItem}>✓ {t('subscription.chatAccess')}</Text>
-            <Text style={styles.featureItem}>✓ {t('subscription.reportsAccess')}</Text>
-            <Text style={styles.featureItem}>✓ {t('subscription.clockAccess')}</Text>
-            <Text style={styles.featureItem}>✓ {employeeCount} {t('subscription.teamMembers')}</Text>
-            <Text style={styles.featureItem}>✓ {t('subscription.unlimitedProjects')}</Text>
+            <Text style={styles.featureItem}>✓ Todo del Plan Básico</Text>
+            <Text style={styles.featureItem}>✓ Programación & Tareas</Text>
+            <Text style={styles.featureItem}>✓ Chat en Equipo</Text>
+            <Text style={styles.featureItem}>✓ Reportes Avanzados</Text>
+            <Text style={styles.featureItem}>✓ Reloj de Entrada/Salida</Text>
+            <Text style={styles.featureItem}>✓ {employeeCount} Miembros del Equipo</Text>
+            <Text style={styles.featureItem}>✓ Proyectos Ilimitados</Text>
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[
             styles.continueButton,
-            (isProcessing || createCompanyMutation.isPending || createUserMutation.isPending) &&
-              styles.continueButtonDisabled,
+            isProcessing && styles.continueButtonDisabled,
           ]}
-          onPress={handleConfirmSubscription}
-          disabled={isProcessing || createCompanyMutation.isPending || createUserMutation.isPending}
+          onPress={handleCreateAccount}
+          disabled={isProcessing}
         >
           {isProcessing ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.continueButtonText}>
-              {createCompanyMutation.isPending || createUserMutation.isPending
-                ? t('common.loading')
-                : t('subscription.createAccount')}
+              Crear Cuenta
             </Text>
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.skipButton}
-          onPress={async () => {
-            try {
-              setIsProcessing(true);
-              console.log('[Subscription] Skipping payment, creating company...');
-              
-              const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-              
-              let newCompany;
-              try {
-                newCompany = await createCompanyMutation.mutateAsync({
-                  name: params.companyName || 'New Company',
-                  subscriptionPlan: 'basic',
-                  subscriptionStatus: 'trial',
-                  settings: {
-                    features: {
-                      crm: true,
-                      estimates: true,
-                      schedule: true,
-                      expenses: true,
-                      photos: true,
-                      chat: true,
-                      reports: true,
-                      clock: true,
-                      dashboard: true,
-                    },
-                    maxUsers: parseInt(params.employeeCount || '2'),
-                    maxProjects: 999,
-                  },
-                });
-              } catch (companyError: any) {
-                console.error('[Subscription] Company creation error:', companyError);
-                console.error('[Subscription] Error details:', JSON.stringify(companyError, null, 2));
-                const errorMessage = companyError?.message || companyError?.data?.message || 'Error desconocido';
-                throw new Error(`No se pudo crear la compañía: ${errorMessage}`);
-              }
-
-              console.log('[Subscription] Company created:', newCompany.company.name);
-
-              let newUser;
-              try {
-                newUser = await createUserMutation.mutateAsync({
-                  name: params.name || 'Admin',
-                  email: params.email || 'admin@example.com',
-                  password: params.password || 'password',
-                  role: 'admin',
-                  companyId: newCompany.company.id,
-                });
-              } catch (userError: any) {
-                console.error('[Subscription] User creation error:', userError);
-                throw new Error('No se pudo crear el usuario. Por favor intenta de nuevo.');
-              }
-
-              console.log('[Subscription] Admin user created:', newUser.user.name);
-
-              await setCompany({
-                ...newCompany.company,
-                id: companyCode,
-              });
-
-              await setUser(newUser.user);
-
-              await setSubscription({
-                type: 'basic',
-                startDate: new Date().toISOString(),
-              });
-
-              Alert.alert(
-                'Cuenta Creada',
-                `Tu cuenta ha sido creada exitosamente. Código de compañía: ${companyCode}`,
-                [
-                  {
-                    text: t('common.ok'),
-                    onPress: () => router.replace('/dashboard'),
-                  },
-                ]
-              );
-            } catch (error: any) {
-              console.error('[Subscription] Error:', error);
-              const errorMessage = error?.message || 'Error al crear la cuenta';
-              Alert.alert(t('common.error'), errorMessage);
-            } finally {
-              setIsProcessing(false);
-            }
-          }}
-          disabled={isProcessing || createCompanyMutation.isPending || createUserMutation.isPending}
-        >
-          {isProcessing ? (
-            <ActivityIndicator color="#2563EB" />
-          ) : (
-            <Text style={styles.skipButtonText}>Crear Cuenta Sin Pago (Por Ahora)</Text>
-          )}
-        </TouchableOpacity>
-
         <Text style={styles.disclaimer}>
-          {t('subscription.testMode')} - Payment integration disabled for testing
+          Modo de prueba - Los pagos se integrarán próximamente
         </Text>
       </ScrollView>
     </View>
@@ -453,19 +331,5 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     marginTop: 16,
-  },
-  skipButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#2563EB',
-    borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  skipButtonText: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: '#2563EB',
   },
 });

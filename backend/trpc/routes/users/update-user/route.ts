@@ -8,7 +8,7 @@ export const updateUserProcedure = publicProcedure
       userId: z.string(),
       updates: z.object({
         name: z.string().optional(),
-        role: z.enum(['super-admin', 'admin', 'salesperson', 'field-employee']).optional(),
+        role: z.enum(['super-admin', 'admin', 'salesperson', 'field-employee', 'employee']).optional(),
         isActive: z.boolean().optional(),
         avatar: z.string().optional(),
       }),

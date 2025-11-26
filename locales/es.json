@@ -182,7 +182,8 @@
       "superAdmin": "Acceso completo a todas las funciones y puede gestionar todos los usuarios",
       "admin": "Acceso completo a la mayoría de funciones y puede gestionar miembros del equipo",
       "salesperson": "Acceso a CRM, estimaciones y herramientas de ventas",
-      "fieldEmployee": "Acceso a registro de entrada, fotos y funciones básicas"
+      "fieldEmployee": "Acceso a registro de entrada, fotos y funciones básicas",
+      "employee": "Acceso básico a registro de entrada, fotos y chat"
     }
   },
   "projects": {
