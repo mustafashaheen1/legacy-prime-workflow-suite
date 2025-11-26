@@ -20,6 +20,7 @@ export default function SubcontractorsScreen() {
   const [requestNotes, setRequestNotes] = useState<string>('');
   const [selectedSubcontractors, setSelectedSubcontractors] = useState<Set<string>>(new Set());
   const [showStatsWidget, setShowStatsWidget] = useState<boolean>(false);
+  const [customTrade, setCustomTrade] = useState<string>('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -371,9 +372,6 @@ export default function SubcontractorsScreen() {
                     </View>
                     <Text style={styles.subEmail}>{sub.email}</Text>
                     <Text style={styles.subPhone}>{sub.phone}</Text>
-                    {sub.hourlyRate && sub.hourlyRate > 0 && (
-                      <Text style={styles.subRate}>Rate: ${sub.hourlyRate}/hr</Text>
-                    )}
                     {sub.rating && sub.rating > 0 && (
                       <View style={styles.ratingContainer}>
                         {Array.from({ length: 5 }).map((_, i) => (
@@ -524,7 +522,10 @@ export default function SubcontractorsScreen() {
                 <TouchableOpacity
                   key={trade}
                   style={[styles.tradeOption, formData.trade === trade && styles.tradeOptionActive]}
-                  onPress={() => setFormData({ ...formData, trade })}
+                  onPress={() => {
+                    setFormData({ ...formData, trade });
+                    setCustomTrade('');
+                  }}
                 >
                   <Text style={[styles.tradeOptionText, formData.trade === trade && styles.tradeOptionTextActive]}>
                     {trade}
@@ -533,14 +534,36 @@ export default function SubcontractorsScreen() {
               ))}
             </ScrollView>
 
-            <Text style={styles.label}>Hourly Rate</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.hourlyRate > 0 ? formData.hourlyRate.toString() : ''}
-              onChangeText={(text) => setFormData({ ...formData, hourlyRate: parseFloat(text) || 0 })}
-              placeholder="75.00"
-              keyboardType="decimal-pad"
-            />
+            <Text style={styles.label}>Or Enter Custom Trade</Text>
+            <View style={styles.customTradeContainer}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                value={customTrade}
+                onChangeText={setCustomTrade}
+                placeholder="Enter custom trade (e.g., 'Solar Panel Installation')..."
+                placeholderTextColor="#9CA3AF"
+              />
+              {customTrade.trim().length > 0 && (
+                <TouchableOpacity
+                  style={styles.addCustomTradeButton}
+                  onPress={() => {
+                    if (customTrade.trim()) {
+                      setFormData({ ...formData, trade: customTrade.trim() });
+                      setCustomTrade('');
+                    }
+                  }}
+                >
+                  <Text style={styles.addCustomTradeButtonText}>Use This</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {formData.trade && !trades.includes(formData.trade) && (
+              <View style={styles.customTradePreview}>
+                <Text style={styles.customTradePreviewText}>Custom trade: {formData.trade}</Text>
+              </View>
+            )}
+
+
 
             <Text style={styles.label}>Address</Text>
             <TextInput
@@ -599,12 +622,7 @@ export default function SubcontractorsScreen() {
                   <Text style={styles.detailValue}>{selectedSubcontractor.phone}</Text>
                 </View>
 
-                {selectedSubcontractor.hourlyRate && selectedSubcontractor.hourlyRate > 0 && (
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailLabel}>Hourly Rate</Text>
-                    <Text style={styles.detailValue}>${selectedSubcontractor.hourlyRate}/hr</Text>
-                  </View>
-                )}
+
 
                 {selectedSubcontractor.address && (
                   <View style={styles.detailSection}>
@@ -1057,11 +1075,6 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     marginBottom: 4,
   },
-  subRate: {
-    fontSize: 14,
-    color: '#4B5563',
-    marginBottom: 8,
-  },
   avatar: {
     width: 48,
     height: 48,
@@ -1457,5 +1470,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  customTradeContainer: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    alignItems: 'center' as const,
+    marginBottom: 8,
+  },
+  addCustomTradeButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  addCustomTradeButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  customTradePreview: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  customTradePreviewText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#16A34A',
   },
 });
