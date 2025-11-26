@@ -33,6 +33,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="project/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="project/[id]/estimate" options={{ headerShown: false }} />
+      <Stack.Screen name="inspection/[token]" options={{ headerShown: false }} />
     </Stack>
   );
 }

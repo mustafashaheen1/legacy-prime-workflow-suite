@@ -38,6 +38,7 @@ import { getExpensesDetailedProcedure } from "./routes/expenses/get-expenses-det
 import { getClockEntriesProcedure } from "./routes/clock/get-clock-entries/route";
 import { handleReceptionistCallProcedure } from "./routes/twilio/handle-receptionist-call/route";
 import { sendInspectionLinkProcedure } from "./routes/crm/send-inspection-link/route";
+import { submitInspectionDataProcedure } from "./routes/crm/submit-inspection-data/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -107,6 +108,7 @@ export const appRouter = createTRPCRouter({
   }),
   crm: createTRPCRouter({
     sendInspectionLink: sendInspectionLinkProcedure,
+    submitInspectionData: submitInspectionDataProcedure,
   }),
 });
 

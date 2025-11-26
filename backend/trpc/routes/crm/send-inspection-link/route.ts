@@ -39,7 +39,9 @@ export const sendInspectionLinkProcedure = publicProcedure
         throw new Error('EXPO_PUBLIC_TWILIO_PHONE_NUMBER not configured');
       }
 
-      const inspectionUrl = `https://inspection.legacyprime.com/start?client=${encodeURIComponent(input.clientName)}&project=${input.projectId || 'new'}`;
+      const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://rork.app';
+      const token = `client=${encodeURIComponent(input.clientName)}&project=${input.projectId || 'new'}`;
+      const inspectionUrl = `${baseUrl}/inspection/${encodeURIComponent(token)}`;
 
       const messageBody = `Hi ${input.clientName.split(' ')[0]},
 
