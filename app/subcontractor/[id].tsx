@@ -9,7 +9,7 @@ import { trpc } from '@/lib/trpc';
 
 export default function SubcontractorProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { subcontractors = [], user } = useApp();
+  const { subcontractors = [], user, updateSubcontractor } = useApp();
   const subcontractor = subcontractors.find(s => s.id === id);
 
   const [showApproveModal, setShowApproveModal] = useState<boolean>(false);
@@ -41,7 +41,7 @@ export default function SubcontractorProfileScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         
-        await uploadBusinessFileMutation.mutateAsync({
+        const uploadedFile = await uploadBusinessFileMutation.mutateAsync({
           subcontractorId: subcontractor.id,
           type,
           name: asset.name,
@@ -49,6 +49,9 @@ export default function SubcontractorProfileScreen() {
           fileSize: asset.size || 0,
           uri: asset.uri,
         });
+
+        const updatedFiles = [...(subcontractor.businessFiles || []), uploadedFile];
+        await updateSubcontractor(subcontractor.id, { businessFiles: updatedFiles });
 
         Alert.alert('Success', 'File uploaded successfully');
         setShowUploadModal(false);
@@ -67,6 +70,11 @@ export default function SubcontractorProfileScreen() {
         verifiedBy: user?.id || 'user_current',
       });
 
+      const updatedFiles = (subcontractor.businessFiles || []).map(f => 
+        f.id === file.id ? { ...f, verified, verifiedBy: user?.id || 'user_current', verifiedDate: new Date().toISOString() } : f
+      );
+      await updateSubcontractor(subcontractor.id, { businessFiles: updatedFiles });
+
       Alert.alert('Success', `File ${verified ? 'verified' : 'unverified'} successfully`);
     } catch (error) {
       console.error('[Verify] Error:', error);
@@ -80,6 +88,12 @@ export default function SubcontractorProfileScreen() {
         subcontractorId: subcontractor.id,
         approved,
         approvedBy: user?.id || 'user_current',
+      });
+
+      await updateSubcontractor(subcontractor.id, { 
+        approved, 
+        approvedBy: user?.id || 'user_current', 
+        approvedDate: new Date().toISOString() 
       });
 
       Alert.alert('Success', `Subcontractor ${approved ? 'approved' : 'rejected'} successfully`);

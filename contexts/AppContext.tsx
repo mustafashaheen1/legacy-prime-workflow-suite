@@ -626,7 +626,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [subcontractors]);
 
   const updateSubcontractor = useCallback(async (id: string, updates: Partial<Subcontractor>) => {
-    const updated = subcontractors.map(sub => sub.id === id ? { ...sub, ...updates } : sub);
+    const updated = subcontractors.map(sub => {
+      if (sub.id === id) {
+        return { ...sub, ...updates };
+      }
+      return sub;
+    });
     setSubcontractors(updated);
     await AsyncStorage.setItem('subcontractors', JSON.stringify(updated));
     console.log('[Storage] Subcontractor updated successfully');

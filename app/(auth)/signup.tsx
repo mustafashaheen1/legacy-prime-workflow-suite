@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { Wrench, ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useTranslation } from 'react-i18next';
 import * as WebBrowser from 'expo-web-browser';
@@ -141,30 +142,54 @@ export default function SignupScreen() {
           return;
         }
 
+        console.log('[Signup] Validating company code...');
+        
+        const storedCompany = await AsyncStorage.getItem('company');
+        if (!storedCompany) {
+          Alert.alert(
+            t('common.error'),
+            'No se encontró ninguna empresa con este código. Por favor, verifica el código o contacta con tu empleador.'
+          );
+          return;
+        }
+
+        let company;
+        try {
+          company = JSON.parse(storedCompany);
+        } catch (error) {
+          console.error('[Signup] Error parsing company:', error);
+          Alert.alert(t('common.error'), 'Error al validar el código de empresa.');
+          return;
+        }
+
+        if (company.companyCode !== companyCode.toUpperCase()) {
+          Alert.alert(
+            t('common.error'),
+            'El código de empresa no es válido. Por favor, verifica el código con tu empleador.'
+          );
+          return;
+        }
+
+        if (company.subscriptionStatus !== 'active' && company.subscriptionStatus !== 'trial') {
+          Alert.alert(
+            'Empresa Inactiva',
+            'La empresa asociada con este código no tiene una suscripción activa. Contacta con el administrador de la empresa.'
+          );
+          return;
+        }
+
+        console.log('[Signup] Company code validated successfully');
         console.log('[Signup] Creating employee account...');
         
         const newUser = {
           id: `user-${Date.now()}`,
           name: name.trim(),
           email: email.toLowerCase().trim(),
-          password,
           role: 'employee' as const,
-          companyId: companyCode.toUpperCase(),
-          phone: '',
+          companyId: company.id,
           avatar: undefined,
           isActive: true,
-          permissions: {
-            canManageProjects: false,
-            canManageClients: false,
-            canManageExpenses: false,
-            canViewReports: false,
-            canManageUsers: false,
-            canManageCompany: false,
-            canClockInOut: true,
-            canChat: true,
-          },
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
         };
 
         await setUser(newUser);
@@ -173,7 +198,7 @@ export default function SignupScreen() {
 
         Alert.alert(
           t('signup.successTitle'),
-          'Tu cuenta de empleado ha sido creada exitosamente.',
+          `Tu cuenta de empleado ha sido creada exitosamente y vinculada a ${company.name}.`,
           [
             {
               text: t('common.ok'),
