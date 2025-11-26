@@ -4,8 +4,13 @@ import { useApp } from '@/contexts/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useMemo, useEffect } from 'react';
 import { Check } from 'lucide-react-native';
-import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
 import { trpc } from '@/lib/trpc';
+
+const StripeModule = Platform.OS === 'web'
+  ? require('@/lib/stripe-web-stub')
+  : require('@stripe/stripe-react-native');
+
+const { StripeProvider, useStripe } = StripeModule;
 
 function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
