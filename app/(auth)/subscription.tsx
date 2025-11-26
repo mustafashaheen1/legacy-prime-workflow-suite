@@ -1,13 +1,17 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useMemo, useEffect } from 'react';
 import { Check } from 'lucide-react-native';
+import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
+import { trpc } from '@/lib/trpc';
 
 function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
+  const stripe = useStripe();
+  const createPaymentIntentMutation = trpc.stripe.createPaymentIntent.useMutation();
   
   const params = useLocalSearchParams<{
     name?: string;
@@ -45,8 +49,52 @@ function SubscriptionContent() {
   const handleCreateAccount = async () => {
     try {
       setIsProcessing(true);
-      console.log('[Subscription] Creating company account...');
+      console.log('[Subscription] Creating payment intent...');
       
+      const paymentIntentResult = await createPaymentIntentMutation.mutateAsync({
+        amount: pricing[selectedPlan],
+        currency: 'usd',
+        companyName: params.companyName || 'New Company',
+        email: params.email || 'admin@example.com',
+        subscriptionPlan: selectedPlan,
+      });
+
+      console.log('[Subscription] Payment intent created:', paymentIntentResult.paymentIntentId);
+
+      if (Platform.OS !== 'web' && stripe.initPaymentSheet && stripe.presentPaymentSheet) {
+        console.log('[Subscription] Initializing payment sheet...');
+        const { error: initError } = await stripe.initPaymentSheet({
+          paymentIntentClientSecret: paymentIntentResult.clientSecret || '',
+          merchantDisplayName: 'Rork App',
+          customerId: undefined,
+          customerEphemeralKeySecret: undefined,
+        });
+
+        if (initError) {
+          console.error('[Subscription] Error initializing payment sheet:', initError);
+          Alert.alert('Error', 'No se pudo inicializar el método de pago');
+          return;
+        }
+
+        console.log('[Subscription] Presenting payment sheet...');
+        const { error: presentError } = await stripe.presentPaymentSheet();
+
+        if (presentError) {
+          console.error('[Subscription] Error presenting payment sheet:', presentError);
+          Alert.alert('Pago Cancelado', presentError.message);
+          return;
+        }
+
+        console.log('[Subscription] Payment successful!');
+      } else {
+        console.log('[Subscription] Web platform - simulating payment success');
+        Alert.alert(
+          'Modo de Prueba',
+          'En web se simula el pago exitoso. En dispositivos móviles se mostrará el Payment Sheet real de Stripe.'
+        );
+      }
+
+      console.log('[Subscription] Creating company account...');
       const companyCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
       const newCompany = {
@@ -59,6 +107,7 @@ function SubscriptionContent() {
         subscriptionStartDate: new Date().toISOString(),
         subscriptionEndDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
         companyCode,
+        stripePaymentIntentId: paymentIntentResult.paymentIntentId,
         settings: {
           features: {
             crm: true,
@@ -105,7 +154,7 @@ function SubscriptionContent() {
 
       Alert.alert(
         'Cuenta Creada Exitosamente',
-        `Tu cuenta empresarial ha sido creada.\n\nCódigo de compañía: ${companyCode}\n\nComparte este código con tus empleados para que puedan registrarse.`,
+        `Tu cuenta empresarial ha sido creada y tu pago procesado.\n\nCódigo de compañía: ${companyCode}\n\nComparte este código con tus empleados para que puedan registrarse.`,
         [
           {
             text: 'Entendido',
@@ -210,16 +259,31 @@ function SubscriptionContent() {
           )}
         </TouchableOpacity>
 
-        <Text style={styles.disclaimer}>
-          Modo de prueba - Los pagos se integrarán próximamente
-        </Text>
+        <View style={styles.disclaimerContainer}>
+          <Text style={styles.disclaimer}>
+            🔒 Pago seguro procesado por Stripe
+          </Text>
+          <Text style={styles.testMode}>
+            Modo Test: Usa 4242 4242 4242 4242 para pruebas
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 export default function SubscriptionScreen() {
-  return <SubscriptionContent />;
+  const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
+  if (Platform.OS === 'web' || !publishableKey) {
+    return <SubscriptionContent />;
+  }
+
+  return (
+    <StripeProvider publishableKey={publishableKey}>
+      <SubscriptionContent />
+    </StripeProvider>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -326,10 +390,22 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#FFFFFF',
   },
-  disclaimer: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    textAlign: 'center',
+  disclaimerContainer: {
     marginTop: 16,
+    padding: 16,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+  },
+  disclaimer: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#059669',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  testMode: {
+    fontSize: 11,
+    color: '#6B7280',
+    textAlign: 'center',
   },
 });

@@ -166,6 +166,9 @@ export interface Company {
   subscriptionEndDate?: string;
   employeeCount?: number;
   companyCode?: string;
+  stripePaymentIntentId?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
   settings: CompanySettings;
   createdAt: string;
   updatedAt: string;
