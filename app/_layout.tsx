@@ -29,11 +29,22 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="project/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="project/[id]/estimate" options={{ headerShown: false }} />
+      <Stack.Screen name="project/[id]/takeoff" options={{ headerShown: false }} />
+      <Stack.Screen name="project/[id]/expenses" options={{ headerShown: false }} />
+      <Stack.Screen name="project/[id]/files-navigation" options={{ headerShown: false }} />
+      <Stack.Screen name="project/[id]/change-orders" options={{ headerShown: false }} />
       <Stack.Screen name="inspection/[token]" options={{ headerShown: false }} />
+      <Stack.Screen name="subcontractor-register/[token]" options={{ headerShown: false }} />
+      <Stack.Screen name="subcontractor/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="reports" options={{ headerShown: false }} />
+      <Stack.Screen name="profile" options={{ headerShown: false }} />
+      <Stack.Screen name="stripe-test" options={{ headerShown: false }} />
+      <Stack.Screen name="+not-found" />
     </Stack>
   );
 }
