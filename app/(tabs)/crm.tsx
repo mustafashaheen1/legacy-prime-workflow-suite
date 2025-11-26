@@ -1807,7 +1807,7 @@ export default function CRMScreen() {
               <View style={styles.setupInfo}>
                 <Settings size={20} color="#F59E0B" />
                 <Text style={styles.setupInfoText}>
-                  To complete setup, you'll need to configure your phone system to forward calls to the AI assistant number. Contact support for integration assistance.
+                  To complete setup, you&apos;ll need to configure your phone system to forward calls to the AI assistant number. Contact support for integration assistance.
                 </Text>
               </View>
             </ScrollView>

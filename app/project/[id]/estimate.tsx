@@ -614,7 +614,7 @@ export default function EstimateScreen() {
                 }}
               >
                 <Trash2 size={16} color="#EF4444" />
-                <Text style={styles.deleteCategoryButtonText}>Delete "{selectedCategory}" Category</Text>
+                <Text style={styles.deleteCategoryButtonText}>Delete &quot;{selectedCategory}&quot; Category</Text>
               </TouchableOpacity>
             )}
             <View style={styles.categoryBottomSpace} />

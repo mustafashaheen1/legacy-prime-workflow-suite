@@ -358,7 +358,7 @@ export default function FilesNavigationScreen() {
               <Folder size={64} color="#D1D5DB" />
               <Text style={styles.emptyStateTitle}>Folder vacío</Text>
               <Text style={styles.emptyStateText}>
-                Aún no hay archivos en este folder. Toca "Agregar" para comenzar.
+                Aún no hay archivos en este folder. Toca &quot;Agregar&quot; para comenzar.
               </Text>
             </View>
           ) : (

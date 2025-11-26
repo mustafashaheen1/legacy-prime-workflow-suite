@@ -542,7 +542,7 @@ Be intelligent about the categorization based on the actual items purchased, not
                       setShowSubcategoryPicker(false);
                     }}
                   >
-                    <Text style={styles.addCustomButtonText}>Add "{customCategory.trim()}"</Text>
+                    <Text style={styles.addCustomButtonText}>Add &quot;{customCategory.trim()}&quot;</Text>
                   </TouchableOpacity>
                 )}
               </View>
