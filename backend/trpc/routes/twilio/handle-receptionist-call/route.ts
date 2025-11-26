@@ -201,7 +201,7 @@ export const handleReceptionistCallProcedure = publicProcedure
         
         const gather = twiml.gather({
           input: ['speech'],
-          action: '/api/trpc/twilio.handleReceptionistCall',
+          action: `${process.env.EXPO_PUBLIC_API_URL || ''}/api/twilio/receptionist`,
           method: 'POST',
           speechTimeout: 'auto',
           language: 'en-US',
@@ -315,7 +315,7 @@ Generate the next response. Ask for ONE missing piece of information in a natura
       
       const gather = twiml.gather({
         input: ['speech'],
-        action: '/api/trpc/twilio.handleReceptionistCall',
+        action: `${process.env.EXPO_PUBLIC_API_URL || ''}/api/twilio/receptionist`,
         method: 'POST',
         speechTimeout: 'auto',
         language: 'en-US',
