@@ -88,6 +88,8 @@ export default function SubcontractorsScreen() {
       certifications: formData.license ? [formData.license] : [],
       createdAt: new Date().toISOString(),
       isActive: true,
+      approved: false,
+      businessFiles: [],
     };
 
     await addSubcontractor(newSubcontractor);

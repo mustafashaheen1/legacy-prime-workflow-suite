@@ -25,6 +25,12 @@ import { updateSubcontractorProcedure } from "./routes/subcontractors/update-sub
 import { requestEstimateProcedure } from "./routes/subcontractors/request-estimate/route";
 import { submitProposalProcedure } from "./routes/subcontractors/submit-proposal/route";
 import { getProposalsProcedure } from "./routes/subcontractors/get-proposals/route";
+import { sendRegistrationLinkProcedure } from "./routes/subcontractors/send-registration-link/route";
+import { completeRegistrationProcedure } from "./routes/subcontractors/complete-registration/route";
+import { uploadBusinessFileProcedure } from "./routes/subcontractors/upload-business-file/route";
+import { verifyBusinessFileProcedure } from "./routes/subcontractors/verify-business-file/route";
+import { approveSubcontractorProcedure } from "./routes/subcontractors/approve-subcontractor/route";
+import { getBusinessFilesProcedure } from "./routes/subcontractors/get-business-files/route";
 import { getNotificationsProcedure } from "./routes/notifications/get-notifications/route";
 import { markNotificationReadProcedure } from "./routes/notifications/mark-read/route";
 import { chatCompletionProcedure } from "./routes/openai/chat/route";
@@ -83,6 +89,12 @@ export const appRouter = createTRPCRouter({
     requestEstimate: requestEstimateProcedure,
     submitProposal: submitProposalProcedure,
     getProposals: getProposalsProcedure,
+    sendRegistrationLink: sendRegistrationLinkProcedure,
+    completeRegistration: completeRegistrationProcedure,
+    uploadBusinessFile: uploadBusinessFileProcedure,
+    verifyBusinessFile: verifyBusinessFileProcedure,
+    approveSubcontractor: approveSubcontractorProcedure,
+    getBusinessFiles: getBusinessFilesProcedure,
   }),
   notifications: createTRPCRouter({
     getNotifications: getNotificationsProcedure,

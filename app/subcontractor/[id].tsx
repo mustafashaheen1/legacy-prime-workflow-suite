@@ -1,0 +1,717 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { useLocalSearchParams, Stack } from 'expo-router';
+import { Building2, Mail, Phone, MapPin, FileText, CheckCircle2, XCircle, Upload, Shield, User, Check, X } from 'lucide-react-native';
+import { useApp } from '@/contexts/AppContext';
+import { BusinessFile, Subcontractor } from '@/types';
+import * as DocumentPicker from 'expo-document-picker';
+import { trpc } from '@/lib/trpc';
+
+export default function SubcontractorProfileScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { subcontractors = [], user } = useApp();
+  const subcontractor = subcontractors.find(s => s.id === id);
+
+  const [showApproveModal, setShowApproveModal] = useState<boolean>(false);
+  const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
+
+  const uploadBusinessFileMutation = trpc.subcontractors.uploadBusinessFile.useMutation();
+  const verifyBusinessFileMutation = trpc.subcontractors.verifyBusinessFile.useMutation();
+  const approveSubcontractorMutation = trpc.subcontractors.approveSubcontractor.useMutation();
+
+  if (!subcontractor) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Subcontractor Not Found' }} />
+        <View style={styles.emptyState}>
+          <User size={64} color="#D1D5DB" />
+          <Text style={styles.emptyStateText}>Subcontractor not found</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const handleFileUpload = async (type: 'license' | 'insurance' | 'w9' | 'certificate' | 'other') => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        await uploadBusinessFileMutation.mutateAsync({
+          subcontractorId: subcontractor.id,
+          type,
+          name: asset.name,
+          fileType: asset.mimeType || 'unknown',
+          fileSize: asset.size || 0,
+          uri: asset.uri,
+        });
+
+        Alert.alert('Success', 'File uploaded successfully');
+        setShowUploadModal(false);
+      }
+    } catch (error) {
+      console.error('[Upload] Error:', error);
+      Alert.alert('Error', 'Failed to upload file');
+    }
+  };
+
+  const handleVerifyFile = async (file: BusinessFile, verified: boolean) => {
+    try {
+      await verifyBusinessFileMutation.mutateAsync({
+        fileId: file.id,
+        verified,
+        verifiedBy: user?.id || 'user_current',
+      });
+
+      Alert.alert('Success', `File ${verified ? 'verified' : 'unverified'} successfully`);
+    } catch (error) {
+      console.error('[Verify] Error:', error);
+      Alert.alert('Error', 'Failed to verify file');
+    }
+  };
+
+  const handleApproveSubcontractor = async (approved: boolean) => {
+    try {
+      await approveSubcontractorMutation.mutateAsync({
+        subcontractorId: subcontractor.id,
+        approved,
+        approvedBy: user?.id || 'user_current',
+      });
+
+      Alert.alert('Success', `Subcontractor ${approved ? 'approved' : 'rejected'} successfully`);
+      setShowApproveModal(false);
+    } catch (error) {
+      console.error('[Approve] Error:', error);
+      Alert.alert('Error', 'Failed to update approval status');
+    }
+  };
+
+  const businessFiles = subcontractor.businessFiles || [];
+  const verifiedFilesCount = businessFiles.filter(f => f.verified).length;
+  const allFilesVerified = businessFiles.length > 0 && verifiedFilesCount === businessFiles.length;
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: subcontractor.name }} />
+      
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{subcontractor.name.charAt(0)}</Text>
+          </View>
+          <Text style={styles.name}>{subcontractor.name}</Text>
+          <Text style={styles.company}>{subcontractor.companyName}</Text>
+          <View style={styles.tradeBadge}>
+            <Text style={styles.tradeBadgeText}>{subcontractor.trade}</Text>
+          </View>
+
+          <View style={styles.approvalStatus}>
+            {subcontractor.approved ? (
+              <View style={styles.approvedBadge}>
+                <CheckCircle2 size={18} color="#10B981" />
+                <Text style={styles.approvedText}>Approved</Text>
+              </View>
+            ) : (
+              <View style={styles.pendingBadge}>
+                <XCircle size={18} color="#F59E0B" />
+                <Text style={styles.pendingText}>Pending Approval</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <User size={20} color="#2563EB" />
+            <Text style={styles.sectionTitle}>Contact Information</Text>
+          </View>
+          <View style={styles.infoCard}>
+            <View style={styles.infoRow}>
+              <Mail size={16} color="#6B7280" />
+              <Text style={styles.infoText}>{subcontractor.email}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Phone size={16} color="#6B7280" />
+              <Text style={styles.infoText}>{subcontractor.phone}</Text>
+            </View>
+            {subcontractor.address && (
+              <View style={styles.infoRow}>
+                <MapPin size={16} color="#6B7280" />
+                <Text style={styles.infoText}>{subcontractor.address}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Shield size={20} color="#2563EB" />
+            <Text style={styles.sectionTitle}>Business Files</Text>
+            <TouchableOpacity
+              style={styles.uploadHeaderButton}
+              onPress={() => setShowUploadModal(true)}
+            >
+              <Upload size={16} color="#2563EB" />
+              <Text style={styles.uploadHeaderButtonText}>Upload</Text>
+            </TouchableOpacity>
+          </View>
+
+          {businessFiles.length === 0 ? (
+            <View style={styles.emptyFiles}>
+              <FileText size={48} color="#D1D5DB" />
+              <Text style={styles.emptyFilesText}>No business files uploaded yet</Text>
+              <TouchableOpacity
+                style={styles.uploadButton}
+                onPress={() => setShowUploadModal(true)}
+              >
+                <Upload size={18} color="#FFFFFF" />
+                <Text style={styles.uploadButtonText}>Upload Files</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <View style={styles.filesProgress}>
+                <Text style={styles.filesProgressText}>
+                  {verifiedFilesCount} of {businessFiles.length} files verified
+                </Text>
+                <View style={styles.progressBar}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${(verifiedFilesCount / businessFiles.length) * 100}%` },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              {businessFiles.map((file) => (
+                <View key={file.id} style={styles.fileCard}>
+                  <View style={styles.fileHeader}>
+                    <View style={styles.fileInfo}>
+                      <FileText size={20} color="#2563EB" />
+                      <View style={styles.fileDetails}>
+                        <Text style={styles.fileName}>{file.name}</Text>
+                        <Text style={styles.fileType}>{file.type.toUpperCase()}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.fileActions}>
+                      {file.verified ? (
+                        <TouchableOpacity
+                          style={styles.verifiedButton}
+                          onPress={() => handleVerifyFile(file, false)}
+                        >
+                          <CheckCircle2 size={20} color="#10B981" />
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.unverifiedButton}
+                          onPress={() => handleVerifyFile(file, true)}
+                        >
+                          <XCircle size={20} color="#F59E0B" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                  {file.expiryDate && (
+                    <Text style={styles.fileExpiry}>Expires: {file.expiryDate}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {!subcontractor.approved && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={[styles.approveButton, !allFilesVerified && styles.approveButtonDisabled]}
+              onPress={() => setShowApproveModal(true)}
+              disabled={!allFilesVerified}
+            >
+              <Check size={20} color="#FFFFFF" />
+              <Text style={styles.approveButtonText}>Approve Subcontractor</Text>
+            </TouchableOpacity>
+            {!allFilesVerified && (
+              <Text style={styles.approveNote}>
+                Verify all business files before approving
+              </Text>
+            )}
+          </View>
+        )}
+      </ScrollView>
+
+      <Modal visible={showUploadModal} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Upload Business File</Text>
+            <TouchableOpacity onPress={() => setShowUploadModal(false)}>
+              <X size={24} color="#1F2937" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalContent}>
+            <Text style={styles.modalSubtitle}>Select the type of document to upload</Text>
+
+            <TouchableOpacity
+              style={styles.uploadOptionButton}
+              onPress={() => handleFileUpload('license')}
+            >
+              <FileText size={24} color="#2563EB" />
+              <View style={styles.uploadOptionText}>
+                <Text style={styles.uploadOptionTitle}>License</Text>
+                <Text style={styles.uploadOptionSubtitle}>Contractor license document</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.uploadOptionButton}
+              onPress={() => handleFileUpload('insurance')}
+            >
+              <Shield size={24} color="#2563EB" />
+              <View style={styles.uploadOptionText}>
+                <Text style={styles.uploadOptionTitle}>Insurance</Text>
+                <Text style={styles.uploadOptionSubtitle}>Insurance certificate</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.uploadOptionButton}
+              onPress={() => handleFileUpload('w9')}
+            >
+              <FileText size={24} color="#2563EB" />
+              <View style={styles.uploadOptionText}>
+                <Text style={styles.uploadOptionTitle}>W-9 Form</Text>
+                <Text style={styles.uploadOptionSubtitle}>Tax form W-9</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.uploadOptionButton}
+              onPress={() => handleFileUpload('certificate')}
+            >
+              <FileText size={24} color="#2563EB" />
+              <View style={styles.uploadOptionText}>
+                <Text style={styles.uploadOptionTitle}>Certificate</Text>
+                <Text style={styles.uploadOptionSubtitle}>Other certificates</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.uploadOptionButton}
+              onPress={() => handleFileUpload('other')}
+            >
+              <FileText size={24} color="#2563EB" />
+              <View style={styles.uploadOptionText}>
+                <Text style={styles.uploadOptionTitle}>Other</Text>
+                <Text style={styles.uploadOptionSubtitle}>Other documents</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showApproveModal} animationType="fade" transparent>
+        <View style={styles.overlay}>
+          <View style={styles.approveModal}>
+            <Text style={styles.approveModalTitle}>Approve Subcontractor?</Text>
+            <Text style={styles.approveModalText}>
+              This will allow {subcontractor.name} to receive estimate requests from you.
+            </Text>
+            <View style={styles.approveModalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowApproveModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={() => handleApproveSubcontractor(true)}
+              >
+                <Text style={styles.confirmButtonText}>Approve</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  header: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    alignItems: 'center' as const,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#2563EB',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    marginBottom: 16,
+  },
+  avatarText: {
+    fontSize: 32,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  name: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  company: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  tradeBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    marginBottom: 16,
+  },
+  tradeBadgeText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  approvalStatus: {
+    marginTop: 8,
+  },
+  approvedBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+  },
+  approvedText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#10B981',
+  },
+  pendingBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+  },
+  pendingText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#F59E0B',
+  },
+  section: {
+    padding: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  uploadHeaderButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+  },
+  uploadHeaderButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  infoRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#4B5563',
+  },
+  emptyFiles: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 40,
+    alignItems: 'center' as const,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emptyFilesText: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  uploadButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  uploadButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  filesProgress: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  filesProgressText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#4B5563',
+    marginBottom: 10,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden' as const,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#10B981',
+    borderRadius: 4,
+  },
+  fileCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  fileHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  },
+  fileInfo: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+  },
+  fileDetails: {
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  fileType: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  fileActions: {
+    flexDirection: 'row' as const,
+    gap: 8,
+  },
+  verifiedButton: {
+    padding: 8,
+  },
+  unverifiedButton: {
+    padding: 8,
+  },
+  fileExpiry: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 8,
+  },
+  approveButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: '#10B981',
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  approveButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  approveButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  approveNote: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center' as const,
+    marginTop: 8,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    padding: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginTop: 16,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  uploadOptionButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 16,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  uploadOptionText: {
+    flex: 1,
+  },
+  uploadOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  uploadOptionSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    padding: 20,
+  },
+  approveModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  approveModalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  approveModalText: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  approveModalButtons: {
+    flexDirection: 'row' as const,
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#4B5563',
+  },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#10B981',
+    alignItems: 'center' as const,
+  },
+  confirmButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+});

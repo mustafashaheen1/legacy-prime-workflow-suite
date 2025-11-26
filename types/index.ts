@@ -423,6 +423,24 @@ export interface AIChatSession {
   updatedAt: string;
 }
 
+export type BusinessFileType = 'license' | 'insurance' | 'w9' | 'certificate' | 'other';
+
+export interface BusinessFile {
+  id: string;
+  subcontractorId: string;
+  type: BusinessFileType;
+  name: string;
+  fileType: string;
+  fileSize: number;
+  uri: string;
+  uploadDate: string;
+  expiryDate?: string;
+  verified: boolean;
+  verifiedBy?: string;
+  verifiedDate?: string;
+  notes?: string;
+}
+
 export interface Subcontractor {
   id: string;
   name: string;
@@ -440,6 +458,12 @@ export interface Subcontractor {
   avatar?: string;
   createdAt: string;
   isActive: boolean;
+  approved: boolean;
+  approvedBy?: string;
+  approvedDate?: string;
+  businessFiles?: BusinessFile[];
+  registrationToken?: string;
+  registrationCompleted?: boolean;
 }
 
 export interface EstimateRequest {

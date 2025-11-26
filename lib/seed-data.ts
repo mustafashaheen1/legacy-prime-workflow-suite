@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixtureData } from '@/mocks/fixtures';
 
 const SEED_VERSION_KEY = 'seed_version';
-const CURRENT_SEED_VERSION = '1.1.0';
+const CURRENT_SEED_VERSION = '1.2.0';
 
 export async function checkAndSeedData(): Promise<boolean> {
   try {
@@ -32,6 +32,12 @@ export async function checkAndSeedData(): Promise<boolean> {
     
     await AsyncStorage.setItem('changeOrders', JSON.stringify(fixtureData.changeOrders));
     console.log('[Seed] ✓ Seeded change orders:', fixtureData.changeOrders.length);
+    
+    await AsyncStorage.setItem('subcontractors', JSON.stringify(fixtureData.subcontractors));
+    console.log('[Seed] ✓ Seeded subcontractors:', fixtureData.subcontractors.length);
+    
+    await AsyncStorage.setItem('businessFiles', JSON.stringify(fixtureData.businessFiles));
+    console.log('[Seed] ✓ Seeded business files:', fixtureData.businessFiles.length);
 
     await AsyncStorage.setItem(SEED_VERSION_KEY, CURRENT_SEED_VERSION);
     console.log('[Seed] ✓ Data seeding complete! Version:', CURRENT_SEED_VERSION);
@@ -60,6 +66,8 @@ export async function clearSeedData() {
       'dailyLogs',
       'payments',
       'changeOrders',
+      'subcontractors',
+      'businessFiles',
       SEED_VERSION_KEY,
     ]);
     console.log('[Seed] All seed data cleared');
