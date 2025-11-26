@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal,
 import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp } from 'lucide-react-native';
 import { Subcontractor, Project, ProjectFile, EstimateRequest } from '@/types';
 import { useApp } from '@/contexts/AppContext';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import * as DocumentPicker from 'expo-document-picker';
 
@@ -30,7 +30,6 @@ export default function SubcontractorsScreen() {
     trade: '',
     license: '',
     rating: 0,
-    hourlyRate: 0,
     availability: 'available' as const,
     address: '',
     notes: '',
@@ -108,7 +107,6 @@ export default function SubcontractorsScreen() {
       trade: '',
       license: '',
       rating: 0,
-      hourlyRate: 0,
       availability: 'available',
       address: '',
       notes: '',
@@ -415,12 +413,11 @@ export default function SubcontractorsScreen() {
                   <TouchableOpacity 
                     style={styles.viewButton}
                     onPress={() => {
-                      setSelectedSubcontractor(sub);
-                      setShowDetailsModal(true);
+                      router.push(`/subcontractor/${sub.id}`);
                     }}
                   >
                     <FileCheck size={16} color="#8B5CF6" />
-                    <Text style={styles.viewButtonText}>View Details</Text>
+                    <Text style={styles.viewButtonText}>View Profile</Text>
                   </TouchableOpacity>
                 </View>
               </View>
