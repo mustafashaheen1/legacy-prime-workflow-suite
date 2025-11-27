@@ -713,7 +713,13 @@ export default function ReportsScreen() {
           headerShadowVisible: false,
           headerLeft: () => (
             <TouchableOpacity
-              onPress={() => router.replace('/dashboard')}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/dashboard');
+                }
+              }}
               style={{ marginLeft: -8, padding: 8 }}
             >
               <ArrowLeft size={24} color="#1F2937" />
