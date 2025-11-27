@@ -337,11 +337,10 @@ export default function ReportsScreen() {
                         ))}
                           </>
                         );
-                      } catch (error) {
-                        console.error('Error parsing custom report:', error);
+                      } catch {
                         return (
                           <>
-                            <Text style={styles.detailSectionTitle}>Report Content</Text>
+                            <Text style={styles.detailSectionTitle}>AI Generated Report</Text>
                             <View style={styles.aiReportContent}>
                               <Text style={styles.aiReportText}>{selectedReport.notes}</Text>
                             </View>
