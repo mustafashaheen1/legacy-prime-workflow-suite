@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
-import { FileText, Calendar, Trash2, X, BarChart, Folder, Download, FileSpreadsheet, ArrowLeft } from 'lucide-react-native';
+import { FileText, Calendar, Trash2, X, BarChart, Folder, Download, FileSpreadsheet, ArrowLeft, Home } from 'lucide-react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Report, DailyLog } from '@/types';
@@ -707,12 +707,22 @@ export default function ReportsScreen() {
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          headerTitle: 'Saved Reports',
+          headerTitle: 'Reports Library',
           headerStyle: { backgroundColor: '#FFFFFF' },
           headerTintColor: '#1F2937',
           headerShadowVisible: false,
-          headerLeft: () => (
+        }}
+      />
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerRow}>
+              <Folder size={24} color="#2563EB" />
+              <Text style={styles.headerTitle}>Reports Library</Text>
+            </View>
             <TouchableOpacity
+              style={styles.backButton}
               onPress={() => {
                 if (router.canGoBack()) {
                   router.back();
@@ -720,19 +730,10 @@ export default function ReportsScreen() {
                   router.replace('/(tabs)/dashboard');
                 }
               }}
-              style={{ marginLeft: -8, padding: 8 }}
             >
-              <ArrowLeft size={24} color="#1F2937" />
+              <Home size={20} color="#FFFFFF" />
+              <Text style={styles.backButtonText}>Dashboard</Text>
             </TouchableOpacity>
-          ),
-        }}
-      />
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <Folder size={24} color="#2563EB" />
-            <Text style={styles.headerTitle}>Reports Library</Text>
           </View>
           <Text style={styles.headerSubtitle}>
             {reports.length} {reports.length === 1 ? 'report' : 'reports'} saved
@@ -1144,16 +1145,35 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 8,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700' as const,
     color: '#1F2937',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   headerSubtitle: {
     fontSize: 14,
