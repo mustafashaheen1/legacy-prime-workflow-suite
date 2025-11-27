@@ -14,6 +14,7 @@ export default function EstimateScreen() {
   const { projects, addEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile } = useApp();
   const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
+  const isWeb = Platform.OS === 'web';
   const isNarrow = screenWidth < 900;
   
   const [estimateName, setEstimateName] = useState<string>('');
@@ -546,7 +547,11 @@ export default function EstimateScreen() {
       </View>
 
       <View style={[styles.mainContent, isNarrow && styles.mainContentNarrow]}>
-        <ScrollView style={[styles.itemSelectionSection, isNarrow && styles.itemSelectionSectionNarrow]} showsVerticalScrollIndicator={false}>
+        <ScrollView style={[
+          styles.itemSelectionSection,
+          isWeb && !isNarrow && styles.itemSelectionSectionWeb,
+          isNarrow && styles.itemSelectionSectionNarrow
+        ]} showsVerticalScrollIndicator={false}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{selectedCategory}</Text>
             <TouchableOpacity style={styles.addCustomButton} onPress={addCustomItem}>
@@ -621,7 +626,11 @@ export default function EstimateScreen() {
           </View>
         </ScrollView>
 
-        <View style={[styles.selectedItemsSection, isNarrow && styles.selectedItemsSectionNarrow]}>
+        <View style={[
+          styles.selectedItemsSection,
+          isWeb && !isNarrow && styles.selectedItemsSectionWeb,
+          isNarrow && styles.selectedItemsSectionNarrow
+        ]}>
           <View style={styles.selectedItemsHeader}>
             <Text style={styles.sectionLabel}>Selected Items ({items.filter(i => !i.isSeparator).length})</Text>
             <TouchableOpacity 
@@ -1250,13 +1259,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600' as const,
     color: '#6B7280',
     marginBottom: 2,
   },
   headerInput: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700' as const,
     color: '#1F2937',
     padding: 0,
@@ -1281,7 +1290,7 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
   },
   newAssemblyButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#10B981',
   },
@@ -1302,7 +1311,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
   },
   categoryTabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#6B7280',
   },
@@ -1338,6 +1347,11 @@ const styles = StyleSheet.create({
     minWidth: 280,
     maxWidth: 380,
   },
+  itemSelectionSectionWeb: {
+    flex: 1,
+    minWidth: 'auto',
+    maxWidth: '50%',
+  },
   itemSelectionSectionNarrow: {
     maxHeight: 250,
     maxWidth: '100%',
@@ -1355,7 +1369,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700' as const,
     color: '#1F2937',
     flex: 1,
@@ -1371,7 +1385,7 @@ const styles = StyleSheet.create({
     borderColor: '#2563EB',
   },
   addCustomButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#2563EB',
   },
@@ -1381,6 +1395,11 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: '#E5E7EB',
     minWidth: 450,
+  },
+  selectedItemsSectionWeb: {
+    flex: 1,
+    minWidth: 'auto',
+    maxWidth: '50%',
   },
   selectedItemsSectionNarrow: {
     borderLeftWidth: 0,
@@ -1413,7 +1432,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   lineItemName: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500' as const,
     color: '#1F2937',
     flex: 1,
@@ -1431,7 +1450,7 @@ const styles = StyleSheet.create({
     minWidth: 30,
   },
   lineItemPrice: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700' as const,
     color: '#1F2937',
     minWidth: 60,
@@ -1484,24 +1503,24 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
   },
   compactTotalLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#6B7280',
     fontWeight: '500' as const,
     marginBottom: 4,
   },
   compactTotalValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700' as const,
     color: '#1F2937',
   },
   compactBudgetLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#10B981',
     fontWeight: '500' as const,
     marginBottom: 4,
   },
   compactBudgetValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700' as const,
     color: '#10B981',
   },
@@ -1521,7 +1540,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   compactPercentInput: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: '#1F2937',
     minWidth: 36,
@@ -1532,13 +1551,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#2563EB',
   },
   compactPercentSign: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#6B7280',
     marginLeft: 2,
   },
   compactCalculatedValue: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: '#2563EB',
     marginTop: 2,
@@ -1552,18 +1571,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   compactGrandTotalLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700' as const,
     color: '#FFFFFF',
     marginBottom: 4,
   },
   compactGrandTotalValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700' as const,
     color: '#FFFFFF',
   },
   sectionLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: '#6B7280',
   },
@@ -1589,14 +1608,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   itemName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600' as const,
     color: '#1F2937',
     flex: 1,
     marginRight: 8,
   },
   itemNameInput: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600' as const,
     color: '#1F2937',
     flex: 1,
@@ -1672,7 +1691,7 @@ const styles = StyleSheet.create({
     flex: 4,
   },
   itemLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
     marginBottom: 5,
     fontWeight: '500' as const,
@@ -1714,7 +1733,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   quantityTextInput: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: '#1F2937',
     minWidth: 50,
@@ -1729,7 +1748,7 @@ const styles = StyleSheet.create({
     padding: 3,
   },
   unitValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: '#1F2937',
   },
@@ -1749,7 +1768,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   priceValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: '#1F2937',
   },
@@ -1757,7 +1776,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   totalValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700' as const,
     color: '#2563EB',
   },
@@ -1782,7 +1801,7 @@ const styles = StyleSheet.create({
     marginRight: 1,
   },
   priceInput: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: '#1F2937',
     padding: 5,
@@ -1804,9 +1823,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    fontSize: 13,
+    fontSize: 12,
     color: '#1F2937',
-    minHeight: 56,
+    minHeight: 50,
     textAlignVertical: 'top',
   },
 
