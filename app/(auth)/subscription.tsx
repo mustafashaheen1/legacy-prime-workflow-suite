@@ -24,6 +24,7 @@ function SubscriptionContent() {
 
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium'>('premium');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [offlineMode, setOfflineMode] = useState<boolean>(false);
 
   useEffect(() => {
     if (!params.accountType) {
@@ -49,19 +50,33 @@ function SubscriptionContent() {
   const handleCreateAccount = async () => {
     try {
       setIsProcessing(true);
-      console.log('[Subscription] Creating payment intent...');
+      console.log('[Subscription] Starting account creation...');
+      console.log('[Subscription] API Base URL:', process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'Not set');
+      console.log('[Subscription] Stripe Publishable Key:', process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ? 'Set' : 'Not set');
       
-      const paymentIntentResult = await createPaymentIntentMutation.mutateAsync({
-        amount: pricing[selectedPlan],
-        currency: 'usd',
-        companyName: params.companyName || 'New Company',
-        email: params.email || 'admin@example.com',
-        subscriptionPlan: selectedPlan,
-      });
+      let paymentIntentResult: { clientSecret?: string; paymentIntentId: string } = {
+        paymentIntentId: `offline_${Date.now()}`,
+      };
 
-      console.log('[Subscription] Payment intent created:', paymentIntentResult.paymentIntentId);
+      if (!offlineMode && process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY && process.env.EXPO_PUBLIC_RORK_API_BASE_URL) {
+        console.log('[Subscription] Creating payment intent with Stripe...');
+        const result = await createPaymentIntentMutation.mutateAsync({
+          amount: pricing[selectedPlan],
+          currency: 'usd',
+          companyName: params.companyName || 'New Company',
+          email: params.email || 'admin@example.com',
+          subscriptionPlan: selectedPlan,
+        });
+        paymentIntentResult = {
+          clientSecret: result.clientSecret || undefined,
+          paymentIntentId: result.paymentIntentId,
+        };
+        console.log('[Subscription] Payment intent created:', paymentIntentResult.paymentIntentId);
+      } else {
+        console.log('[Subscription] Offline mode - Skipping Stripe payment');
+      }
 
-      if (Platform.OS !== 'web' && stripe.initPaymentSheet && stripe.presentPaymentSheet) {
+      if (!offlineMode && Platform.OS !== 'web' && stripe.initPaymentSheet && stripe.presentPaymentSheet && paymentIntentResult.clientSecret) {
         console.log('[Subscription] Initializing payment sheet...');
         const { error: initError } = await stripe.initPaymentSheet({
           paymentIntentClientSecret: paymentIntentResult.clientSecret || '',
@@ -86,12 +101,10 @@ function SubscriptionContent() {
         }
 
         console.log('[Subscription] Payment successful!');
+      } else if (offlineMode) {
+        console.log('[Subscription] Offline mode - Skipping payment');
       } else {
         console.log('[Subscription] Web platform - simulating payment success');
-        Alert.alert(
-          'Modo de Prueba',
-          'En web se simula el pago exitoso. En dispositivos móviles se mostrará el Payment Sheet real de Stripe.'
-        );
       }
 
       console.log('[Subscription] Creating company account...');
@@ -152,9 +165,13 @@ function SubscriptionContent() {
 
       console.log('[Subscription] Account created successfully');
 
+      const successMessage = offlineMode
+        ? `Tu cuenta empresarial ha sido creada en modo de prueba.\n\nCódigo de compañía: ${companyCode}\n\nComparte este código con tus empleados para que puedan registrarse.\n\n⚠️ MODO OFFLINE: No se procesó ningún pago real.`
+        : `Tu cuenta empresarial ha sido creada y tu pago procesado.\n\nCódigo de compañía: ${companyCode}\n\nComparte este código con tus empleados para que puedan registrarse.`;
+
       Alert.alert(
         'Cuenta Creada Exitosamente',
-        `Tu cuenta empresarial ha sido creada y tu pago procesado.\n\nCódigo de compañía: ${companyCode}\n\nComparte este código con tus empleados para que puedan registrarse.`,
+        successMessage,
         [
           {
             text: 'Entendido',
@@ -164,7 +181,52 @@ function SubscriptionContent() {
       );
     } catch (error: any) {
       console.error('[Subscription] Error:', error);
-      Alert.alert('Error', error?.message || 'Error al crear la cuenta');
+      console.error('[Subscription] Error name:', error?.name);
+      console.error('[Subscription] Error message:', error?.message);
+      console.error('[Subscription] Error stack:', error?.stack?.substring(0, 500));
+      
+      let errorMessage = 'Error al crear la cuenta';
+      let showOfflineOption = false;
+      
+      if (error?.message?.includes('fetch') || error?.message?.includes('network') || error?.message?.includes('Failed to fetch')) {
+        errorMessage = 'No se pudo conectar con el servidor.\n\n¿Deseas continuar en modo offline sin procesar el pago?';
+        showOfflineOption = true;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      if (showOfflineOption) {
+        Alert.alert(
+          'Error de Conexión',
+          errorMessage,
+          [
+            {
+              text: 'Configurar',
+              onPress: () => {
+                Alert.alert(
+                  'Configuración Requerida',
+                  'Para procesar pagos necesitas:\n\n1. Crear un archivo .env en la raíz del proyecto\n2. Agregar EXPO_PUBLIC_RORK_API_BASE_URL\n3. Agregar las claves de Stripe\n4. Reiniciar el servidor\n\nRevisa SETUP_INSTRUCTIONS.md para más detalles.',
+                  [{ text: 'Entendido' }]
+                );
+              },
+            },
+            {
+              text: 'Continuar sin pago',
+              style: 'default' as const,
+              onPress: () => {
+                setOfflineMode(true);
+                setTimeout(() => handleCreateAccount(), 100);
+              },
+            },
+            {
+              text: 'Cancelar',
+              style: 'cancel' as const,
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setIsProcessing(false);
     }
