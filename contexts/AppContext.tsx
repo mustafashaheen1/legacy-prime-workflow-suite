@@ -258,19 +258,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       setTasks(mockTasks);
       setClockEntries(fixtureClockEntries);
 
-      if (!storedUser) {
-        const defaultUser = await getDefaultUser();
-        setUserState(defaultUser);
-        await AsyncStorage.setItem('user', JSON.stringify(defaultUser));
-        console.log('[App] Loaded default user:', defaultUser.name);
-      }
-
-      if (!storedCompany) {
-        const defaultCompany = await getDefaultCompany();
-        setCompanyState(defaultCompany);
-        await AsyncStorage.setItem('company', JSON.stringify(defaultCompany));
-        console.log('[App] Loaded default company:', defaultCompany.name);
-      }
+      console.log('[App] User loaded:', storedUser ? 'Found' : 'Not found');
+      console.log('[App] Company loaded:', storedCompany ? 'Found' : 'Not found');
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
