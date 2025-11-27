@@ -1052,86 +1052,88 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.aiInstructionText}>
-                Describe what you want in your custom report. AI will analyze your project data and generate a comprehensive report based on your requirements.
-              </Text>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Report Instructions</Text>
-                <TextInput
-                  style={[styles.formInput, styles.aiTextArea]}
-                  value={aiReportPrompt}
-                  onChangeText={setAiReportPrompt}
-                  placeholder="Example: Generate a summary of budget vs actual expenses with variance analysis and recommendations for cost savings..."
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={6}
-                  textAlignVertical="top"
-                />
-              </View>
-
-              <Text style={styles.aiExampleTitle}>Quick Examples:</Text>
-              <ScrollView style={styles.aiExamplesScroll} showsVerticalScrollIndicator={false}>
-                <TouchableOpacity
-                  style={styles.aiExampleChip}
-                  onPress={() => setAiReportPrompt('Analyze budget vs expenses with variance analysis and cost-saving recommendations')}
-                >
-                  <Text style={styles.aiExampleText}>Budget variance analysis</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.aiExampleChip}
-                  onPress={() => setAiReportPrompt('Provide project timeline analysis with progress insights and schedule recommendations')}
-                >
-                  <Text style={styles.aiExampleText}>Timeline & progress analysis</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.aiExampleChip}
-                  onPress={() => setAiReportPrompt('Compare project performance metrics across all selected projects')}
-                >
-                  <Text style={styles.aiExampleText}>Performance comparison</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.aiExampleChip}
-                  onPress={() => setAiReportPrompt('Generate executive summary with key metrics and action items')}
-                >
-                  <Text style={styles.aiExampleText}>Executive summary</Text>
-                </TouchableOpacity>
-              </ScrollView>
-
-              <View style={styles.aiButtonsContainer}>
-                <TouchableOpacity
-                  style={styles.aiSecondaryButton}
-                  onPress={() => {
-                    setIsSelectMode(!isSelectMode);
-                    if (isSelectMode) {
-                      setSelectedProjects([]);
-                    }
-                  }}
-                >
-                  <Text style={styles.aiSecondaryButtonText}>
-                    {isSelectMode ? 'Cancel Selection' : 'Select Specific Projects'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.aiGenerateButton, isGeneratingAI && styles.aiGenerateButtonDisabled]}
-                  onPress={() => handleAIReportGeneration(isSelectMode && selectedProjects.length > 0 ? 'selected' : 'all')}
-                  disabled={isGeneratingAI}
-                >
-                  <Sparkles size={18} color="#FFFFFF" />
-                  <Text style={styles.aiGenerateButtonText}>
-                    {isGeneratingAI ? 'Generating...' : `Generate Report ${isSelectMode && selectedProjects.length > 0 ? `(${selectedProjects.length} Projects)` : '(All Projects)'}`}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.aiHelpTextContainer}>
-                <Text style={styles.aiHelpText}>
-                  ✓ Generated reports will appear in the Reports Library
+            <ScrollView style={styles.aiModalScroll} showsVerticalScrollIndicator={false}>
+              <View style={styles.modalBody}>
+                <Text style={styles.aiInstructionText}>
+                  Describe what you want in your custom report. AI will analyze your project data and generate a comprehensive report based on your requirements.
                 </Text>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Report Instructions</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.aiTextArea]}
+                    value={aiReportPrompt}
+                    onChangeText={setAiReportPrompt}
+                    placeholder="Example: Generate a summary of budget vs actual expenses with variance analysis and recommendations for cost savings..."
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    numberOfLines={6}
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <Text style={styles.aiExampleTitle}>Quick Examples:</Text>
+                <View style={styles.aiExamplesContainer}>
+                  <TouchableOpacity
+                    style={styles.aiExampleChip}
+                    onPress={() => setAiReportPrompt('Analyze budget vs expenses with variance analysis and cost-saving recommendations')}
+                  >
+                    <Text style={styles.aiExampleText}>Budget variance analysis</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.aiExampleChip}
+                    onPress={() => setAiReportPrompt('Provide project timeline analysis with progress insights and schedule recommendations')}
+                  >
+                    <Text style={styles.aiExampleText}>Timeline & progress analysis</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.aiExampleChip}
+                    onPress={() => setAiReportPrompt('Compare project performance metrics across all selected projects')}
+                  >
+                    <Text style={styles.aiExampleText}>Performance comparison</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.aiExampleChip}
+                    onPress={() => setAiReportPrompt('Generate executive summary with key metrics and action items')}
+                  >
+                    <Text style={styles.aiExampleText}>Executive summary</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.aiButtonsContainer}>
+                  <TouchableOpacity
+                    style={styles.aiSecondaryButton}
+                    onPress={() => {
+                      setIsSelectMode(!isSelectMode);
+                      if (isSelectMode) {
+                        setSelectedProjects([]);
+                      }
+                    }}
+                  >
+                    <Text style={styles.aiSecondaryButtonText}>
+                      {isSelectMode ? 'Cancel Selection' : 'Select Specific Projects'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.aiGenerateButton, isGeneratingAI && styles.aiGenerateButtonDisabled]}
+                    onPress={() => handleAIReportGeneration(isSelectMode && selectedProjects.length > 0 ? 'selected' : 'all')}
+                    disabled={isGeneratingAI}
+                  >
+                    <Sparkles size={18} color="#FFFFFF" />
+                    <Text style={styles.aiGenerateButtonText}>
+                      {isGeneratingAI ? 'Generating...' : `Generate Report ${isSelectMode && selectedProjects.length > 0 ? `(${selectedProjects.length} Projects)` : '(All Projects)'}`}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.aiHelpTextContainer}>
+                  <Text style={styles.aiHelpText}>
+                    ✓ Generated reports will appear in the Reports Library
+                  </Text>
+                </View>
               </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1664,7 +1666,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     width: '95%',
     maxWidth: 600,
-    maxHeight: '85%',
+    maxHeight: '90%',
+  },
+  aiModalScroll: {
+    flex: 1,
   },
   aiInstructionText: {
     fontSize: 14,
@@ -1683,8 +1688,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 8,
   },
-  aiExamplesScroll: {
-    maxHeight: 100,
+  aiExamplesContainer: {
     marginBottom: 20,
   },
   aiExampleChip: {
