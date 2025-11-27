@@ -7,9 +7,10 @@ import { trpc } from '@/lib/trpc';
 import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
 import RequestEstimateComponent from '@/components/RequestEstimate';
+import GlobalAIChatSimple from '@/components/GlobalAIChatSimple';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { ProjectFile, FileCategory } from '@/types';
 
@@ -31,6 +32,7 @@ export default function ProjectDetailScreen() {
   const [selectedPhotoImage, setSelectedPhotoImage] = useState<string | null>(null);
   const [photoNotes, setPhotoNotes] = useState<string>('');
   const [photoCategory, setPhotoCategory] = useState<string>('Foundation');
+  const [showAIReportModal, setShowAIReportModal] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
@@ -1135,7 +1137,61 @@ export default function ProjectDetailScreen() {
         const handleGenerateProjectReport = (type: 'administrative' | 'expenses' | 'time-tracking' | 'daily-logs') => {
           if (!project) return;
 
-          if (type === 'daily-logs') {
+          if (type === 'administrative') {
+            const projectClockEntries = clockEntries.filter(entry => entry.projectId === project.id);
+            const projectExpenses = expenses.filter(e => e.projectId === project.id);
+            
+            const expensesByCategory: { [category: string]: number } = {};
+            projectExpenses.forEach(expense => {
+              const category = expense.type || 'Uncategorized';
+              expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
+            });
+
+            const totalExpenses = projectExpenses.reduce((sum, e) => sum + e.amount, 0);
+            const totalLaborHours = projectClockEntries.reduce((sum, entry) => {
+              if (!entry.clockOut) return sum;
+              const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
+              return sum + hours;
+            }, 0);
+
+            const projectData: ProjectReportData = {
+              projectId: project.id,
+              projectName: project.name,
+              budget: project.budget,
+              expenses: totalExpenses,
+              hoursWorked: totalLaborHours,
+              clockEntries: projectClockEntries.length,
+              status: project.status,
+              progress: project.progress,
+              startDate: project.startDate,
+              endDate: project.endDate,
+              expensesByCategory,
+            };
+
+            const adjustedBudget = project.budget + totalChangeOrdersApproved;
+            const profitMargin = adjustedBudget - totalExpenses;
+
+            const report: Report = {
+              id: `report-${Date.now()}`,
+              name: `Admin & Financial Report - ${project.name}`,
+              type: 'administrative',
+              generatedDate: new Date().toISOString(),
+              projectIds: [project.id],
+              projectsCount: 1,
+              totalBudget: adjustedBudget,
+              totalExpenses: totalExpenses,
+              totalHours: totalLaborHours,
+              projects: [projectData],
+              expensesByCategory,
+            };
+
+            addReport(report);
+            console.log('[Report] Generated administrative & financial report for project:', project.name);
+            Alert.alert(
+              'Report Generated',
+              `Admin & Financial report saved successfully.\n\nTotal Budget: ${adjustedBudget.toLocaleString()}\nTotal Expenses: ${totalExpenses.toLocaleString()}\nProfit: ${profitMargin.toLocaleString()}`
+            );
+          } else if (type === 'daily-logs') {
             const logs = Array.isArray(dailyLogs) ? dailyLogs.filter(log => log.projectId === project.id) : [];
             
             if (logs.length === 0) {
@@ -1267,7 +1323,16 @@ export default function ProjectDetailScreen() {
             <FolderOpen size={48} color="#9CA3AF" />
             <Text style={styles.placeholderText}>Generate and view project reports</Text>
             <Text style={styles.placeholderSubtext}>Financial summaries, time tracking, and custom reports</Text>
-            <View style={styles.buttonRow}>
+            
+            <TouchableOpacity 
+              style={[styles.primaryButton, { marginTop: 24, width: '90%' }]}
+              onPress={() => setShowAIReportModal(true)}
+            >
+              <FileText size={20} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>Ask AI for Custom Report</Text>
+            </TouchableOpacity>
+
+            <View style={[styles.buttonRow, { marginTop: 16 }]}>
               <TouchableOpacity 
                 style={styles.primaryButton}
                 onPress={() => handleGenerateProjectReport('administrative')}
@@ -1461,6 +1526,26 @@ export default function ProjectDetailScreen() {
         {renderTabContent()}
       </ScrollView>
       </View>
+
+      <Modal
+        visible={showAIReportModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowAIReportModal(false)}
+      >
+        <View style={styles.aiReportModalContainer}>
+          <View style={styles.aiReportHeader}>
+            <Text style={styles.aiReportTitle}>AI Custom Report for {project.name}</Text>
+            <TouchableOpacity onPress={() => setShowAIReportModal(false)}>
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <GlobalAIChatSimple 
+            currentPageContext={`Project: ${project.name}, Budget: ${project.budget.toLocaleString()}, Expenses: ${project.expenses.toLocaleString()}, Progress: ${project.progress}%`}
+            inline={true}
+          />
+        </View>
+      </Modal>
     </>
   );
 }
@@ -2918,5 +3003,26 @@ const styles = StyleSheet.create({
   projectReportDate: {
     fontSize: 13,
     color: '#6B7280',
+  },
+  aiReportModalContainer: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+  },
+  aiReportHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  aiReportTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    flex: 1,
+    marginRight: 12,
   },
 });
