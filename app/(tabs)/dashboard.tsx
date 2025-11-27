@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles } from 'lucide-react-native';
 import { Image } from 'expo-image';
@@ -670,12 +670,12 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
           <ScrollView
             horizontal
             pagingEnabled
-            showsHorizontalScrollIndicator={false}
+            showsHorizontalScrollIndicator={Platform.OS === 'web'}
             decelerationRate="fast"
             snapToInterval={310}
             snapToAlignment="center"
             contentContainerStyle={styles.projectsCarousel}
-            style={styles.projectsCarouselContainer}
+            style={[styles.projectsCarouselContainer, Platform.OS === 'web' && styles.projectsCarouselWeb]}
           >
             {displayProjects.map((project) => (
               <TouchableOpacity
@@ -1327,6 +1327,32 @@ const styles = StyleSheet.create({
 
   projectsCarouselContainer: {
     height: 280,
+  },
+  projectsCarouselWeb: {
+    // @ts-ignore - Web-only CSS properties
+    overflowX: 'auto',
+    // @ts-ignore
+    scrollbarWidth: 'thin',
+    // @ts-ignore
+    scrollbarColor: '#2563EB #F3F4F6',
+    // @ts-ignore - WebKit browsers (Chrome, Safari, Edge)
+    '::-webkit-scrollbar': {
+      height: '8px',
+    },
+    // @ts-ignore
+    '::-webkit-scrollbar-track': {
+      background: '#F3F4F6',
+      borderRadius: '4px',
+    },
+    // @ts-ignore
+    '::-webkit-scrollbar-thumb': {
+      background: '#2563EB',
+      borderRadius: '4px',
+    },
+    // @ts-ignore
+    '::-webkit-scrollbar-thumb:hover': {
+      background: '#1E40AF',
+    },
   },
   projectsCarousel: {
     paddingHorizontal: 16,
