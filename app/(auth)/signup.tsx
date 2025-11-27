@@ -1,17 +1,12 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Platform } from 'react-native';
-import { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { Wrench, ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useTranslation } from 'react-i18next';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
-import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
-
-WebBrowser.maybeCompleteAuthSession();
 
 export default function SignupScreen() {
   const [accountType, setAccountType] = useState<'company' | 'employee' | null>(null);
@@ -22,72 +17,15 @@ export default function SignupScreen() {
   const [companyName, setCompanyName] = useState<string>('');
   const [employeeCount, setEmployeeCount] = useState<string>('2');
   const [companyCode, setCompanyCode] = useState<string>('');
-  const [isLoadingSocial, setIsLoadingSocial] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { setUser, setCompany, setSubscription } = useApp();
+  const { setUser } = useApp();
 
   const [isCreatingAccount, setIsCreatingAccount] = useState<boolean>(false);
 
 
 
-  useEffect(() => {
-    const handleDeepLink = (event: { url: string }) => {
-      const { queryParams } = Linking.parse(event.url);
-      
-      if (queryParams?.provider && queryParams?.success === 'true') {
-        console.log(`[Auth] ${queryParams.provider} signup successful`);
-        router.replace('/dashboard');
-      } else if (queryParams?.error) {
-        Alert.alert(t('common.error'), queryParams.error as string || 'Authentication failed');
-      }
-    };
 
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-
-    return () => {
-      subscription.remove();
-    };
-  }, [t]);
-
-  const handleSocialSignup = async (provider: 'google' | 'apple') => {
-    try {
-      setIsLoadingSocial(true);
-      
-      if (Platform.OS !== 'web') {
-        await Haptics.selectionAsync();
-      }
-
-      const redirectUrl = Linking.createURL('auth-callback');
-      console.log('[Auth] Redirect URL:', redirectUrl);
-
-      let authUrl = '';
-      if (provider === 'google') {
-        authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=YOUR_GOOGLE_CLIENT_ID&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20profile%20email`;
-      } else if (provider === 'apple') {
-        authUrl = `https://appleid.apple.com/auth/authorize?response_type=code&client_id=YOUR_APPLE_CLIENT_ID&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=name%20email`;
-      }
-
-      console.log(`[Auth] Opening ${provider} OAuth URL...`);
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-
-      if (result.type === 'success' && result.url) {
-        const { queryParams } = Linking.parse(result.url);
-        
-        if (queryParams?.code) {
-          console.log(`[Auth] ${provider} authorization code received`);
-          router.replace('/dashboard');
-        }
-      } else if (result.type === 'cancel') {
-        console.log(`[Auth] ${provider} signup cancelled`);
-      }
-    } catch (error) {
-      console.error(`[Auth] ${provider} signup error:`, error);
-      Alert.alert(t('common.error'), `Failed to sign up with ${provider}. Please try again.`);
-    } finally {
-      setIsLoadingSocial(false);
-    }
-  };
 
   const handleSignup = async () => {
     if (!name.trim()) {
@@ -268,37 +206,6 @@ export default function SignupScreen() {
           </View>
         ) : (
         <View style={styles.form}>
-          {accountType === 'company' && (
-            <>
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Sign up with</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <TouchableOpacity 
-                style={[styles.socialButton, isLoadingSocial && styles.socialButtonDisabled]}
-                onPress={() => handleSocialSignup('google')}
-                disabled={isLoadingSocial}
-              >
-                <Text style={styles.socialButtonText}>{isLoadingSocial ? 'Loading...' : 'Sign up with Google'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={[styles.socialButton, styles.appleButton, isLoadingSocial && styles.appleButtonDisabled]}
-                onPress={() => handleSocialSignup('apple')}
-                disabled={isLoadingSocial}
-              >
-                <Text style={[styles.socialButtonText, styles.appleButtonText]}>{isLoadingSocial ? 'Loading...' : 'Sign up with Apple'}</Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Or with email</Text>
-                <View style={styles.dividerLine} />
-              </View>
-            </>
-          )}
           <Text style={styles.label}>{t('signup.fullName')}</Text>
           <TextInput
             style={styles.input}
@@ -381,12 +288,12 @@ export default function SignupScreen() {
           )}
 
           <TouchableOpacity 
-            style={[styles.signupButton, (isCreatingAccount || isLoadingSocial) && styles.signupButtonDisabled]} 
+            style={[styles.signupButton, isCreatingAccount && styles.signupButtonDisabled]} 
             onPress={handleSignup}
-            disabled={isCreatingAccount || isLoadingSocial}
+            disabled={isCreatingAccount}
           >
             <Text style={styles.signupButtonText}>
-              {(isCreatingAccount || isLoadingSocial) ? t('common.loading') : t('signup.createAccount')}
+              {isCreatingAccount ? t('common.loading') : t('signup.createAccount')}
             </Text>
           </TouchableOpacity>
 

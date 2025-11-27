@@ -1,20 +1,14 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
-import { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { mockUsers } from '@/mocks/data';
 import { Wrench } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
-import * as Haptics from 'expo-haptics';
-
-WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
   const { setUser } = useApp();
   const insets = useSafeAreaInsets();
 
@@ -24,67 +18,7 @@ export default function LoginScreen() {
     router.replace('/dashboard');
   };
 
-  useEffect(() => {
-    const handleDeepLink = (event: { url: string }) => {
-      const { queryParams } = Linking.parse(event.url);
-      
-      if (queryParams?.provider && queryParams?.success === 'true') {
-        console.log(`[Auth] ${queryParams.provider} login successful`);
-        const user = mockUsers[0];
-        setUser(user);
-        router.replace('/dashboard');
-      } else if (queryParams?.error) {
-        Alert.alert('Error', queryParams.error as string || 'Authentication failed');
-      }
-    };
 
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-
-    return () => {
-      subscription.remove();
-    };
-  }, [setUser]);
-
-  const handleSocialLogin = async (provider: 'google' | 'apple') => {
-    try {
-      setIsLoading(true);
-      
-      if (Platform.OS !== 'web') {
-        await Haptics.selectionAsync();
-      }
-
-      const redirectUrl = Linking.createURL('auth-callback');
-      console.log('[Auth] Redirect URL:', redirectUrl);
-
-      let authUrl = '';
-      if (provider === 'google') {
-        authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=YOUR_GOOGLE_CLIENT_ID&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=openid%20profile%20email`;
-      } else if (provider === 'apple') {
-        authUrl = `https://appleid.apple.com/auth/authorize?response_type=code&client_id=YOUR_APPLE_CLIENT_ID&redirect_uri=${encodeURIComponent(redirectUrl)}&scope=name%20email`;
-      }
-
-      console.log(`[Auth] Opening ${provider} OAuth URL...`);
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-
-      if (result.type === 'success' && result.url) {
-        const { queryParams } = Linking.parse(result.url);
-        
-        if (queryParams?.code) {
-          console.log(`[Auth] ${provider} authorization code received`);
-          const user = mockUsers[0];
-          setUser(user);
-          router.replace('/dashboard');
-        }
-      } else if (result.type === 'cancel') {
-        console.log(`[Auth] ${provider} login cancelled`);
-      }
-    } catch (error) {
-      console.error(`[Auth] ${provider} login error:`, error);
-      Alert.alert('Error', `Failed to sign in with ${provider}. Please try again.`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
@@ -95,33 +29,6 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.form}>
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Continue with</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <TouchableOpacity 
-          style={[styles.socialButton, isLoading && styles.socialButtonDisabled]}
-          onPress={() => handleSocialLogin('google')}
-          disabled={isLoading}
-        >
-          <Text style={styles.socialButtonText}>{isLoading ? 'Loading...' : 'Sign in with Google'}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.socialButton, styles.appleButton, isLoading && styles.appleButtonDisabled]}
-          onPress={() => handleSocialLogin('apple')}
-          disabled={isLoading}
-        >
-          <Text style={[styles.socialButtonText, styles.appleButtonText]}>{isLoading ? 'Loading...' : 'Sign in with Apple'}</Text>
-        </TouchableOpacity>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Or with email</Text>
-          <View style={styles.dividerLine} />
-        </View>
 
         <TextInput
           style={styles.input}
@@ -143,11 +50,10 @@ export default function LoginScreen() {
         />
 
         <TouchableOpacity 
-          style={[styles.loginButton, isLoading && styles.loginButtonDisabled]} 
+          style={styles.loginButton} 
           onPress={handleLogin}
-          disabled={isLoading}
         >
-          <Text style={styles.loginButtonText}>{isLoading ? 'Loading...' : 'Login'}</Text>
+          <Text style={styles.loginButtonText}>Login</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
