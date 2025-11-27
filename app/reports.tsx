@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
-import { FileText, Calendar, Trash2, X, BarChart, Folder, Download, FileSpreadsheet } from 'lucide-react-native';
+import { FileText, Calendar, Trash2, X, BarChart, Folder, Download, FileSpreadsheet, ArrowLeft } from 'lucide-react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Report, DailyLog } from '@/types';
@@ -711,6 +711,14 @@ export default function ReportsScreen() {
           headerStyle: { backgroundColor: '#FFFFFF' },
           headerTintColor: '#1F2937',
           headerShadowVisible: false,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.replace('/dashboard')}
+              style={{ marginLeft: -8, padding: 8 }}
+            >
+              <ArrowLeft size={24} color="#1F2937" />
+            </TouchableOpacity>
+          ),
         }}
       />
 
@@ -748,13 +756,33 @@ export default function ReportsScreen() {
                 onPress={() => handleViewReport(report)}
               >
                 <View style={styles.reportCardHeader}>
-                  <View
-                    style={[
-                      styles.reportTypeIcon,
-                      { backgroundColor: `${getTypeColor(report.type)}15` },
-                    ]}
-                  >
-                    <FileText size={20} color={getTypeColor(report.type)} />
+                  <View style={styles.reportCardHeaderLeft}>
+                    <View
+                      style={[
+                        styles.reportTypeIcon,
+                        { backgroundColor: `${getTypeColor(report.type)}15` },
+                      ]}
+                    >
+                      <FileText size={20} color={getTypeColor(report.type)} />
+                    </View>
+                    <TouchableOpacity
+                      style={styles.exportIconButton}
+                      onPress={() => {
+                        setSelectedReport(report);
+                        exportToHTML(report);
+                      }}
+                    >
+                      <Download size={18} color="#2563EB" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.exportIconButton}
+                      onPress={() => {
+                        setSelectedReport(report);
+                        exportToCSV(report);
+                      }}
+                    >
+                      <FileSpreadsheet size={18} color="#10B981" />
+                    </TouchableOpacity>
                   </View>
                   <TouchableOpacity
                     style={styles.deleteButton}
@@ -1173,6 +1201,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  reportCardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  exportIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   reportTypeIcon: {
     width: 40,
