@@ -133,16 +133,27 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
       console.log('[Report] Projects:', projectsToReport.length);
 
       Alert.alert(
-        'Report Generated',
-        'Your custom AI report has been generated successfully.',
-        [{ text: 'OK', onPress: () => {
-          setShowAICustomModal(false);
-          setShowReportMenu(false);
-          setShowReportTypeMenu(false);
-          setIsSelectMode(false);
-          setSelectedProjects([]);
-          setAiReportPrompt('');
-        }}]
+        'Report Generated ✓',
+        'Your custom AI report has been generated successfully. You can view it in the Reports Library (folder icon on the dashboard).',
+        [
+          { text: 'View Report', onPress: () => {
+            setShowAICustomModal(false);
+            setShowReportMenu(false);
+            setShowReportTypeMenu(false);
+            setIsSelectMode(false);
+            setSelectedProjects([]);
+            setAiReportPrompt('');
+            router.push('/reports' as any);
+          }},
+          { text: 'Stay Here', onPress: () => {
+            setShowAICustomModal(false);
+            setShowReportMenu(false);
+            setShowReportTypeMenu(false);
+            setIsSelectMode(false);
+            setSelectedProjects([]);
+            setAiReportPrompt('');
+          }}
+        ]
       );
     } catch (error) {
       console.error('[Report] AI generation error:', error);
@@ -1110,9 +1121,15 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                 >
                   <Sparkles size={18} color="#FFFFFF" />
                   <Text style={styles.aiGenerateButtonText}>
-                    {isGeneratingAI ? 'Generating...' : `Generate for ${isSelectMode && selectedProjects.length > 0 ? `${selectedProjects.length} Projects` : 'All Projects'}`}
+                    {isGeneratingAI ? 'Generating...' : `Generate Report ${isSelectMode && selectedProjects.length > 0 ? `(${selectedProjects.length} Projects)` : '(All Projects)'}`}
                   </Text>
                 </TouchableOpacity>
+              </View>
+              
+              <View style={styles.aiHelpTextContainer}>
+                <Text style={styles.aiHelpText}>
+                  ✓ Generated reports will appear in the Reports Library
+                </Text>
               </View>
             </View>
           </View>
@@ -1716,6 +1733,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700' as const,
+  },
+  aiHelpTextContainer: {
+    backgroundColor: '#ECFDF5',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  aiHelpText: {
+    fontSize: 12,
+    color: '#059669',
+    textAlign: 'center',
+    fontWeight: '600' as const,
   },
   searchContainer: {
     backgroundColor: '#FFFFFF',
