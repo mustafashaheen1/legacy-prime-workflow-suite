@@ -1350,8 +1350,7 @@ const styles = StyleSheet.create({
   },
   itemSelectionSectionWeb: {
     flex: 0.4,
-    width: '40%',
-    minWidth: 'auto',
+    minWidth: 280,
     maxWidth: '40%',
   },
   itemSelectionSectionNarrow: {
@@ -1400,8 +1399,7 @@ const styles = StyleSheet.create({
   },
   selectedItemsSectionWeb: {
     flex: 0.6,
-    width: '60%',
-    minWidth: 'auto',
+    minWidth: 450,
     maxWidth: '60%',
   },
   selectedItemsSectionNarrow: {
