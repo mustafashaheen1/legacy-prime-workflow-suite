@@ -4,12 +4,13 @@ import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
 import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permissions';
-import { Users, Shield, ChevronRight, X, Building2, Copy } from 'lucide-react-native';
+import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
+import { router } from 'expo-router';
 
 export default function SettingsScreen() {
-  const { user: currentUser, company } = useApp();
+  const { user: currentUser, company, logout } = useApp();
   const { isAdmin, isSuperAdmin } = usePermissions();
   const { t } = useTranslation();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -58,6 +59,24 @@ export default function SettingsScreen() {
     if (company?.id) {
       Alert.alert(t('settings.companyCode'), company.id);
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      t('settings.logout') || 'Logout',
+      t('settings.logoutConfirm') || 'Are you sure you want to logout?',
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('settings.logout') || 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/(auth)/login');
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -145,6 +164,13 @@ export default function SettingsScreen() {
               <Text style={styles.emptyText}>{t('settings.noUsers')}</Text>
             </View>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <LogOut size={20} color="#DC2626" />
+            <Text style={styles.logoutButtonText}>{t('settings.logout') || 'Logout'}</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -509,5 +535,21 @@ const styles = StyleSheet.create({
   codeHint: {
     fontSize: 12,
     color: '#6B7280',
+  },
+  logoutButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#DC2626',
   },
 });
