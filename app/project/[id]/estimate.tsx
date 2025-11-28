@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, FlatList, Platform, Linking, Dimensions, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, FlatList, Platform, Linking, Dimensions, Modal, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip } from 'lucide-react-native';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { masterPriceList, PriceListItem, priceListCategories, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { EstimateItem, Estimate, ProjectFile } from '@/types';
@@ -1271,10 +1271,57 @@ interface AIEstimateGenerateModalProps {
 function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: AIEstimateGenerateModalProps) {
   const [textInput, setTextInput] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [attachedFiles, setAttachedFiles] = useState<Array<{uri: string; type: string; name: string}>>([]);
+
+  const handleMicrophone = async () => {
+    if (isRecording) {
+      setIsRecording(false);
+      Alert.alert('Voice Input', 'Voice recording stopped. Transcription would happen here.');
+      return;
+    }
+    
+    setIsRecording(true);
+    Alert.alert(
+      'Voice Input',
+      'Recording started. Tap the microphone again to stop.',
+      [
+        {
+          text: 'Stop Recording',
+          onPress: () => setIsRecording(false)
+        }
+      ]
+    );
+  };
+
+  const handleCameraOrFile = async () => {
+    Alert.alert(
+      'Add Media',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: () => {
+            Alert.alert('Camera', 'Camera feature would open here to capture photos or video');
+          }
+        },
+        {
+          text: 'Choose File',
+          onPress: () => {
+            Alert.alert('File Picker', 'File picker would open here to select photos or documents');
+          }
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
 
   const handleGenerate = async () => {
-    if (!textInput.trim()) {
-      Alert.alert('Error', 'Please describe the scope of work');
+    if (!textInput.trim() && attachedFiles.length === 0) {
+      Alert.alert('Error', 'Please describe the scope of work or attach files');
       return;
     }
 
@@ -1329,16 +1376,50 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: 
           <Text style={styles.modalSubtitle}>Describe the scope of work and AI will generate line items</Text>
           
           <Text style={styles.modalLabel}>Scope of Work *</Text>
-          <TextInput
-            style={[styles.modalInput, styles.aiTextArea]}
-            value={textInput}
-            onChangeText={setTextInput}
-            placeholder="e.g., Replace 10 linear feet of base cabinets, install new countertop, paint kitchen walls, etc."
-            placeholderTextColor="#9CA3AF"
-            multiline
-            numberOfLines={6}
-            textAlignVertical="top"
-          />
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.modalInput, styles.aiTextArea, styles.textInputWithActions]}
+              value={textInput}
+              onChangeText={setTextInput}
+              placeholder="e.g., Replace 10 linear feet of base cabinets, install new countertop, paint kitchen walls, etc."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={6}
+              textAlignVertical="top"
+            />
+            <View style={styles.inputActions}>
+              <TouchableOpacity
+                style={[styles.inputActionButton, isRecording && styles.inputActionButtonActive]}
+                onPress={handleMicrophone}
+              >
+                {isRecording ? (
+                  <ActivityIndicator size="small" color="#EF4444" />
+                ) : (
+                  <Mic size={24} color="#6B7280" />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.inputActionButton}
+                onPress={handleCameraOrFile}
+              >
+                <Paperclip size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {attachedFiles.length > 0 && (
+            <View style={styles.attachedFilesContainer}>
+              {attachedFiles.map((file, index) => (
+                <View key={index} style={styles.attachedFileChip}>
+                  <Camera size={14} color="#2563EB" />
+                  <Text style={styles.attachedFileName}>{file.name}</Text>
+                  <TouchableOpacity onPress={() => setAttachedFiles(prev => prev.filter((_, i) => i !== index))}>
+                    <Text style={styles.removeFileButton}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={styles.aiInfoBox}>
             <Sparkles size={16} color="#8B5CF6" />
@@ -2553,5 +2634,61 @@ const styles = StyleSheet.create({
   },
   aiGenerateButtonDisabled: {
     opacity: 0.6,
+  },
+  inputContainer: {
+    position: 'relative' as const,
+    marginBottom: 8,
+  },
+  textInputWithActions: {
+    paddingRight: 100,
+    marginBottom: 0,
+  },
+  inputActions: {
+    position: 'absolute' as const,
+    right: 8,
+    bottom: 24,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  inputActionButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  inputActionButtonActive: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#EF4444',
+  },
+  attachedFilesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  attachedFileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#2563EB',
+  },
+  attachedFileName: {
+    fontSize: 13,
+    color: '#2563EB',
+    fontWeight: '500' as const,
+  },
+  removeFileButton: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginLeft: 4,
   },
 });
