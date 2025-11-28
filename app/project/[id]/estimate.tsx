@@ -1349,9 +1349,9 @@ const styles = StyleSheet.create({
     maxWidth: 380,
   },
   itemSelectionSectionWeb: {
-    flex: 0.6,
-    minWidth: 280,
-    maxWidth: '60%',
+    flex: 0.4,
+    minWidth: 320,
+    maxWidth: '40%',
   },
   itemSelectionSectionNarrow: {
     maxHeight: 250,
@@ -1398,9 +1398,9 @@ const styles = StyleSheet.create({
     minWidth: 450,
   },
   selectedItemsSectionWeb: {
-    flex: 0.4,
+    flex: 0.6,
     minWidth: 450,
-    maxWidth: '40%',
+    maxWidth: '60%',
   },
   selectedItemsSectionNarrow: {
     borderLeftWidth: 0,
