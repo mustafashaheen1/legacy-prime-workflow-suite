@@ -1260,13 +1260,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: Platform.select({ web: 10, default: 11 }) as number,
+    fontSize: Platform.select({ web: 12, default: 11 }) as number,
     fontWeight: '600' as const,
     color: '#6B7280',
     marginBottom: 2,
   },
   headerInput: {
-    fontSize: Platform.select({ web: 13, default: 14 }) as number,
+    fontSize: Platform.select({ web: 16, default: 14 }) as number,
     fontWeight: '700' as const,
     color: '#1F2937',
     padding: 0,
@@ -1291,7 +1291,7 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
   },
   newAssemblyButtonText: {
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '600' as const,
     color: '#10B981',
   },
@@ -1312,7 +1312,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
   },
   categoryTabText: {
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '600' as const,
     color: '#6B7280',
   },
@@ -1349,7 +1349,7 @@ const styles = StyleSheet.create({
     maxWidth: 380,
   },
   itemSelectionSectionWeb: {
-    flex: 0.4,
+    width: '40%',
     minWidth: 320,
     maxWidth: '40%',
   },
@@ -1370,7 +1370,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
   },
   sectionTitle: {
-    fontSize: Platform.select({ web: 12, default: 13 }) as number,
+    fontSize: Platform.select({ web: 14, default: 13 }) as number,
     fontWeight: '700' as const,
     color: '#1F2937',
     flex: 1,
@@ -1386,7 +1386,7 @@ const styles = StyleSheet.create({
     borderColor: '#2563EB',
   },
   addCustomButtonText: {
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '600' as const,
     color: '#2563EB',
   },
@@ -1398,7 +1398,7 @@ const styles = StyleSheet.create({
     minWidth: 450,
   },
   selectedItemsSectionWeb: {
-    flex: 0.6,
+    width: '60%',
     minWidth: 450,
     maxWidth: '60%',
   },
@@ -1433,7 +1433,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   lineItemName: {
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '500' as const,
     color: '#1F2937',
     flex: 1,
@@ -1445,13 +1445,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   lineItemUnit: {
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     color: '#6B7280',
     fontWeight: '500' as const,
     minWidth: 30,
   },
   lineItemPrice: {
-    fontSize: Platform.select({ web: 12, default: 13 }) as number,
+    fontSize: Platform.select({ web: 14, default: 13 }) as number,
     fontWeight: '700' as const,
     color: '#1F2937',
     minWidth: 60,
@@ -1504,24 +1504,24 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
   },
   compactTotalLabel: {
-    fontSize: Platform.select({ web: 10, default: 10 }) as number,
+    fontSize: Platform.select({ web: 12, default: 10 }) as number,
     color: '#6B7280',
     fontWeight: '500' as const,
     marginBottom: 4,
   },
   compactTotalValue: {
-    fontSize: Platform.select({ web: 13, default: 14 }) as number,
+    fontSize: Platform.select({ web: 15, default: 14 }) as number,
     fontWeight: '700' as const,
     color: '#1F2937',
   },
   compactBudgetLabel: {
-    fontSize: Platform.select({ web: 10, default: 10 }) as number,
+    fontSize: Platform.select({ web: 12, default: 10 }) as number,
     color: '#10B981',
     fontWeight: '500' as const,
     marginBottom: 4,
   },
   compactBudgetValue: {
-    fontSize: Platform.select({ web: 13, default: 14 }) as number,
+    fontSize: Platform.select({ web: 15, default: 14 }) as number,
     fontWeight: '700' as const,
     color: '#10B981',
   },
@@ -1541,7 +1541,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   compactPercentInput: {
-    fontSize: Platform.select({ web: 12, default: 13 }) as number,
+    fontSize: Platform.select({ web: 14, default: 13 }) as number,
     fontWeight: '600' as const,
     color: '#1F2937',
     minWidth: 36,
@@ -1552,13 +1552,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#2563EB',
   },
   compactPercentSign: {
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '600' as const,
     color: '#6B7280',
     marginLeft: 2,
   },
   compactCalculatedValue: {
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '600' as const,
     color: '#2563EB',
     marginTop: 2,
@@ -1572,18 +1572,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   compactGrandTotalLabel: {
-    fontSize: Platform.select({ web: 10, default: 11 }) as number,
+    fontSize: Platform.select({ web: 12, default: 11 }) as number,
     fontWeight: '700' as const,
     color: '#FFFFFF',
     marginBottom: 4,
   },
   compactGrandTotalValue: {
-    fontSize: Platform.select({ web: 15, default: 16 }) as number,
+    fontSize: Platform.select({ web: 17, default: 16 }) as number,
     fontWeight: '700' as const,
     color: '#FFFFFF',
   },
   sectionLabel: {
-    fontSize: Platform.select({ web: 12, default: 13 }) as number,
+    fontSize: Platform.select({ web: 14, default: 13 }) as number,
     fontWeight: '600' as const,
     color: '#6B7280',
   },
@@ -1609,7 +1609,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   itemName: {
-    fontSize: Platform.select({ web: 13, default: 14 }) as number,
+    fontSize: Platform.select({ web: 14, default: 14 }) as number,
     fontWeight: '600' as const,
     color: '#1F2937',
     flex: 1,
@@ -1636,7 +1636,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   itemCategory: {
-    fontSize: Platform.select({ web: 10, default: 11 }) as number,
+    fontSize: Platform.select({ web: 12, default: 11 }) as number,
     color: '#2563EB',
     fontWeight: '500' as const,
   },
@@ -1692,7 +1692,7 @@ const styles = StyleSheet.create({
     flex: 4,
   },
   itemLabel: {
-    fontSize: Platform.select({ web: 10, default: 11 }) as number,
+    fontSize: Platform.select({ web: 12, default: 11 }) as number,
     color: '#6B7280',
     marginBottom: 5,
     fontWeight: '500' as const,
@@ -1734,7 +1734,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   quantityTextInput: {
-    fontSize: Platform.select({ web: 12, default: 13 }) as number,
+    fontSize: Platform.select({ web: 14, default: 13 }) as number,
     fontWeight: '600' as const,
     color: '#1F2937',
     minWidth: 50,
@@ -1749,7 +1749,7 @@ const styles = StyleSheet.create({
     padding: 3,
   },
   unitValue: {
-    fontSize: Platform.select({ web: 12, default: 13 }) as number,
+    fontSize: Platform.select({ web: 14, default: 13 }) as number,
     fontWeight: '600' as const,
     color: '#1F2937',
   },
@@ -1769,7 +1769,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   priceValue: {
-    fontSize: Platform.select({ web: 12, default: 13 }) as number,
+    fontSize: Platform.select({ web: 14, default: 13 }) as number,
     fontWeight: '600' as const,
     color: '#1F2937',
   },
@@ -1777,7 +1777,7 @@ const styles = StyleSheet.create({
     fontSize: Platform.select({ web: 9, default: 11 }) as number,
   },
   totalValue: {
-    fontSize: Platform.select({ web: 13, default: 14 }) as number,
+    fontSize: Platform.select({ web: 15, default: 14 }) as number,
     fontWeight: '700' as const,
     color: '#2563EB',
   },
@@ -1824,7 +1824,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     color: '#1F2937',
     minHeight: 50,
     textAlignVertical: 'top',
@@ -1872,7 +1872,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#FFFFFF',
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '600' as const,
   },
   sendButton: {
@@ -1887,7 +1887,7 @@ const styles = StyleSheet.create({
   },
   sendButtonText: {
     color: '#FFFFFF',
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '600' as const,
   },
   signatureButton: {
@@ -1902,7 +1902,7 @@ const styles = StyleSheet.create({
   },
   signatureButtonText: {
     color: '#FFFFFF',
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '600' as const,
   },
   previewButton: {
@@ -1917,7 +1917,7 @@ const styles = StyleSheet.create({
   },
   previewButtonText: {
     color: '#FFFFFF',
-    fontSize: Platform.select({ web: 11, default: 12 }) as number,
+    fontSize: Platform.select({ web: 13, default: 12 }) as number,
     fontWeight: '600' as const,
   },
   visibilityToggle: {
@@ -1940,7 +1940,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
   },
   toggleButtonText: {
-    fontSize: Platform.select({ web: 10, default: 10 }) as number,
+    fontSize: Platform.select({ web: 12, default: 10 }) as number,
     fontWeight: '600' as const,
     color: '#1F2937',
   },
@@ -2340,7 +2340,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   addBreakPointButtonText: {
-    fontSize: Platform.select({ web: 12, default: 13 }) as number,
+    fontSize: Platform.select({ web: 13, default: 13 }) as number,
     fontWeight: '600' as const,
     color: '#F59E0B',
     flexShrink: 1,
