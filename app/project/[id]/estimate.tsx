@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { masterPriceList, PriceListItem, priceListCategories, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { EstimateItem, Estimate, ProjectFile } from '@/types';
+import { trpcClient } from '@/lib/trpc';
 
 export default function EstimateScreen() {
   const { id } = useLocalSearchParams();
@@ -1365,32 +1366,31 @@ Example response:
   }
 ]`;
 
-      const response = await fetch('https://toolkit.rork.com/llm/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: 'user',
-              content: `Scope of Work: ${textInput}\n\nPlease generate line items for this estimate based on the price list provided.`
-            }
-          ],
-          systemPrompt: systemPrompt,
-        }),
+      const result = await trpcClient.openai.chat.mutate({
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: `Scope of Work: ${textInput}\n\nPlease generate line items for this estimate based on the price list provided.`
+          }
+        ],
+        model: 'gpt-4o',
+        temperature: 0.7,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate estimate');
-      }
+      console.log('[AI Estimate] API Response:', result);
 
-      const data = await response.json();
-      console.log('[AI Estimate] API Response:', data);
+      if (!result.success) {
+        const errorMsg = 'error' in result ? result.error : 'Failed to generate estimate';
+        throw new Error(errorMsg);
+      }
       
       let aiGeneratedItems = [];
       try {
-        const content = data.content || data.response || data.text || '';
+        const content = result.message || '';
         const jsonMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (jsonMatch) {
           aiGeneratedItems = JSON.parse(jsonMatch[0]);
