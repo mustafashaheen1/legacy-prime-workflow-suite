@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, FlatList, Platform, Linking, Dimensions, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, FlatList, Platform, Linking, Dimensions, Modal, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
@@ -12,7 +12,7 @@ import { trpcClient } from '@/lib/trpc';
 export default function EstimateScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, addEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile } = useApp();
+  const { projects, addEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile, company } = useApp();
   const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
   const isWeb = Platform.OS === 'web';
@@ -1166,7 +1166,40 @@ export default function EstimateScreen() {
 
             <ScrollView style={styles.previewScroll} showsVerticalScrollIndicator={true}>
               <View style={styles.previewContent}>
-                <Text style={styles.previewCompanyName}>Legacy Prime Construction</Text>
+                <View style={styles.previewCompanyHeader}>
+                  {company?.logo && (
+                    <Image source={{ uri: company.logo }} style={styles.previewCompanyLogo} />
+                  )}
+                  <View style={styles.previewCompanyInfo}>
+                    <Text style={styles.previewCompanyName}>{company?.name || 'Company Name'}</Text>
+                    {company?.slogan && (
+                      <Text style={styles.previewCompanySlogan}>{company.slogan}</Text>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.previewCompanyDetails}>
+                  {company?.licenseNumber && (
+                    <Text style={styles.previewCompanyDetailText}>License # {company.licenseNumber}</Text>
+                  )}
+                  {company?.officePhone && (
+                    <Text style={styles.previewCompanyDetailText}>Office: {company.officePhone}</Text>
+                  )}
+                  {company?.cellPhone && (
+                    <Text style={styles.previewCompanyDetailText}>Cell: {company.cellPhone}</Text>
+                  )}
+                  {company?.address && (
+                    <Text style={styles.previewCompanyDetailText}>{company.address}</Text>
+                  )}
+                  {company?.email && (
+                    <Text style={styles.previewCompanyDetailText}>Email: {company.email}</Text>
+                  )}
+                  {company?.website && (
+                    <Text style={styles.previewCompanyDetailText}>{company.website}</Text>
+                  )}
+                </View>
+
+                <View style={styles.previewDivider} />
+
                 <Text style={styles.previewProjectName}>PROJECT: {project.name}</Text>
                 <Text style={styles.previewEstimateName}>ESTIMATE: {estimateName}</Text>
                 <Text style={styles.previewDate}>Date: {new Date().toLocaleDateString()}</Text>
@@ -2464,12 +2497,42 @@ const styles = StyleSheet.create({
   previewContent: {
     padding: 20,
   },
+  previewCompanyHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 12,
+    marginBottom: 12,
+  },
+  previewCompanyLogo: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+  },
+  previewCompanyInfo: {
+    flex: 1,
+  },
   previewCompanyName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700' as const,
     color: '#2563EB',
-    marginBottom: 16,
-    textAlign: 'center',
+    marginBottom: 2,
+  },
+  previewCompanySlogan: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontStyle: 'italic' as const,
+  },
+  previewCompanyDetails: {
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  previewCompanyDetailText: {
+    fontSize: 12,
+    color: '#374151',
+    marginBottom: 3,
   },
   previewProjectName: {
     fontSize: 16,

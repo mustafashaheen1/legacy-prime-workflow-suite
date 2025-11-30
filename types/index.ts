@@ -160,6 +160,13 @@ export interface Company {
   name: string;
   logo?: string;
   brandColor: string;
+  licenseNumber?: string;
+  officePhone?: string;
+  cellPhone?: string;
+  address?: string;
+  email?: string;
+  website?: string;
+  slogan?: string;
   subscriptionStatus: 'trial' | 'active' | 'suspended' | 'cancelled';
   subscriptionPlan: 'basic' | 'pro' | 'enterprise';
   subscriptionStartDate: string;

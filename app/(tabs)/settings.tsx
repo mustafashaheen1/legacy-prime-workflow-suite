@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
 import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permissions';
-import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut } from 'lucide-react-native';
+import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3 } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
@@ -15,6 +15,18 @@ export default function SettingsScreen() {
   const { t } = useTranslation();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showRoleModal, setShowRoleModal] = useState<boolean>(false);
+  const [showCompanyProfileModal, setShowCompanyProfileModal] = useState<boolean>(false);
+  const [companyForm, setCompanyForm] = useState({
+    name: company?.name || '',
+    logo: company?.logo || '',
+    licenseNumber: company?.licenseNumber || '',
+    officePhone: company?.officePhone || '',
+    cellPhone: company?.cellPhone || '',
+    address: company?.address || '',
+    email: company?.email || '',
+    website: company?.website || '',
+    slogan: company?.slogan || '',
+  });
 
   const usersQuery = trpc.users.getUsers.useQuery(
     { companyId: company?.id },
@@ -30,6 +42,16 @@ export default function SettingsScreen() {
     },
     onError: (error) => {
       Alert.alert(t('common.error'), error.message);
+    },
+  });
+
+  const updateCompanyMutation = trpc.companies.updateCompany.useMutation({
+    onSuccess: () => {
+      Alert.alert('Success', 'Company profile updated successfully!');
+      setShowCompanyProfileModal(false);
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to update company profile');
     },
   });
 
@@ -61,6 +83,50 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleLogoUpload = () => {
+    Alert.prompt(
+      'Logo URL',
+      'Enter image URL for company logo (or paste base64 data)',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'OK',
+          onPress: (url?: string) => {
+            if (url) {
+              setCompanyForm({ ...companyForm, logo: url });
+            }
+          },
+        },
+      ],
+      'plain-text',
+      companyForm.logo
+    );
+  };
+
+  const handleSaveCompanyProfile = () => {
+    if (!company?.id) return;
+    
+    updateCompanyMutation.mutate({
+      companyId: company.id,
+      updates: companyForm,
+    });
+  };
+
+  const openCompanyProfileModal = () => {
+    setCompanyForm({
+      name: company?.name || '',
+      logo: company?.logo || '',
+      licenseNumber: company?.licenseNumber || '',
+      officePhone: company?.officePhone || '',
+      cellPhone: company?.cellPhone || '',
+      address: company?.address || '',
+      email: company?.email || '',
+      website: company?.website || '',
+      slogan: company?.slogan || '',
+    });
+    setShowCompanyProfileModal(true);
+  };
+
   const handleLogout = () => {
     Alert.alert(
       t('settings.logout') || 'Logout',
@@ -89,10 +155,73 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>{t('settings.companyName')}</Text>
-            <Text style={styles.companyName}>{company?.name}</Text>
+            <View style={styles.companyHeaderRow}>
+              {company?.logo ? (
+                <Image source={{ uri: company.logo }} style={styles.companyLogo} />
+              ) : (
+                <View style={styles.companyLogoPlaceholder}>
+                  <Building2 size={32} color="#9CA3AF" />
+                </View>
+              )}
+              <View style={styles.companyHeaderInfo}>
+                <Text style={styles.companyName}>{company?.name}</Text>
+                {company?.slogan && (
+                  <Text style={styles.companySlogan}>{company.slogan}</Text>
+                )}
+              </View>
+            </View>
             
-            <Text style={[styles.infoLabel, { marginTop: 12 }]}>{t('settings.companyCode')}</Text>
+            {company?.licenseNumber && (
+              <View style={styles.companyDetailRow}>
+                <Text style={styles.companyDetailLabel}>License #:</Text>
+                <Text style={styles.companyDetailValue}>{company.licenseNumber}</Text>
+              </View>
+            )}
+            
+            {company?.officePhone && (
+              <View style={styles.companyDetailRow}>
+                <Text style={styles.companyDetailLabel}>Office:</Text>
+                <Text style={styles.companyDetailValue}>{company.officePhone}</Text>
+              </View>
+            )}
+            
+            {company?.cellPhone && (
+              <View style={styles.companyDetailRow}>
+                <Text style={styles.companyDetailLabel}>Cell:</Text>
+                <Text style={styles.companyDetailValue}>{company.cellPhone}</Text>
+              </View>
+            )}
+            
+            {company?.address && (
+              <View style={styles.companyDetailRow}>
+                <Text style={styles.companyDetailLabel}>Address:</Text>
+                <Text style={styles.companyDetailValue}>{company.address}</Text>
+              </View>
+            )}
+            
+            {company?.email && (
+              <View style={styles.companyDetailRow}>
+                <Text style={styles.companyDetailLabel}>Email:</Text>
+                <Text style={styles.companyDetailValue}>{company.email}</Text>
+              </View>
+            )}
+            
+            {company?.website && (
+              <View style={styles.companyDetailRow}>
+                <Text style={styles.companyDetailLabel}>Website:</Text>
+                <Text style={styles.companyDetailValue}>{company.website}</Text>
+              </View>
+            )}
+            
+            <TouchableOpacity 
+              style={styles.editProfileButton}
+              onPress={openCompanyProfileModal}
+            >
+              <Edit3 size={16} color="#2563EB" />
+              <Text style={styles.editProfileButtonText}>Edit Company Profile</Text>
+            </TouchableOpacity>
+            
+            <Text style={[styles.infoLabel, { marginTop: 16 }]}>{t('settings.companyCode')}</Text>
             <TouchableOpacity 
               style={styles.codeContainer}
               onPress={handleCopyCompanyCode}
@@ -173,6 +302,137 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showCompanyProfileModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowCompanyProfileModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Company Profile</Text>
+              <TouchableOpacity onPress={() => setShowCompanyProfileModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.companyFormScroll} showsVerticalScrollIndicator>
+              <Text style={styles.formLabel}>Company Logo</Text>
+              <View style={styles.logoUploadSection}>
+                {companyForm.logo ? (
+                  <Image source={{ uri: companyForm.logo }} style={styles.logoPreview} />
+                ) : (
+                  <View style={styles.logoPreviewPlaceholder}>
+                    <Building2 size={48} color="#9CA3AF" />
+                  </View>
+                )}
+                <TouchableOpacity style={styles.uploadButton} onPress={handleLogoUpload}>
+                  <Upload size={16} color="#2563EB" />
+                  <Text style={styles.uploadButtonText}>Upload Logo</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.formLabel}>Company Name *</Text>
+              <TextInput
+                style={styles.formInput}
+                value={companyForm.name}
+                onChangeText={(text) => setCompanyForm({ ...companyForm, name: text })}
+                placeholder="Enter company name"
+                placeholderTextColor="#9CA3AF"
+              />
+
+              <Text style={styles.formLabel}>Slogan</Text>
+              <TextInput
+                style={styles.formInput}
+                value={companyForm.slogan}
+                onChangeText={(text) => setCompanyForm({ ...companyForm, slogan: text })}
+                placeholder="Your company slogan"
+                placeholderTextColor="#9CA3AF"
+              />
+
+              <Text style={styles.formLabel}>License Number</Text>
+              <TextInput
+                style={styles.formInput}
+                value={companyForm.licenseNumber}
+                onChangeText={(text) => setCompanyForm({ ...companyForm, licenseNumber: text })}
+                placeholder="e.g., LEGACCG860QR"
+                placeholderTextColor="#9CA3AF"
+              />
+
+              <Text style={styles.formLabel}>Office Phone</Text>
+              <TextInput
+                style={styles.formInput}
+                value={companyForm.officePhone}
+                onChangeText={(text) => setCompanyForm({ ...companyForm, officePhone: text })}
+                placeholder="(555) 555-5555"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="phone-pad"
+              />
+
+              <Text style={styles.formLabel}>Cell Phone</Text>
+              <TextInput
+                style={styles.formInput}
+                value={companyForm.cellPhone}
+                onChangeText={(text) => setCompanyForm({ ...companyForm, cellPhone: text })}
+                placeholder="(555) 555-5555"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="phone-pad"
+              />
+
+              <Text style={styles.formLabel}>Address</Text>
+              <TextInput
+                style={[styles.formInput, { minHeight: 60 }]}
+                value={companyForm.address}
+                onChangeText={(text) => setCompanyForm({ ...companyForm, address: text })}
+                placeholder="Street address, City, State, ZIP"
+                placeholderTextColor="#9CA3AF"
+                multiline
+              />
+
+              <Text style={styles.formLabel}>Email</Text>
+              <TextInput
+                style={styles.formInput}
+                value={companyForm.email}
+                onChangeText={(text) => setCompanyForm({ ...companyForm, email: text })}
+                placeholder="contact@company.com"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.formLabel}>Website</Text>
+              <TextInput
+                style={styles.formInput}
+                value={companyForm.website}
+                onChangeText={(text) => setCompanyForm({ ...companyForm, website: text })}
+                placeholder="www.yourcompany.com"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+              />
+
+              <View style={styles.formButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.formCancelButton}
+                  onPress={() => setShowCompanyProfileModal(false)}
+                >
+                  <Text style={styles.formCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.formSaveButton, updateCompanyMutation.isPending && styles.formSaveButtonDisabled]}
+                  onPress={handleSaveCompanyProfile}
+                  disabled={updateCompanyMutation.isPending}
+                >
+                  <Text style={styles.formSaveButtonText}>
+                    {updateCompanyMutation.isPending ? 'Saving...' : 'Save Profile'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showRoleModal}
@@ -551,5 +811,162 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#DC2626',
+  },
+  companyHeaderRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: 16,
+    gap: 16,
+  },
+  companyLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  companyLogoPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  companyHeaderInfo: {
+    flex: 1,
+  },
+  companySlogan: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontStyle: 'italic' as const,
+    marginTop: 4,
+  },
+  companyDetailRow: {
+    flexDirection: 'row' as const,
+    marginBottom: 8,
+    gap: 8,
+  },
+  companyDetailLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    minWidth: 80,
+  },
+  companyDetailValue: {
+    fontSize: 14,
+    color: '#111827',
+    flex: 1,
+  },
+  editProfileButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+  },
+  editProfileButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  companyFormScroll: {
+    flex: 1,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#374151',
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  formInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#1F2937',
+  },
+  logoUploadSection: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 16,
+    marginBottom: 8,
+  },
+  logoPreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  logoPreviewPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  uploadButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  uploadButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  formButtonsContainer: {
+    flexDirection: 'row' as const,
+    gap: 12,
+    marginTop: 24,
+    marginBottom: 20,
+  },
+  formCancelButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center' as const,
+  },
+  formCancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  formSaveButton: {
+    flex: 1,
+    backgroundColor: '#2563EB',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center' as const,
+  },
+  formSaveButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  formSaveButtonDisabled: {
+    opacity: 0.6,
   },
 });
