@@ -7,9 +7,11 @@ import superjson from "superjson";
 export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
-  if (process.env.EXPO_PUBLIC_RORK_API_BASE_URL) {
-    console.log('[tRPC] Using EXPO_PUBLIC_RORK_API_BASE_URL:', process.env.EXPO_PUBLIC_RORK_API_BASE_URL);
-    return process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+  const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || process.env['rork api'];
+  
+  if (rorkApi) {
+    console.log('[tRPC] Using rork api variable:', rorkApi);
+    return rorkApi;
   }
 
   if (typeof window !== 'undefined') {
@@ -17,7 +19,7 @@ const getBaseUrl = () => {
     return window.location.origin;
   }
 
-  console.warn('[tRPC] EXPO_PUBLIC_RORK_API_BASE_URL not set, using fallback');
+  console.warn('[tRPC] rork api variable not set, using fallback');
   return 'http://localhost:8081';
 };
 
