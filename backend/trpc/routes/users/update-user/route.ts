@@ -11,6 +11,9 @@ export const updateUserProcedure = publicProcedure
         role: z.enum(['super-admin', 'admin', 'salesperson', 'field-employee', 'employee']).optional(),
         isActive: z.boolean().optional(),
         avatar: z.string().optional(),
+        phone: z.string().optional(),
+        address: z.string().optional(),
+        hourlyRate: z.number().optional(),
       }),
     })
   )

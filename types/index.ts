@@ -9,6 +9,17 @@ export interface User {
   avatar?: string;
   createdAt: string;
   isActive: boolean;
+  phone?: string;
+  address?: string;
+  hourlyRate?: number;
+  rateChangeRequest?: {
+    newRate: number;
+    requestDate: string;
+    reason?: string;
+    status: 'pending' | 'approved' | 'rejected';
+    reviewedBy?: string;
+    reviewedDate?: string;
+  };
 }
 
 export interface Project {

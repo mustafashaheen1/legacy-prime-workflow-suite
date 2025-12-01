@@ -11,6 +11,8 @@ import { verifyCodeProcedure } from "./routes/auth/verify-code/route";
 import { createUserProcedure } from "./routes/users/create-user/route";
 import { getUsersProcedure } from "./routes/users/get-users/route";
 import { updateUserProcedure } from "./routes/users/update-user/route";
+import { requestRateChangeProcedure } from "./routes/users/request-rate-change/route";
+import { approveRateChangeProcedure } from "./routes/users/approve-rate-change/route";
 import { createCompanyProcedure } from "./routes/companies/create-company/route";
 import { getCompaniesProcedure } from "./routes/companies/get-companies/route";
 import { updateCompanyProcedure } from "./routes/companies/update-company/route";
@@ -42,6 +44,7 @@ import { testConnectionProcedure } from "./routes/openai/test-connection/route";
 import { getPhotosProcedure } from "./routes/photos/get-photos/route";
 import { getExpensesDetailedProcedure } from "./routes/expenses/get-expenses-detailed/route";
 import { getClockEntriesProcedure } from "./routes/clock/get-clock-entries/route";
+import { getTimecardProcedure } from "./routes/clock/get-timecard/route";
 import { handleReceptionistCallProcedure } from "./routes/twilio/handle-receptionist-call/route";
 import { sendInspectionLinkProcedure } from "./routes/crm/send-inspection-link/route";
 import { submitInspectionDataProcedure } from "./routes/crm/submit-inspection-data/route";
@@ -62,6 +65,8 @@ export const appRouter = createTRPCRouter({
     createUser: createUserProcedure,
     getUsers: getUsersProcedure,
     updateUser: updateUserProcedure,
+    requestRateChange: requestRateChangeProcedure,
+    approveRateChange: approveRateChangeProcedure,
   }),
   companies: createTRPCRouter({
     createCompany: createCompanyProcedure,
@@ -120,6 +125,7 @@ export const appRouter = createTRPCRouter({
   }),
   clock: createTRPCRouter({
     getClockEntries: getClockEntriesProcedure,
+    getTimecard: getTimecardProcedure,
   }),
   crm: createTRPCRouter({
     sendInspectionLink: sendInspectionLinkProcedure,

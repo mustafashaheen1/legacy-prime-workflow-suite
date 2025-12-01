@@ -248,6 +248,11 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     return totalMs / (1000 * 60 * 60);
   };
 
+  const calculateEarnings = (hours: number) => {
+    if (!user?.hourlyRate) return 0;
+    return hours * user.hourlyRate;
+  };
+
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
   const [reportStartDate, setReportStartDate] = useState<string>('');
   const [reportEndDate, setReportEndDate] = useState<string>('');
@@ -417,6 +422,11 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
               <Text style={styles.workDescription}>{currentEntry.workPerformed}</Text>
             )}
             <Text style={styles.currentHours}>{calculateCurrentHours().toFixed(2)}h elapsed</Text>
+            {user?.hourlyRate && (
+              <Text style={styles.earningsText}>
+                Earnings: ${calculateEarnings(calculateCurrentHours()).toFixed(2)}
+              </Text>
+            )}
             
             <View style={styles.lunchButtonsRow}>
               {isOnLunch() ? (
@@ -539,6 +549,12 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
               <Text style={styles.activeInfoValue}>{currentEntry.workPerformed}</Text>
             </View>
           )}
+          {user?.hourlyRate && (
+            <View style={styles.rateInfoCard}>
+              <Text style={styles.rateInfoLabel}>Hourly Rate:</Text>
+              <Text style={styles.rateInfoValue}>${user.hourlyRate.toFixed(2)}/hr</Text>
+            </View>
+          )}
           
           {isOnLunch() && (
             <View style={styles.lunchIndicator}>
@@ -592,6 +608,12 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
             <Text style={styles.statLabel}>Sessions</Text>
             <Text style={styles.statValue}>{todayEntries.length}</Text>
           </View>
+          {user?.hourlyRate && (
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Earnings Today</Text>
+              <Text style={styles.statValue}>${calculateEarnings(totalHoursToday).toFixed(2)}</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -750,8 +772,16 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
             </View>
 
             <View style={styles.summaryBox}>
-              <Text style={styles.summaryLabel}>Hours Worked</Text>
-              <Text style={styles.summaryValue}>{calculateCurrentHours().toFixed(2)}h</Text>
+              <View>
+                <Text style={styles.summaryLabel}>Hours Worked</Text>
+                <Text style={styles.summaryValue}>{calculateCurrentHours().toFixed(2)}h</Text>
+              </View>
+              {user?.hourlyRate && (
+                <View>
+                  <Text style={styles.summaryLabel}>Estimated Earnings</Text>
+                  <Text style={styles.summaryValue}>${calculateEarnings(calculateCurrentHours()).toFixed(2)}</Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.modalButtons}>
@@ -1385,5 +1415,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6B7280',
     marginTop: 4,
+  },
+  earningsText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#059669',
+    marginTop: 4,
+  },
+  rateInfoCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  rateInfoLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  rateInfoValue: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#2563EB',
   },
 });

@@ -17,6 +17,9 @@ export default function SignupScreen() {
   const [companyName, setCompanyName] = useState<string>('');
   const [employeeCount, setEmployeeCount] = useState<string>('2');
   const [companyCode, setCompanyCode] = useState<string>('');
+  const [phone, setPhone] = useState<string>('');
+  const [address, setAddress] = useState<string>('');
+  const [hourlyRate, setHourlyRate] = useState<string>('');
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { setUser } = useApp();
@@ -116,6 +119,21 @@ export default function SignupScreen() {
           return;
         }
 
+        if (!phone.trim()) {
+          Alert.alert(t('common.error'), 'El número de teléfono es requerido.');
+          return;
+        }
+
+        if (!address.trim()) {
+          Alert.alert(t('common.error'), 'La dirección es requerida.');
+          return;
+        }
+
+        if (!hourlyRate || parseFloat(hourlyRate) <= 0) {
+          Alert.alert(t('common.error'), 'La tarifa por hora es requerida y debe ser mayor que 0.');
+          return;
+        }
+
         console.log('[Signup] Company code validated successfully');
         console.log('[Signup] Creating employee account...');
         
@@ -128,6 +146,9 @@ export default function SignupScreen() {
           avatar: undefined,
           isActive: true,
           createdAt: new Date().toISOString(),
+          phone: phone.trim(),
+          address: address.trim(),
+          hourlyRate: parseFloat(hourlyRate),
         };
 
         await setUser(newUser);
@@ -274,6 +295,37 @@ export default function SignupScreen() {
 
           {accountType === 'employee' && (
             <>
+              <Text style={styles.label}>Teléfono</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: (555) 123-4567"
+                placeholderTextColor="#9CA3AF"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+              />
+
+              <Text style={styles.label}>Dirección</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Dirección completa"
+                placeholderTextColor="#9CA3AF"
+                value={address}
+                onChangeText={setAddress}
+                autoCapitalize="words"
+              />
+
+              <Text style={styles.label}>Tarifa por Hora ($)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 25.00"
+                placeholderTextColor="#9CA3AF"
+                value={hourlyRate}
+                onChangeText={setHourlyRate}
+                keyboardType="decimal-pad"
+              />
+              <Text style={styles.hint}>Esta será tu tarifa base. Cualquier cambio debe ser aprobado por el administrador.</Text>
+
               <Text style={styles.label}>{t('signup.companyCode')}</Text>
               <TextInput
                 style={styles.input}
