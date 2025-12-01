@@ -4,7 +4,7 @@ import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
 import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permissions';
-import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3 } from 'lucide-react-native';
+import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, Wrench } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
@@ -293,6 +293,24 @@ export default function SettingsScreen() {
               <Text style={styles.emptyText}>{t('settings.noUsers')}</Text>
             </View>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Wrench size={24} color="#2563EB" />
+            <Text style={styles.sectionTitle}>Developer Tools</Text>
+          </View>
+
+          <TouchableOpacity 
+            style={styles.devToolButton}
+            onPress={() => router.push('/api-test')}
+          >
+            <View style={styles.devToolContent}>
+              <Text style={styles.devToolTitle}>API Connection Test</Text>
+              <Text style={styles.devToolDescription}>Test backend API connectivity</Text>
+            </View>
+            <ChevronRight size={20} color="#9CA3AF" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -968,5 +986,28 @@ const styles = StyleSheet.create({
   },
   formSaveButtonDisabled: {
     opacity: 0.6,
+  },
+  devToolButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  devToolContent: {
+    flex: 1,
+  },
+  devToolTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#111827',
+    marginBottom: 4,
+  },
+  devToolDescription: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });
