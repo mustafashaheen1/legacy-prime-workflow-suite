@@ -51,6 +51,7 @@ import { submitInspectionDataProcedure } from "./routes/crm/submit-inspection-da
 import { createPaymentIntentProcedure } from "./routes/stripe/create-payment-intent/route";
 import { createSubscriptionProcedure } from "./routes/stripe/create-subscription/route";
 import { verifyPaymentProcedure } from "./routes/stripe/verify-payment/route";
+import { getProjectCostsProcedure } from "./routes/projects/get-project-costs/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -135,6 +136,9 @@ export const appRouter = createTRPCRouter({
     createPaymentIntent: createPaymentIntentProcedure,
     createSubscription: createSubscriptionProcedure,
     verifyPayment: verifyPaymentProcedure,
+  }),
+  projects: createTRPCRouter({
+    getProjectCosts: getProjectCostsProcedure,
   }),
 });
 

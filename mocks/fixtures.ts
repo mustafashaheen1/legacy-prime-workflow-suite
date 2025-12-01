@@ -112,6 +112,9 @@ export const fixtureUsers: User[] = [
     avatar: 'https://i.pravatar.cc/150?img=33',
     createdAt: '2024-02-01T00:00:00Z',
     isActive: true,
+    phone: '+1 (555) 123-4567',
+    address: '789 Worker St, Los Angeles, CA 90012',
+    hourlyRate: 35,
   },
   {
     id: 'user-4',
@@ -122,6 +125,9 @@ export const fixtureUsers: User[] = [
     avatar: 'https://i.pravatar.cc/150?img=25',
     createdAt: '2024-02-15T00:00:00Z',
     isActive: true,
+    phone: '+1 (555) 234-5678',
+    address: '456 Labor Ave, Los Angeles, CA 90013',
+    hourlyRate: 32,
   },
   {
     id: 'user-5',
