@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, Alert, Platform } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Clock, CheckCircle, Coffee, FileText, Calendar } from 'lucide-react-native';
+import { Clock, CheckCircle, Coffee, FileText, Calendar, MapPin } from 'lucide-react-native';
 import * as Location from 'expo-location';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { ClockEntry, Report, EmployeeTimeData } from '@/types';
 
 const WORK_CATEGORIES = [
@@ -55,7 +56,27 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
 
   const requestLocationPermission = async () => {
     if (Platform.OS === 'web') {
-      setLocation({ latitude: 0, longitude: 0 });
+      try {
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setLocation({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+              });
+            },
+            (error) => {
+              console.error('Error getting location:', error);
+              setLocation({ latitude: 0, longitude: 0 });
+            }
+          );
+        } else {
+          setLocation({ latitude: 0, longitude: 0 });
+        }
+      } catch (error) {
+        console.error('Error getting location:', error);
+        setLocation({ latitude: 0, longitude: 0 });
+      }
       return;
     }
 
@@ -601,6 +622,41 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
                   <Text style={styles.historyLunch}>Lunch: {lunchMinutes.toFixed(0)} min</Text>
                 )}
                 {entry.workPerformed && <Text style={styles.historyWork}>{entry.workPerformed}</Text>}
+                {entry.location && entry.location.latitude !== 0 && entry.location.longitude !== 0 && (
+                  <View style={styles.locationContainer}>
+                    <View style={styles.locationHeader}>
+                      <MapPin size={14} color="#6B7280" />
+                      <Text style={styles.locationText}>
+                        {entry.location.latitude.toFixed(6)}, {entry.location.longitude.toFixed(6)}
+                      </Text>
+                    </View>
+                    <View style={styles.mapContainer}>
+                      <MapView
+                        provider={Platform.OS === 'web' ? undefined : PROVIDER_GOOGLE}
+                        style={styles.map}
+                        initialRegion={{
+                          latitude: entry.location.latitude,
+                          longitude: entry.location.longitude,
+                          latitudeDelta: 0.005,
+                          longitudeDelta: 0.005,
+                        }}
+                        scrollEnabled={false}
+                        zoomEnabled={false}
+                        pitchEnabled={false}
+                        rotateEnabled={false}
+                      >
+                        <Marker
+                          coordinate={{
+                            latitude: entry.location.latitude,
+                            longitude: entry.location.longitude,
+                          }}
+                          title="Clock In Location"
+                          description={`Clocked in at ${start.toLocaleTimeString()}`}
+                        />
+                      </MapView>
+                    </View>
+                  </View>
+                )}
               </View>
             );
           })
@@ -1287,5 +1343,32 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600' as const,
     color: '#1F2937',
+  },
+  locationContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  locationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  locationText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+  },
+  mapContainer: {
+    height: 120,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  map: {
+    flex: 1,
   },
 });
