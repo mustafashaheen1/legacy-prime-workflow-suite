@@ -2,14 +2,32 @@ import { z } from "zod";
 import { publicProcedure } from "../../../create-context";
 import twilio from "twilio";
 
+const getTwilioAccountSid = () => {
+  return process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID || process.env['twilio sid'];
+};
+
+const getTwilioAuthToken = () => {
+  return process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN || process.env['twilio autoken'];
+};
+
+const getTwilioPhoneNumber = () => {
+  return process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER || process.env['twilio number'];
+};
+
 let twilioClient: ReturnType<typeof twilio> | null = null;
 
 try {
-  if (process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID && process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN) {
-    twilioClient = twilio(
-      process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID,
-      process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN
-    );
+  const accountSid = getTwilioAccountSid();
+  const authToken = getTwilioAuthToken();
+  
+  console.log('[CRM] Checking Twilio credentials:', { 
+    accountSid: accountSid ? '✓ Set' : '✗ Missing',
+    authToken: authToken ? '✓ Set' : '✗ Missing',
+    phoneNumber: getTwilioPhoneNumber() ? '✓ Set' : '✗ Missing'
+  });
+  
+  if (accountSid && authToken) {
+    twilioClient = twilio(accountSid, authToken);
     console.log('[CRM] Twilio client initialized successfully');
   } else {
     console.warn('[CRM] Twilio credentials not configured');
@@ -32,11 +50,15 @@ export const sendInspectionLinkProcedure = publicProcedure
 
       if (!twilioClient) {
         console.error('[CRM] Twilio client not initialized - missing credentials');
-        throw new Error('Twilio not configured. Please add EXPO_PUBLIC_TWILIO_ACCOUNT_SID, EXPO_PUBLIC_TWILIO_AUTH_TOKEN, and EXPO_PUBLIC_TWILIO_PHONE_NUMBER to your environment variables.');
+        const accountSid = getTwilioAccountSid();
+        const authToken = getTwilioAuthToken();
+        
+        throw new Error(`Twilio not configured properly. Status: Account SID: ${accountSid ? 'Set' : 'Missing'}, Auth Token: ${authToken ? 'Set' : 'Missing'}. Please configure your Twilio credentials.`);
       }
 
-      if (!process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER) {
-        throw new Error('EXPO_PUBLIC_TWILIO_PHONE_NUMBER not configured');
+      const twilioPhoneNumber = getTwilioPhoneNumber();
+      if (!twilioPhoneNumber) {
+        throw new Error('Twilio phone number not configured. Please set your Twilio phone number in environment variables.');
       }
 
       const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://rork.app';
@@ -56,9 +78,15 @@ This helps us create an accurate estimate for you. The process takes about 5-10 
 Thank you!
 - Legacy Prime Construction Team`;
 
+      console.log('[CRM] Sending SMS:', {
+        from: twilioPhoneNumber,
+        to: input.clientPhone,
+        messageLength: messageBody.length
+      });
+
       const message = await twilioClient.messages.create({
         body: messageBody,
-        from: process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER,
+        from: twilioPhoneNumber,
         to: input.clientPhone,
       });
 

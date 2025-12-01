@@ -765,9 +765,24 @@ export default function CRMScreen() {
       }
     } catch (error: any) {
       console.error('[CRM] Error sending inspection link:', error);
+      
+      let errorMessage = 'Failed to send inspection link. Please try again.';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      if (error.message && error.message.includes('HTML instead of JSON')) {
+        errorMessage = 'Server configuration error: The API endpoint is not responding correctly. Please check that your backend is running and properly configured.';
+      }
+      
+      if (error.message && error.message.includes('Twilio not configured')) {
+        errorMessage = 'Twilio is not configured. Please set up your Twilio credentials in the environment variables:\n\n- EXPO_PUBLIC_TWILIO_ACCOUNT_SID\n- EXPO_PUBLIC_TWILIO_AUTH_TOKEN\n- EXPO_PUBLIC_TWILIO_PHONE_NUMBER';
+      }
+      
       Alert.alert(
-        'Error',
-        error.message || 'Failed to send inspection link. Please try again.',
+        'Error Sending Inspection Link',
+        errorMessage,
         [{ text: 'OK' }]
       );
     }

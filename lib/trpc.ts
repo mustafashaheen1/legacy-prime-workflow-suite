@@ -26,7 +26,9 @@ export const trpcClient = trpc.createClient({
     httpLink({
       url: `${getBaseUrl()}/api/trpc`,
       transformer: superjson,
-      fetch(url, options) {
+      async fetch(url, options) {
+        console.log('[tRPC] Fetching:', url);
+        
         const requestInit = {
           ...options,
           headers: {
@@ -34,7 +36,30 @@ export const trpcClient = trpc.createClient({
             'Content-Type': 'application/json',
           },
         };
-        return fetch(url, requestInit);
+        
+        try {
+          const response = await fetch(url, requestInit);
+          
+          console.log('[tRPC] Response status:', response.status);
+          console.log('[tRPC] Response headers:', {
+            contentType: response.headers.get('content-type'),
+            contentLength: response.headers.get('content-length'),
+          });
+          
+          if (!response.ok) {
+            const text = await response.text();
+            console.error('[tRPC] Error response body (first 500 chars):', text.substring(0, 500));
+            
+            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+              throw new Error(`Server returned HTML instead of JSON. Status: ${response.status}. This usually means the API endpoint is not found or there's a server error.`);
+            }
+          }
+          
+          return response;
+        } catch (error: any) {
+          console.error('[tRPC] Fetch error:', error.message);
+          throw error;
+        }
       },
 
     }),
