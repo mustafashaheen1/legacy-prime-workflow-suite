@@ -627,7 +627,7 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
                     <View style={styles.locationHeader}>
                       <MapPin size={14} color="#6B7280" />
                       <Text style={styles.locationText}>
-                        {entry.location.latitude.toFixed(6)}, {entry.location.longitude.toFixed(6)}
+                        {entry.location.latitude.toFixed(6)}{', '}{entry.location.longitude.toFixed(6)}
                       </Text>
                     </View>
                     <TouchableOpacity 
