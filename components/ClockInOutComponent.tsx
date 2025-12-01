@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Clock, CheckCircle, Coffee, FileText, Calendar, MapPin } from 'lucide-react-native';
 import * as Location from 'expo-location';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+
 import { ClockEntry, Report, EmployeeTimeData } from '@/types';
 
 const WORK_CATEGORIES = [
@@ -630,31 +630,29 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
                         {entry.location.latitude.toFixed(6)}, {entry.location.longitude.toFixed(6)}
                       </Text>
                     </View>
-                    <View style={styles.mapContainer}>
-                      <MapView
-                        provider={Platform.OS === 'web' ? undefined : PROVIDER_GOOGLE}
-                        style={styles.map}
-                        initialRegion={{
-                          latitude: entry.location.latitude,
-                          longitude: entry.location.longitude,
-                          latitudeDelta: 0.005,
-                          longitudeDelta: 0.005,
-                        }}
-                        scrollEnabled={false}
-                        zoomEnabled={false}
-                        pitchEnabled={false}
-                        rotateEnabled={false}
-                      >
-                        <Marker
-                          coordinate={{
-                            latitude: entry.location.latitude,
-                            longitude: entry.location.longitude,
-                          }}
-                          title="Clock In Location"
-                          description={`Clocked in at ${start.toLocaleTimeString()}`}
-                        />
-                      </MapView>
-                    </View>
+                    <TouchableOpacity 
+                      style={styles.mapContainer}
+                      onPress={() => {
+                        const mapsUrl = Platform.select({
+                          ios: `maps:0,0?q=${entry.location.latitude},${entry.location.longitude}`,
+                          android: `geo:0,0?q=${entry.location.latitude},${entry.location.longitude}`,
+                          web: `https://www.google.com/maps/search/?api=1&query=${entry.location.latitude},${entry.location.longitude}`,
+                        });
+                        if (Platform.OS === 'web') {
+                          window.open(mapsUrl, '_blank');
+                        } else {
+                          console.log('[Location] Opening maps:', mapsUrl);
+                        }
+                      }}
+                    >
+                      <View style={styles.mapPlaceholder}>
+                        <MapPin size={32} color="#2563EB" />
+                        <Text style={styles.mapPlaceholderText}>Tap to view on map</Text>
+                        <Text style={styles.mapPlaceholderCoords}>
+                          {entry.location.latitude.toFixed(4)}, {entry.location.longitude.toFixed(4)}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -1370,5 +1368,22 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  mapPlaceholderText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+    marginTop: 8,
+  },
+  mapPlaceholderCoords: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 4,
   },
 });
