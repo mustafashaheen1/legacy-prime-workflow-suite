@@ -7,7 +7,7 @@ import superjson from "superjson";
 export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
-  const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || process.env['rork api'];
+  const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || process.env['rork'] || process.env['rork api'];
   
   if (rorkApi) {
     console.log('[tRPC] Using rork api variable:', rorkApi);
