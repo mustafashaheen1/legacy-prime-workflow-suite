@@ -17,6 +17,7 @@ export const updateCompanyProcedure = publicProcedure
         email: z.string().optional(),
         website: z.string().optional(),
         slogan: z.string().optional(),
+        estimateTemplate: z.string().optional(),
         subscriptionStatus: z.enum(['trial', 'active', 'suspended', 'cancelled']).optional(),
         subscriptionPlan: z.enum(['basic', 'pro', 'enterprise']).optional(),
         subscriptionEndDate: z.string().optional(),

@@ -178,6 +178,7 @@ export interface Company {
   email?: string;
   website?: string;
   slogan?: string;
+  estimateTemplate?: string;
   subscriptionStatus: 'trial' | 'active' | 'suspended' | 'cancelled';
   subscriptionPlan: 'basic' | 'pro' | 'enterprise';
   subscriptionStartDate: string;

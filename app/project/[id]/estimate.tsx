@@ -1276,9 +1276,16 @@ export default function EstimateScreen() {
 
                 <View style={styles.previewDivider} />
 
-                <Text style={styles.previewFooter}>
-                  Thank you for your business! Please review and let us know if you have any questions.
-                </Text>
+                {company?.estimateTemplate && (
+                  <Text style={styles.previewFooter}>
+                    {company.estimateTemplate}
+                  </Text>
+                )}
+                {!company?.estimateTemplate && (
+                  <Text style={styles.previewFooter}>
+                    Thank you for your business! Please review and let us know if you have any questions.
+                  </Text>
+                )}
               </View>
             </ScrollView>
 

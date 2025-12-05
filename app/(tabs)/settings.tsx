@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 
 export default function SettingsScreen() {
-  const { user: currentUser, company, logout } = useApp();
+  const { user: currentUser, company, setCompany, logout } = useApp();
   const { isAdmin, isSuperAdmin } = usePermissions();
   const { t } = useTranslation();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -26,6 +26,7 @@ export default function SettingsScreen() {
     email: company?.email || '',
     website: company?.website || '',
     slogan: company?.slogan || '',
+    estimateTemplate: company?.estimateTemplate || '',
   });
 
   const usersQuery = trpc.users.getUsers.useQuery(
@@ -46,7 +47,8 @@ export default function SettingsScreen() {
   });
 
   const updateCompanyMutation = trpc.companies.updateCompany.useMutation({
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      await setCompany(data.company);
       Alert.alert('Success', 'Company profile updated successfully!');
       setShowCompanyProfileModal(false);
     },
@@ -103,7 +105,7 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleSaveCompanyProfile = () => {
+  const handleSaveCompanyProfile = async () => {
     if (!company?.id) return;
     
     updateCompanyMutation.mutate({
@@ -123,6 +125,7 @@ export default function SettingsScreen() {
       email: company?.email || '',
       website: company?.website || '',
       slogan: company?.slogan || '',
+      estimateTemplate: company?.estimateTemplate || '',
     });
     setShowCompanyProfileModal(true);
   };
@@ -428,6 +431,18 @@ export default function SettingsScreen() {
                 placeholder="www.yourcompany.com"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="none"
+              />
+
+              <Text style={styles.formLabel}>Estimate Template (footer note)</Text>
+              <TextInput
+                style={[styles.formInput, { minHeight: 80 }]}
+                value={companyForm.estimateTemplate}
+                onChangeText={(text) => setCompanyForm({ ...companyForm, estimateTemplate: text })}
+                placeholder="Thank you for your business! This estimate is valid for 30 days. Please contact us with any questions."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
               />
 
               <View style={styles.formButtonsContainer}>
