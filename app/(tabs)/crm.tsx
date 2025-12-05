@@ -63,7 +63,7 @@ export default function CRMScreen() {
   const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
   const { initiateCall, isLoadingCall } = useTwilioCalls();
   const sendInspectionLinkMutation = trpc.crm.sendInspectionLink.useMutation();
-  const [showAddForm, setShowAddForm] = useState<boolean>(false);
+  const [showAddForm, setShowAddForm] = useState<boolean>(true);
   const [newClientName, setNewClientName] = useState<string>('');
   const [newClientAddress, setNewClientAddress] = useState<string>('');
   const [newClientEmail, setNewClientEmail] = useState<string>('');
@@ -891,7 +891,11 @@ export default function CRMScreen() {
             </View>
           </View>
           
-          {clients.map((client) => (
+          {[...clients].sort((a, b) => {
+            const dateA = new Date(a.createdAt || a.lastContactDate || a.lastContacted).getTime();
+            const dateB = new Date(b.createdAt || b.lastContactDate || b.lastContacted).getTime();
+            return dateB - dateA;
+          }).map((client) => (
             <View key={client.id} style={styles.clientRow}>
               <View style={styles.clientRowHeader}>
                 <TouchableOpacity 
@@ -924,6 +928,9 @@ export default function CRMScreen() {
                     <Text style={styles.statusText}>{client.status}</Text>
                   </View>
                   <Text style={styles.clientDate}>Last contacted: {client.lastContactDate || client.lastContacted}</Text>
+                  {client.createdAt && (
+                    <Text style={styles.clientCreatedDate}>Created: {new Date(client.createdAt).toLocaleDateString()}</Text>
+                  )}
                   {client.nextFollowUpDate && (
                     <View style={styles.nextFollowUpRow}>
                       <Calendar size={14} color="#2563EB" />
@@ -1201,6 +1208,7 @@ export default function CRMScreen() {
                     source: sourceValue,
                     status: 'Lead',
                     lastContacted: new Date().toLocaleDateString(),
+                    createdAt: new Date().toISOString(),
                   };
 
                   addClient(newClient);
@@ -2504,6 +2512,12 @@ const styles = StyleSheet.create({
   clientDate: {
     fontSize: 12,
     color: '#6B7280',
+    marginBottom: 4,
+  },
+  clientCreatedDate: {
+    fontSize: 12,
+    color: '#10B981',
+    fontWeight: '600' as const,
     marginBottom: 8,
   },
   estimateButton: {

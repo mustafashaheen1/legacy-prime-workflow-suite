@@ -142,6 +142,7 @@ export interface Client {
   lastContacted: string;
   lastContactDate?: string;
   nextFollowUpDate?: string;
+  createdAt?: string;
 }
 
 export interface ChatMessage {
