@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context";
 import twilio from "twilio";
-import { generateText } from "@rork-ai/toolkit-sdk";
+import OpenAI from "openai";
 import { masterPriceList } from "@/mocks/priceList";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const RECEPTIONIST_SYSTEM_PROMPT = `You are a professional, friendly receptionist for Legacy Prime Construction.
 
@@ -250,11 +254,14 @@ Timeline: ${state.collectedInfo.timeline || "Not specified"}
 
 Generate a warm closing message thanking them by name and promising a callback within 24 hours. Keep it under 2 sentences.`;
 
-        const closingMessage = await generateText({
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4',
           messages: [
             { role: 'user', content: RECEPTIONIST_SYSTEM_PROMPT + '\n\n' + finalPrompt },
           ],
+          temperature: 0.7,
         });
+        const closingMessage = completion.choices[0]?.message?.content || "Thank you for calling. We'll be in touch soon.";
 
         console.log("[Receptionist] Closing message:", closingMessage);
         console.log("[Receptionist] Final lead data:", state.collectedInfo);
@@ -297,11 +304,14 @@ Missing: ${missingInfo.join(', ')}
 
 Generate the next response. Ask for ONE missing piece of information in a natural way. Keep it SHORT (1 sentence). Don't be repetitive.`;
 
-      const aiResponse = await generateText({
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4',
         messages: [
           { role: 'user', content: RECEPTIONIST_SYSTEM_PROMPT + '\n\n' + buildPricingContext() + '\n\n' + nextPrompt },
         ],
+        temperature: 0.7,
       });
+      const aiResponse = completion.choices[0]?.message?.content || "Could you tell me more about your project?";
 
       console.log("[Receptionist] AI Response:", aiResponse);
 
