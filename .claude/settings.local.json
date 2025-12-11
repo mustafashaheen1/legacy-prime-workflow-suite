@@ -28,7 +28,12 @@
       "Bash(find:*)",
       "Bash(node:*)",
       "Bash(npx expo export:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vercel:*)",
+      "Bash(npm start)",
+      "Bash(cd:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

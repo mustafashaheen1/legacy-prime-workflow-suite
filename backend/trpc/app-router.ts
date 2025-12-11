@@ -48,6 +48,8 @@ import { getTimecardProcedure } from "./routes/clock/get-timecard/route.js";
 import { handleReceptionistCallProcedure } from "./routes/twilio/handle-receptionist-call/route.js";
 import { sendInspectionLinkProcedure } from "./routes/crm/send-inspection-link/route.js";
 import { submitInspectionDataProcedure } from "./routes/crm/submit-inspection-data/route.js";
+import { addClientProcedure } from "./routes/crm/add-client/route.js";
+import { getClientsProcedure } from "./routes/crm/get-clients/route.js";
 import { createPaymentIntentProcedure } from "./routes/stripe/create-payment-intent/route.js";
 import { createSubscriptionProcedure } from "./routes/stripe/create-subscription/route.js";
 import { verifyPaymentProcedure } from "./routes/stripe/verify-payment/route.js";
@@ -129,6 +131,8 @@ export const appRouter = createTRPCRouter({
     getTimecard: getTimecardProcedure,
   }),
   crm: createTRPCRouter({
+    addClient: addClientProcedure,
+    getClients: getClientsProcedure,
     sendInspectionLink: sendInspectionLinkProcedure,
     submitInspectionData: submitInspectionDataProcedure,
   }),

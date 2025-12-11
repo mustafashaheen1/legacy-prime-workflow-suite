@@ -251,9 +251,30 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (Array.isArray(parsedNotifications)) {
         setNotifications(parsedNotifications);
       }
-      
+
+      // Load clients from backend if company exists (reusing parsedCompany from above)
+      if (parsedCompany && parsedCompany.id) {
+        console.log('[App] Loading clients from backend for company:', parsedCompany.id);
+        try {
+          const { trpc } = await import('@/lib/trpc');
+          const clientsResult = await trpc.crm.getClients.query({ companyId: parsedCompany.id });
+          if (clientsResult.success && clientsResult.clients) {
+            setClients(clientsResult.clients);
+            console.log('[App] Loaded', clientsResult.clients.length, 'clients from backend');
+          } else {
+            console.log('[App] No clients found, using mock data');
+            setClients(mockClients);
+          }
+        } catch (error) {
+          console.error('[App] Error loading clients from backend, using mock data:', error);
+          setClients(mockClients);
+        }
+      } else {
+        console.log('[App] No company found, using mock clients');
+        setClients(mockClients);
+      }
+
       setProjects(mockProjects);
-      setClients(mockClients);
       setPhotos(mockPhotos);
       setTasks(mockTasks);
       setClockEntries(fixtureClockEntries);
@@ -329,9 +350,35 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     ));
   }, [projects, expenses, photos, tasks, clockEntries, estimates]);
 
-  const addClient = useCallback((client: Client) => {
+  const addClient = useCallback(async (client: Client) => {
+    // Optimistically update UI
     setClients(prev => [...prev, client]);
-  }, []);
+
+    // Save to backend if company exists
+    if (company?.id) {
+      try {
+        const { trpc } = await import('@/lib/trpc');
+        await trpc.crm.addClient.mutate({
+          companyId: company.id,
+          name: client.name,
+          address: client.address,
+          email: client.email,
+          phone: client.phone,
+          source: client.source,
+          status: client.status,
+          lastContacted: client.lastContacted,
+          lastContactDate: client.lastContactDate,
+          nextFollowUpDate: client.nextFollowUpDate,
+        });
+        console.log('[App] Client saved to backend:', client.name);
+      } catch (error) {
+        console.error('[App] Error saving client to backend:', error);
+        // Rollback on error
+        setClients(prev => prev.filter(c => c.id !== client.id));
+        throw error;
+      }
+    }
+  }, [company]);
 
   const updateClient = useCallback((id: string, updates: Partial<Client>) => {
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
