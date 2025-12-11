@@ -2,8 +2,8 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "commonjs",
-    "lib": ["ES2020", "DOM"],
-    "moduleResolution": "node10",
+    "lib": ["ES2020"],
+    "moduleResolution": "node",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": false,
@@ -27,10 +27,5 @@
     "dist",
     ".expo",
     "app"
-  ],
-  "ts-node": {
-    "compilerOptions": {
-      "module": "commonjs"
-    }
-  }
+  ]
 }
