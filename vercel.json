@@ -1,4 +1,16 @@
 {
-  "installCommand": "npm install --legacy-peer-deps",
-  "buildCommand": "mkdir -p public && echo '{}' > public/.vercel-build-output.json"
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.ts"
+    }
+  ],
+  "installCommand": "npm install --legacy-peer-deps"
 }
