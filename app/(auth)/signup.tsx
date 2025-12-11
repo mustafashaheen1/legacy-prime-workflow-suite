@@ -131,27 +131,42 @@ export default function SignupScreen() {
           });
         }
 
-        // Show company code in alert
-        Alert.alert(
-          'Company Created!',
-          `Your company has been created successfully!\n\nYour Company Code: ${result.companyCode}\n\nShare this code with your employees so they can join your company.`,
-          [
-            {
-              text: 'Continue to Subscription',
-              onPress: () => {
-                // Redirect to subscription page with params
-                router.push({
-                  pathname: '/(auth)/subscription',
-                  params: {
-                    accountType: 'company',
-                    companyId: result.company!.id,
-                    companyName: result.company!.name,
-                  },
-                });
-              },
+        // On web, navigate directly. On native, show alert first.
+        if (Platform.OS === 'web') {
+          console.log('[Signup] Navigating to subscription page (web)');
+          router.push({
+            pathname: '/(auth)/subscription',
+            params: {
+              accountType: 'company',
+              companyId: result.company!.id,
+              companyName: result.company!.name,
+              companyCode: result.companyCode,
             },
-          ]
-        );
+          });
+        } else {
+          // Show company code in alert on native
+          Alert.alert(
+            'Company Created!',
+            `Your company has been created successfully!\n\nYour Company Code: ${result.companyCode}\n\nShare this code with your employees so they can join your company.`,
+            [
+              {
+                text: 'Continue to Subscription',
+                onPress: () => {
+                  // Redirect to subscription page with params
+                  router.push({
+                    pathname: '/(auth)/subscription',
+                    params: {
+                      accountType: 'company',
+                      companyId: result.company!.id,
+                      companyName: result.company!.name,
+                      companyCode: result.companyCode,
+                    },
+                  });
+                },
+              },
+            ]
+          );
+        }
       } else {
         // Employee signup validation
         if (!companyCode.trim()) {
