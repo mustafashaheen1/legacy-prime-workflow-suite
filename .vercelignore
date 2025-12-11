@@ -1,0 +1,14 @@
+.env
+.env.local
+.env*.local
+node_modules
+.git
+.DS_Store
+*.log
+.expo
+.expo-shared
+ios
+android
+.vscode
+.idea
+*.tsbuildinfo
