@@ -1,4 +1,4 @@
-import { publicProcedure } from "@/backend/trpc/create-context";
+import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

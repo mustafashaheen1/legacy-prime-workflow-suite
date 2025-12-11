@@ -1,6 +1,6 @@
-import { publicProcedure } from '@/backend/trpc/create-context';
+import { publicProcedure } from '../../../create-context.js';
 import { z } from 'zod';
-import { fixtureExpenses, fixtureClockEntries, fixtureUsers } from '@/mocks/fixtures';
+import { fixtureExpenses, fixtureClockEntries, fixtureUsers } from '../../../../../mocks/fixtures.js';
 
 const inputSchema = z.object({
   projectId: z.string(),

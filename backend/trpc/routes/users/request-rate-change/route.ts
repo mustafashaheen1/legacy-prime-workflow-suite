@@ -1,4 +1,4 @@
-import { publicProcedure } from "@/backend/trpc/create-context";
+import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
 
 export const requestRateChangeProcedure = publicProcedure

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { publicProcedure } from "../../../create-context.js";
 import twilio from "twilio";
 import OpenAI from "openai";
-import { masterPriceList } from "@/mocks/priceList";
+import { masterPriceList } from "../../../../../mocks/priceList.js";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,

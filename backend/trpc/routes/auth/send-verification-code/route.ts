@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context.js";
 import twilio from "twilio";
-import { verificationStore } from "@/backend/trpc/routes/verification-store";
+import { verificationStore } from "../../verification-store.js";
 
 const twilioClient = twilio(
   process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID,
