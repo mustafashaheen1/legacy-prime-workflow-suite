@@ -1,6 +1,6 @@
 import { publicProcedure } from '../../../create-context.js';
 import { z } from 'zod';
-import { ChangeOrder } from '../../../../../types.js';
+import { ChangeOrder } from '../../../../../types/index';
 
 const changeOrdersStore: ChangeOrder[] = [];
 

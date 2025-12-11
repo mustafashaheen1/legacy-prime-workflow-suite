@@ -286,7 +286,7 @@ Generate a warm closing message thanking them by name and promising a callback w
         .map(msg => `${msg.role === 'user' ? 'Caller' : 'You'}: ${msg.content}`)
         .join('\n');
 
-      const missingInfo = [];
+      const missingInfo: string[] = [];
       if (!hasName) missingInfo.push("name");
       if (!hasProjectType) missingInfo.push("project type");
       if (!hasBudget) missingInfo.push("budget");
