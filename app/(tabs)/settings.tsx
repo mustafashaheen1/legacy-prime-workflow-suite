@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image, Platform } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
@@ -131,21 +131,29 @@ export default function SettingsScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      t('settings.logout') || 'Logout',
-      t('settings.logoutConfirm') || 'Are you sure you want to logout?',
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('settings.logout') || 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/(auth)/login');
+    // On web, confirm with window.confirm since Alert doesn't work
+    if (Platform.OS === 'web') {
+      if (window.confirm(t('settings.logoutConfirm') || 'Are you sure you want to logout?')) {
+        logout();
+        router.replace('/(auth)/login');
+      }
+    } else {
+      Alert.alert(
+        t('settings.logout') || 'Logout',
+        t('settings.logoutConfirm') || 'Are you sure you want to logout?',
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('settings.logout') || 'Logout',
+            style: 'destructive',
+            onPress: async () => {
+              await logout();
+              router.replace('/(auth)/login');
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   return (

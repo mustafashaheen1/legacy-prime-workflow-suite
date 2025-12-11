@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -125,24 +126,32 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Estás seguro que quieres cerrar sesión?',
-      [
-        {
-          text: t('common.cancel'),
-          style: 'cancel',
-        },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
-          onPress: () => {
-            logout();
-            router.replace('/login');
+    // On web, confirm with window.confirm since Alert doesn't work
+    if (Platform.OS === 'web') {
+      if (window.confirm('¿Estás seguro que quieres cerrar sesión?')) {
+        logout();
+        router.replace('/(auth)/login');
+      }
+    } else {
+      Alert.alert(
+        'Cerrar sesión',
+        '¿Estás seguro que quieres cerrar sesión?',
+        [
+          {
+            text: t('common.cancel'),
+            style: 'cancel',
           },
-        },
-      ]
-    );
+          {
+            text: 'Cerrar sesión',
+            style: 'destructive',
+            onPress: () => {
+              logout();
+              router.replace('/(auth)/login');
+            },
+          },
+        ]
+      );
+    }
   };
 
   return (
