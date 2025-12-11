@@ -1,4 +1,4 @@
-import { publicProcedure } from "../../../create-context";
+import { publicProcedure } from "../../../create-context.js";
 import OpenAI from "openai";
 
 export const testConnectionProcedure = publicProcedure.query(async () => {

@@ -1,6 +1,6 @@
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { z } from 'zod';
-import { changeOrdersStore } from '../get-change-orders/route';
+import { changeOrdersStore } from '../get-change-orders/route.js';
 
 export const addChangeOrderProcedure = publicProcedure
   .input(

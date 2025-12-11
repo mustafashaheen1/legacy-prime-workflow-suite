@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure } from "../../../create-context";
+import { publicProcedure } from "../../../create-context.js";
 import { verificationStore } from "@/backend/trpc/routes/verification-store";
 
 const MAX_ATTEMPTS = 3;

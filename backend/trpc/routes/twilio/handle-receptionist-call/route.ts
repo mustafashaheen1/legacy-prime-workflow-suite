@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure } from "../../../create-context";
+import { publicProcedure } from "../../../create-context.js";
 import twilio from "twilio";
 import OpenAI from "openai";
 import { masterPriceList } from "@/mocks/priceList";
