@@ -128,7 +128,7 @@ function SubscriptionContent() {
 
       // On web, navigate directly without Alert
       if (Platform.OS === 'web') {
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/dashboard');
       } else {
         const companyCode = params.companyCode || 'N/A';
         Alert.alert(
@@ -137,7 +137,7 @@ function SubscriptionContent() {
           [
             {
               text: 'Continue',
-              onPress: () => router.replace('/(tabs)'),
+              onPress: () => router.replace('/(tabs)/dashboard'),
             },
           ]
         );

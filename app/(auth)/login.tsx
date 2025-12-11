@@ -106,7 +106,7 @@ export default function LoginScreen() {
       }
 
       // Navigate to dashboard
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/dashboard');
     } catch (error: any) {
       console.error('[Login] Error:', error);
       if (Platform.OS === 'web') {
