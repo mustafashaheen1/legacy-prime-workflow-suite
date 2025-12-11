@@ -1,51 +1,16 @@
 {
   "version": 2,
-  "installCommand": "rm -rf node_modules && npm install --legacy-peer-deps",
-  "buildCommand": "npm run build",
+  "installCommand": "npm install --legacy-peer-deps",
   "builds": [
     {
       "src": "api/index.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["backend/**"],
-        "typescript": {
-          "ignoreBuildErrors": true
-        }
-      }
-    },
-    {
-      "src": "dist/**",
-      "use": "@vercel/static"
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.ts"
-    },
-    {
-      "src": "/_expo/(.*)",
-      "dest": "/dist/_expo/$1"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "/dist/assets/$1"
-    },
-    {
-      "src": "/favicon.ico",
-      "dest": "/dist/favicon.ico"
-    },
-    {
-      "src": "/metadata.json",
-      "dest": "/dist/metadata.json"
-    },
-    {
-      "src": "/",
-      "dest": "/dist/index.html"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/dist/index.html"
+      "dest": "/api/index.ts"
     }
   ]
 }
