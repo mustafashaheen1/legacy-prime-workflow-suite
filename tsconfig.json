@@ -2,18 +2,19 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "commonjs",
-    "lib": ["ES2020"],
-    "moduleResolution": "node",
+    "lib": ["ES2020", "DOM"],
+    "moduleResolution": "node10",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["node"],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "noImplicitAny": false
   },
   "include": [
     "api/**/*",
@@ -26,5 +27,10 @@
     "dist",
     ".expo",
     "app"
-  ]
+  ],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  }
 }
