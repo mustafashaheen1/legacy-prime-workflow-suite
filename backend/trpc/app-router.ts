@@ -54,6 +54,16 @@ import { createPaymentIntentProcedure } from "./routes/stripe/create-payment-int
 import { createSubscriptionProcedure } from "./routes/stripe/create-subscription/route.js";
 import { verifyPaymentProcedure } from "./routes/stripe/verify-payment/route.js";
 import { getProjectCostsProcedure } from "./routes/projects/get-project-costs/route.js";
+import { addProjectProcedure } from "./routes/projects/add-project/route.js";
+import { getProjectsProcedure } from "./routes/projects/get-projects/route.js";
+import { updateProjectProcedure } from "./routes/projects/update-project/route.js";
+import { addExpenseProcedure } from "./routes/expenses/add-expense/route.js";
+import { getExpensesProcedure } from "./routes/expenses/get-expenses/route.js";
+import { clockInProcedure } from "./routes/clock/clock-in/route.js";
+import { clockOutProcedure } from "./routes/clock/clock-out/route.js";
+import { addPhotoProcedure } from "./routes/photos/add-photo/route.js";
+import { addTaskProcedure } from "./routes/tasks/add-task/route.js";
+import { updateTaskProcedure } from "./routes/tasks/update-task/route.js";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -121,14 +131,23 @@ export const appRouter = createTRPCRouter({
     testConnection: testConnectionProcedure,
   }),
   photos: createTRPCRouter({
+    addPhoto: addPhotoProcedure,
     getPhotos: getPhotosProcedure,
   }),
   expenses: createTRPCRouter({
+    addExpense: addExpenseProcedure,
+    getExpenses: getExpensesProcedure,
     getExpensesDetailed: getExpensesDetailedProcedure,
   }),
   clock: createTRPCRouter({
+    clockIn: clockInProcedure,
+    clockOut: clockOutProcedure,
     getClockEntries: getClockEntriesProcedure,
     getTimecard: getTimecardProcedure,
+  }),
+  tasks: createTRPCRouter({
+    addTask: addTaskProcedure,
+    updateTask: updateTaskProcedure,
   }),
   crm: createTRPCRouter({
     addClient: addClientProcedure,
@@ -142,6 +161,9 @@ export const appRouter = createTRPCRouter({
     verifyPayment: verifyPaymentProcedure,
   }),
   projects: createTRPCRouter({
+    addProject: addProjectProcedure,
+    getProjects: getProjectsProcedure,
+    updateProject: updateProjectProcedure,
     getProjectCosts: getProjectCostsProcedure,
   }),
 });

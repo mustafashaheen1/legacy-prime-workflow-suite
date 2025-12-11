@@ -252,32 +252,62 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         setNotifications(parsedNotifications);
       }
 
-      // Load clients from backend if company exists (reusing parsedCompany from above)
+      // Load all data from backend if company exists (reusing parsedCompany from above)
       if (parsedCompany && parsedCompany.id) {
-        console.log('[App] Loading clients from backend for company:', parsedCompany.id);
+        console.log('[App] Loading data from backend for company:', parsedCompany.id);
         try {
           const { trpc } = await import('@/lib/trpc');
+
+          // Load clients
           const clientsResult = await trpc.crm.getClients.query({ companyId: parsedCompany.id });
           if (clientsResult.success && clientsResult.clients) {
             setClients(clientsResult.clients);
-            console.log('[App] Loaded', clientsResult.clients.length, 'clients from backend');
+            console.log('[App] Loaded', clientsResult.clients.length, 'clients');
           } else {
-            console.log('[App] No clients found, using mock data');
             setClients(mockClients);
           }
+
+          // Load projects
+          const projectsResult = await trpc.projects.getProjects.query({ companyId: parsedCompany.id });
+          if (projectsResult.success && projectsResult.projects) {
+            setProjects(projectsResult.projects);
+            console.log('[App] Loaded', projectsResult.projects.length, 'projects');
+          } else {
+            setProjects(mockProjects);
+          }
+
+          // Load expenses
+          const expensesResult = await trpc.expenses.getExpenses.query({ companyId: parsedCompany.id });
+          if (expensesResult.success && expensesResult.expenses) {
+            setExpenses(expensesResult.expenses);
+            console.log('[App] Loaded', expensesResult.expenses.length, 'expenses');
+          } else {
+            setExpenses(mockExpenses);
+          }
+
+          // Note: Photos, Tasks, ClockEntries load per-project, so we keep using local state for now
+          setPhotos(mockPhotos);
+          setTasks(mockTasks);
+          setClockEntries(fixtureClockEntries);
+
         } catch (error) {
-          console.error('[App] Error loading clients from backend, using mock data:', error);
+          console.error('[App] Error loading data from backend, using mock data:', error);
           setClients(mockClients);
+          setProjects(mockProjects);
+          setExpenses(mockExpenses);
+          setPhotos(mockPhotos);
+          setTasks(mockTasks);
+          setClockEntries(fixtureClockEntries);
         }
       } else {
-        console.log('[App] No company found, using mock clients');
+        console.log('[App] No company found, using mock data');
         setClients(mockClients);
+        setProjects(mockProjects);
+        setExpenses(mockExpenses);
+        setPhotos(mockPhotos);
+        setTasks(mockTasks);
+        setClockEntries(fixtureClockEntries);
       }
-
-      setProjects(mockProjects);
-      setPhotos(mockPhotos);
-      setTasks(mockTasks);
-      setClockEntries(fixtureClockEntries);
 
       console.log('[App] User loaded:', storedUser ? 'Found' : 'Not found');
       console.log('[App] Company loaded:', storedCompany ? 'Found' : 'Not found');
@@ -311,12 +341,47 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     await AsyncStorage.setItem('subscription', JSON.stringify(newSubscription));
   }, []);
 
-  const addProject = useCallback((project: Project) => {
+  const addProject = useCallback(async (project: Project) => {
+    // Optimistically update UI
     setProjects(prev => [...prev, project]);
-  }, []);
 
-  const updateProject = useCallback((id: string, updates: Partial<Project>) => {
+    // Save to backend if company exists
+    if (company?.id) {
+      try {
+        const { trpc } = await import('@/lib/trpc');
+        await trpc.projects.addProject.mutate({
+          companyId: company.id,
+          name: project.name,
+          budget: project.budget,
+          expenses: project.expenses,
+          progress: project.progress,
+          status: project.status,
+          image: project.image,
+          hoursWorked: project.hoursWorked,
+          startDate: project.startDate,
+          endDate: project.endDate,
+        });
+        console.log('[App] Project saved to backend:', project.name);
+      } catch (error) {
+        console.error('[App] Error saving project to backend:', error);
+        setProjects(prev => prev.filter(p => p.id !== project.id));
+        throw error;
+      }
+    }
+  }, [company]);
+
+  const updateProject = useCallback(async (id: string, updates: Partial<Project>) => {
+    // Optimistically update UI
     setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+
+    // Save to backend
+    try {
+      const { trpc } = await import('@/lib/trpc');
+      await trpc.projects.updateProject.mutate({ id, ...updates });
+      console.log('[App] Project updated in backend:', id);
+    } catch (error) {
+      console.error('[App] Error updating project in backend:', error);
+    }
   }, []);
 
   const archiveProject = useCallback(async (id: string) => {
@@ -385,35 +450,148 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, []);
 
   const addExpense = useCallback(async (expense: Expense) => {
-    const updated = [...expenses, expense];
-    setExpenses(updated);
-    await AsyncStorage.setItem('expenses', JSON.stringify(updated));
-    console.log('[Expense] Added expense:', expense.amount, 'to project:', expense.projectId);
-  }, [expenses]);
+    // Optimistically update UI
+    setExpenses(prev => [...prev, expense]);
 
-  const addPhoto = useCallback((photo: Photo) => {
+    // Save to backend if company exists
+    if (company?.id) {
+      try {
+        const { trpc } = await import('@/lib/trpc');
+        await trpc.expenses.addExpense.mutate({
+          companyId: company.id,
+          projectId: expense.projectId,
+          type: expense.type,
+          subcategory: expense.subcategory,
+          amount: expense.amount,
+          store: expense.store,
+          date: expense.date,
+          receiptUrl: expense.receiptUrl,
+        });
+        console.log('[App] Expense saved to backend:', expense.amount);
+      } catch (error) {
+        console.error('[App] Error saving expense to backend:', error);
+        setExpenses(prev => prev.filter(e => e.id !== expense.id));
+        throw error;
+      }
+    } else {
+      // Fallback to AsyncStorage if no company
+      const updated = [...expenses, expense];
+      await AsyncStorage.setItem('expenses', JSON.stringify(updated));
+    }
+  }, [company, expenses]);
+
+  const addPhoto = useCallback(async (photo: Photo) => {
+    // Optimistically update UI
     setPhotos(prev => [...prev, photo]);
-  }, []);
+
+    // Save to backend if company exists
+    if (company?.id) {
+      try {
+        const { trpc } = await import('@/lib/trpc');
+        await trpc.photos.addPhoto.mutate({
+          companyId: company.id,
+          projectId: photo.projectId,
+          category: photo.category,
+          notes: photo.notes,
+          url: photo.url,
+          date: photo.date,
+        });
+        console.log('[App] Photo saved to backend');
+      } catch (error) {
+        console.error('[App] Error saving photo to backend:', error);
+        setPhotos(prev => prev.filter(p => p.id !== photo.id));
+        throw error;
+      }
+    }
+  }, [company]);
 
   const updatePhoto = useCallback((id: string, updates: Partial<Photo>) => {
     setPhotos(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     console.log('[Photo] Updated photo:', id, 'with updates:', updates);
   }, []);
 
-  const addTask = useCallback((task: Task) => {
+  const addTask = useCallback(async (task: Task) => {
+    // Optimistically update UI
     setTasks(prev => [...prev, task]);
-  }, []);
 
-  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
+    // Save to backend if company exists
+    if (company?.id) {
+      try {
+        const { trpc } = await import('@/lib/trpc');
+        await trpc.tasks.addTask.mutate({
+          companyId: company.id,
+          projectId: task.projectId,
+          name: task.name,
+          date: task.date,
+          reminder: task.reminder,
+          completed: task.completed,
+        });
+        console.log('[App] Task saved to backend:', task.name);
+      } catch (error) {
+        console.error('[App] Error saving task to backend:', error);
+        setTasks(prev => prev.filter(t => t.id !== task.id));
+        throw error;
+      }
+    }
+  }, [company]);
+
+  const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
+    // Optimistically update UI
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+
+    // Save to backend
+    try {
+      const { trpc } = await import('@/lib/trpc');
+      await trpc.tasks.updateTask.mutate({ id, ...updates });
+      console.log('[App] Task updated in backend:', id);
+    } catch (error) {
+      console.error('[App] Error updating task in backend:', error);
+    }
   }, []);
 
-  const addClockEntry = useCallback((entry: ClockEntry) => {
+  const addClockEntry = useCallback(async (entry: ClockEntry) => {
+    // Optimistically update UI
     setClockEntries(prev => [...prev, entry]);
-  }, []);
 
-  const updateClockEntry = useCallback((id: string, updates: Partial<ClockEntry>) => {
+    // Clock in on backend if company and user exist
+    if (company?.id && user?.id) {
+      try {
+        const { trpc } = await import('@/lib/trpc');
+        await trpc.clock.clockIn.mutate({
+          companyId: company.id,
+          employeeId: user.id,
+          projectId: entry.projectId,
+          location: entry.location,
+          workPerformed: entry.workPerformed,
+          category: entry.category,
+        });
+        console.log('[App] Clocked in successfully');
+      } catch (error) {
+        console.error('[App] Error clocking in:', error);
+        setClockEntries(prev => prev.filter(e => e.id !== entry.id));
+        throw error;
+      }
+    }
+  }, [company, user]);
+
+  const updateClockEntry = useCallback(async (id: string, updates: Partial<ClockEntry>) => {
+    // Optimistically update UI
     setClockEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+
+    // If clocking out (clockOut is being set), call backend
+    if (updates.clockOut) {
+      try {
+        const { trpc } = await import('@/lib/trpc');
+        await trpc.clock.clockOut.mutate({
+          entryId: id,
+          workPerformed: updates.workPerformed,
+          lunchBreaks: updates.lunchBreaks,
+        });
+        console.log('[App] Clocked out successfully');
+      } catch (error) {
+        console.error('[App] Error clocking out:', error);
+      }
+    }
   }, []);
 
   const addEstimate = useCallback((estimate: Estimate) => {
