@@ -5,6 +5,8 @@ import { useApp } from '@/contexts/AppContext';
 import { auth } from '@/lib/supabase';
 import { Wrench } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
@@ -12,16 +14,25 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const handleLogin = async () => {
     // Validation
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
+      if (Platform.OS === 'web') {
+        window.alert(t('login.emailRequired'));
+      } else {
+        Alert.alert(t('common.error'), t('login.emailRequired'));
+      }
       return;
     }
 
     if (!password) {
-      Alert.alert('Error', 'Please enter your password');
+      if (Platform.OS === 'web') {
+        window.alert(t('login.passwordRequired'));
+      } else {
+        Alert.alert(t('common.error'), t('login.passwordRequired'));
+      }
       return;
     }
 
@@ -33,7 +44,11 @@ export default function LoginScreen() {
       const result = await auth.signIn(email.toLowerCase().trim(), password);
 
       if (!result.success) {
-        Alert.alert('Login Failed', result.error || 'Invalid email or password');
+        if (Platform.OS === 'web') {
+          window.alert(result.error || t('login.invalidCredentials'));
+        } else {
+          Alert.alert(t('login.loginFailed'), result.error || t('login.invalidCredentials'));
+        }
         return;
       }
 
@@ -91,10 +106,14 @@ export default function LoginScreen() {
       }
 
       // Navigate to dashboard
-      router.replace('/dashboard');
+      router.replace('/(tabs)');
     } catch (error: any) {
       console.error('[Login] Error:', error);
-      Alert.alert('Login Error', error.message || 'An unexpected error occurred');
+      if (Platform.OS === 'web') {
+        window.alert(error.message || 'An unexpected error occurred');
+      } else {
+        Alert.alert(t('common.error'), error.message || 'An unexpected error occurred');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -109,17 +128,21 @@ export default function LoginScreen() {
       keyboardVerticalOffset={0}
     >
       <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+        <View style={styles.languageSwitcherContainer}>
+          <LanguageSwitcher />
+        </View>
+
         <View style={styles.header}>
           <Wrench size={40} color="#2563EB" strokeWidth={2.5} />
           <Text style={styles.title}>Legacy Prime</Text>
-          <Text style={styles.subtitle}>Manage projects easily.</Text>
+          <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
         </View>
 
         <View style={styles.form}>
 
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('login.emailPlaceholder')}
           placeholderTextColor="#9CA3AF"
           value={email}
           onChangeText={setEmail}
@@ -129,7 +152,7 @@ export default function LoginScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Password"
+          placeholder={t('login.passwordPlaceholder')}
           placeholderTextColor="#9CA3AF"
           value={password}
           onChangeText={setPassword}
@@ -144,13 +167,16 @@ export default function LoginScreen() {
           {isLoading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.loginButtonText}>Login</Text>
+            <Text style={styles.loginButtonText}>{t('login.loginButton')}</Text>
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
-          <Text style={styles.createAccountText}>Create Account</Text>
-        </TouchableOpacity>
+        <View style={styles.signupContainer}>
+          <Text style={styles.noAccountText}>{t('login.noAccount')} </Text>
+          <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
+            <Text style={styles.signupText}>{t('login.signUp')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
     </KeyboardAvoidingView>
@@ -163,6 +189,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 24,
     justifyContent: 'center',
+  },
+  languageSwitcherContainer: {
+    position: 'absolute',
+    top: 60,
+    right: 24,
+    zIndex: 10,
   },
   header: {
     alignItems: 'center',
@@ -251,6 +283,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  signupContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noAccountText: {
+    fontSize: 15,
+    color: '#6B7280',
+  },
+  signupText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#2563EB',
   },
   createAccountText: {
     fontSize: 16,

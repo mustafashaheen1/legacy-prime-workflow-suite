@@ -175,12 +175,12 @@ export default function SignupScreen() {
         }
 
         if (!phone.trim()) {
-          Alert.alert(t('common.error'), 'El número de teléfono es requerido.');
+          Alert.alert(t('common.error'), t('signup.phoneRequired'));
           return;
         }
 
         if (!address.trim()) {
-          Alert.alert(t('common.error'), 'La dirección es requerida.');
+          Alert.alert(t('common.error'), t('signup.addressRequired'));
           return;
         }
 
@@ -400,36 +400,36 @@ export default function SignupScreen() {
 
           {accountType === 'employee' && (
             <>
-              <Text style={styles.label}>Teléfono</Text>
+              <Text style={styles.label}>{t('signup.phone')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Ej: (555) 123-4567"
+                placeholder={t('signup.phonePlaceholder')}
                 placeholderTextColor="#9CA3AF"
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
               />
 
-              <Text style={styles.label}>Dirección</Text>
+              <Text style={styles.label}>{t('signup.address')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Dirección completa"
+                placeholder={t('signup.addressPlaceholder')}
                 placeholderTextColor="#9CA3AF"
                 value={address}
                 onChangeText={setAddress}
                 autoCapitalize="words"
               />
 
-              <Text style={styles.label}>Tarifa por Hora ($)</Text>
+              <Text style={styles.label}>{t('signup.hourlyRate')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Ej: 25.00"
+                placeholder={t('signup.hourlyRatePlaceholder')}
                 placeholderTextColor="#9CA3AF"
                 value={hourlyRate}
                 onChangeText={setHourlyRate}
                 keyboardType="decimal-pad"
               />
-              <Text style={styles.hint}>Esta será tu tarifa base. Cualquier cambio debe ser aprobado por el administrador.</Text>
+              <Text style={styles.hint}>{t('signup.hourlyRateHint')}</Text>
 
               <Text style={styles.label}>{t('signup.companyCode')}</Text>
               <TextInput

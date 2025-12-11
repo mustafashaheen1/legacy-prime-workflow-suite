@@ -112,6 +112,22 @@
     "typeMessage": "Type a message...",
     "noMessages": "No messages yet"
   },
+  "login": {
+    "title": "Welcome Back",
+    "subtitle": "Sign in to your account",
+    "email": "Email",
+    "emailPlaceholder": "your@email.com",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "loginButton": "Login",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign Up",
+    "emailRequired": "Please enter your email",
+    "passwordRequired": "Please enter your password",
+    "loginFailed": "Login Failed",
+    "invalidCredentials": "Invalid email or password",
+    "logoutConfirm": "Are you sure you want to logout?"
+  },
   "signup": {
     "title": "Create Account",
     "subtitle": "Get started with your account",
@@ -152,7 +168,16 @@
     "companyCodeRequired": "Please enter your company code",
     "invalidCompanyCode": "Invalid company code. Please check with your admin.",
     "successTitle": "Account Created!",
-    "successMessage": "Your account has been created. Please login to continue."
+    "successMessage": "Your account has been created. Please login to continue.",
+    "phone": "Phone",
+    "phonePlaceholder": "Ex: (555) 123-4567",
+    "address": "Address",
+    "addressPlaceholder": "Full address",
+    "hourlyRate": "Hourly Rate ($)",
+    "hourlyRatePlaceholder": "Ex: 25.00",
+    "hourlyRateHint": "This will be your base rate. Any changes must be approved by the administrator.",
+    "phoneRequired": "Phone number is required.",
+    "addressRequired": "Address is required."
   },
   "settings": {
     "title": "Settings",

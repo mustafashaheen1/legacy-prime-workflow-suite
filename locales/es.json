@@ -112,6 +112,22 @@
     "typeMessage": "Escribe un mensaje...",
     "noMessages": "Sin mensajes aún"
   },
+  "login": {
+    "title": "Bienvenido de Nuevo",
+    "subtitle": "Inicia sesión en tu cuenta",
+    "email": "Correo Electrónico",
+    "emailPlaceholder": "tucorreo@ejemplo.com",
+    "password": "Contraseña",
+    "passwordPlaceholder": "Ingresa tu contraseña",
+    "loginButton": "Iniciar Sesión",
+    "noAccount": "¿No tienes una cuenta?",
+    "signUp": "Regístrate",
+    "emailRequired": "Por favor ingresa tu correo electrónico",
+    "passwordRequired": "Por favor ingresa tu contraseña",
+    "loginFailed": "Inicio de Sesión Fallido",
+    "invalidCredentials": "Correo electrónico o contraseña inválidos",
+    "logoutConfirm": "¿Estás seguro que quieres cerrar sesión?"
+  },
   "signup": {
     "title": "Crear Cuenta",
     "subtitle": "Comienza con tu cuenta",
@@ -152,7 +168,16 @@
     "companyCodeRequired": "Por favor ingresa el código de tu empresa",
     "invalidCompanyCode": "Código de empresa inválido. Por favor verifica con tu administrador.",
     "successTitle": "¡Cuenta Creada!",
-    "successMessage": "Tu cuenta ha sido creada. Por favor inicia sesión para continuar."
+    "successMessage": "Tu cuenta ha sido creada. Por favor inicia sesión para continuar.",
+    "phone": "Teléfono",
+    "phonePlaceholder": "Ej: (555) 123-4567",
+    "address": "Dirección",
+    "addressPlaceholder": "Dirección completa",
+    "hourlyRate": "Tarifa por Hora ($)",
+    "hourlyRatePlaceholder": "Ej: 25.00",
+    "hourlyRateHint": "Esta será tu tarifa base. Cualquier cambio debe ser aprobado por el administrador.",
+    "phoneRequired": "El número de teléfono es requerido.",
+    "addressRequired": "La dirección es requerida."
   },
   "settings": {
     "title": "Configuración",
