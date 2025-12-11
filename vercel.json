@@ -1,7 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npx expo export -p web --output-dir dist",
-  "outputDirectory": "dist",
+  "buildCommand": "npx expo export -p web",
   "installCommand": "npm install --legacy-peer-deps",
   "builds": [
     {
@@ -26,8 +25,20 @@
       "dest": "/api/index.ts"
     },
     {
+      "src": "/_expo/(.*)",
+      "dest": "/dist/_expo/$1"
+    },
+    {
+      "src": "/assets/(.*)",
+      "dest": "/dist/assets/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/dist/favicon.ico"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/dist/$1"
+      "dest": "/dist/index.html"
     }
   ]
 }
