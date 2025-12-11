@@ -27,7 +27,8 @@
       "Bash(git config:*)",
       "Bash(find:*)",
       "Bash(node:*)",
-      "Bash(npx expo export:*)"
+      "Bash(npx expo export:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []
