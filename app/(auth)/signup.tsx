@@ -1,12 +1,12 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { Wrench, ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useTranslation } from 'react-i18next';
 import { useApp } from '@/contexts/AppContext';
+import { auth } from '@/lib/supabase';
 
 export default function SignupScreen() {
   const [accountType, setAccountType] = useState<'company' | 'employee' | null>(null);
@@ -22,7 +22,7 @@ export default function SignupScreen() {
   const [hourlyRate, setHourlyRate] = useState<string>('');
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { setUser } = useApp();
+  const { setUser, setCompany } = useApp();
 
   const [isCreatingAccount, setIsCreatingAccount] = useState<boolean>(false);
 
@@ -31,6 +31,7 @@ export default function SignupScreen() {
 
 
   const handleSignup = async () => {
+    // Validation
     if (!name.trim()) {
       Alert.alert(t('common.error'), t('signup.nameRequired'));
       return;
@@ -51,11 +52,13 @@ export default function SignupScreen() {
       return;
     }
 
+    setIsCreatingAccount(true);
+
     try {
-      setIsCreatingAccount(true);
       console.log('[Signup] Starting account creation...');
 
       if (accountType === 'company') {
+        // Company signup validation
         if (!companyName.trim()) {
           Alert.alert(t('common.error'), t('signup.companyNameRequired'));
           return;
@@ -64,58 +67,95 @@ export default function SignupScreen() {
           Alert.alert(t('common.error'), t('signup.employeeCountRequired'));
           return;
         }
-        
-        console.log('[Signup] Redirecting to subscription page...');
-        router.push({
-          pathname: '/(auth)/subscription',
-          params: {
-            name: name.trim(),
-            email: email.toLowerCase().trim(),
-            password,
-            companyName: companyName.trim(),
-            employeeCount: employeeCount,
-            accountType: 'company',
-          },
+
+        console.log('[Signup] Creating company account...');
+
+        const result = await auth.signUpCompany({
+          email: email.toLowerCase().trim(),
+          password,
+          name: name.trim(),
+          companyName: companyName.trim(),
+          employeeCount: parseInt(employeeCount),
+          subscriptionPlan: 'basic', // Default to basic plan
         });
+
+        if (!result.success) {
+          Alert.alert('Signup Failed', result.error || 'Failed to create company account');
+          return;
+        }
+
+        console.log('[Signup] Company account created successfully');
+        console.log('[Signup] Company Code:', result.companyCode);
+
+        // Update app context with user and company data
+        if (result.user && result.company) {
+          setUser({
+            id: result.user.id,
+            name: result.user.name,
+            email: result.user.email,
+            role: result.user.role,
+            companyId: result.user.company_id || '',
+            isActive: result.user.is_active,
+            createdAt: result.user.created_at,
+            phone: result.user.phone || undefined,
+            address: result.user.address || undefined,
+            hourlyRate: result.user.hourly_rate || undefined,
+            avatar: result.user.avatar || undefined,
+          });
+
+          setCompany({
+            id: result.company.id,
+            name: result.company.name,
+            brandColor: result.company.brand_color,
+            subscriptionStatus: result.company.subscription_status,
+            subscriptionPlan: result.company.subscription_plan,
+            subscriptionStartDate: result.company.subscription_start_date,
+            employeeCount: result.company.employee_count,
+            companyCode: result.company.company_code || undefined,
+            settings: result.company.settings,
+            createdAt: result.company.created_at,
+            updatedAt: result.company.updated_at,
+            logo: result.company.logo || undefined,
+            licenseNumber: result.company.license_number || undefined,
+            officePhone: result.company.office_phone || undefined,
+            cellPhone: result.company.cell_phone || undefined,
+            address: result.company.address || undefined,
+            email: result.company.email || undefined,
+            website: result.company.website || undefined,
+            slogan: result.company.slogan || undefined,
+            estimateTemplate: result.company.estimate_template || undefined,
+            subscriptionEndDate: result.company.subscription_end_date || undefined,
+            stripePaymentIntentId: result.company.stripe_payment_intent_id || undefined,
+            stripeCustomerId: result.company.stripe_customer_id || undefined,
+            stripeSubscriptionId: result.company.stripe_subscription_id || undefined,
+          });
+        }
+
+        // Show company code in alert
+        Alert.alert(
+          'Company Created!',
+          `Your company has been created successfully!\n\nYour Company Code: ${result.companyCode}\n\nShare this code with your employees so they can join your company.`,
+          [
+            {
+              text: 'Continue to Subscription',
+              onPress: () => {
+                // Redirect to subscription page with params
+                router.push({
+                  pathname: '/(auth)/subscription',
+                  params: {
+                    accountType: 'company',
+                    companyId: result.company!.id,
+                    companyName: result.company!.name,
+                  },
+                });
+              },
+            },
+          ]
+        );
       } else {
+        // Employee signup validation
         if (!companyCode.trim()) {
           Alert.alert(t('common.error'), t('signup.companyCodeRequired'));
-          return;
-        }
-
-        console.log('[Signup] Validating company code...');
-        
-        const storedCompany = await AsyncStorage.getItem('company');
-        if (!storedCompany) {
-          Alert.alert(
-            t('common.error'),
-            'No se encontró ninguna empresa con este código. Por favor, verifica el código o contacta con tu empleador.'
-          );
-          return;
-        }
-
-        let company;
-        try {
-          company = JSON.parse(storedCompany);
-        } catch (error) {
-          console.error('[Signup] Error parsing company:', error);
-          Alert.alert(t('common.error'), 'Error al validar el código de empresa.');
-          return;
-        }
-
-        if (company.companyCode !== companyCode.toUpperCase()) {
-          Alert.alert(
-            t('common.error'),
-            'El código de empresa no es válido. Por favor, verifica el código con tu empleador.'
-          );
-          return;
-        }
-
-        if (company.subscriptionStatus !== 'active' && company.subscriptionStatus !== 'trial') {
-          Alert.alert(
-            'Empresa Inactiva',
-            'La empresa asociada con este código no tiene una suscripción activa. Contacta con el administrador de la empresa.'
-          );
           return;
         }
 
@@ -129,42 +169,87 @@ export default function SignupScreen() {
           return;
         }
 
-        if (!hourlyRate || parseFloat(hourlyRate) <= 0) {
-          Alert.alert(t('common.error'), 'La tarifa por hora es requerida y debe ser mayor que 0.');
+        console.log('[Signup] Creating employee account...');
+
+        const result = await auth.signUpEmployee({
+          email: email.toLowerCase().trim(),
+          password,
+          name: name.trim(),
+          companyCode: companyCode.toUpperCase().trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+        });
+
+        if (!result.success) {
+          Alert.alert('Signup Failed', result.error || 'Failed to create employee account');
           return;
         }
 
-        console.log('[Signup] Company code validated successfully');
-        console.log('[Signup] Creating employee account...');
-        
-        const newUser = {
-          id: `user-${Date.now()}`,
-          name: name.trim(),
-          email: email.toLowerCase().trim(),
-          role: 'employee' as const,
-          companyId: company.id,
-          avatar: undefined,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          phone: phone.trim(),
-          address: address.trim(),
-          hourlyRate: parseFloat(hourlyRate),
-        };
-
-        await setUser(newUser);
-
         console.log('[Signup] Employee account created successfully');
 
-        Alert.alert(
-          t('signup.successTitle'),
-          `Tu cuenta de empleado ha sido creada exitosamente y vinculada a ${company.name}.`,
-          [
-            {
-              text: t('common.ok'),
-              onPress: () => router.replace('/dashboard'),
-            },
-          ]
-        );
+        // Update app context with user data
+        if (result.user) {
+          setUser({
+            id: result.user.id,
+            name: result.user.name,
+            email: result.user.email,
+            role: result.user.role,
+            companyId: result.user.company_id || '',
+            isActive: result.user.is_active,
+            createdAt: result.user.created_at,
+            phone: result.user.phone || undefined,
+            address: result.user.address || undefined,
+            hourlyRate: result.user.hourly_rate || undefined,
+            avatar: result.user.avatar || undefined,
+          });
+
+          // Set company data if available
+          if (result.company) {
+            setCompany({
+              id: result.company.id,
+              name: result.company.name,
+              brandColor: result.company.brand_color,
+              subscriptionStatus: result.company.subscription_status,
+              subscriptionPlan: result.company.subscription_plan,
+              subscriptionStartDate: result.company.subscription_start_date,
+              employeeCount: result.company.employee_count,
+              companyCode: result.company.company_code || undefined,
+              settings: result.company.settings,
+              createdAt: result.company.created_at,
+              updatedAt: result.company.updated_at,
+              logo: result.company.logo || undefined,
+              licenseNumber: result.company.license_number || undefined,
+              officePhone: result.company.office_phone || undefined,
+              cellPhone: result.company.cell_phone || undefined,
+              address: result.company.address || undefined,
+              email: result.company.email || undefined,
+              website: result.company.website || undefined,
+              slogan: result.company.slogan || undefined,
+              estimateTemplate: result.company.estimate_template || undefined,
+              subscriptionEndDate: result.company.subscription_end_date || undefined,
+              stripePaymentIntentId: result.company.stripe_payment_intent_id || undefined,
+              stripeCustomerId: result.company.stripe_customer_id || undefined,
+              stripeSubscriptionId: result.company.stripe_subscription_id || undefined,
+            });
+          }
+        }
+
+        // Show pending approval message
+        if (result.pendingApproval) {
+          Alert.alert(
+            'Account Created',
+            `Your employee account has been created and is pending approval from your company administrator. You will receive a notification once your account is approved.`,
+            [
+              {
+                text: 'OK',
+                onPress: () => router.replace('/(auth)/login'),
+              },
+            ]
+          );
+        } else {
+          // If not pending approval, go to dashboard
+          router.replace('/dashboard');
+        }
       }
     } catch (error: any) {
       console.error('[Signup] Error:', error);
@@ -175,25 +260,30 @@ export default function SignupScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-      <TouchableOpacity 
-        style={styles.backButton}
-        onPress={() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.replace('/(auth)/login');
-          }
-        }}
-      >
-        <ArrowLeft size={24} color="#2563EB" />
-      </TouchableOpacity>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
+    >
+      <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(auth)/login');
+            }
+          }}
+        >
+          <ArrowLeft size={24} color="#2563EB" />
+        </TouchableOpacity>
 
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.header}>
           <Wrench size={40} color="#2563EB" strokeWidth={2.5} />
           <Text style={styles.title}>{t('signup.title')}</Text>
@@ -339,14 +429,16 @@ export default function SignupScreen() {
             </>
           )}
 
-          <TouchableOpacity 
-            style={[styles.signupButton, isCreatingAccount && styles.signupButtonDisabled]} 
+          <TouchableOpacity
+            style={[styles.signupButton, isCreatingAccount && styles.signupButtonDisabled]}
             onPress={handleSignup}
             disabled={isCreatingAccount}
           >
-            <Text style={styles.signupButtonText}>
-              {isCreatingAccount ? t('common.loading') : t('signup.createAccount')}
-            </Text>
+            {isCreatingAccount ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.signupButtonText}>{t('signup.createAccount')}</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.bottomLinks}>
@@ -361,6 +453,7 @@ export default function SignupScreen() {
         )}
       </ScrollView>
     </View>
+    </KeyboardAvoidingView>
   );
 }
 

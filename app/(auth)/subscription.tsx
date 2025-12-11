@@ -187,8 +187,9 @@ function SubscriptionContent() {
       
       let errorMessage = 'Error al crear la cuenta';
       let showOfflineOption = false;
-      
-      if (error?.message?.includes('fetch') || error?.message?.includes('network') || error?.message?.includes('Failed to fetch')) {
+
+      const errorMsg = error?.message?.toLowerCase() || '';
+      if (errorMsg.includes('fetch') || errorMsg.includes('network') || errorMsg.includes('timeout') || errorMsg.includes('failed to fetch')) {
         errorMessage = 'No se pudo conectar con el servidor.\n\n¿Deseas continuar en modo offline sin procesar el pago?';
         showOfflineOption = true;
       } else if (error?.message) {

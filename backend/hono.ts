@@ -26,6 +26,9 @@ try {
       endpoint: "/trpc",
       router: appRouter,
       createContext,
+      batching: {
+        enabled: true,
+      },
       onError({ path, error }) {
         console.error(`[tRPC Error] Path: ${path}`);
         console.error(`[tRPC Error] Message:`, error.message);
