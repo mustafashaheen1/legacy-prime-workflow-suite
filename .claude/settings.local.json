@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(npm install:*)",
+      "Bash(curl:*)",
+      "Bash(bash:*)",
+      "Bash(~/.bun/bin/bunx rork start -p sdpzpc4s9agfwzga1ubs8 --tunnel)",
+      "Bash(open http://localhost:8081)",
+      "Bash(npx expo start:*)",
+      "Bash(pkill:*)",
+      "Bash(ipconfig getifaddr:*)",
+      "Bash(xargs kill:*)",
+      "Bash(~/.bun/bin/bunx rork start:*)",
+      "Bash(~/.bun/bin/bunx rork:*)",
+      "Bash(cat:*)",
+      "Bash(lsof:*)",
+      "Bash(PORT=3000 node:*)",
+      "Bash(chmod:*)",
+      "Bash(PORT=3000 ~/.bun/bin/bun:*)",
+      "Bash(node test-supabase.js:*)",
+      "Bash(.gitignore)",
+      "Bash(git reset:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
