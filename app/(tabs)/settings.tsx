@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image, Platform, ActivityIndicator } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
@@ -13,6 +13,7 @@ export default function SettingsScreen() {
   const { user: currentUser, company, setCompany, logout } = useApp();
   const { isAdmin, isSuperAdmin } = usePermissions();
   const { t } = useTranslation();
+  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showRoleModal, setShowRoleModal] = useState<boolean>(false);
   const [showCompanyProfileModal, setShowCompanyProfileModal] = useState<boolean>(false);
@@ -130,29 +131,14 @@ export default function SettingsScreen() {
     setShowCompanyProfileModal(true);
   };
 
-  const handleLogout = () => {
-    // On web, confirm with window.confirm since Alert doesn't work
-    if (Platform.OS === 'web') {
-      if (window.confirm(t('settings.logoutConfirm') || 'Are you sure you want to logout?')) {
-        logout();
-        router.replace('/(auth)/login');
-      }
-    } else {
-      Alert.alert(
-        t('settings.logout') || 'Logout',
-        t('settings.logoutConfirm') || 'Are you sure you want to logout?',
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('settings.logout') || 'Logout',
-            style: 'destructive',
-            onPress: async () => {
-              await logout();
-              router.replace('/(auth)/login');
-            },
-          },
-        ]
-      );
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      setIsLoggingOut(false);
     }
   };
 
@@ -325,9 +311,19 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <LogOut size={20} color="#DC2626" />
-            <Text style={styles.logoutButtonText}>{t('settings.logout') || 'Logout'}</Text>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            disabled={isLoggingOut}
+          >
+            {isLoggingOut ? (
+              <ActivityIndicator size="small" color="#DC2626" />
+            ) : (
+              <>
+                <LogOut size={20} color="#DC2626" />
+                <Text style={styles.logoutButtonText}>{t('settings.logout') || 'Logout'}</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>

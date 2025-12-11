@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -21,6 +22,7 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
 
   if (!user) {
     return null;
@@ -125,32 +127,14 @@ export default function ProfileScreen() {
     );
   };
 
-  const handleLogout = () => {
-    // On web, confirm with window.confirm since Alert doesn't work
-    if (Platform.OS === 'web') {
-      if (window.confirm('¿Estás seguro que quieres cerrar sesión?')) {
-        logout();
-        router.replace('/(auth)/login');
-      }
-    } else {
-      Alert.alert(
-        'Cerrar sesión',
-        '¿Estás seguro que quieres cerrar sesión?',
-        [
-          {
-            text: t('common.cancel'),
-            style: 'cancel',
-          },
-          {
-            text: 'Cerrar sesión',
-            style: 'destructive',
-            onPress: () => {
-              logout();
-              router.replace('/(auth)/login');
-            },
-          },
-        ]
-      );
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      setIsLoggingOut(false);
     }
   };
 
@@ -243,9 +227,16 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={handleLogout}
+            disabled={isLoggingOut}
           >
-            <LogOut size={20} color="#DC2626" />
-            <Text style={styles.logoutText}>Cerrar Sesión</Text>
+            {isLoggingOut ? (
+              <ActivityIndicator size="small" color="#DC2626" />
+            ) : (
+              <>
+                <LogOut size={20} color="#DC2626" />
+                <Text style={styles.logoutText}>Cerrar Sesión</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
