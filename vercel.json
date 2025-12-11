@@ -1,6 +1,8 @@
 {
   "version": 2,
   "installCommand": "npm install --legacy-peer-deps",
+  "buildCommand": "npm run build:web",
+  "outputDirectory": "dist",
   "builds": [
     {
       "src": "api/index.ts",
@@ -12,8 +14,12 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/api/(.*)",
       "dest": "/api"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
     }
   ]
 }
