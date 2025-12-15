@@ -64,6 +64,7 @@ import { clockOutProcedure } from "./routes/clock/clock-out/route.js";
 import { addPhotoProcedure } from "./routes/photos/add-photo/route.js";
 import { addTaskProcedure } from "./routes/tasks/add-task/route.js";
 import { updateTaskProcedure } from "./routes/tasks/update-task/route.js";
+import { getTasksProcedure } from "./routes/tasks/get-tasks/route.js";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -148,6 +149,7 @@ export const appRouter = createTRPCRouter({
   tasks: createTRPCRouter({
     addTask: addTaskProcedure,
     updateTask: updateTaskProcedure,
+    getTasks: getTasksProcedure,
   }),
   crm: createTRPCRouter({
     addClient: addClientProcedure,

@@ -7,9 +7,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { Photo } from '@/types';
 import { useMutation } from '@tanstack/react-query';
+import { trpc } from '@/lib/trpc';
+import { compressImage, getFileSize, validateFileForUpload, getMimeType } from '@/lib/upload-utils';
+import { useUploadProgress } from '@/hooks/useUploadProgress';
 
 export default function PhotosScreen() {
-  const { photos, addPhoto, updatePhoto, photoCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory } = useApp();
+  const { photos, addPhoto, updatePhoto, photoCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company } = useApp();
   const [category, setCategory] = useState<string>(photoCategories[0] || 'Other');
   const [notes, setNotes] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -23,6 +26,9 @@ export default function PhotosScreen() {
   const [tempCategory, setTempCategory] = useState<string>('');
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
   const [previewNotes, setPreviewNotes] = useState<string>('');
+
+  // Upload progress state
+  const uploadProgress = useUploadProgress();
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -110,23 +116,107 @@ export default function PhotosScreen() {
     }
   });
 
-  const handleSaveFromPreview = () => {
-    if (!selectedImage) return;
+  const handleSaveFromPreview = async () => {
+    if (!selectedImage || !company) {
+      Alert.alert('Error', 'No image selected or company not found');
+      return;
+    }
 
-    addPhoto({
-      id: Date.now().toString(),
-      projectId: '1',
-      category: tempCategory,
-      notes: previewNotes,
-      url: selectedImage,
-      date: new Date().toISOString(),
-    });
+    try {
+      uploadProgress.reset();
+      uploadProgress.startCompression();
 
-    setSelectedImage(null);
-    setPreviewNotes('');
-    setAiSuggestedCategory(null);
-    setShowPreviewModal(false);
-    setTempCategory('');
+      // 1. Get file size and validate
+      const fileSize = await getFileSize(selectedImage);
+      const validation = validateFileForUpload({ fileSize, type: 'image' });
+
+      if (!validation.valid) {
+        Alert.alert('File Too Large', validation.error || 'File exceeds size limit');
+        uploadProgress.reset();
+        return;
+      }
+
+      console.log('[Photos] Original file size:', (fileSize / 1024 / 1024).toFixed(2), 'MB');
+
+      // 2. Compress image
+      uploadProgress.setPhase('compressing');
+      uploadProgress.setProgress(20);
+
+      const compressed = await compressImage(selectedImage, {
+        maxWidth: 1920,
+        quality: 0.8,
+      });
+
+      const compressedSize = compressed.base64.length;
+      const reduction = ((1 - compressedSize / fileSize) * 100).toFixed(1);
+      console.log('[Photos] Compressed size:', (compressedSize / 1024 / 1024).toFixed(2), 'MB');
+      console.log('[Photos] Size reduction:', reduction + '%');
+
+      uploadProgress.setProgress(40);
+
+      // 3. Get MIME type
+      const mimeType = getMimeType(selectedImage);
+      const fileName = `photo-${Date.now()}.jpg`;
+
+      // 4. Upload to S3 via backend
+      uploadProgress.startUpload();
+      uploadProgress.setProgress(50);
+
+      const result = await trpc.photos.addPhoto.mutate({
+        companyId: company.id,
+        projectId: '1', // TODO: Get actual project ID
+        category: tempCategory,
+        notes: previewNotes,
+        fileData: compressed.base64,
+        fileName,
+        mimeType,
+        fileSize: compressedSize,
+        date: new Date().toISOString(),
+      });
+
+      uploadProgress.setProgress(90);
+
+      if (result.success && result.photo) {
+        // Add to local state
+        addPhoto(result.photo);
+
+        uploadProgress.complete();
+
+        // Close modal and reset
+        setSelectedImage(null);
+        setPreviewNotes('');
+        setAiSuggestedCategory(null);
+        setShowPreviewModal(false);
+        setTempCategory('');
+
+        // Reset progress after a delay
+        setTimeout(() => {
+          uploadProgress.reset();
+        }, 1000);
+
+        Alert.alert('Success', 'Photo uploaded successfully!');
+      } else {
+        throw new Error('Upload failed');
+      }
+    } catch (error: any) {
+      console.error('[Photos] Upload error:', error);
+      uploadProgress.setError(error.message || 'Failed to upload photo');
+      Alert.alert(
+        'Upload Failed',
+        error.message || 'Failed to upload photo. Please try again.',
+        [
+          {
+            text: 'Retry',
+            onPress: handleSaveFromPreview,
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => uploadProgress.reset(),
+          },
+        ]
+      );
+    }
   };
 
   const handleAddCategory = () => {
@@ -568,6 +658,36 @@ export default function PhotosScreen() {
                 <Text style={styles.previewSaveButtonText}>Save Photo</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Upload Progress Modal */}
+      <Modal
+        visible={uploadProgress.isUploading}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.uploadOverlay}>
+          <View style={styles.uploadModal}>
+            <ActivityIndicator size="large" color="#2563EB" />
+            <Text style={styles.uploadTitle}>
+              {uploadProgress.phase === 'compressing' && 'Compressing image...'}
+              {uploadProgress.phase === 'uploading' && 'Uploading to cloud...'}
+              {uploadProgress.phase === 'complete' && 'Upload complete!'}
+            </Text>
+            <Text style={styles.uploadProgress}>{uploadProgress.progress}%</Text>
+            <View style={styles.progressBarContainer}>
+              <View
+                style={[
+                  styles.progressBar,
+                  { width: `${uploadProgress.progress}%` }
+                ]}
+              />
+            </View>
+            {uploadProgress.error && (
+              <Text style={styles.uploadError}>{uploadProgress.error}</Text>
+            )}
           </View>
         </View>
       </Modal>
@@ -1085,5 +1205,51 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600' as const,
+  },
+  // Upload Progress Modal Styles
+  uploadOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    minWidth: 280,
+    maxWidth: '80%',
+  },
+  uploadTitle: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  uploadProgress: {
+    fontSize: 32,
+    fontWeight: '700' as const,
+    color: '#2563EB',
+    marginBottom: 16,
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#2563EB',
+    borderRadius: 4,
+  },
+  uploadError: {
+    fontSize: 14,
+    color: '#EF4444',
+    marginTop: 12,
+    textAlign: 'center',
   },
 });

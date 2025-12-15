@@ -3,6 +3,7 @@ import { publicProcedure } from "../../../create-context.js";
 import twilio from "twilio";
 import OpenAI from "openai";
 import { masterPriceList } from "../../../../../mocks/priceList.js";
+import { supabase } from "../../../../lib/supabase.js";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -271,8 +272,74 @@ Generate a warm closing message thanking them by name and promising a callback w
         twiml.say({ voice: 'alice' }, "Have a great day!");
         twiml.hangup();
 
-        // TODO: Save to CRM database
-        console.log("[Receptionist] ✅ QUALIFIED LEAD - Should add to CRM");
+        // Save to CRM database
+        try {
+          console.log("[Receptionist] 💾 Saving lead to CRM...");
+
+          // Get the first company (default company for now)
+          const { data: companies, error: companyError } = await supabase
+            .from('companies')
+            .select('id')
+            .limit(1)
+            .single();
+
+          if (companyError || !companies) {
+            console.error("[Receptionist] ❌ Failed to get company:", companyError);
+          } else {
+            const companyId = companies.id;
+
+            // Determine lead status based on budget
+            const budgetValue = parseInt(state.collectedInfo.budget.replace(/[^0-9]/g, '')) || 0;
+            const isQualified = budgetValue >= 10000;
+
+            // Save to clients table
+            const { data: newClient, error: clientError } = await supabase
+              .from('clients')
+              .insert({
+                company_id: companyId,
+                name: state.collectedInfo.name,
+                phone: state.collectedInfo.phone,
+                email: '', // Not collected in call
+                status: isQualified ? 'active-project' : 'lead',
+                project_type: state.collectedInfo.projectType || 'General Inquiry',
+                budget: state.collectedInfo.budget,
+                property_type: state.collectedInfo.propertyType || 'Residential',
+                timeline: state.collectedInfo.timeline || 'Not specified',
+                source: 'Phone Call (AI Receptionist)',
+                notes: `AI Receptionist Call on ${new Date().toLocaleString()}`,
+              })
+              .select()
+              .single();
+
+            if (clientError) {
+              console.error("[Receptionist] ❌ Failed to save client:", clientError);
+            } else {
+              console.log("[Receptionist] ✅ Client saved successfully! ID:", newClient.id);
+
+              // Also save call log
+              const { error: callLogError } = await supabase
+                .from('call_logs')
+                .insert({
+                  company_id: companyId,
+                  client_id: newClient.id,
+                  call_date: new Date().toISOString(),
+                  duration: state.step, // Use step count as rough duration
+                  outcome: isQualified ? 'Qualified' : 'Info Collected',
+                  notes: `Project: ${state.collectedInfo.projectType}\nBudget: ${state.collectedInfo.budget}\nTimeline: ${state.collectedInfo.timeline}`,
+                  follow_up_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+                });
+
+              if (callLogError) {
+                console.error("[Receptionist] ⚠️ Failed to save call log:", callLogError);
+              } else {
+                console.log("[Receptionist] ✅ Call log saved successfully!");
+              }
+            }
+          }
+        } catch (saveError) {
+          console.error("[Receptionist] ❌ Error saving to CRM:", saveError);
+          // Don't fail the call if CRM save fails
+        }
 
         return {
           success: true,

@@ -33,7 +33,20 @@
       "Bash(npx vercel:*)",
       "Bash(npm start)",
       "Bash(cd:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(cd /Users/mustafashaheen/Documents/Visual\\ Studio/rork-legacy-prime-workflow-suite:*)",
+      "Bash(for dir in /Users/mustafashaheen/Documents/Visual Studio/rork-legacy-prime-workflow-suite/backend/trpc/routes/*/)",
+      "Bash(do)",
+      "Bash(for file in \"$dir\"*/route.ts)",
+      "Bash(if [ -f \"$file\" ])",
+      "Bash(then)",
+      "Bash(if grep -q \"fixture\" \"$file\")",
+      "Bash(elif grep -q \"supabase.from\\|supabase.rpc\" \"$file\")",
+      "Bash(else)",
+      "Bash(fi)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

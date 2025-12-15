@@ -53,6 +53,10 @@ export interface Photo {
   notes: string;
   url: string;
   date: string;
+  fileSize?: number;      // File size in bytes
+  fileType?: string;      // MIME type (e.g., image/jpeg)
+  s3Key?: string;         // S3 object key
+  compressed?: boolean;   // Whether image was compressed
 }
 
 export interface Task {

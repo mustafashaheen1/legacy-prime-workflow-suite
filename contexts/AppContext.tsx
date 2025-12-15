@@ -285,28 +285,67 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setExpenses(mockExpenses);
           }
 
-          // Note: Photos, Tasks, ClockEntries load per-project, so we keep using local state for now
-          setPhotos(mockPhotos);
-          setTasks(mockTasks);
-          setClockEntries(fixtureClockEntries);
+          // Load photos from database
+          try {
+            const photosResult = await trpc.photos.getPhotos.query({ companyId: parsedCompany.id });
+            if (photosResult.photos) {
+              setPhotos(photosResult.photos);
+              console.log('[App] Loaded', photosResult.photos.length, 'photos from database');
+            } else {
+              setPhotos([]);
+            }
+          } catch (error) {
+            console.error('[App] Error loading photos:', error);
+            setPhotos([]);
+          }
+
+          // Load clock entries from database
+          try {
+            const clockResult = await trpc.clock.getClockEntries.query({ companyId: parsedCompany.id });
+            if (clockResult.entries) {
+              setClockEntries(clockResult.entries);
+              console.log('[App] Loaded', clockResult.entries.length, 'clock entries from database');
+            } else {
+              setClockEntries([]);
+            }
+          } catch (error) {
+            console.error('[App] Error loading clock entries:', error);
+            setClockEntries([]);
+          }
+
+          // Load tasks from database
+          try {
+            const tasksResult = await trpc.tasks.getTasks.query({ companyId: parsedCompany.id });
+            if (tasksResult.tasks) {
+              setTasks(tasksResult.tasks);
+              console.log('[App] Loaded', tasksResult.tasks.length, 'tasks from database');
+            } else {
+              setTasks([]);
+            }
+          } catch (error) {
+            console.error('[App] Error loading tasks:', error);
+            setTasks([]);
+          }
 
         } catch (error) {
-          console.error('[App] Error loading data from backend, using mock data:', error);
-          setClients(mockClients);
-          setProjects(mockProjects);
-          setExpenses(mockExpenses);
-          setPhotos(mockPhotos);
-          setTasks(mockTasks);
-          setClockEntries(fixtureClockEntries);
+          console.error('[App] Error loading data from backend:', error);
+          // Set empty arrays on error
+          setClients([]);
+          setProjects([]);
+          setExpenses([]);
+          setPhotos([]);
+          setTasks([]);
+          setClockEntries([]);
         }
       } else {
-        console.log('[App] No company found, using mock data');
-        setClients(mockClients);
-        setProjects(mockProjects);
-        setExpenses(mockExpenses);
-        setPhotos(mockPhotos);
-        setTasks(mockTasks);
-        setClockEntries(fixtureClockEntries);
+        console.log('[App] No company found, setting empty data');
+        // Set empty arrays when no company
+        setClients([]);
+        setProjects([]);
+        setExpenses([]);
+        setPhotos([]);
+        setTasks([]);
+        setClockEntries([]);
       }
 
       console.log('[App] User loaded:', storedUser ? 'Found' : 'Not found');
