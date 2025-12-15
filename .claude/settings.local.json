@@ -47,7 +47,8 @@
       "Bash(else)",
       "Bash(fi)",
       "Bash(done)",
-      "Bash(bun add @hono/node-server)"
+      "Bash(bun add @hono/node-server)",
+      "Bash(bun add -d @vercel/node)"
     ],
     "deny": [],
     "ask": []
