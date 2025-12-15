@@ -46,7 +46,8 @@
       "Bash(elif grep -q \"supabase.from\\|supabase.rpc\" \"$file\")",
       "Bash(else)",
       "Bash(fi)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(bun add @hono/node-server)"
     ],
     "deny": [],
     "ask": []
