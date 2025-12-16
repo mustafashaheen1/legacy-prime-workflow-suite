@@ -3,8 +3,7 @@
   "outputDirectory": "dist",
   "installCommand": "bun install",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/trpc/(.*)", "destination": "/api" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!api).*)", "destination": "/index.html" }
   ]
 }
