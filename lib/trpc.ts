@@ -8,7 +8,7 @@ export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
   const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || process.env['rork'] || process.env['rork api'];
-  
+
   if (rorkApi) {
     console.log('[tRPC] Using rork api variable:', rorkApi);
     return rorkApi;
@@ -30,7 +30,7 @@ export const trpcClient = trpc.createClient({
       transformer: superjson,
       async fetch(url, options) {
         console.log('[tRPC] Fetching:', url);
-        
+
         const requestInit = {
           ...options,
           headers: {
@@ -38,25 +38,21 @@ export const trpcClient = trpc.createClient({
             'Content-Type': 'application/json',
           },
         };
-        
+
         try {
           const response = await fetch(url, requestInit);
-          
+
           console.log('[tRPC] Response status:', response.status);
           console.log('[tRPC] Response headers:', {
             contentType: response.headers.get('content-type'),
             contentLength: response.headers.get('content-length'),
           });
-          
+
+          // Don't consume the response body here - let tRPC handle it
           if (!response.ok) {
-            const text = await response.text();
-            console.error('[tRPC] Error response body (first 500 chars):', text.substring(0, 500));
-            
-            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-              throw new Error(`Server returned HTML instead of JSON. Status: ${response.status}. This usually means the API endpoint is not found or there's a server error.`);
-            }
+            console.error('[tRPC] Error response with status:', response.status);
           }
-          
+
           return response;
         } catch (error: any) {
           console.error('[tRPC] Fetch error:', error.message);
