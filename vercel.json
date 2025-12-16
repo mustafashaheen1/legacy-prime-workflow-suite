@@ -4,10 +4,14 @@
   "installCommand": "bun install",
   "functions": {
     "api/index.ts": {
+      "maxDuration": 60
+    },
+    "api/stripe-payment.ts": {
       "maxDuration": 30
     }
   },
   "rewrites": [
+    { "source": "/api/stripe-payment", "destination": "/api/stripe-payment" },
     { "source": "/trpc/(.*)", "destination": "/api" },
     { "source": "/((?!api).*)", "destination": "/index.html" }
   ]
