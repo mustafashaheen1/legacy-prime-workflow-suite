@@ -42,7 +42,7 @@ export default function ProfileScreen() {
       if (!permissionResult.granted) {
         Alert.alert(
           t('common.error'),
-          'Se requiere permiso para acceder a las fotos'
+          t('profile.photoPermissionRequired')
         );
         return;
       }
@@ -60,13 +60,13 @@ export default function ProfileScreen() {
         
         const updatedUser = { ...user, avatar: imageUri };
         await setUser(updatedUser);
-        
-        Alert.alert(t('common.success'), 'Foto de perfil actualizada');
+
+        Alert.alert(t('common.success'), t('profile.photoUpdated'));
         setIsUploadingPhoto(false);
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert(t('common.error'), 'No se pudo cargar la foto');
+      Alert.alert(t('common.error'), t('profile.photoUploadError'));
       setIsUploadingPhoto(false);
     }
   };
@@ -78,7 +78,7 @@ export default function ProfileScreen() {
       if (!permissionResult.granted) {
         Alert.alert(
           t('common.error'),
-          'Se requiere permiso para acceder a la cámara'
+          t('profile.cameraPermissionRequired')
         );
         return;
       }
@@ -95,28 +95,28 @@ export default function ProfileScreen() {
         
         const updatedUser = { ...user, avatar: imageUri };
         await setUser(updatedUser);
-        
-        Alert.alert(t('common.success'), 'Foto de perfil actualizada');
+
+        Alert.alert(t('common.success'), t('profile.photoUpdated'));
         setIsUploadingPhoto(false);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert(t('common.error'), 'No se pudo tomar la foto');
+      Alert.alert(t('common.error'), t('profile.photoTakeError'));
       setIsUploadingPhoto(false);
     }
   };
 
   const handleChangePhoto = () => {
     Alert.alert(
-      'Cambiar foto de perfil',
-      'Selecciona una opción',
+      t('profile.changePhotoTitle'),
+      t('profile.selectOption'),
       [
         {
-          text: 'Tomar foto',
+          text: t('profile.takePhoto'),
           onPress: handleTakePhoto,
         },
         {
-          text: 'Seleccionar de galería',
+          text: t('profile.selectFromGallery'),
           onPress: handlePickImage,
         },
         {
@@ -143,7 +143,7 @@ export default function ProfileScreen() {
       <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Mi Perfil',
+          title: t('profile.title'),
           headerStyle: {
             backgroundColor: '#2563EB',
           },
@@ -184,15 +184,15 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Información Personal</Text>
-          
+          <Text style={styles.sectionTitle}>{t('profile.personalInfo')}</Text>
+
           <View style={styles.infoCard}>
             <View style={styles.infoItem}>
               <View style={styles.infoIcon}>
                 <Mail size={20} color="#2563EB" />
               </View>
               <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoLabel}>{t('profile.email')}</Text>
                 <Text style={styles.infoValue}>{user.email}</Text>
               </View>
             </View>
@@ -204,7 +204,7 @@ export default function ProfileScreen() {
                 <Briefcase size={20} color="#2563EB" />
               </View>
               <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Rol</Text>
+                <Text style={styles.infoLabel}>{t('profile.role')}</Text>
                 <Text style={styles.infoValue}>{getRoleDisplayName(user.role)}</Text>
               </View>
             </View>
@@ -216,7 +216,7 @@ export default function ProfileScreen() {
                 <Building2 size={20} color="#2563EB" />
               </View>
               <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Empresa</Text>
+                <Text style={styles.infoLabel}>{t('profile.company')}</Text>
                 <Text style={styles.infoValue}>{company?.name || 'N/A'}</Text>
               </View>
             </View>
@@ -234,7 +234,7 @@ export default function ProfileScreen() {
             ) : (
               <>
                 <LogOut size={20} color="#DC2626" />
-                <Text style={styles.logoutText}>Cerrar Sesión</Text>
+                <Text style={styles.logoutText}>{t('settings.logout')}</Text>
               </>
             )}
           </TouchableOpacity>

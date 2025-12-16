@@ -7,9 +7,11 @@ import { Check } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { StripeProvider, useStripe } from '@/lib/stripe-provider';
 import { StripePaymentForm } from '@/components/StripePaymentForm';
+import { useTranslation } from 'react-i18next';
 
 function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const stripe = useStripe();
   
@@ -187,7 +189,7 @@ function SubscriptionContent() {
 
         if (initError) {
           console.error('[Subscription] Error initializing payment sheet:', initError);
-          Alert.alert('Error', 'No se pudo inicializar el método de pago');
+          Alert.alert(t('common.error'), t('subscription.paymentInitError'));
           return;
         }
 
@@ -196,7 +198,7 @@ function SubscriptionContent() {
 
         if (presentError) {
           console.error('[Subscription] Error presenting payment sheet:', presentError);
-          Alert.alert('Pago Cancelado', presentError.message);
+          Alert.alert(t('subscription.paymentCancelled'), presentError.message);
           return;
         }
 
@@ -214,35 +216,35 @@ function SubscriptionContent() {
       console.error('[Subscription] Error name:', error?.name);
       console.error('[Subscription] Error message:', error?.message);
       console.error('[Subscription] Error stack:', error?.stack?.substring(0, 500));
-      
-      let errorMessage = 'Error al crear la cuenta';
+
+      let errorMessage = t('subscription.accountCreationError');
       let showOfflineOption = false;
 
       const errorMsg = error?.message?.toLowerCase() || '';
       if (errorMsg.includes('fetch') || errorMsg.includes('network') || errorMsg.includes('timeout') || errorMsg.includes('failed to fetch')) {
-        errorMessage = 'No se pudo conectar con el servidor.\n\n¿Deseas continuar en modo offline sin procesar el pago?';
+        errorMessage = t('subscription.connectionErrorMessage');
         showOfflineOption = true;
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       if (showOfflineOption) {
         Alert.alert(
-          'Error de Conexión',
+          t('subscription.connectionError'),
           errorMessage,
           [
             {
-              text: 'Configurar',
+              text: t('subscription.configure'),
               onPress: () => {
                 Alert.alert(
-                  'Configuración Requerida',
-                  'Para procesar pagos necesitas:\n\n1. Crear un archivo .env en la raíz del proyecto\n2. Agregar EXPO_PUBLIC_RORK_API_BASE_URL\n3. Agregar las claves de Stripe\n4. Reiniciar el servidor\n\nRevisa SETUP_INSTRUCTIONS.md para más detalles.',
-                  [{ text: 'Entendido' }]
+                  t('subscription.configurationRequired'),
+                  t('subscription.configurationInstructions'),
+                  [{ text: t('subscription.understood') }]
                 );
               },
             },
             {
-              text: 'Continuar sin pago',
+              text: t('subscription.continueWithoutPayment'),
               style: 'default' as const,
               onPress: () => {
                 setOfflineMode(true);
@@ -250,13 +252,13 @@ function SubscriptionContent() {
               },
             },
             {
-              text: 'Cancelar',
+              text: t('common.cancel'),
               style: 'cancel' as const,
             },
           ]
         );
       } else {
-        Alert.alert('Error', errorMessage);
+        Alert.alert(t('common.error'), errorMessage);
       }
     } finally {
       setIsProcessing(false);
@@ -270,9 +272,9 @@ function SubscriptionContent() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Elige Tu Plan</Text>
+        <Text style={styles.title}>{t('subscription.chooseYourPlan')}</Text>
         <Text style={styles.subtitle}>
-          Para {employeeCount} empleados
+          {t('subscription.forEmployees', { count: employeeCount })}
         </Text>
 
         <TouchableOpacity
@@ -287,19 +289,19 @@ function SubscriptionContent() {
               <Check size={20} color="#FFFFFF" />
             </View>
           )}
-          <Text style={styles.planTitle}>Plan Básico</Text>
-          <Text style={styles.planPrice}>${pricing.basic}/mes</Text>
+          <Text style={styles.planTitle}>{t('subscription.basicPlan')}</Text>
+          <Text style={styles.planPrice}>${pricing.basic}{t('subscription.perMonthSuffix')}</Text>
           <Text style={styles.planDescription}>
-            ${10} base + ${8} × {employeeCount - 1} empleados
+            {t('subscription.priceDetail', { base: 10, perEmployee: 8, count: employeeCount - 1 })}
           </Text>
           <View style={styles.featuresContainer}>
-            <Text style={styles.featureItem}>✓ Dashboard</Text>
-            <Text style={styles.featureItem}>✓ CRM & Gestión de Clientes</Text>
-            <Text style={styles.featureItem}>✓ Seguimiento de Gastos</Text>
-            <Text style={styles.featureItem}>✓ Fotos & Documentación</Text>
-            <Text style={styles.featureItem}>✓ Estimados & Takeoffs</Text>
-            <Text style={styles.featureItem}>✓ {employeeCount} Miembros del Equipo</Text>
-            <Text style={styles.featureItem}>✓ 20 Proyectos Activos</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.dashboardAccess')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.crmAccess')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.expensesAccess')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.photosAccess')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.estimatesAccess')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.teamMembers', { count: employeeCount })}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.activeProjects', { count: 20 })}</Text>
           </View>
         </TouchableOpacity>
 
@@ -317,21 +319,21 @@ function SubscriptionContent() {
             </View>
           )}
           <View style={styles.popularBadge}>
-            <Text style={styles.popularText}>MÁS POPULAR</Text>
+            <Text style={styles.popularText}>{t('subscription.mostPopular')}</Text>
           </View>
-          <Text style={styles.planTitle}>Plan Premium</Text>
-          <Text style={styles.planPrice}>${pricing.premium}/mes</Text>
+          <Text style={styles.planTitle}>{t('subscription.premiumPlan')}</Text>
+          <Text style={styles.planPrice}>${pricing.premium}{t('subscription.perMonthSuffix')}</Text>
           <Text style={styles.planDescription}>
-            ${20} base + ${15} × {employeeCount - 1} empleados
+            {t('subscription.priceDetail', { base: 20, perEmployee: 15, count: employeeCount - 1 })}
           </Text>
           <View style={styles.featuresContainer}>
-            <Text style={styles.featureItem}>✓ Todo del Plan Básico</Text>
-            <Text style={styles.featureItem}>✓ Programación & Tareas</Text>
-            <Text style={styles.featureItem}>✓ Chat en Equipo</Text>
-            <Text style={styles.featureItem}>✓ Reportes Avanzados</Text>
-            <Text style={styles.featureItem}>✓ Reloj de Entrada/Salida</Text>
-            <Text style={styles.featureItem}>✓ {employeeCount} Miembros del Equipo</Text>
-            <Text style={styles.featureItem}>✓ Proyectos Ilimitados</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.allBasicFeatures')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.scheduleAccess')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.chatAccess')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.reportsAccess')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.clockAccess')}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.teamMembers', { count: employeeCount })}</Text>
+            <Text style={styles.featureItem}>✓ {t('subscription.unlimitedProjects')}</Text>
           </View>
         </TouchableOpacity>
 
@@ -355,7 +357,7 @@ function SubscriptionContent() {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.continueButtonText}>
-                Crear Cuenta
+                {t('subscription.createAccount')}
               </Text>
             )}
           </TouchableOpacity>
@@ -363,10 +365,10 @@ function SubscriptionContent() {
 
         <View style={styles.disclaimerContainer}>
           <Text style={styles.disclaimer}>
-            🔒 Pago seguro procesado por Stripe
+            {t('subscription.securePayment')}
           </Text>
           <Text style={styles.testMode}>
-            Modo Test: Usa 4242 4242 4242 4242 para pruebas
+            {t('subscription.testMode')}
           </Text>
         </View>
       </ScrollView>

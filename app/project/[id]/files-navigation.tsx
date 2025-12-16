@@ -7,6 +7,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { FileCategory, ProjectFile } from '@/types';
+import { useTranslation } from 'react-i18next';
 
 type FolderType = 'photos' | 'receipts' | 'permit-files' | 'inspections' | 'agreements';
 
@@ -62,6 +63,7 @@ interface FolderWithData extends FolderConfig {
 }
 
 export default function FilesNavigationScreen() {
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { projects, projectFiles, photos, expenses, addProjectFile, addPhoto, addExpense, photoCategories } = useApp();
@@ -268,16 +270,16 @@ export default function FilesNavigationScreen() {
 
   const handleDeleteFolder = (folderType: FolderType) => {
     Alert.alert(
-      'Eliminar Folder',
+      t('projects.files.deleteFolder'),
       '¿Estás seguro que deseas eliminar este folder?',
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Eliminar',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             setCustomFolders(prev => prev.filter(f => f.type !== folderType));
-            Alert.alert('Éxito', 'Folder eliminado');
+            Alert.alert(t('common.success'), 'Folder eliminado');
           },
         },
       ]
@@ -326,8 +328,8 @@ export default function FilesNavigationScreen() {
               <View style={[styles.folderIconContainer, { backgroundColor: '#F3F4F620' }]}>
                 <Plus size={48} color="#9CA3AF" />
               </View>
-              <Text style={[styles.folderName, { color: '#6B7280' }]}>Nuevo Folder</Text>
-              <Text style={styles.folderCount}>Crear</Text>
+              <Text style={[styles.folderName, { color: '#6B7280' }]}>{t('projects.files.createNewFolder')}</Text>
+              <Text style={styles.folderCount}>{t('projects.files.create')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -568,7 +570,7 @@ export default function FilesNavigationScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Crear Nuevo Folder</Text>
+                <Text style={styles.modalTitle}>{t('projects.files.createNewFolder')}</Text>
                 <TouchableOpacity onPress={() => setNewFolderModalVisible(false)}>
                   <X size={24} color="#6B7280" />
                 </TouchableOpacity>
@@ -589,7 +591,7 @@ export default function FilesNavigationScreen() {
                 onPress={handleCreateNewFolder}
               >
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.modalActionButtonText}>Crear Folder</Text>
+                <Text style={styles.modalActionButtonText}>{t('projects.files.createFolder')}</Text>
               </TouchableOpacity>
             </View>
           </View>
