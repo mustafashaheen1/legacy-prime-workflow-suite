@@ -52,8 +52,24 @@ app.get("/", (c) => {
 });
 
 app.get("/health", (c) => {
-  return c.json({ 
+  return c.json({
     status: "healthy",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/debug/env", (c) => {
+  return c.json({
+    status: "ok",
+    environment_check: {
+      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ? "✓ configured" : "✗ MISSING",
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? "✓ configured" : "✗ MISSING",
+      EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL ? "✓ configured" : "✗ MISSING",
+      EXPO_PUBLIC_TWILIO_ACCOUNT_SID: process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID ? "✓ configured" : "✗ MISSING",
+      EXPO_PUBLIC_TWILIO_AUTH_TOKEN: process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN ? "✓ configured" : "✗ MISSING",
+      EXPO_PUBLIC_TWILIO_PHONE_NUMBER: process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER ? "✓ configured" : "✗ MISSING",
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "✓ configured" : "✗ missing (optional)",
+    },
     timestamp: new Date().toISOString(),
   });
 });
