@@ -53,6 +53,7 @@ import { getClientsProcedure } from "./routes/crm/get-clients/route.js";
 import { createPaymentIntentProcedure } from "./routes/stripe/create-payment-intent/route.js";
 import { createSubscriptionProcedure } from "./routes/stripe/create-subscription/route.js";
 import { verifyPaymentProcedure } from "./routes/stripe/verify-payment/route.js";
+import { activateSubscriptionProcedure } from "./routes/stripe/activate-subscription/route.js";
 import { getProjectCostsProcedure } from "./routes/projects/get-project-costs/route.js";
 import { addProjectProcedure } from "./routes/projects/add-project/route.js";
 import { getProjectsProcedure } from "./routes/projects/get-projects/route.js";
@@ -161,6 +162,7 @@ export const appRouter = createTRPCRouter({
     createPaymentIntent: createPaymentIntentProcedure,
     createSubscription: createSubscriptionProcedure,
     verifyPayment: verifyPaymentProcedure,
+    activateSubscription: activateSubscriptionProcedure,
   }),
   projects: createTRPCRouter({
     addProject: addProjectProcedure,

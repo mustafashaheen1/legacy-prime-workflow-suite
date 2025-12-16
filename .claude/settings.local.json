@@ -50,7 +50,8 @@
       "Bash(bun add @hono/node-server)",
       "Bash(bun add -d @vercel/node)",
       "Bash(python3:*)",
-      "Bash(bun install --frozen-lockfile)"
+      "Bash(bun install --frozen-lockfile)",
+      "Bash(bun add:*)"
     ],
     "deny": [],
     "ask": []

@@ -6,12 +6,14 @@ import { useState, useMemo, useEffect } from 'react';
 import { Check } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { StripeProvider, useStripe } from '@/lib/stripe-provider';
+import { StripePaymentForm } from '@/components/StripePaymentForm';
 
 function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
   const stripe = useStripe();
   const createPaymentIntentMutation = trpc.stripe.createPaymentIntent.useMutation();
+  const activateSubscriptionMutation = trpc.stripe.activateSubscription.useMutation();
   
   const params = useLocalSearchParams<{
     name?: string;
@@ -27,6 +29,8 @@ function SubscriptionContent() {
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'premium'>('premium');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [offlineMode, setOfflineMode] = useState<boolean>(false);
+  const [showPaymentForm, setShowPaymentForm] = useState<boolean>(false);
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
 
   useEffect(() => {
     if (!params.accountType) {
@@ -48,6 +52,69 @@ function SubscriptionContent() {
       premium: basePricePremium + (employeeCount - 1) * pricePerEmployeePremium,
     };
   }, [employeeCount]);
+
+  const completeSubscription = async () => {
+    console.log('[Subscription] Completing subscription setup...');
+
+    // Update subscription in storage
+    await setSubscription({
+      type: selectedPlan,
+      startDate: new Date().toISOString(),
+    });
+
+    console.log('[Subscription] Subscription updated successfully');
+
+    // Navigate to dashboard
+    if (Platform.OS === 'web') {
+      router.replace('/(tabs)/dashboard');
+    } else {
+      Alert.alert(
+        'Subscription Activated',
+        `Your ${selectedPlan} subscription has been activated successfully!\n\nYou can now access all features.`,
+        [
+          {
+            text: 'Continue',
+            onPress: () => router.replace('/(tabs)/dashboard'),
+          },
+        ]
+      );
+    }
+  };
+
+  const handlePaymentSuccess = async (paymentIntentId: string) => {
+    console.log('[Subscription] Payment successful!', paymentIntentId);
+    setShowPaymentForm(false);
+    setIsProcessing(true);
+
+    try {
+      // Activate the Stripe subscription with recurring billing
+      console.log('[Subscription] Activating subscription...');
+      const result = await activateSubscriptionMutation.mutateAsync({
+        paymentIntentId,
+        companyId: params.companyId || '',
+        email: params.email || '',
+        companyName: params.companyName || '',
+        subscriptionPlan: selectedPlan,
+        employeeCount: parseInt(params.employeeCount || '2'),
+      });
+
+      console.log('[Subscription] Subscription activated:', result);
+
+      // Complete the signup flow
+      await completeSubscription();
+    } catch (error: any) {
+      console.error('[Subscription] Error activating subscription:', error);
+      Alert.alert('Error', `Failed to activate subscription: ${error.message}`);
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePaymentError = (error: string) => {
+    console.error('[Subscription] Payment error:', error);
+    Alert.alert('Payment Failed', error);
+    setShowPaymentForm(false);
+    setIsProcessing(false);
+  };
 
   const handleCreateAccount = async () => {
     try {
@@ -84,7 +151,15 @@ function SubscriptionContent() {
         console.log('[Subscription] Skipping Stripe payment (offline mode or no Stripe key)');
       }
 
-      if (!offlineMode && Platform.OS !== 'web' && stripe.initPaymentSheet && stripe.presentPaymentSheet && paymentIntentResult.clientSecret) {
+      // Handle payment based on platform
+      if (Platform.OS === 'web' && paymentIntentResult.clientSecret) {
+        // On web, show the payment form instead of auto-completing
+        console.log('[Subscription] Web platform - showing payment form');
+        setPaymentClientSecret(paymentIntentResult.clientSecret);
+        setShowPaymentForm(true);
+        setIsProcessing(false);
+        return; // Don't navigate yet - wait for payment
+      } else if (!offlineMode && Platform.OS !== 'web' && stripe.initPaymentSheet && stripe.presentPaymentSheet && paymentIntentResult.clientSecret) {
         console.log('[Subscription] Initializing payment sheet...');
         const { error: initError } = await stripe.initPaymentSheet({
           paymentIntentClientSecret: paymentIntentResult.clientSecret || '',
@@ -111,36 +186,11 @@ function SubscriptionContent() {
         console.log('[Subscription] Payment successful!');
       } else if (offlineMode) {
         console.log('[Subscription] Offline mode - Skipping payment');
-      } else {
-        console.log('[Subscription] Web platform - simulating payment success');
       }
 
-      console.log('[Subscription] Payment processed successfully');
-      console.log('[Subscription] Updating subscription status...');
-
-      // Update subscription in storage
-      await setSubscription({
-        type: selectedPlan,
-        startDate: new Date().toISOString(),
-      });
-
-      console.log('[Subscription] Subscription updated successfully');
-
-      // On web, navigate directly without Alert
-      if (Platform.OS === 'web') {
-        router.replace('/(tabs)/dashboard');
-      } else {
-        const companyCode = params.companyCode || 'N/A';
-        Alert.alert(
-          'Subscription Activated',
-          `Your ${selectedPlan} subscription has been activated successfully!\n\nYou can now access all features.`,
-          [
-            {
-              text: 'Continue',
-              onPress: () => router.replace('/(tabs)/dashboard'),
-            },
-          ]
-        );
+      // Only navigate if not web or offline mode (web waits for payment form completion)
+      if (Platform.OS !== 'web' || offlineMode) {
+        await completeSubscription();
       }
     } catch (error: any) {
       console.error('[Subscription] Error:', error);
@@ -268,22 +318,31 @@ function SubscriptionContent() {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.continueButton,
-            isProcessing && styles.continueButtonDisabled,
-          ]}
-          onPress={handleCreateAccount}
-          disabled={isProcessing}
-        >
-          {isProcessing ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.continueButtonText}>
-              Crear Cuenta
-            </Text>
-          )}
-        </TouchableOpacity>
+        {showPaymentForm && paymentClientSecret && Platform.OS === 'web' ? (
+          <StripePaymentForm
+            clientSecret={paymentClientSecret}
+            onSuccess={handlePaymentSuccess}
+            onError={handlePaymentError}
+            amount={pricing[selectedPlan]}
+          />
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.continueButton,
+              isProcessing && styles.continueButtonDisabled,
+            ]}
+            onPress={handleCreateAccount}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.continueButtonText}>
+                Crear Cuenta
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
 
         <View style={styles.disclaimerContainer}>
           <Text style={styles.disclaimer}>
@@ -301,10 +360,17 @@ function SubscriptionContent() {
 export default function SubscriptionScreen() {
   const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
-  if (Platform.OS === 'web' || !publishableKey) {
+  // On web, no wrapper needed (StripePaymentForm handles its own Elements wrapper)
+  if (Platform.OS === 'web') {
     return <SubscriptionContent />;
   }
 
+  // On native without publishable key
+  if (!publishableKey) {
+    return <SubscriptionContent />;
+  }
+
+  // On native with publishable key
   return (
     <StripeProvider publishableKey={publishableKey}>
       <SubscriptionContent />
