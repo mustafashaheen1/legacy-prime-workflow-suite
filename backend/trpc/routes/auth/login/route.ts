@@ -33,11 +33,11 @@ export const loginProcedure = publicProcedure
 
     const user = users[0];
 
-    // Fetch company by companyId
+    // Fetch company by company_id
     const { data: companies, error: companyError } = await supabase
       .from('companies')
       .select('*')
-      .eq('id', user.companyId);
+      .eq('id', user.company_id);
 
     if (companyError) {
       throw new Error(`Failed to fetch company: ${companyError.message}`);
@@ -49,11 +49,11 @@ export const loginProcedure = publicProcedure
 
     const company = companies[0];
 
-    if (company.subscriptionStatus === 'suspended' || company.subscriptionStatus === 'cancelled') {
+    if (company.subscription_status === 'suspended' || company.subscription_status === 'cancelled') {
       throw new Error('Your company subscription is not active. Please contact support.');
     }
 
-    if (!user.isActive) {
+    if (!user.is_active) {
       throw new Error('Your account has been deactivated. Please contact your admin.');
     }
 
@@ -65,10 +65,10 @@ export const loginProcedure = publicProcedure
         name: user.name,
         email: user.email,
         role: user.role,
-        companyId: user.companyId,
+        companyId: user.company_id,
         avatar: user.avatar,
-        createdAt: user.createdAt,
-        isActive: user.isActive,
+        createdAt: user.created_at,
+        isActive: user.is_active,
       },
       company,
     };

@@ -19,7 +19,7 @@ export const getUsersProcedure = publicProcedure
     let query = supabase.from('users').select('*');
 
     if (input.companyId) {
-      query = query.eq('companyId', input.companyId);
+      query = query.eq('company_id', input.companyId);
     }
 
     const { data: users, error } = await query;

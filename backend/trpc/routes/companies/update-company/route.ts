@@ -63,11 +63,26 @@ export const updateCompanyProcedure = publicProcedure
 
     const existingCompany = existingCompanies[0];
 
-    // Prepare the updated data
+    // Prepare the updated data - convert camelCase to snake_case
     const updatedData: any = {
-      ...input.updates,
-      updatedAt: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
+
+    // Map camelCase fields to snake_case
+    if (input.updates.name) updatedData.name = input.updates.name;
+    if (input.updates.logo) updatedData.logo = input.updates.logo;
+    if (input.updates.brandColor) updatedData.brand_color = input.updates.brandColor;
+    if (input.updates.licenseNumber) updatedData.license_number = input.updates.licenseNumber;
+    if (input.updates.officePhone) updatedData.office_phone = input.updates.officePhone;
+    if (input.updates.cellPhone) updatedData.cell_phone = input.updates.cellPhone;
+    if (input.updates.address) updatedData.address = input.updates.address;
+    if (input.updates.email) updatedData.email = input.updates.email;
+    if (input.updates.website) updatedData.website = input.updates.website;
+    if (input.updates.slogan) updatedData.slogan = input.updates.slogan;
+    if (input.updates.estimateTemplate) updatedData.estimate_template = input.updates.estimateTemplate;
+    if (input.updates.subscriptionStatus) updatedData.subscription_status = input.updates.subscriptionStatus;
+    if (input.updates.subscriptionPlan) updatedData.subscription_plan = input.updates.subscriptionPlan;
+    if (input.updates.subscriptionEndDate) updatedData.subscription_end_date = input.updates.subscriptionEndDate;
 
     // Handle nested settings merging
     if (input.updates.settings) {
