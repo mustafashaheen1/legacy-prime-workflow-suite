@@ -48,11 +48,24 @@ export const trpcClient = trpc.createClient({
             contentLength: response.headers.get('content-length'),
           });
 
-          // Don't consume the response body here - let tRPC handle it
+          // IMPORTANT: Clone the response before reading the body for logging
+          // This fixes the "body stream already read" error
           if (!response.ok) {
-            console.error('[tRPC] Error response with status:', response.status);
+            const clonedResponse = response.clone();
+            try {
+              const text = await clonedResponse.text();
+              console.error('[tRPC] Error response body (first 500 chars):', text.substring(0, 500));
+
+              if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                throw new Error(`Server returned HTML instead of JSON. Status: ${response.status}. This usually means the API endpoint is not found or there's a server error.`);
+              }
+            } catch (logError) {
+              // Ignore errors from logging - the original response is still intact
+              console.error('[tRPC] Could not read error body for logging');
+            }
           }
 
+          // Return the original response (not the clone) so tRPC can read it
           return response;
         } catch (error: any) {
           console.error('[tRPC] Fetch error:', error.message);
