@@ -1,6 +1,5 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import Stripe from 'stripe';
 
 export const createPaymentIntentProcedure = publicProcedure
   .input(
@@ -13,7 +12,8 @@ export const createPaymentIntentProcedure = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
-    console.log('[Stripe] Creating payment intent for:', input.companyName);
+    console.log('[Stripe] Starting payment intent creation...');
+    console.log('[Stripe] Company:', input.companyName);
     console.log('[Stripe] Amount:', input.amount, input.currency);
     console.log('[Stripe] Plan:', input.subscriptionPlan);
 
@@ -26,15 +26,18 @@ export const createPaymentIntentProcedure = publicProcedure
     console.log('[Stripe] Secret key found, length:', stripeSecretKey.length);
 
     try {
-      console.log('[Stripe] Initializing Stripe client...');
+      console.log('[Stripe] Dynamically importing Stripe...');
+      const { default: Stripe } = await import('stripe');
+
+      console.log('[Stripe] Stripe imported, initializing client...');
       const stripe = new Stripe(stripeSecretKey, {
         apiVersion: '2024-11-20.acacia' as any,
         typescript: true,
-        timeout: 20000, // 20 second timeout
+        timeout: 20000,
         maxNetworkRetries: 1,
       });
 
-      console.log('[Stripe] Stripe client initialized, creating payment intent...');
+      console.log('[Stripe] Client initialized, creating payment intent...');
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(input.amount * 100),
         currency: input.currency,
@@ -55,12 +58,14 @@ export const createPaymentIntentProcedure = publicProcedure
         paymentIntentId: paymentIntent.id,
       };
     } catch (error: any) {
+      console.error('[Stripe] Error occurred:', error);
       console.error('[Stripe] Error details:', {
-        message: error.message,
-        type: error.type,
-        code: error.code,
-        statusCode: error.statusCode,
+        message: error?.message,
+        type: error?.type,
+        code: error?.code,
+        statusCode: error?.statusCode,
+        stack: error?.stack,
       });
-      throw new Error(`Failed to create payment intent: ${error.message}`);
+      throw new Error(`Failed to create payment intent: ${error?.message || 'Unknown error'}`);
     }
   });
