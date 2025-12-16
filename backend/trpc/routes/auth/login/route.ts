@@ -1,6 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from '@supabase/supabase-js';
 
 export const loginProcedure = publicProcedure
   .input(
@@ -12,23 +12,42 @@ export const loginProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Auth] Login attempt:', input.email);
 
-    const usersData = await AsyncStorage.getItem('system:users');
-    const companiesData = await AsyncStorage.getItem('system:companies');
+    const supabase = createClient(
+      process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    );
 
-    const users = usersData ? JSON.parse(usersData) : [];
-    const companies = companiesData ? JSON.parse(companiesData) : [];
+    // Fetch user by email
+    const { data: users, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', input.email);
 
-    const user = users.find((u: any) => u.email === input.email);
+    if (userError) {
+      throw new Error(`Failed to fetch user: ${userError.message}`);
+    }
 
-    if (!user) {
+    if (!users || users.length === 0) {
       throw new Error('Invalid credentials');
     }
 
-    const company = companies.find((c: any) => c.id === user.companyId);
+    const user = users[0];
 
-    if (!company) {
+    // Fetch company by companyId
+    const { data: companies, error: companyError } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('id', user.companyId);
+
+    if (companyError) {
+      throw new Error(`Failed to fetch company: ${companyError.message}`);
+    }
+
+    if (!companies || companies.length === 0) {
       throw new Error('Company not found');
     }
+
+    const company = companies[0];
 
     if (company.subscriptionStatus === 'suspended' || company.subscriptionStatus === 'cancelled') {
       throw new Error('Your company subscription is not active. Please contact support.');

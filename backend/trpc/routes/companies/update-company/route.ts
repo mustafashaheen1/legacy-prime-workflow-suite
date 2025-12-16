@@ -1,6 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from '@supabase/supabase-js';
 
 export const updateCompanyProcedure = publicProcedure
   .input(
@@ -42,37 +42,59 @@ export const updateCompanyProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Companies] Updating company:', input.companyId);
 
-    const companiesData = await AsyncStorage.getItem('system:companies');
-    const companies = companiesData ? JSON.parse(companiesData) : [];
+    const supabase = createClient(
+      process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    );
 
-    const companyIndex = companies.findIndex((c: any) => c.id === input.companyId);
-    if (companyIndex === -1) {
+    // First, get the existing company
+    const { data: existingCompanies, error: fetchError } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('id', input.companyId);
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch company: ${fetchError.message}`);
+    }
+
+    if (!existingCompanies || existingCompanies.length === 0) {
       throw new Error('Company not found');
     }
 
-    const updatedCompany = {
-      ...companies[companyIndex],
+    const existingCompany = existingCompanies[0];
+
+    // Prepare the updated data
+    const updatedData: any = {
       ...input.updates,
       updatedAt: new Date().toISOString(),
     };
 
+    // Handle nested settings merging
     if (input.updates.settings) {
-      updatedCompany.settings = {
-        ...companies[companyIndex].settings,
+      updatedData.settings = {
+        ...existingCompany.settings,
         ...input.updates.settings,
       };
       if (input.updates.settings.features) {
-        updatedCompany.settings.features = {
-          ...companies[companyIndex].settings.features,
+        updatedData.settings.features = {
+          ...existingCompany.settings?.features,
           ...input.updates.settings.features,
         };
       }
     }
 
-    companies[companyIndex] = updatedCompany;
-    await AsyncStorage.setItem('system:companies', JSON.stringify(companies));
+    // Update the company in Supabase
+    const { data: updatedCompanies, error: updateError } = await supabase
+      .from('companies')
+      .update(updatedData)
+      .eq('id', input.companyId)
+      .select();
+
+    if (updateError) {
+      throw new Error(`Failed to update company: ${updateError.message}`);
+    }
 
     console.log('[Companies] Company updated successfully');
 
-    return { company: updatedCompany };
+    return { company: updatedCompanies[0] };
   });
