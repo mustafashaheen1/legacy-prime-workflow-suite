@@ -1,6 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Stripe from 'stripe';
 
+const PLAN_MAP = {
+  'basic': 'basic',
+  'premium': 'pro',
+  'pro': 'pro',
+  'enterprise': 'enterprise',
+} as const;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -49,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         stripe_customer_id: customer.id,
         subscription_status: 'active',
-        subscription_plan: subscriptionPlan,
+        subscription_plan: PLAN_MAP[subscriptionPlan] || 'basic',
         subscription_start_date: new Date().toISOString(),
         subscription_end_date: subscriptionEndDate.toISOString(),
         employee_count: employeeCount || 1,
