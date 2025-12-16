@@ -2,6 +2,11 @@
   "buildCommand": "bunx expo export -p web",
   "outputDirectory": "dist",
   "installCommand": "bun install",
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/trpc/(.*)", "destination": "/api" },
     { "source": "/((?!api).*)", "destination": "/index.html" }

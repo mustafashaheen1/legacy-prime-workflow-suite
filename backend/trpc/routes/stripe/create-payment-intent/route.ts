@@ -26,11 +26,15 @@ export const createPaymentIntentProcedure = publicProcedure
     console.log('[Stripe] Secret key found, length:', stripeSecretKey.length);
 
     try {
+      console.log('[Stripe] Initializing Stripe client...');
       const stripe = new Stripe(stripeSecretKey, {
         apiVersion: '2024-11-20.acacia' as any,
         typescript: true,
+        timeout: 20000, // 20 second timeout
+        maxNetworkRetries: 1,
       });
 
+      console.log('[Stripe] Stripe client initialized, creating payment intent...');
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(input.amount * 100),
         currency: input.currency,
@@ -44,14 +48,19 @@ export const createPaymentIntentProcedure = publicProcedure
         },
       });
 
-      console.log('[Stripe] Payment intent created:', paymentIntent.id);
+      console.log('[Stripe] Payment intent created successfully:', paymentIntent.id);
 
       return {
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
       };
     } catch (error: any) {
-      console.error('[Stripe] Error:', error.message);
+      console.error('[Stripe] Error details:', {
+        message: error.message,
+        type: error.type,
+        code: error.code,
+        statusCode: error.statusCode,
+      });
       throw new Error(`Failed to create payment intent: ${error.message}`);
     }
   });
