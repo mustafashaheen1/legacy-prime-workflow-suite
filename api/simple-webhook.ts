@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import pkg from 'twilio';
-const { twiml: { VoiceResponse } } = pkg;
+import twilio from 'twilio';
+const VoiceResponse = twilio.twiml.VoiceResponse;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Simple Webhook] Request received:', {
@@ -127,13 +127,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).send(twiml.toString());
 
   } catch (error: any) {
-    console.error('[Simple Webhook] Error:', error.message, error.stack);
+    console.error('[Simple Webhook] ============ ERROR ============');
+    console.error('[Simple Webhook] Error name:', error.name);
+    console.error('[Simple Webhook] Error message:', error.message);
+    console.error('[Simple Webhook] Error stack:', error.stack);
+    console.error('[Simple Webhook] ===============================');
 
-    const twiml = new VoiceResponse();
-    twiml.say({ voice: 'alice' }, 'I apologize, but I am experiencing technical difficulties. Please call back later.');
-    twiml.hangup();
+    try {
+      const twiml = new VoiceResponse();
+      twiml.say({ voice: 'alice' }, 'I apologize, but I am experiencing technical difficulties. Please call back later.');
+      twiml.hangup();
 
-    res.setHeader('Content-Type', 'text/xml');
-    return res.status(200).send(twiml.toString());
+      res.setHeader('Content-Type', 'text/xml');
+      return res.status(200).send(twiml.toString());
+    } catch (twilioError: any) {
+      console.error('[Simple Webhook] Failed to create Twilio response:', twilioError.message);
+      res.setHeader('Content-Type', 'text/xml');
+      return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Error</Say><Hangup/></Response>');
+    }
   }
 }
