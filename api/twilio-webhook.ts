@@ -1,4 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import twilio from 'twilio';
+import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -15,9 +17,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
       return res.status(405).send('Method Not Allowed');
     }
-
-    const twilio = require('twilio');
-    const { createClient } = require('@supabase/supabase-js');
     
     const { From, SpeechResult, conversationState } = req.body;
     
@@ -177,8 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error('[Twilio] Fatal error:', error.message, error.stack);
-    
-    const twilio = require('twilio');
+
     const twiml = new twilio.twiml.VoiceResponse();
     twiml.say({ voice: 'alice' }, 'I apologize, but I am experiencing technical difficulties. Please call back later.');
     twiml.hangup();

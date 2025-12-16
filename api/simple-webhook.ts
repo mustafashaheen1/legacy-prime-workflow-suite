@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import twilio from 'twilio';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Simple Webhook] Request received:', {
@@ -11,7 +12,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const twilio = require('twilio');
     const { From, SpeechResult, conversationState } = req.body;
 
     const twiml = new twilio.twiml.VoiceResponse();
@@ -128,7 +128,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error('[Simple Webhook] Error:', error.message, error.stack);
 
-    const twilio = require('twilio');
     const twiml = new twilio.twiml.VoiceResponse();
     twiml.say({ voice: 'alice' }, 'I apologize, but I am experiencing technical difficulties. Please call back later.');
     twiml.hangup();
