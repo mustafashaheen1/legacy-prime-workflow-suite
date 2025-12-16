@@ -1,6 +1,6 @@
 import { publicProcedure } from '../../../create-context.js';
 import { z } from 'zod';
-import { fixtureExpenses } from '../../../../../mocks/fixtures.js';
+import { createClient } from '@supabase/supabase-js';
 
 const inputSchema = z.object({
   projectId: z.string().optional(),
@@ -13,40 +13,46 @@ const inputSchema = z.object({
 
 export const getExpensesDetailedProcedure = publicProcedure
   .input(inputSchema)
-  .query(({ input }) => {
-    let filteredExpenses = [...fixtureExpenses];
+  .query(async ({ input }) => {
+    const supabase = createClient(
+      process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    );
+
+    let query = supabase.from('expenses').select('*');
 
     if (input.projectId) {
-      filteredExpenses = filteredExpenses.filter(e => e.projectId === input.projectId);
+      query = query.eq('project_id', input.projectId);
     }
 
     if (input.type) {
-      filteredExpenses = filteredExpenses.filter(e => 
-        e.type.toLowerCase().includes(input.type!.toLowerCase())
-      );
+      query = query.ilike('type', `%${input.type}%`);
     }
 
     if (input.date) {
-      filteredExpenses = filteredExpenses.filter(e => 
-        e.date.startsWith(input.date!)
-      );
+      query = query.gte('date', input.date).lt('date', input.date + 'T99:99:99');
     }
 
     if (input.startDate && input.endDate) {
-      filteredExpenses = filteredExpenses.filter(e => 
-        e.date >= input.startDate! && e.date <= input.endDate!
-      );
+      query = query.gte('date', input.startDate).lte('date', input.endDate);
     }
 
-    const totalAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const { data: expenses, error } = await query;
 
-    const byCategory = filteredExpenses.reduce((acc, e) => {
+    if (error) {
+      throw new Error(`Failed to fetch expenses: ${error.message}`);
+    }
+
+    const filteredExpenses = expenses || [];
+    const totalAmount = filteredExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+
+    const byCategory = filteredExpenses.reduce((acc: Record<string, number>, e: any) => {
       acc[e.type] = (acc[e.type] || 0) + e.amount;
       return acc;
     }, {} as Record<string, number>);
 
-    const byProject = filteredExpenses.reduce((acc, e) => {
-      acc[e.projectId] = (acc[e.projectId] || 0) + e.amount;
+    const byProject = filteredExpenses.reduce((acc: Record<string, number>, e: any) => {
+      acc[e.project_id] = (acc[e.project_id] || 0) + e.amount;
       return acc;
     }, {} as Record<string, number>);
 

@@ -1,6 +1,6 @@
 import { publicProcedure } from '../../../create-context.js';
 import { z } from 'zod';
-import { fixtureExpenses, fixtureClockEntries, fixtureUsers } from '../../../../../mocks/fixtures.js';
+import { createClient } from '@supabase/supabase-js';
 
 const inputSchema = z.object({
   projectId: z.string(),
@@ -31,16 +31,46 @@ interface CostBreakdown {
 
 export const getProjectCostsProcedure = publicProcedure
   .input(inputSchema)
-  .query(({ input }): CostBreakdown => {
+  .query(async ({ input }): Promise<CostBreakdown> => {
     console.log('[Project Costs] Calculating costs for project:', input.projectId);
 
-    const projectExpenses = fixtureExpenses.filter(e => e.projectId === input.projectId);
-    
-    const projectClockEntries = fixtureClockEntries.filter(e => e.projectId === input.projectId);
+    const supabase = createClient(
+      process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    );
 
-    const totalExpenses = projectExpenses.reduce((sum, e) => sum + e.amount, 0);
+    // Fetch expenses for this project
+    const { data: projectExpenses, error: expensesError } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('project_id', input.projectId);
 
-    const expensesByCategory = projectExpenses.reduce((acc, e) => {
+    if (expensesError) {
+      throw new Error(`Failed to fetch expenses: ${expensesError.message}`);
+    }
+
+    // Fetch clock entries for this project
+    const { data: projectClockEntries, error: clockError } = await supabase
+      .from('clock_entries')
+      .select('*')
+      .eq('project_id', input.projectId);
+
+    if (clockError) {
+      throw new Error(`Failed to fetch clock entries: ${clockError.message}`);
+    }
+
+    // Fetch all users for labor cost calculation
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('*');
+
+    if (usersError) {
+      throw new Error(`Failed to fetch users: ${usersError.message}`);
+    }
+
+    const totalExpenses = (projectExpenses || []).reduce((sum: number, e: any) => sum + e.amount, 0);
+
+    const expensesByCategory = (projectExpenses || []).reduce((acc: Record<string, number>, e: any) => {
       const category = e.subcategory || e.type;
       acc[category] = (acc[category] || 0) + e.amount;
       return acc;
@@ -54,30 +84,30 @@ export const getProjectCostsProcedure = publicProcedure
       totalCost: number;
     }>();
 
-    projectClockEntries.forEach(entry => {
-      if (entry.clockOut) {
-        const user = fixtureUsers.find(u => u.id === entry.employeeId);
-        const hourlyRate = user?.hourlyRate || 0;
-        
-        const hoursWorked = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
-        
+    (projectClockEntries || []).forEach((entry: any) => {
+      if (entry.clock_out) {
+        const user = (users || []).find((u: any) => u.id === entry.employee_id);
+        const hourlyRate = user?.hourly_rate || 0;
+
+        const hoursWorked = (new Date(entry.clock_out).getTime() - new Date(entry.clock_in).getTime()) / (1000 * 60 * 60);
+
         let netHours = hoursWorked;
-        if (entry.lunchBreaks) {
-          entry.lunchBreaks.forEach(lunch => {
-            if (lunch.endTime) {
-              const lunchHours = (new Date(lunch.endTime).getTime() - new Date(lunch.startTime).getTime()) / (1000 * 60 * 60);
+        if (entry.lunch_breaks) {
+          entry.lunch_breaks.forEach((lunch: any) => {
+            if (lunch.end_time) {
+              const lunchHours = (new Date(lunch.end_time).getTime() - new Date(lunch.start_time).getTime()) / (1000 * 60 * 60);
               netHours -= lunchHours;
             }
           });
         }
 
-        const existing = laborByEmployeeMap.get(entry.employeeId);
+        const existing = laborByEmployeeMap.get(entry.employee_id);
         if (existing) {
           existing.totalHours += netHours;
           existing.totalCost = existing.totalHours * existing.hourlyRate;
         } else {
-          laborByEmployeeMap.set(entry.employeeId, {
-            employeeId: entry.employeeId,
+          laborByEmployeeMap.set(entry.employee_id, {
+            employeeId: entry.employee_id,
             employeeName: user?.name || 'Unknown Employee',
             totalHours: netHours,
             hourlyRate: hourlyRate,
@@ -90,11 +120,11 @@ export const getProjectCostsProcedure = publicProcedure
     const laborByEmployee = Array.from(laborByEmployeeMap.values());
     const totalLaborCost = laborByEmployee.reduce((sum, emp) => sum + emp.totalCost, 0);
 
-    const subcontractorExpenses = projectExpenses.filter(e => 
-      e.type.toLowerCase() === 'subcontractor' || 
+    const subcontractorExpenses = (projectExpenses || []).filter((e: any) =>
+      e.type.toLowerCase() === 'subcontractor' ||
       e.subcategory?.toLowerCase().includes('subcontractor')
     );
-    const totalSubcontractorCost = subcontractorExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalSubcontractorCost = subcontractorExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
 
     const totalCost = totalExpenses + totalLaborCost;
 
@@ -114,7 +144,7 @@ export const getProjectCostsProcedure = publicProcedure
       totalCost,
       expensesByCategory,
       laborByEmployee,
-      expensesBreakdown: projectExpenses.map(e => ({
+      expensesBreakdown: (projectExpenses || []).map((e: any) => ({
         id: e.id,
         type: e.type,
         subcategory: e.subcategory,
