@@ -12,7 +12,6 @@ function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
   const stripe = useStripe();
-  const createPaymentIntentMutation = trpc.stripe.createPaymentIntent.useMutation();
   const activateSubscriptionMutation = trpc.stripe.activateSubscription.useMutation();
   
   const params = useLocalSearchParams<{
@@ -131,13 +130,23 @@ function SubscriptionContent() {
       if (isOnline && process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
         console.log('[Subscription] Creating payment intent with Stripe...');
         try {
-          const result = await createPaymentIntentMutation.mutateAsync({
-            amount: pricing[selectedPlan],
-            currency: 'usd',
-            companyName: params.companyName || 'New Company',
-            email: params.email || 'admin@example.com',
-            subscriptionPlan: selectedPlan,
+          const response = await fetch('/api/stripe-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount: pricing[selectedPlan],
+              currency: 'usd',
+              companyName: params.companyName || 'New Company',
+              email: params.email || 'admin@example.com',
+              subscriptionPlan: selectedPlan,
+            }),
           });
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Failed to create payment intent');
+          }
+
           paymentIntentResult = {
             clientSecret: result.clientSecret || undefined,
             paymentIntentId: result.paymentIntentId,
