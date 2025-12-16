@@ -1,6 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import Stripe from 'stripe';
+// Stripe will be dynamically imported
 
 export const createSubscriptionProcedure = publicProcedure
   .input(
@@ -22,6 +22,7 @@ export const createSubscriptionProcedure = publicProcedure
     }
 
     try {
+      const { default: Stripe } = await import('stripe');
       const stripe = new Stripe(stripeSecretKey, {
         apiVersion: '2024-11-20.acacia' as any,
         typescript: true,

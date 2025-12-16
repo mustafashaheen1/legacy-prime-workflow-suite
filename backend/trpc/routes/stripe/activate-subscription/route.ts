@@ -1,6 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import Stripe from 'stripe';
+// Stripe will be dynamically imported
 import { createClient } from '@supabase/supabase-js';
 
 // Stripe Price IDs - these should match your Stripe Dashboard
@@ -41,6 +41,7 @@ export const activateSubscriptionProcedure = publicProcedure
 
     try {
       // Create clients inside the handler (not at module level)
+      const { default: Stripe } = await import('stripe');
       const stripe = new Stripe(stripeSecretKey, {
         apiVersion: '2024-11-20.acacia' as any,
         typescript: true,
