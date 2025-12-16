@@ -179,59 +179,63 @@ app.post("/twilio/receptionist", async (c) => {
 
       // Save qualified lead to database
       try {
-        // First, get the default company (assuming first company for now - you can make this configurable)
-        const { data: companies, error: companyError } = await supabase
-          .from('companies')
-          .select('id')
-          .limit(1)
-          .single();
-
-        if (!companyError && companies) {
-          // Create client in CRM
-          const { data: newClient, error: clientError } = await supabase
-            .from('clients')
-            .insert({
-              company_id: companies.id,
-              name: state.collectedInfo.name,
-              email: `${state.collectedInfo.phone}@temporary.com`, // Placeholder email
-              phone: state.collectedInfo.phone,
-              source: 'Other',
-              status: 'Lead',
-              last_contacted: 'AI Call - ' + new Date().toLocaleString(),
-              next_follow_up_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-            })
-            .select()
+        if (!supabase) {
+          console.warn('[Twilio Receptionist] ⚠️ Supabase not configured - skipping database save');
+        } else {
+          // First, get the default company (assuming first company for now - you can make this configurable)
+          const { data: companies, error: companyError } = await supabase
+            .from('companies')
+            .select('id')
+            .limit(1)
             .single();
 
-          if (!clientError && newClient) {
-            console.log('[Twilio Receptionist] ✅ Client saved to CRM:', newClient.id);
-
-            // Create call log
-            await supabase
-              .from('call_logs')
+          if (!companyError && companies) {
+            // Create client in CRM
+            const { data: newClient, error: clientError } = await supabase
+              .from('clients')
               .insert({
                 company_id: companies.id,
-                call_sid: CallSid as string,
-                from_number: state.collectedInfo.phone,
-                to_number: process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER,
-                direction: 'inbound',
-                status: 'completed',
-                lead_qualified: true,
-                lead_data: {
-                  name: state.collectedInfo.name,
-                  phone: state.collectedInfo.phone,
-                  projectType: state.collectedInfo.projectType,
-                  budget: state.collectedInfo.budget,
-                  conversationHistory: state.conversationHistory,
-                },
-              });
+                name: state.collectedInfo.name,
+                email: `${state.collectedInfo.phone}@temporary.com`, // Placeholder email
+                phone: state.collectedInfo.phone,
+                source: 'Other',
+                status: 'Lead',
+                last_contacted: 'AI Call - ' + new Date().toLocaleString(),
+                next_follow_up_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
+              })
+              .select()
+              .single();
 
-            console.log('[Twilio Receptionist] ✅ Call log saved');
+            if (!clientError && newClient) {
+              console.log('[Twilio Receptionist] ✅ Client saved to CRM:', newClient.id);
+
+              // Create call log
+              await supabase
+                .from('call_logs')
+                .insert({
+                  company_id: companies.id,
+                  call_sid: CallSid as string,
+                  from_number: state.collectedInfo.phone,
+                  to_number: process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER,
+                  direction: 'inbound',
+                  status: 'completed',
+                  lead_qualified: true,
+                  lead_data: {
+                    name: state.collectedInfo.name,
+                    phone: state.collectedInfo.phone,
+                    projectType: state.collectedInfo.projectType,
+                    budget: state.collectedInfo.budget,
+                    conversationHistory: state.conversationHistory,
+                  },
+                });
+
+              console.log('[Twilio Receptionist] ✅ Call log saved');
+            } else {
+              console.error('[Twilio Receptionist] Error saving client:', clientError);
+            }
           } else {
-            console.error('[Twilio Receptionist] Error saving client:', clientError);
+            console.error('[Twilio Receptionist] Error fetching company:', companyError);
           }
-        } else {
-          console.error('[Twilio Receptionist] Error fetching company:', companyError);
         }
       } catch (dbError) {
         console.error('[Twilio Receptionist] Database error:', dbError);
