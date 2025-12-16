@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,7 +20,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { paymentIntentId, companyId, email, companyName, subscriptionPlan, employeeCount } = req.body;
 
     const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-11-20.acacia' as any });
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Verify payment
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
@@ -36,18 +34,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       metadata: { companyId },
     });
 
-    // Update company
+    // Update company using Supabase REST API
     const subscriptionEndDate = new Date();
     subscriptionEndDate.setFullYear(subscriptionEndDate.getFullYear() + 1);
 
-    await supabase.from('companies').update({
-      stripe_customer_id: customer.id,
-      subscription_status: 'active',
-      subscription_plan: subscriptionPlan,
-      subscription_start_date: new Date().toISOString(),
-      subscription_end_date: subscriptionEndDate.toISOString(),
-      employee_count: employeeCount || 1,
-    }).eq('id', companyId);
+    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/companies?id=eq.${companyId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        stripe_customer_id: customer.id,
+        subscription_status: 'active',
+        subscription_plan: subscriptionPlan,
+        subscription_start_date: new Date().toISOString(),
+        subscription_end_date: subscriptionEndDate.toISOString(),
+        employee_count: employeeCount || 1,
+      }),
+    });
+
+    if (!updateResponse.ok) {
+      const error = await updateResponse.text();
+      throw new Error(`Failed to update company: ${error}`);
+    }
 
     return res.status(200).json({
       success: true,
