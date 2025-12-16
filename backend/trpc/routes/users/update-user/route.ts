@@ -1,6 +1,12 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from '@supabase/supabase-js';
+
+// Create Supabase client for server-side use
+const supabase = createClient(
+  process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
 
 export const updateUserProcedure = publicProcedure
   .input(
@@ -20,18 +26,59 @@ export const updateUserProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Users] Updating user:', input.userId);
 
-    const usersData = await AsyncStorage.getItem('system:users');
-    const users = usersData ? JSON.parse(usersData) : [];
+    try {
+      // Check if Supabase is configured
+      if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        console.warn('[Users] Supabase not configured');
+        throw new Error('Database not configured');
+      }
 
-    const userIndex = users.findIndex((u: any) => u.id === input.userId);
-    if (userIndex === -1) {
-      throw new Error('User not found');
+      // Convert camelCase to snake_case for database
+      const dbUpdates: Record<string, any> = {};
+      if (input.updates.name !== undefined) dbUpdates.name = input.updates.name;
+      if (input.updates.role !== undefined) dbUpdates.role = input.updates.role;
+      if (input.updates.isActive !== undefined) dbUpdates.is_active = input.updates.isActive;
+      if (input.updates.avatar !== undefined) dbUpdates.avatar = input.updates.avatar;
+      if (input.updates.phone !== undefined) dbUpdates.phone = input.updates.phone;
+      if (input.updates.address !== undefined) dbUpdates.address = input.updates.address;
+      if (input.updates.hourlyRate !== undefined) dbUpdates.hourly_rate = input.updates.hourlyRate;
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(dbUpdates)
+        .eq('id', input.userId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Users] Error updating user:', error);
+        throw new Error(`Failed to update user: ${error.message}`);
+      }
+
+      if (!data) {
+        throw new Error('User not found');
+      }
+
+      // Transform response to camelCase
+      const user = {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        companyId: data.company_id,
+        avatar: data.avatar || undefined,
+        phone: data.phone || undefined,
+        address: data.address || undefined,
+        hourlyRate: data.hourly_rate || undefined,
+        isActive: data.is_active,
+        createdAt: data.created_at,
+      };
+
+      console.log('[Users] User updated successfully');
+
+      return { user };
+    } catch (error: any) {
+      console.error('[Users] Unexpected error:', error);
+      throw new Error(error.message || 'Failed to update user');
     }
-
-    users[userIndex] = { ...users[userIndex], ...input.updates };
-    await AsyncStorage.setItem('system:users', JSON.stringify(users));
-
-    console.log('[Users] User updated successfully');
-
-    return { user: users[userIndex] };
   });

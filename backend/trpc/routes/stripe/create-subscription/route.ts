@@ -1,12 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
 
-import Stripe from 'stripe';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-11-20.acacia',
-});
-
 export const createSubscriptionProcedure = publicProcedure
   .input(
     z.object({
@@ -20,6 +14,21 @@ export const createSubscriptionProcedure = publicProcedure
     console.log('[Stripe] Creating subscription for:', input.email);
 
     try {
+      // Check if Stripe is configured
+      const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeSecretKey) {
+        console.error('[Stripe] STRIPE_SECRET_KEY not configured');
+        throw new Error('Stripe is not configured. Please add STRIPE_SECRET_KEY to environment variables.');
+      }
+
+      // Dynamic import to avoid issues if stripe package is not installed
+      const Stripe = (await import('stripe')).default;
+      
+      // Use a stable API version
+      const stripe = new Stripe(stripeSecretKey, {
+        apiVersion: '2023-10-16',
+      });
+
       const customer = await stripe.customers.create({
         email: input.email,
         payment_method: input.paymentMethodId,
@@ -47,7 +56,7 @@ export const createSubscriptionProcedure = publicProcedure
         status: subscription.status,
       };
     } catch (error: any) {
-      console.error('[Stripe] Error creating subscription:', error);
+      console.error('[Stripe] Error creating subscription:', error.message);
       throw new Error(`Failed to create subscription: ${error.message}`);
     }
   });
