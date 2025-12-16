@@ -1,5 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
+import Stripe from 'stripe';
 
 export const createPaymentIntentProcedure = publicProcedure
   .input(
@@ -26,10 +27,7 @@ export const createPaymentIntentProcedure = publicProcedure
     console.log('[Stripe] Secret key found, length:', stripeSecretKey.length);
 
     try {
-      console.log('[Stripe] Dynamically importing Stripe...');
-      const { default: Stripe } = await import('stripe');
-
-      console.log('[Stripe] Stripe imported, initializing client...');
+      console.log('[Stripe] Initializing Stripe client...');
       const stripe = new Stripe(stripeSecretKey, {
         apiVersion: '2024-11-20.acacia' as any,
         typescript: true,
