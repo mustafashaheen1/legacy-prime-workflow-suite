@@ -2,7 +2,6 @@ import { z } from "zod";
 import { publicProcedure } from "../../../create-context.js";
 import twilio from "twilio";
 import OpenAI from "openai";
-import { masterPriceList } from "../../../../../mocks/priceList.js";
 import { supabase } from "../../../../lib/supabase.js";
 
 const openai = new OpenAI({
@@ -134,21 +133,6 @@ function extractInformation(speech: string, state: ConversationState['collectedI
   return state;
 }
 
-function buildPricingContext(): string {
-  const keyCategories = ['Kitchen', 'Bathroom', 'Pre-Construction', 'Plumbing', 'Electrical'];
-  
-  const relevantPrices = masterPriceList
-    .filter(item => keyCategories.includes(item.category))
-    .slice(0, 30);
-
-  return `
-AVAILABLE PRICING DATABASE (excerpt):
-${relevantPrices.map(item => 
-  `- ${item.name}: $${item.unitPrice}/${item.unit}${item.category !== 'Pre-Construction' ? ` (${item.category})` : ''}`
-).join('\n')}
-
-Use this to provide ballpark estimates when asked.`;
-}
 
 export const handleReceptionistCallProcedure = publicProcedure
   .input(
@@ -374,7 +358,7 @@ Generate the next response. Ask for ONE missing piece of information in a natura
       const completion = await openai.chat.completions.create({
         model: 'gpt-4',
         messages: [
-          { role: 'user', content: RECEPTIONIST_SYSTEM_PROMPT + '\n\n' + buildPricingContext() + '\n\n' + nextPrompt },
+          { role: 'user', content: RECEPTIONIST_SYSTEM_PROMPT + '\n\n' + nextPrompt },
         ],
         temperature: 0.7,
       });
