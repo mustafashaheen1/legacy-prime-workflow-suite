@@ -3,15 +3,6 @@ import { z } from "zod";
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-11-20.acacia',
-});
-
-const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
-
 // Stripe Price IDs - these should match your Stripe Dashboard
 // You'll need to create these products/prices in Stripe Dashboard
 const PRICE_IDS = {
@@ -33,7 +24,30 @@ export const activateSubscriptionProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Stripe] Activating subscription for company:', input.companyId);
 
+    // Check if Stripe is configured
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    if (!stripeSecretKey) {
+      console.error('[Stripe] STRIPE_SECRET_KEY not configured');
+      throw new Error('Stripe is not configured. Please add STRIPE_SECRET_KEY to environment variables.');
+    }
+
+    // Check if Supabase is configured
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[Stripe] Supabase not configured');
+      throw new Error('Database is not configured. Please add Supabase environment variables.');
+    }
+
     try {
+      // Create clients inside the handler (not at module level)
+      const stripe = new Stripe(stripeSecretKey, {
+        apiVersion: '2024-11-20.acacia' as any,
+        typescript: true,
+      });
+
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
       // 1. Verify the payment was successful
       const paymentIntent = await stripe.paymentIntents.retrieve(input.paymentIntentId);
 
@@ -70,123 +84,48 @@ export const activateSubscriptionProcedure = publicProcedure
         console.log('[Stripe] Customer created:', customer.id);
       }
 
-      // 3. Attach the payment method from the PaymentIntent to the customer
-      if (paymentIntent.payment_method) {
-        await stripe.paymentMethods.attach(
-          paymentIntent.payment_method as string,
-          { customer: customer.id }
-        );
+      // 3. Create subscription
+      const priceId = PRICE_IDS[input.subscriptionPlan];
+      console.log('[Stripe] Creating subscription with price:', priceId);
 
-        // Set as default payment method
-        await stripe.customers.update(customer.id, {
-          invoice_settings: {
-            default_payment_method: paymentIntent.payment_method as string,
-          },
-        });
+      // Note: For one-time payments, we don't create a subscription
+      // Instead, we just update the company record with subscription info
 
-        console.log('[Stripe] Payment method attached to customer');
-      }
+      // 4. Update company record
+      const subscriptionEndDate = new Date();
+      subscriptionEndDate.setFullYear(subscriptionEndDate.getFullYear() + 1); // 1 year subscription
 
-      // 4. Create recurring subscription
-      // Note: For production, you need to create Price objects in Stripe Dashboard
-      // For now, we'll create a subscription without a price (you'll need to add this)
-
-      // Calculate the subscription amount based on plan and employee count
-      const basePriceBasic = 10;
-      const basePricePremium = 20;
-      const pricePerEmployeeBasic = 8;
-      const pricePerEmployeePremium = 15;
-
-      const monthlyAmount = input.subscriptionPlan === 'basic'
-        ? basePriceBasic + (input.employeeCount - 1) * pricePerEmployeeBasic
-        : basePricePremium + (input.employeeCount - 1) * pricePerEmployeePremium;
-
-      // For a real implementation, you would use Stripe Price IDs
-      // For now, we'll create a subscription with a custom price
-      const subscription = await stripe.subscriptions.create({
-        customer: customer.id,
-        items: [
-          {
-            price_data: {
-              currency: 'usd',
-              product_data: {
-                name: `${input.subscriptionPlan.charAt(0).toUpperCase() + input.subscriptionPlan.slice(1)} Plan - ${input.employeeCount} employees`,
-                description: `Monthly subscription for ${input.companyName}`,
-              },
-              unit_amount: Math.round(monthlyAmount * 100), // Convert to cents
-              recurring: {
-                interval: 'month',
-              },
-            },
-          },
-        ],
-        metadata: {
-          companyId: input.companyId,
-          companyName: input.companyName,
-          plan: input.subscriptionPlan,
-          employeeCount: input.employeeCount.toString(),
-        },
-        payment_settings: {
-          payment_method_types: ['card'],
-          save_default_payment_method: 'on_subscription',
-        },
-        expand: ['latest_invoice.payment_intent'],
-      });
-
-      console.log('[Stripe] Subscription created:', subscription.id);
-
-      // 5. Update company record in database
       const { error: updateError } = await supabase
         .from('companies')
         .update({
           stripe_customer_id: customer.id,
-          stripe_subscription_id: subscription.id,
-          stripe_payment_intent_id: paymentIntent.id,
           subscription_status: 'active',
+          subscription_plan: input.subscriptionPlan,
           subscription_start_date: new Date().toISOString(),
-          subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-          updated_at: new Date().toISOString(),
+          subscription_end_date: subscriptionEndDate.toISOString(),
+          employee_count: input.employeeCount,
+          settings: {
+            maxEmployees: input.subscriptionPlan === 'basic' ? 10 : input.subscriptionPlan === 'premium' ? 25 : 100,
+            maxProjects: input.subscriptionPlan === 'basic' ? 50 : input.subscriptionPlan === 'premium' ? 200 : 1000,
+          },
         })
         .eq('id', input.companyId);
 
       if (updateError) {
         console.error('[Stripe] Error updating company:', updateError);
-        throw new Error('Failed to update company subscription status');
+        throw new Error(`Failed to update company: ${updateError.message}`);
       }
 
-      console.log('[Stripe] Company subscription activated successfully');
-
-      // 6. Record the payment in the payments table
-      const { error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          company_id: input.companyId,
-          project_id: null,
-          client_id: null,
-          amount: paymentIntent.amount / 100, // Convert from cents to dollars
-          date: new Date().toISOString(),
-          client_name: input.companyName,
-          method: 'credit-card',
-          notes: `Initial subscription payment - ${input.subscriptionPlan} plan (${input.employeeCount} employees)`,
-          receipt_url: paymentIntent.charges?.data[0]?.receipt_url || null,
-        });
-
-      if (paymentError) {
-        console.warn('[Stripe] Warning: Failed to record payment:', paymentError);
-        // Don't throw error - payment was successful, just logging failed
-      } else {
-        console.log('[Stripe] Payment recorded successfully');
-      }
+      console.log('[Stripe] Company updated successfully');
 
       return {
         success: true,
         customerId: customer.id,
-        subscriptionId: subscription.id,
-        subscriptionStatus: subscription.status,
-        currentPeriodEnd: subscription.current_period_end,
+        subscriptionPlan: input.subscriptionPlan,
+        subscriptionEndDate: subscriptionEndDate.toISOString(),
       };
     } catch (error: any) {
-      console.error('[Stripe] Error activating subscription:', error);
+      console.error('[Stripe] Error activating subscription:', error.message);
       throw new Error(`Failed to activate subscription: ${error.message}`);
     }
   });
