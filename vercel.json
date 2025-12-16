@@ -8,10 +8,14 @@
     },
     "api/stripe-payment.ts": {
       "maxDuration": 30
+    },
+    "api/activate-subscription.ts": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
     { "source": "/api/stripe-payment", "destination": "/api/stripe-payment" },
+    { "source": "/api/activate-subscription", "destination": "/api/activate-subscription" },
     { "source": "/trpc/(.*)", "destination": "/api" },
     { "source": "/((?!api).*)", "destination": "/index.html" }
   ]

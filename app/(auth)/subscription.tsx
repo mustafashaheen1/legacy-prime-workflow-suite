@@ -12,7 +12,6 @@ function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
   const stripe = useStripe();
-  const activateSubscriptionMutation = trpc.stripe.activateSubscription.useMutation();
   
   const params = useLocalSearchParams<{
     name?: string;
@@ -88,14 +87,23 @@ function SubscriptionContent() {
     try {
       // Activate the Stripe subscription with recurring billing
       console.log('[Subscription] Activating subscription...');
-      const result = await activateSubscriptionMutation.mutateAsync({
-        paymentIntentId,
-        companyId: params.companyId || '',
-        email: params.email || '',
-        companyName: params.companyName || '',
-        subscriptionPlan: selectedPlan,
-        employeeCount: parseInt(params.employeeCount || '2'),
+      const activateResponse = await fetch('/api/activate-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentIntentId,
+          companyId: params.companyId || '',
+          email: params.email || '',
+          companyName: params.companyName || '',
+          subscriptionPlan: selectedPlan,
+          employeeCount: parseInt(params.employeeCount || '2'),
+        }),
       });
+      const result = await activateResponse.json();
+
+      if (!activateResponse.ok) {
+        throw new Error(result.error || 'Failed to activate subscription');
+      }
 
       console.log('[Subscription] Subscription activated:', result);
 
