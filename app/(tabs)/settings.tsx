@@ -326,8 +326,10 @@ export default function SettingsScreen() {
                         <TouchableOpacity
                           style={styles.rejectButton}
                           onPress={() => {
+                            console.log('[Settings] Reject button clicked for:', user.id, user.name);
                             if (Platform.OS === 'web') {
                               if (window.confirm(`Are you sure you want to reject ${user.name}? This will permanently delete their account.`)) {
+                                console.log('[Settings] Rejecting user:', user.id);
                                 deleteUserMutation.mutate({ userId: user.id });
                               }
                             } else {
@@ -351,6 +353,7 @@ export default function SettingsScreen() {
                         <TouchableOpacity
                           style={styles.approveButton}
                           onPress={() => {
+                            console.log('[Settings] Approving user:', user.id, user.name);
                             updateUserMutation.mutate({
                               userId: user.id,
                               updates: { isActive: true },
