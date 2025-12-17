@@ -79,10 +79,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const nameMatch = SpeechResult.match(pattern);
         if (nameMatch && nameMatch[1]) {
           const extractedName = nameMatch[1].trim();
-          // Filter out common non-names
+          // Filter out common non-names and project types
           const lowerName = extractedName.toLowerCase();
-          if (!['yes', 'yeah', 'yep', 'sure', 'okay', 'ok', 'hello', 'hi', 'hey'].includes(lowerName)
-              && extractedName.split(' ').length <= 3) {
+          const nonNames = ['yes', 'yeah', 'yep', 'sure', 'okay', 'ok', 'hello', 'hi', 'hey',
+                           'kitchen', 'bathroom', 'remodel', 'renovation', 'addition', 'roofing',
+                           'basement', 'deck', 'patio', 'flooring', 'painting', 'project'];
+          if (!nonNames.includes(lowerName) && extractedName.split(' ').length <= 3) {
             state.name = extractedName;
             console.log('[Twilio Webhook] ✅ Extracted name:', state.name);
             break;
@@ -147,19 +149,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const budgetValue = parseInt((state.budget || '0').replace(/[^0-9]/g, '')) || 0;
         const isQualified = budgetValue >= 10000;
 
-        // Save to clients table
+        // Save to clients table (only fields that exist in schema)
         const clientData = {
           company_id: companyId,
           name: state.name,
           phone: state.phone,
           email: '', // Not collected in call
-          status: isQualified ? 'active-project' : 'lead',
-          project_type: state.project || 'General Inquiry',
-          budget: state.budget || 'Not specified',
-          property_type: 'Residential',
-          timeline: 'Not specified',
+          status: isQualified ? 'Project' : 'Lead',
           source: 'Phone Call (AI Receptionist)',
-          notes: `AI Receptionist Call on ${new Date().toLocaleString()}\nBudget: ${state.budget || 'Not specified'}\nProject: ${state.project || 'Not specified'}`,
+          address: `${state.project || 'General Inquiry'} - Budget: ${state.budget || 'Not specified'}`,
+          next_follow_up_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         };
 
         const clientResponse = await fetch(`${supabaseUrl}/rest/v1/clients`, {
@@ -182,34 +181,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const newClient = newClients[0];
 
         console.log('[Twilio Webhook] ✅ Client saved successfully! ID:', newClient.id);
-
-        // Save call log
-        const callLogData = {
-          company_id: companyId,
-          client_id: newClient.id,
-          call_date: new Date().toISOString(),
-          duration: state.step,
-          outcome: isQualified ? 'Qualified' : 'Info Collected',
-          notes: `Project: ${state.project || 'Not specified'}\nBudget: ${state.budget || 'Not specified'}`,
-          follow_up_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
-        };
-
-        const callLogResponse = await fetch(`${supabaseUrl}/rest/v1/call_logs`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Prefer': 'return=minimal',
-          },
-          body: JSON.stringify(callLogData),
+        console.log('[Twilio Webhook] 📊 Lead details:', {
+          name: state.name,
+          project: state.project,
+          budget: state.budget,
+          status: isQualified ? 'Project' : 'Lead',
         });
-
-        if (!callLogResponse.ok) {
-          console.error('[Twilio Webhook] ⚠️ Failed to save call log');
-        } else {
-          console.log('[Twilio Webhook] ✅ Call log saved successfully!');
-        }
       } catch (saveError: any) {
         console.error('[Twilio Webhook] ❌ Error saving to CRM:', saveError.message);
         // Don't fail the call if CRM save fails - still thank the customer
