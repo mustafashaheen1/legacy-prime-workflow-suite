@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image, Platform, ActivityIndicator, Clipboard } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
@@ -81,8 +81,24 @@ export default function SettingsScreen() {
   }
 
   const handleCopyCompanyCode = () => {
-    if (company?.id) {
-      Alert.alert(t('settings.companyCode'), company.id);
+    if (company?.companyCode) {
+      // Copy to clipboard
+      if (Platform.OS === 'web') {
+        // Use web clipboard API
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(company.companyCode);
+          Alert.alert(t('common.success'), `Company code copied: ${company.companyCode}`);
+        } else {
+          // Fallback for older browsers
+          Alert.alert(t('settings.companyCode'), company.companyCode);
+        }
+      } else {
+        // Use React Native clipboard for mobile
+        Clipboard.setString(company.companyCode);
+        Alert.alert(t('common.success'), `Company code copied: ${company.companyCode}`);
+      }
+    } else {
+      Alert.alert(t('common.error'), 'Company code not found. Please contact support.');
     }
   };
 
@@ -219,11 +235,11 @@ export default function SettingsScreen() {
             </TouchableOpacity>
             
             <Text style={[styles.infoLabel, { marginTop: 16 }]}>{t('settings.companyCode')}</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.codeContainer}
               onPress={handleCopyCompanyCode}
             >
-              <Text style={styles.codeText}>{company?.id}</Text>
+              <Text style={styles.codeText}>{company?.companyCode || 'No code available'}</Text>
               <Copy size={18} color="#6B7280" />
             </TouchableOpacity>
             <Text style={styles.codeHint}>{t('settings.shareCodeHint')}</Text>
