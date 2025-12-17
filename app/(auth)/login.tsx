@@ -105,8 +105,15 @@ export default function LoginScreen() {
         }
       }
 
-      // Navigate to dashboard
-      router.replace('/(tabs)/dashboard');
+      // On web, reload the page to trigger data loading with the new company
+      // This fixes the issue where tRPC dynamic imports don't work in production builds
+      if (Platform.OS === 'web') {
+        console.log('[Login] Reloading page to load company data...');
+        window.location.href = '/(tabs)/dashboard';
+      } else {
+        // Navigate to dashboard on native
+        router.replace('/(tabs)/dashboard');
+      }
     } catch (error: any) {
       console.error('[Login] Error:', error);
       if (Platform.OS === 'web') {
