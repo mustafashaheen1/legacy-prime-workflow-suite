@@ -321,7 +321,7 @@ export default function SettingsScreen() {
                     </View>
                   </View>
                   <View style={styles.userRight}>
-                    {!user.isActive && (isAdmin || isSuperAdmin) ? (
+                    {!user.isActive && user.id !== currentUser?.id && (isAdmin || isSuperAdmin) && user.role !== 'admin' && user.role !== 'super-admin' ? (
                       <View style={styles.actionButtons}>
                         <TouchableOpacity
                           style={styles.rejectButton}
