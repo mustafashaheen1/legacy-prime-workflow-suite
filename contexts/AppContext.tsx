@@ -134,11 +134,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       (async () => {
         try {
           console.log('[App] Loading data from backend for company:', company.id);
-          const { trpc } = await import('@/lib/trpc');
+          // Use direct HTTP fetch instead of tRPC dynamic import (which breaks in production)
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
           // Load clients
           try {
-            const clientsResult = await trpc.crm.getClients.query({ companyId: company.id });
+            const clientsResponse = await fetch(
+              `${baseUrl}/trpc/crm.getClients?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+            );
+            const clientsData = await clientsResponse.json();
+            const clientsResult = clientsData.result.data.json;
             if (clientsResult.success && clientsResult.clients) {
               setClients(clientsResult.clients);
               console.log('[App] ✅ Loaded', clientsResult.clients.length, 'clients');
@@ -153,7 +158,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load projects
           try {
-            const projectsResult = await trpc.projects.getProjects.query({ companyId: company.id });
+            const projectsResponse = await fetch(
+              `${baseUrl}/trpc/projects.getProjects?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+            );
+            const projectsData = await projectsResponse.json();
+            const projectsResult = projectsData.result.data.json;
             if (projectsResult.success && projectsResult.projects) {
               setProjects(projectsResult.projects);
               console.log('[App] ✅ Loaded', projectsResult.projects.length, 'projects');
@@ -167,7 +176,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load expenses
           try {
-            const expensesResult = await trpc.expenses.getExpenses.query({ companyId: company.id });
+            const expensesResponse = await fetch(
+              `${baseUrl}/trpc/expenses.getExpenses?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+            );
+            const expensesData = await expensesResponse.json();
+            const expensesResult = expensesData.result.data.json;
             if (expensesResult.success && expensesResult.expenses) {
               setExpenses(expensesResult.expenses);
               console.log('[App] ✅ Loaded', expensesResult.expenses.length, 'expenses');
@@ -181,7 +194,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load photos
           try {
-            const photosResult = await trpc.photos.getPhotos.query({ companyId: company.id });
+            const photosResponse = await fetch(
+              `${baseUrl}/trpc/photos.getPhotos?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+            );
+            const photosData = await photosResponse.json();
+            const photosResult = photosData.result.data.json;
             if (photosResult.photos) {
               setPhotos(photosResult.photos);
               console.log('[App] ✅ Loaded', photosResult.photos.length, 'photos');
@@ -195,7 +212,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load tasks
           try {
-            const tasksResult = await trpc.tasks.getTasks.query({ companyId: company.id });
+            const tasksResponse = await fetch(
+              `${baseUrl}/trpc/tasks.getTasks?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+            );
+            const tasksData = await tasksResponse.json();
+            const tasksResult = tasksData.result.data.json;
             if (tasksResult.tasks) {
               setTasks(tasksResult.tasks);
               console.log('[App] ✅ Loaded', tasksResult.tasks.length, 'tasks');
@@ -209,7 +230,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load clock entries
           try {
-            const clockResult = await trpc.clock.getClockEntries.query({ companyId: company.id });
+            const clockResponse = await fetch(
+              `${baseUrl}/trpc/clock.getClockEntries?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+            );
+            const clockData = await clockResponse.json();
+            const clockResult = clockData.result.data.json;
             if (clockResult.entries) {
               setClockEntries(clockResult.entries);
               console.log('[App] ✅ Loaded', clockResult.entries.length, 'clock entries');
@@ -362,38 +387,70 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (parsedCompany && parsedCompany.id) {
         console.log('[App] Loading data from backend for company:', parsedCompany.id);
         try {
-          const { trpc } = await import('@/lib/trpc');
+          // Use direct HTTP fetch instead of tRPC dynamic import (which breaks in production)
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
           // Load clients
-          const clientsResult = await trpc.crm.getClients.query({ companyId: parsedCompany.id });
-          if (clientsResult.success && clientsResult.clients) {
-            setClients(clientsResult.clients);
-            console.log('[App] Loaded', clientsResult.clients.length, 'clients');
-          } else {
+          try {
+            const clientsResponse = await fetch(
+              `${baseUrl}/trpc/crm.getClients?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
+            );
+            const clientsData = await clientsResponse.json();
+            const clientsResult = clientsData.result.data.json;
+            if (clientsResult.success && clientsResult.clients) {
+              setClients(clientsResult.clients);
+              console.log('[App] Loaded', clientsResult.clients.length, 'clients');
+            } else {
+              setClients(mockClients);
+            }
+          } catch (error) {
+            console.error('[App] Error loading clients:', error);
             setClients(mockClients);
           }
 
           // Load projects
-          const projectsResult = await trpc.projects.getProjects.query({ companyId: parsedCompany.id });
-          if (projectsResult.success && projectsResult.projects) {
-            setProjects(projectsResult.projects);
-            console.log('[App] Loaded', projectsResult.projects.length, 'projects');
-          } else {
+          try {
+            const projectsResponse = await fetch(
+              `${baseUrl}/trpc/projects.getProjects?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
+            );
+            const projectsData = await projectsResponse.json();
+            const projectsResult = projectsData.result.data.json;
+            if (projectsResult.success && projectsResult.projects) {
+              setProjects(projectsResult.projects);
+              console.log('[App] Loaded', projectsResult.projects.length, 'projects');
+            } else {
+              setProjects(mockProjects);
+            }
+          } catch (error) {
+            console.error('[App] Error loading projects:', error);
             setProjects(mockProjects);
           }
 
           // Load expenses
-          const expensesResult = await trpc.expenses.getExpenses.query({ companyId: parsedCompany.id });
-          if (expensesResult.success && expensesResult.expenses) {
-            setExpenses(expensesResult.expenses);
-            console.log('[App] Loaded', expensesResult.expenses.length, 'expenses');
-          } else {
+          try {
+            const expensesResponse = await fetch(
+              `${baseUrl}/trpc/expenses.getExpenses?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
+            );
+            const expensesData = await expensesResponse.json();
+            const expensesResult = expensesData.result.data.json;
+            if (expensesResult.success && expensesResult.expenses) {
+              setExpenses(expensesResult.expenses);
+              console.log('[App] Loaded', expensesResult.expenses.length, 'expenses');
+            } else {
+              setExpenses(mockExpenses);
+            }
+          } catch (error) {
+            console.error('[App] Error loading expenses:', error);
             setExpenses(mockExpenses);
           }
 
           // Load photos from database
           try {
-            const photosResult = await trpc.photos.getPhotos.query({ companyId: parsedCompany.id });
+            const photosResponse = await fetch(
+              `${baseUrl}/trpc/photos.getPhotos?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
+            );
+            const photosData = await photosResponse.json();
+            const photosResult = photosData.result.data.json;
             if (photosResult.photos) {
               setPhotos(photosResult.photos);
               console.log('[App] Loaded', photosResult.photos.length, 'photos from database');
@@ -407,7 +464,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load clock entries from database
           try {
-            const clockResult = await trpc.clock.getClockEntries.query({ companyId: parsedCompany.id });
+            const clockResponse = await fetch(
+              `${baseUrl}/trpc/clock.getClockEntries?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
+            );
+            const clockData = await clockResponse.json();
+            const clockResult = clockData.result.data.json;
             if (clockResult.entries) {
               setClockEntries(clockResult.entries);
               console.log('[App] Loaded', clockResult.entries.length, 'clock entries from database');
@@ -421,7 +482,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load tasks from database
           try {
-            const tasksResult = await trpc.tasks.getTasks.query({ companyId: parsedCompany.id });
+            const tasksResponse = await fetch(
+              `${baseUrl}/trpc/tasks.getTasks?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
+            );
+            const tasksData = await tasksResponse.json();
+            const tasksResult = tasksData.result.data.json;
             if (tasksResult.tasks) {
               setTasks(tasksResult.tasks);
               console.log('[App] Loaded', tasksResult.tasks.length, 'tasks from database');
@@ -604,8 +669,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log('[App] 🔄 Refreshing clients for company:', company.id);
     console.log('[App] Company name:', company.name);
     try {
-      const { trpc } = await import('@/lib/trpc');
-      const clientsResult = await trpc.crm.getClients.query({ companyId: company.id });
+      // Use direct HTTP fetch instead of tRPC dynamic import (which breaks in production)
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const clientsResponse = await fetch(
+        `${baseUrl}/trpc/crm.getClients?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+      );
+      const clientsData = await clientsResponse.json();
+      const clientsResult = clientsData.result.data.json;
       console.log('[App] 📦 Query result:', clientsResult);
       if (clientsResult.success && clientsResult.clients) {
         setClients(clientsResult.clients);
