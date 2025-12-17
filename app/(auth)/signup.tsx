@@ -251,16 +251,23 @@ export default function SignupScreen() {
 
         // Show pending approval message
         if (result.pendingApproval) {
-          Alert.alert(
-            'Account Created',
-            `Your employee account has been created and is pending approval from your company administrator. You will receive a notification once your account is approved.`,
-            [
-              {
-                text: 'OK',
-                onPress: () => router.replace('/(auth)/login'),
-              },
-            ]
-          );
+          if (Platform.OS === 'web') {
+            // On web, alert doesn't support callbacks, so redirect immediately
+            window.alert('Account Created\n\nYour employee account has been created and is pending approval from your company administrator. You will receive a notification once your account is approved.');
+            router.replace('/(auth)/login');
+          } else {
+            // On native, use Alert with callback
+            Alert.alert(
+              'Account Created',
+              `Your employee account has been created and is pending approval from your company administrator. You will receive a notification once your account is approved.`,
+              [
+                {
+                  text: 'OK',
+                  onPress: () => router.replace('/(auth)/login'),
+                },
+              ]
+            );
+          }
         } else {
           // If not pending approval, go to dashboard
           router.replace('/dashboard');
