@@ -179,6 +179,18 @@ export default function SignupScreen() {
           return;
         }
 
+        // Validate US phone number format
+        const phoneRegex = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4}$/;
+        const cleanedPhone = phone.trim().replace(/\s+/g, ''); // Remove extra spaces
+        if (!phoneRegex.test(cleanedPhone)) {
+          if (Platform.OS === 'web') {
+            window.alert('Please enter a valid US phone number (e.g., (555) 123-4567 or 555-123-4567)');
+          } else {
+            Alert.alert(t('common.error'), 'Please enter a valid US phone number (e.g., (555) 123-4567 or 555-123-4567)');
+          }
+          return;
+        }
+
         if (!address.trim()) {
           Alert.alert(t('common.error'), t('signup.addressRequired'));
           return;
@@ -410,12 +422,13 @@ export default function SignupScreen() {
               <Text style={styles.label}>{t('signup.phone')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder={t('signup.phonePlaceholder')}
+                placeholder="(555) 123-4567"
                 placeholderTextColor="#9CA3AF"
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
               />
+              <Text style={styles.hint}>Enter a valid US phone number</Text>
 
               <Text style={styles.label}>{t('signup.address')}</Text>
               <TextInput
