@@ -66,7 +66,12 @@ export const useTwilioSMS = () => {
 
 export const useTwilioCalls = () => {
   const makeCall = trpc.twilio.makeCall.useMutation();
-  const getCallLogs = trpc.twilio.getCallLogs.useQuery({ limit: 50 });
+  // Disable automatic call log fetching to avoid authentication errors
+  // Can be enabled manually if needed
+  const getCallLogs = trpc.twilio.getCallLogs.useQuery(
+    { limit: 50 },
+    { enabled: false }
+  );
 
   const initiateCall = async (phone: string, message?: string) => {
     try {

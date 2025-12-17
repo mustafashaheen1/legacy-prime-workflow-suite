@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform, RefreshControl } from 'react-native';
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon, Camera } from 'lucide-react-native';
@@ -58,11 +58,12 @@ const promotionTemplates: MessageTemplate[] = [
 ];
 
 export default function CRMScreen() {
-  const { clients, addClient, addProject, updateClient, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog } = useApp();
+  const { clients, addClient, addProject, updateClient, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog, company, refreshClients } = useApp();
   const router = useRouter();
   const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
   const { initiateCall, isLoadingCall } = useTwilioCalls();
   const sendInspectionLinkMutation = trpc.crm.sendInspectionLink.useMutation();
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   const [showAddForm, setShowAddForm] = useState<boolean>(true);
   const [newClientName, setNewClientName] = useState<string>('');
   const [newClientAddress, setNewClientAddress] = useState<string>('');
@@ -103,6 +104,12 @@ export default function CRMScreen() {
     autoSchedule: true,
     seriousLeadCriteria: 'Budget over $10,000 and ready to start within 3 months',
   });
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refreshClients();
+    setRefreshing(false);
+  };
 
   const leadsByGoogle = clients.filter(c => c.source === 'Google' && c.status === 'Lead').length;
   const leadsByReferral = clients.filter(c => c.source === 'Referral' && c.status === 'Lead').length;
@@ -790,7 +797,13 @@ export default function CRMScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.header}>
           <Text style={styles.title}>Legacy Prime CRM</Text>
           <View style={styles.headerActions}>

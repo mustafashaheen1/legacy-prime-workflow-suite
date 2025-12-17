@@ -84,6 +84,7 @@ interface AppState {
   addNotification: (notification: Notification) => Promise<void>;
   getNotifications: (unreadOnly?: boolean) => Notification[];
   markNotificationRead: (id: string) => Promise<void>;
+  refreshClients: () => Promise<void>;
   logout: () => void;
 }
 
@@ -487,6 +488,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const updateClient = useCallback((id: string, updates: Partial<Client>) => {
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
   }, []);
+
+  const refreshClients = useCallback(async () => {
+    if (!company?.id) {
+      console.log('[App] No company found, cannot refresh clients');
+      return;
+    }
+
+    console.log('[App] Refreshing clients for company:', company.id);
+    try {
+      const { trpc } = await import('@/lib/trpc');
+      const clientsResult = await trpc.crm.getClients.query({ companyId: company.id });
+      if (clientsResult.success && clientsResult.clients) {
+        setClients(clientsResult.clients);
+        console.log('[App] Refreshed', clientsResult.clients.length, 'clients');
+      }
+    } catch (error) {
+      console.error('[App] Error refreshing clients:', error);
+    }
+  }, [company]);
 
   const addExpense = useCallback(async (expense: Expense) => {
     // Optimistically update UI
@@ -1031,6 +1051,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addNotification,
     getNotifications,
     markNotificationRead,
+    refreshClients,
     logout,
   }), [
     user,
@@ -1108,6 +1129,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addNotification,
     getNotifications,
     markNotificationRead,
+    refreshClients,
     logout,
   ]);
 });
