@@ -156,8 +156,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           phone: state.phone,
           email: '', // Not collected in call
           status: isQualified ? 'Project' : 'Lead',
-          source: 'Phone Call (AI Receptionist)',
-          address: `${state.project || 'General Inquiry'} - Budget: ${state.budget || 'Not specified'}`,
+          source: 'Other', // Database constraint: only allows Google, Referral, Ad, Other
+          address: `[AI Call] ${state.project || 'General Inquiry'} - Budget: ${state.budget || 'Not specified'}`,
           next_follow_up_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         };
 
