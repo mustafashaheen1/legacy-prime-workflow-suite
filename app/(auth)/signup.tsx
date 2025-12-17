@@ -31,25 +31,69 @@ export default function SignupScreen() {
 
 
   const handleSignup = async () => {
-    // Validation
+    // Helper function for showing alerts
+    const showAlert = (title: string, message: string) => {
+      if (Platform.OS === 'web') {
+        window.alert(`${title}\n\n${message}`);
+      } else {
+        Alert.alert(title, message);
+      }
+    };
+
+    // Common validation
     if (!name.trim()) {
-      Alert.alert(t('common.error'), t('signup.nameRequired'));
+      showAlert('Error', 'Please enter your full name');
       return;
     }
 
     if (!email.trim() || !email.includes('@')) {
-      Alert.alert(t('common.error'), t('signup.validEmail'));
+      showAlert('Error', 'Please enter a valid email address');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert(t('common.error'), t('signup.passwordLength'));
+      showAlert('Error', 'Password must be at least 6 characters long');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert(t('common.error'), t('signup.passwordMatch'));
+      showAlert('Error', 'Passwords do not match');
       return;
+    }
+
+    // Account-type specific validation BEFORE setting loading state
+    if (accountType === 'company') {
+      if (!companyName.trim()) {
+        showAlert('Error', 'Please enter your company name');
+        return;
+      }
+      if (!employeeCount || parseInt(employeeCount) < 1) {
+        showAlert('Error', 'Please enter number of employees (at least 1)');
+        return;
+      }
+    } else if (accountType === 'employee') {
+      if (!companyCode.trim()) {
+        showAlert('Error', 'Please enter your company code');
+        return;
+      }
+
+      if (!phone.trim()) {
+        showAlert('Error', 'Please enter your phone number');
+        return;
+      }
+
+      // Validate US phone number format
+      const phoneRegex = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4}$/;
+      const cleanedPhone = phone.trim().replace(/\s+/g, '');
+      if (!phoneRegex.test(cleanedPhone)) {
+        showAlert('Error', 'Please enter a valid US phone number (e.g., (555) 123-4567 or 555-123-4567)');
+        return;
+      }
+
+      if (!address.trim()) {
+        showAlert('Error', 'Please enter your address');
+        return;
+      }
     }
 
     setIsCreatingAccount(true);
@@ -58,15 +102,6 @@ export default function SignupScreen() {
       console.log('[Signup] Starting account creation...');
 
       if (accountType === 'company') {
-        // Company signup validation
-        if (!companyName.trim()) {
-          Alert.alert(t('common.error'), t('signup.companyNameRequired'));
-          return;
-        }
-        if (!employeeCount || parseInt(employeeCount) < 1) {
-          Alert.alert(t('common.error'), t('signup.employeeCountRequired'));
-          return;
-        }
 
         console.log('[Signup] Creating company account...');
 
@@ -80,7 +115,7 @@ export default function SignupScreen() {
         });
 
         if (!result.success) {
-          Alert.alert('Signup Failed', result.error || 'Failed to create company account');
+          showAlert('Signup Failed', result.error || 'Failed to create company account');
           return;
         }
 
@@ -168,34 +203,7 @@ export default function SignupScreen() {
           );
         }
       } else {
-        // Employee signup validation
-        if (!companyCode.trim()) {
-          Alert.alert(t('common.error'), t('signup.companyCodeRequired'));
-          return;
-        }
-
-        if (!phone.trim()) {
-          Alert.alert(t('common.error'), t('signup.phoneRequired'));
-          return;
-        }
-
-        // Validate US phone number format
-        const phoneRegex = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4}$/;
-        const cleanedPhone = phone.trim().replace(/\s+/g, ''); // Remove extra spaces
-        if (!phoneRegex.test(cleanedPhone)) {
-          if (Platform.OS === 'web') {
-            window.alert('Please enter a valid US phone number (e.g., (555) 123-4567 or 555-123-4567)');
-          } else {
-            Alert.alert(t('common.error'), 'Please enter a valid US phone number (e.g., (555) 123-4567 or 555-123-4567)');
-          }
-          return;
-        }
-
-        if (!address.trim()) {
-          Alert.alert(t('common.error'), t('signup.addressRequired'));
-          return;
-        }
-
+        // Employee signup (validation already done above)
         console.log('[Signup] Creating employee account...');
 
         const result = await auth.signUpEmployee({
@@ -208,7 +216,7 @@ export default function SignupScreen() {
         });
 
         if (!result.success) {
-          Alert.alert('Signup Failed', result.error || 'Failed to create employee account');
+          showAlert('Signup Failed', result.error || 'Failed to create employee account');
           return;
         }
 
@@ -287,7 +295,11 @@ export default function SignupScreen() {
       }
     } catch (error: any) {
       console.error('[Signup] Error:', error);
-      Alert.alert(t('common.error'), error?.message || 'Error al crear la cuenta');
+      if (Platform.OS === 'web') {
+        window.alert(`Error\n\n${error?.message || 'An unexpected error occurred'}`);
+      } else {
+        Alert.alert('Error', error?.message || 'An unexpected error occurred');
+      }
     } finally {
       setIsCreatingAccount(false);
     }

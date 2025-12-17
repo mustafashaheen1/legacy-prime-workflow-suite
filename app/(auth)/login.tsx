@@ -20,18 +20,18 @@ export default function LoginScreen() {
     // Validation
     if (!email.trim()) {
       if (Platform.OS === 'web') {
-        window.alert(t('login.emailRequired'));
+        window.alert('Error\n\nPlease enter your email address');
       } else {
-        Alert.alert(t('common.error'), t('login.emailRequired'));
+        Alert.alert('Error', 'Please enter your email address');
       }
       return;
     }
 
     if (!password) {
       if (Platform.OS === 'web') {
-        window.alert(t('login.passwordRequired'));
+        window.alert('Error\n\nPlease enter your password');
       } else {
-        Alert.alert(t('common.error'), t('login.passwordRequired'));
+        Alert.alert('Error', 'Please enter your password');
       }
       return;
     }
@@ -45,9 +45,9 @@ export default function LoginScreen() {
 
       if (!result.success) {
         if (Platform.OS === 'web') {
-          window.alert(result.error || t('login.invalidCredentials'));
+          window.alert(`Login Failed\n\n${result.error || 'Invalid email or password'}`);
         } else {
-          Alert.alert(t('login.loginFailed'), result.error || t('login.invalidCredentials'));
+          Alert.alert('Login Failed', result.error || 'Invalid email or password');
         }
         return;
       }
