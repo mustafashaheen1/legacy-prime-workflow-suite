@@ -30,6 +30,16 @@ try {
 
   app.use("/trpc/*", timeout(60000));
 
+  // Debug middleware to see what's happening before tRPC
+  app.use("/trpc/*", async (c, next) => {
+    console.log(`[tRPC Middleware] Path: ${c.req.path}`);
+    console.log(`[tRPC Middleware] Method: ${c.req.method}`);
+    console.log(`[tRPC Middleware] Headers:`, Object.fromEntries(c.req.raw.headers.entries()));
+    console.log(`[tRPC Middleware] About to call tRPC server...`);
+    await next();
+    console.log(`[tRPC Middleware] tRPC server responded`);
+  });
+
   app.use(
     "/trpc/*",
     trpcServer({
