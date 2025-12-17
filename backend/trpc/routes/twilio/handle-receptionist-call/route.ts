@@ -59,18 +59,27 @@ interface ConversationState {
 
 function extractInformation(speech: string, state: ConversationState['collectedInfo']) {
   const lowerSpeech = speech.toLowerCase();
-  
+
   // Extract name
   if (!state.name) {
     const namePatterns = [
-      /(?:my name is|i'm|this is|call me)\s+([a-z]+(?:\s+[a-z]+)?)/i,
+      /(?:my name is|i'm|this is|call me|it's|name's)\s+([a-z]+(?:\s+[a-z]+)?)/i,
       /^([a-z]+(?:\s+[a-z]+)?)$/i, // Just a name
+      /^(?:yes|yeah|yep|sure|okay|ok)?,?\s*([a-z]+(?:\s+[a-z]+)?)\.?$/i, // "Yes, John" or "Yeah John"
+      /([a-z]+(?:\s+[a-z]+)?)\s*(?:here|speaking)\.?$/i, // "John here" or "John speaking"
     ];
     for (const pattern of namePatterns) {
       const match = speech.match(pattern);
-      if (match && match[1] && match[1].split(' ').length <= 3) {
-        state.name = match[1].trim();
-        break;
+      if (match && match[1]) {
+        const extractedName = match[1].trim();
+        // Filter out common non-names
+        const lowercaseName = extractedName.toLowerCase();
+        if (!['yes', 'yeah', 'yep', 'sure', 'okay', 'ok', 'hello', 'hi', 'hey'].includes(lowercaseName)
+            && extractedName.split(' ').length <= 3) {
+          state.name = extractedName;
+          console.log('[Receptionist] ✅ Extracted name:', extractedName);
+          break;
+        }
       }
     }
   }

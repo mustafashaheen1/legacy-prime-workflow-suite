@@ -65,12 +65,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const lower = SpeechResult.toLowerCase();
 
-    // Extract name
+    // Extract name (more flexible patterns)
     if (!state.name) {
-      const nameMatch = SpeechResult.match(/(?:name is|i'm|this is|call me)\s+([a-z]+(?:\s+[a-z]+)?)/i);
-      if (nameMatch && nameMatch[1]) {
-        state.name = nameMatch[1].trim();
-        console.log('[Twilio Webhook] Extracted name:', state.name);
+      const namePatterns = [
+        /(?:name is|i'm|this is|call me|it's|name's)\s+([a-z]+(?:\s+[a-z]+)?)/i,
+        /^(?:yes|yeah|yep|sure|okay|ok)?,?\s*([a-z]+(?:\s+[a-z]+)?)\.?$/i, // "Yes, John" or just "John"
+        /([a-z]+(?:\s+[a-z]+)?)\s*(?:here|speaking)\.?$/i, // "John here" or "John speaking"
+      ];
+
+      for (const pattern of namePatterns) {
+        const nameMatch = SpeechResult.match(pattern);
+        if (nameMatch && nameMatch[1]) {
+          const extractedName = nameMatch[1].trim();
+          // Filter out common non-names
+          const lowerName = extractedName.toLowerCase();
+          if (!['yes', 'yeah', 'yep', 'sure', 'okay', 'ok', 'hello', 'hi', 'hey'].includes(lowerName)
+              && extractedName.split(' ').length <= 3) {
+            state.name = extractedName;
+            console.log('[Twilio Webhook] ✅ Extracted name:', state.name);
+            break;
+          }
+        }
       }
     }
 
