@@ -458,8 +458,12 @@ export default function SignupScreen() {
                 placeholder={t('signup.hourlyRatePlaceholder')}
                 placeholderTextColor="#9CA3AF"
                 value={hourlyRate}
-                onChangeText={setHourlyRate}
-                keyboardType="decimal-pad"
+                onChangeText={(text) => {
+                  // Only allow digits
+                  const filtered = text.replace(/[^0-9]/g, '');
+                  setHourlyRate(filtered);
+                }}
+                keyboardType="number-pad"
               />
               <Text style={styles.hint}>{t('signup.hourlyRateHint')}</Text>
 
