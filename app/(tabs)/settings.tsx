@@ -8,6 +8,7 @@ import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3,
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
+import { supabase } from '@/lib/supabase';
 
 export default function SettingsScreen() {
   const { user: currentUser, company, setCompany, logout } = useApp();
@@ -375,28 +376,35 @@ export default function SettingsScreen() {
                       <View style={styles.actionButtons}>
                         <TouchableOpacity
                           style={styles.rejectButton}
-                          onPress={() => {
+                          onPress={async () => {
                             console.log('[Settings] Reject button clicked for:', user.id, user.name);
-                            if (Platform.OS === 'web') {
-                              if (confirm(`Are you sure you want to reject ${user.name}? This will permanently delete their account.`)) {
-                                console.log('[Settings] Rejecting user:', user.id);
-                                deleteUserMutation.mutate({ userId: user.id });
-                              } else {
-                                console.log('[Settings] Reject cancelled by user');
+                            const confirmed = Platform.OS === 'web'
+                              ? confirm(`Are you sure you want to reject ${user.name}? This will permanently delete their account.`)
+                              : await new Promise(resolve => {
+                                  Alert.alert(
+                                    'Reject Employee',
+                                    `Are you sure you want to reject ${user.name}? This will permanently delete their account.`,
+                                    [
+                                      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                                      { text: 'Reject', style: 'destructive', onPress: () => resolve(true) },
+                                    ]
+                                  );
+                                });
+
+                            if (confirmed) {
+                              try {
+                                // Delete directly with Supabase
+                                const { error: dbError } = await supabase.from('users').delete().eq('id', user.id);
+                                if (dbError) throw dbError;
+
+                                const { error: authError } = await supabase.auth.admin.deleteUser(user.id);
+                                if (authError) console.warn('Auth delete failed:', authError);
+
+                                alert('Employee account rejected and deleted');
+                                usersQuery.refetch();
+                              } catch (error: any) {
+                                alert(`Error: ${error.message}`);
                               }
-                            } else {
-                              Alert.alert(
-                                'Reject Employee',
-                                `Are you sure you want to reject ${user.name}? This will permanently delete their account.`,
-                                [
-                                  { text: 'Cancel', style: 'cancel' },
-                                  {
-                                    text: 'Reject',
-                                    style: 'destructive',
-                                    onPress: () => deleteUserMutation.mutate({ userId: user.id }),
-                                  },
-                                ]
-                              );
                             }
                           }}
                         >
@@ -404,12 +412,22 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.approveButton}
-                          onPress={() => {
+                          onPress={async () => {
                             console.log('[Settings] Approving user:', user.id, user.name);
-                            updateUserMutation.mutate({
-                              userId: user.id,
-                              updates: { isActive: true },
-                            });
+                            try {
+                              // Update directly with Supabase
+                              const { error } = await supabase
+                                .from('users')
+                                .update({ is_active: true })
+                                .eq('id', user.id);
+
+                              if (error) throw error;
+
+                              alert('User approved successfully');
+                              usersQuery.refetch();
+                            } catch (error: any) {
+                              alert(`Error: ${error.message}`);
+                            }
                           }}
                         >
                           <Text style={styles.approveButtonText}>Approve</Text>
