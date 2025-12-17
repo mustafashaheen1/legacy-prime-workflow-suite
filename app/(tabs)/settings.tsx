@@ -295,14 +295,35 @@ export default function SettingsScreen() {
                     <View style={styles.userDetails}>
                       <Text style={styles.userName}>{user.name}</Text>
                       <Text style={styles.userEmail}>{user.email}</Text>
+                      {!user.isActive && (
+                        <View style={styles.pendingBadge}>
+                          <Text style={styles.pendingText}>Pending Approval</Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                   <View style={styles.userRight}>
-                    <View style={[styles.roleChip, { backgroundColor: getRoleColor(user.role) }]}>
-                      <Text style={styles.roleChipText}>{getRoleDisplayName(user.role)}</Text>
-                    </View>
-                    {availableRoles.length > 0 && user.id !== currentUser?.id && (
-                      <ChevronRight size={20} color="#9CA3AF" />
+                    {!user.isActive && (isAdmin || isSuperAdmin) ? (
+                      <TouchableOpacity
+                        style={styles.approveButton}
+                        onPress={() => {
+                          updateUserMutation.mutate({
+                            userId: user.id,
+                            updates: { isActive: true },
+                          });
+                        }}
+                      >
+                        <Text style={styles.approveButtonText}>Approve</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        <View style={[styles.roleChip, { backgroundColor: getRoleColor(user.role) }]}>
+                          <Text style={styles.roleChipText}>{getRoleDisplayName(user.role)}</Text>
+                        </View>
+                        {availableRoles.length > 0 && user.id !== currentUser?.id && (
+                          <ChevronRight size={20} color="#9CA3AF" />
+                        )}
+                      </>
                     )}
                   </View>
                 </TouchableOpacity>
@@ -693,6 +714,30 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  pendingText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: '#92400E',
+  },
+  approveButton: {
+    backgroundColor: '#16A34A',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  approveButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   userRight: {
     flexDirection: 'row',
