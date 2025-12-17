@@ -37,12 +37,19 @@ export default function SettingsScreen() {
   );
 
   const updateUserMutation = trpc.users.updateUser.useMutation({
-    onSuccess: () => {
-      console.log('[Settings] User updated successfully');
-      if (Platform.OS === 'web') {
-        window.alert('Success\n\nUser updated successfully');
-      } else {
-        Alert.alert('Success', 'User updated successfully');
+    onSuccess: (data) => {
+      console.log('[Settings] User updated successfully', data);
+      console.log('[Settings] Platform.OS:', Platform.OS);
+      console.log('[Settings] About to show alert...');
+      try {
+        if (Platform.OS === 'web') {
+          console.log('[Settings] Calling window.alert...');
+          alert('User updated successfully');
+        } else {
+          Alert.alert('Success', 'User updated successfully');
+        }
+      } catch (e) {
+        console.error('[Settings] Error showing alert:', e);
       }
       usersQuery.refetch();
       setShowRoleModal(false);
@@ -50,28 +57,45 @@ export default function SettingsScreen() {
     },
     onError: (error) => {
       console.error('[Settings] Error updating user:', error);
-      if (Platform.OS === 'web') {
-        window.alert(`Error\n\n${error.message}`);
-      } else {
-        Alert.alert('Error', error.message);
+      console.log('[Settings] Platform.OS:', Platform.OS);
+      try {
+        if (Platform.OS === 'web') {
+          alert(`Error: ${error.message}`);
+        } else {
+          Alert.alert('Error', error.message);
+        }
+      } catch (e) {
+        console.error('[Settings] Error showing error alert:', e);
       }
     },
   });
 
   const deleteUserMutation = trpc.users.deleteUser.useMutation({
-    onSuccess: () => {
-      if (Platform.OS === 'web') {
-        window.alert('Success\n\nEmployee account rejected and deleted');
-      } else {
-        Alert.alert('Success', 'Employee account rejected and deleted');
+    onSuccess: (data) => {
+      console.log('[Settings] User deleted successfully', data);
+      console.log('[Settings] Platform.OS:', Platform.OS);
+      try {
+        if (Platform.OS === 'web') {
+          alert('Employee account rejected and deleted');
+        } else {
+          Alert.alert('Success', 'Employee account rejected and deleted');
+        }
+      } catch (e) {
+        console.error('[Settings] Error showing alert:', e);
       }
       usersQuery.refetch();
     },
     onError: (error) => {
-      if (Platform.OS === 'web') {
-        window.alert(`Error\n\n${error.message}`);
-      } else {
-        Alert.alert('Error', error.message);
+      console.error('[Settings] Error deleting user:', error);
+      console.log('[Settings] Platform.OS:', Platform.OS);
+      try {
+        if (Platform.OS === 'web') {
+          alert(`Error: ${error.message}`);
+        } else {
+          Alert.alert('Error', error.message);
+        }
+      } catch (e) {
+        console.error('[Settings] Error showing error alert:', e);
       }
     },
   });
@@ -338,9 +362,11 @@ export default function SettingsScreen() {
                           onPress={() => {
                             console.log('[Settings] Reject button clicked for:', user.id, user.name);
                             if (Platform.OS === 'web') {
-                              if (window.confirm(`Are you sure you want to reject ${user.name}? This will permanently delete their account.`)) {
+                              if (confirm(`Are you sure you want to reject ${user.name}? This will permanently delete their account.`)) {
                                 console.log('[Settings] Rejecting user:', user.id);
                                 deleteUserMutation.mutate({ userId: user.id });
+                              } else {
+                                console.log('[Settings] Reject cancelled by user');
                               }
                             } else {
                               Alert.alert(
