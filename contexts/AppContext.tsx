@@ -491,20 +491,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   const refreshClients = useCallback(async () => {
     if (!company?.id) {
-      console.log('[App] No company found, cannot refresh clients');
+      console.log('[App] ❌ No company found, cannot refresh clients');
+      console.log('[App] Company state:', company);
       return;
     }
 
-    console.log('[App] Refreshing clients for company:', company.id);
+    console.log('[App] 🔄 Refreshing clients for company:', company.id);
+    console.log('[App] Company name:', company.name);
     try {
       const { trpc } = await import('@/lib/trpc');
       const clientsResult = await trpc.crm.getClients.query({ companyId: company.id });
+      console.log('[App] 📦 Query result:', clientsResult);
       if (clientsResult.success && clientsResult.clients) {
         setClients(clientsResult.clients);
-        console.log('[App] Refreshed', clientsResult.clients.length, 'clients');
+        console.log('[App] ✅ Refreshed', clientsResult.clients.length, 'clients');
+        console.log('[App] 📋 Client names:', clientsResult.clients.map(c => c.name).join(', '));
+      } else {
+        console.log('[App] ⚠️ Query succeeded but no clients returned');
       }
     } catch (error) {
-      console.error('[App] Error refreshing clients:', error);
+      console.error('[App] ❌ Error refreshing clients:', error);
     }
   }, [company]);
 
