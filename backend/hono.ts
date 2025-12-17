@@ -74,6 +74,55 @@ app.get("/debug/env", (c) => {
   });
 });
 
+app.get("/debug/supabase", async (c) => {
+  try {
+    console.log('[Debug] Testing Supabase connection...');
+
+    if (!supabase) {
+      return c.json({
+        status: "error",
+        error: "Supabase client not initialized - check environment variables",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const startTime = Date.now();
+
+    // Simple query to test connection
+    const { data, error } = await supabase
+      .from('companies')
+      .select('id')
+      .limit(1);
+
+    const duration = Date.now() - startTime;
+
+    if (error) {
+      console.error('[Debug] Supabase test query failed:', error);
+      return c.json({
+        status: "error",
+        error: error.message,
+        duration_ms: duration,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    console.log(`[Debug] Supabase connection successful (${duration}ms)`);
+    return c.json({
+      status: "ok",
+      message: "Supabase connection working",
+      duration_ms: duration,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[Debug] Supabase test error:', error);
+    return c.json({
+      status: "error",
+      error: error.message || "Unknown error",
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 app.post("/twilio/receptionist", async (c) => {
   try {
     const body = await c.req.parseBody();
