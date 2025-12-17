@@ -10,6 +10,15 @@ import { supabase } from "./lib/supabase.js";
 const app = new Hono();
 
 try {
+  // Log all incoming requests
+  app.use("*", async (c, next) => {
+    const start = Date.now();
+    console.log(`[Request] ${c.req.method} ${c.req.url}`);
+    await next();
+    const duration = Date.now() - start;
+    console.log(`[Response] ${c.req.method} ${c.req.url} - ${c.res.status} (${duration}ms)`);
+  });
+
   app.use("*", cors({
     origin: '*',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -28,7 +37,7 @@ try {
       router: appRouter,
       createContext,
       batching: {
-        enabled: true,
+        enabled: false, // Disabled to prevent timeout issues
       },
       onError({ path, error }) {
         console.error(`[tRPC Error] Path: ${path}`);
