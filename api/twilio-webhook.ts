@@ -19,7 +19,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).send('Method Not Allowed');
   }
 
-  const { From, SpeechResult, conversationState } = req.body;
+  const { From, SpeechResult } = req.body;
+  const conversationState = req.query.state as string | undefined;
   const webhookUrl = 'https://legacy-prime-workflow-suite.vercel.app/api/twilio-webhook';
 
   // Initialize or restore state
@@ -34,6 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (conversationState && typeof conversationState === 'string') {
     try {
       state = JSON.parse(Buffer.from(conversationState, 'base64').toString());
+      console.log('[Twilio Webhook] 📦 Restored state:', state);
     } catch (e) {
       console.error('[Twilio Webhook] Failed to parse state');
     }
@@ -45,12 +47,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     state.step = 1;
 
     const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
+    const actionUrl = `${webhookUrl}?state=${encodeURIComponent(encodedState)}`;
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${webhookUrl}" method="POST" speechTimeout="auto">
+  <Gather input="speech" action="${actionUrl}" method="POST" speechTimeout="auto">
     <Say voice="alice">Thank you for calling Legacy Prime Construction. How can I help you today?</Say>
-    <Parameter name="conversationState" value="${encodedState}"/>
   </Gather>
 </Response>`;
 
@@ -241,14 +243,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   console.log('[Twilio Webhook] Asking:', question);
+  console.log('[Twilio Webhook] Current state:', state);
 
   const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
+  const actionUrl = `${webhookUrl}?state=${encodeURIComponent(encodedState)}`;
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${webhookUrl}" method="POST" speechTimeout="auto">
+  <Gather input="speech" action="${actionUrl}" method="POST" speechTimeout="auto">
     <Say voice="alice">${question}</Say>
-    <Parameter name="conversationState" value="${encodedState}"/>
   </Gather>
 </Response>`;
 
