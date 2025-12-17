@@ -124,6 +124,41 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, [company]);
 
+  // Reload data when company changes (e.g., after login)
+  useEffect(() => {
+    if (company?.id && !isLoading) {
+      console.log('[App] Company changed, reloading data for:', company.id);
+      (async () => {
+        try {
+          const { trpc } = await import('@/lib/trpc');
+
+          // Load clients
+          const clientsResult = await trpc.crm.getClients.query({ companyId: company.id });
+          if (clientsResult.success && clientsResult.clients) {
+            setClients(clientsResult.clients);
+            console.log('[App] Loaded', clientsResult.clients.length, 'clients after company change');
+          }
+
+          // Load projects
+          const projectsResult = await trpc.projects.getProjects.query({ companyId: company.id });
+          if (projectsResult.success && projectsResult.projects) {
+            setProjects(projectsResult.projects);
+            console.log('[App] Loaded', projectsResult.projects.length, 'projects after company change');
+          }
+
+          // Load expenses
+          const expensesResult = await trpc.expenses.getExpenses.query({ companyId: company.id });
+          if (expensesResult.success && expensesResult.expenses) {
+            setExpenses(expensesResult.expenses);
+            console.log('[App] Loaded', expensesResult.expenses.length, 'expenses after company change');
+          }
+        } catch (error) {
+          console.error('[App] Error reloading data after company change:', error);
+        }
+      })();
+    }
+  }, [company?.id, isLoading]);
+
   const safeJsonParse = <T,>(data: string | null, key: string, fallback: T): T => {
     if (!data || data === 'undefined' || data === 'null') {
       return fallback;
