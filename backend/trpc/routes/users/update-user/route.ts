@@ -1,12 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import { createClient } from '@supabase/supabase-js';
-
-// Create Supabase client for server-side use
-const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+import { supabase } from "../../../../lib/supabase.js";
 
 export const updateUserProcedure = publicProcedure
   .input(
@@ -28,9 +22,9 @@ export const updateUserProcedure = publicProcedure
 
     try {
       // Check if Supabase is configured
-      if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        console.warn('[Users] Supabase not configured');
-        throw new Error('Database not configured');
+      if (!supabase) {
+        console.error('[Users] Supabase not configured - check environment variables');
+        throw new Error('Database not configured. Please contact support.');
       }
 
       // Convert camelCase to snake_case for database
