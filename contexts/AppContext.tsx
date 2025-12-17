@@ -127,33 +127,103 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   // Reload data when company changes (e.g., after login)
   useEffect(() => {
     if (company?.id && !isLoading) {
-      console.log('[App] Company changed, reloading data for:', company.id);
+      console.log('[App] 🔄 Company changed, reloading data for:', company.id);
+
+      // Call loadData again to reload all data from backend
+      // We need to re-run the data loading logic after login
       (async () => {
         try {
+          console.log('[App] Loading data from backend for company:', company.id);
           const { trpc } = await import('@/lib/trpc');
 
           // Load clients
-          const clientsResult = await trpc.crm.getClients.query({ companyId: company.id });
-          if (clientsResult.success && clientsResult.clients) {
-            setClients(clientsResult.clients);
-            console.log('[App] Loaded', clientsResult.clients.length, 'clients after company change');
+          try {
+            const clientsResult = await trpc.crm.getClients.query({ companyId: company.id });
+            if (clientsResult.success && clientsResult.clients) {
+              setClients(clientsResult.clients);
+              console.log('[App] ✅ Loaded', clientsResult.clients.length, 'clients');
+            } else {
+              console.log('[App] ⚠️ getClients returned no data');
+              setClients([]);
+            }
+          } catch (error: any) {
+            console.error('[App] ❌ Error loading clients:', error?.message || error);
+            setClients([]);
           }
 
           // Load projects
-          const projectsResult = await trpc.projects.getProjects.query({ companyId: company.id });
-          if (projectsResult.success && projectsResult.projects) {
-            setProjects(projectsResult.projects);
-            console.log('[App] Loaded', projectsResult.projects.length, 'projects after company change');
+          try {
+            const projectsResult = await trpc.projects.getProjects.query({ companyId: company.id });
+            if (projectsResult.success && projectsResult.projects) {
+              setProjects(projectsResult.projects);
+              console.log('[App] ✅ Loaded', projectsResult.projects.length, 'projects');
+            } else {
+              setProjects([]);
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading projects:', error?.message || error);
+            setProjects([]);
           }
 
           // Load expenses
-          const expensesResult = await trpc.expenses.getExpenses.query({ companyId: company.id });
-          if (expensesResult.success && expensesResult.expenses) {
-            setExpenses(expensesResult.expenses);
-            console.log('[App] Loaded', expensesResult.expenses.length, 'expenses after company change');
+          try {
+            const expensesResult = await trpc.expenses.getExpenses.query({ companyId: company.id });
+            if (expensesResult.success && expensesResult.expenses) {
+              setExpenses(expensesResult.expenses);
+              console.log('[App] ✅ Loaded', expensesResult.expenses.length, 'expenses');
+            } else {
+              setExpenses([]);
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading expenses:', error?.message || error);
+            setExpenses([]);
           }
-        } catch (error) {
-          console.error('[App] Error reloading data after company change:', error);
+
+          // Load photos
+          try {
+            const photosResult = await trpc.photos.getPhotos.query({ companyId: company.id });
+            if (photosResult.photos) {
+              setPhotos(photosResult.photos);
+              console.log('[App] ✅ Loaded', photosResult.photos.length, 'photos');
+            } else {
+              setPhotos([]);
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading photos:', error?.message || error);
+            setPhotos([]);
+          }
+
+          // Load tasks
+          try {
+            const tasksResult = await trpc.tasks.getTasks.query({ companyId: company.id });
+            if (tasksResult.tasks) {
+              setTasks(tasksResult.tasks);
+              console.log('[App] ✅ Loaded', tasksResult.tasks.length, 'tasks');
+            } else {
+              setTasks([]);
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading tasks:', error?.message || error);
+            setTasks([]);
+          }
+
+          // Load clock entries
+          try {
+            const clockResult = await trpc.clock.getClockEntries.query({ companyId: company.id });
+            if (clockResult.entries) {
+              setClockEntries(clockResult.entries);
+              console.log('[App] ✅ Loaded', clockResult.entries.length, 'clock entries');
+            } else {
+              setClockEntries([]);
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading clock entries:', error?.message || error);
+            setClockEntries([]);
+          }
+
+          console.log('[App] ✅ Finished reloading data after company change');
+        } catch (error: any) {
+          console.error('[App] ❌ Fatal error reloading data after company change:', error?.message || error);
         }
       })();
     }
