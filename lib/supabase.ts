@@ -133,19 +133,37 @@ export const auth = {
     address?: string;
   }) => {
     try {
-      // 1. Validate company code
+      // 1. Validate company code (case-insensitive)
+      console.log('[Auth] Looking up company with code:', params.companyCode);
       const { data: company, error: companyError } = await supabase
         .from('companies')
         .select('*')
-        .eq('company_code', params.companyCode)
+        .ilike('company_code', params.companyCode)
         .single();
 
-      if (companyError || !company) {
+      if (companyError) {
+        console.error('[Auth] Company lookup error:', companyError);
+        if (companyError.code === 'PGRST116') {
+          // No rows returned
+          return {
+            success: false,
+            error: `Company code "${params.companyCode}" not found. Please verify the code with your employer. The code should be an 8-character code like "ABC12345".`,
+          };
+        }
+        return {
+          success: false,
+          error: `Database error: ${companyError.message}`,
+        };
+      }
+
+      if (!company) {
         return {
           success: false,
           error: 'Invalid company code. Please check with your employer.',
         };
       }
+
+      console.log('[Auth] Found company:', company.name);
 
       // 2. Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
