@@ -38,13 +38,23 @@ export default function SettingsScreen() {
 
   const updateUserMutation = trpc.users.updateUser.useMutation({
     onSuccess: () => {
-      Alert.alert(t('common.success'), t('settings.roleUpdated'));
+      console.log('[Settings] User updated successfully');
+      if (Platform.OS === 'web') {
+        window.alert('Success\n\nUser updated successfully');
+      } else {
+        Alert.alert('Success', 'User updated successfully');
+      }
       usersQuery.refetch();
       setShowRoleModal(false);
       setSelectedUser(null);
     },
     onError: (error) => {
-      Alert.alert(t('common.error'), error.message);
+      console.error('[Settings] Error updating user:', error);
+      if (Platform.OS === 'web') {
+        window.alert(`Error\n\n${error.message}`);
+      } else {
+        Alert.alert('Error', error.message);
+      }
     },
   });
 
