@@ -17,6 +17,7 @@ export default function SettingsScreen() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showRoleModal, setShowRoleModal] = useState<boolean>(false);
   const [showCompanyProfileModal, setShowCompanyProfileModal] = useState<boolean>(false);
+  const [codeCopied, setCodeCopied] = useState<boolean>(false);
   const [companyForm, setCompanyForm] = useState({
     name: company?.name || '',
     logo: company?.logo || '',
@@ -87,7 +88,8 @@ export default function SettingsScreen() {
         // Use web clipboard API
         if (navigator.clipboard) {
           navigator.clipboard.writeText(company.companyCode);
-          Alert.alert(t('common.success'), `Company code copied: ${company.companyCode}`);
+          setCodeCopied(true);
+          setTimeout(() => setCodeCopied(false), 2000);
         } else {
           // Fallback for older browsers
           Alert.alert(t('settings.companyCode'), company.companyCode);
@@ -95,7 +97,8 @@ export default function SettingsScreen() {
       } else {
         // Use React Native clipboard for mobile
         Clipboard.setString(company.companyCode);
-        Alert.alert(t('common.success'), `Company code copied: ${company.companyCode}`);
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2000);
       }
     } else {
       Alert.alert(t('common.error'), 'Company code not found. Please contact support.');
@@ -236,13 +239,17 @@ export default function SettingsScreen() {
             
             <Text style={[styles.infoLabel, { marginTop: 16 }]}>{t('settings.companyCode')}</Text>
             <TouchableOpacity
-              style={styles.codeContainer}
+              style={[styles.codeContainer, codeCopied && styles.codeContainerCopied]}
               onPress={handleCopyCompanyCode}
             >
               <Text style={styles.codeText}>{company?.companyCode || 'No code available'}</Text>
-              <Copy size={18} color="#6B7280" />
+              <Copy size={18} color={codeCopied ? "#16A34A" : "#6B7280"} />
             </TouchableOpacity>
-            <Text style={styles.codeHint}>{t('settings.shareCodeHint')}</Text>
+            {codeCopied ? (
+              <Text style={styles.copiedHint}>✓ Copied to clipboard!</Text>
+            ) : (
+              <Text style={styles.codeHint}>{t('settings.shareCodeHint')}</Text>
+            )}
           </View>
         </View>
 
@@ -848,6 +855,16 @@ const styles = StyleSheet.create({
   codeHint: {
     fontSize: 12,
     color: '#6B7280',
+  },
+  codeContainerCopied: {
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#16A34A',
+  },
+  copiedHint: {
+    fontSize: 12,
+    color: '#16A34A',
+    fontWeight: '600' as const,
   },
   logoutButton: {
     flexDirection: 'row' as const,
