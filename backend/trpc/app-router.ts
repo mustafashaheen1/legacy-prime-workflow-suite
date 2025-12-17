@@ -11,6 +11,7 @@ import { verifyCodeProcedure } from "./routes/auth/verify-code/route.js";
 import { createUserProcedure } from "./routes/users/create-user/route.js";
 import { getUsersProcedure } from "./routes/users/get-users/route.js";
 import { updateUserProcedure } from "./routes/users/update-user/route.js";
+import { deleteUserProcedure } from "./routes/users/delete-user/route.js";
 import { requestRateChangeProcedure } from "./routes/users/request-rate-change/route.js";
 import { approveRateChangeProcedure } from "./routes/users/approve-rate-change/route.js";
 import { createCompanyProcedure } from "./routes/companies/create-company/route.js";
@@ -80,6 +81,7 @@ export const appRouter = createTRPCRouter({
     createUser: createUserProcedure,
     getUsers: getUsersProcedure,
     updateUser: updateUserProcedure,
+    deleteUser: deleteUserProcedure,
     requestRateChange: requestRateChangeProcedure,
     approveRateChange: approveRateChangeProcedure,
   }),

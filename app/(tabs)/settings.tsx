@@ -48,6 +48,24 @@ export default function SettingsScreen() {
     },
   });
 
+  const deleteUserMutation = trpc.users.deleteUser.useMutation({
+    onSuccess: () => {
+      if (Platform.OS === 'web') {
+        window.alert('Success\n\nEmployee account rejected and deleted');
+      } else {
+        Alert.alert('Success', 'Employee account rejected and deleted');
+      }
+      usersQuery.refetch();
+    },
+    onError: (error) => {
+      if (Platform.OS === 'web') {
+        window.alert(`Error\n\n${error.message}`);
+      } else {
+        Alert.alert('Error', error.message);
+      }
+    },
+  });
+
   const updateCompanyMutation = trpc.companies.updateCompany.useMutation({
     onSuccess: async (data) => {
       await setCompany(data.company);
@@ -295,7 +313,7 @@ export default function SettingsScreen() {
                     <View style={styles.userDetails}>
                       <Text style={styles.userName}>{user.name}</Text>
                       <Text style={styles.userEmail}>{user.email}</Text>
-                      {!user.isActive && (
+                      {!user.isActive && user.id !== currentUser?.id && (
                         <View style={styles.pendingBadge}>
                           <Text style={styles.pendingText}>Pending Approval</Text>
                         </View>
@@ -304,17 +322,44 @@ export default function SettingsScreen() {
                   </View>
                   <View style={styles.userRight}>
                     {!user.isActive && (isAdmin || isSuperAdmin) ? (
-                      <TouchableOpacity
-                        style={styles.approveButton}
-                        onPress={() => {
-                          updateUserMutation.mutate({
-                            userId: user.id,
-                            updates: { isActive: true },
-                          });
-                        }}
-                      >
-                        <Text style={styles.approveButtonText}>Approve</Text>
-                      </TouchableOpacity>
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity
+                          style={styles.rejectButton}
+                          onPress={() => {
+                            if (Platform.OS === 'web') {
+                              if (window.confirm(`Are you sure you want to reject ${user.name}? This will permanently delete their account.`)) {
+                                deleteUserMutation.mutate({ userId: user.id });
+                              }
+                            } else {
+                              Alert.alert(
+                                'Reject Employee',
+                                `Are you sure you want to reject ${user.name}? This will permanently delete their account.`,
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: 'Reject',
+                                    style: 'destructive',
+                                    onPress: () => deleteUserMutation.mutate({ userId: user.id }),
+                                  },
+                                ]
+                              );
+                            }
+                          }}
+                        >
+                          <Text style={styles.rejectButtonText}>Reject</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.approveButton}
+                          onPress={() => {
+                            updateUserMutation.mutate({
+                              userId: user.id,
+                              updates: { isActive: true },
+                            });
+                          }}
+                        >
+                          <Text style={styles.approveButtonText}>Approve</Text>
+                        </TouchableOpacity>
+                      </View>
                     ) : (
                       <>
                         <View style={[styles.roleChip, { backgroundColor: getRoleColor(user.role) }]}>
@@ -728,6 +773,10 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#92400E',
   },
+  actionButtons: {
+    flexDirection: 'row' as const,
+    gap: 8,
+  },
   approveButton: {
     backgroundColor: '#16A34A',
     paddingHorizontal: 16,
@@ -735,6 +784,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   approveButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  rejectButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  rejectButtonText: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#FFFFFF',
