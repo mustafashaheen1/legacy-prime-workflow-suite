@@ -82,11 +82,9 @@ export default function SignupScreen() {
         return;
       }
 
-      // Validate US phone number format
-      const phoneRegex = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4}$/;
-      const cleanedPhone = phone.trim().replace(/\s+/g, '');
-      if (!phoneRegex.test(cleanedPhone)) {
-        showAlert('Error', 'Please enter a valid US phone number (e.g., (555) 123-4567 or 555-123-4567)');
+      // Validate US phone number format (exactly 10 digits)
+      if (phone.length !== 10) {
+        showAlert('Error', 'Please enter exactly 10 digits for your phone number');
         return;
       }
 
@@ -434,13 +432,18 @@ export default function SignupScreen() {
               <Text style={styles.label}>{t('signup.phone')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="(555) 123-4567"
+                placeholder="5551234567"
                 placeholderTextColor="#9CA3AF"
                 value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
+                onChangeText={(text) => {
+                  // Only allow digits and limit to 10 characters
+                  const filtered = text.replace(/[^0-9]/g, '').slice(0, 10);
+                  setPhone(filtered);
+                }}
+                keyboardType="number-pad"
+                maxLength={10}
               />
-              <Text style={styles.hint}>Enter a valid US phone number</Text>
+              <Text style={styles.hint}>Enter 10-digit US phone number (digits only)</Text>
 
               <Text style={styles.label}>{t('signup.address')}</Text>
               <TextInput
