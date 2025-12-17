@@ -19,10 +19,15 @@ export const deleteUserProcedure = publicProcedure
       }
 
       // Delete from users table (this will cascade to auth.users if configured)
+      console.log('[Users] Deleting from users table...');
+      const dbStartTime = Date.now();
+
       const { error: dbError } = await supabase
         .from('users')
         .delete()
         .eq('id', input.userId);
+
+      console.log(`[Users] Database delete completed in ${Date.now() - dbStartTime}ms`);
 
       if (dbError) {
         console.error('[Users] Error deleting user from database:', dbError);
@@ -30,7 +35,12 @@ export const deleteUserProcedure = publicProcedure
       }
 
       // Delete from auth.users
+      console.log('[Users] Deleting from auth.users...');
+      const authStartTime = Date.now();
+
       const { error: authError } = await supabase.auth.admin.deleteUser(input.userId);
+
+      console.log(`[Users] Auth delete completed in ${Date.now() - authStartTime}ms`);
 
       if (authError) {
         console.error('[Users] Error deleting user from auth:', authError);

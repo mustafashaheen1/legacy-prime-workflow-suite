@@ -37,12 +37,18 @@ export const updateUserProcedure = publicProcedure
       if (input.updates.address !== undefined) dbUpdates.address = input.updates.address;
       if (input.updates.hourlyRate !== undefined) dbUpdates.hourly_rate = input.updates.hourlyRate;
 
+      console.log('[Users] Executing database update with:', dbUpdates);
+      const updateStartTime = Date.now();
+
       const { data, error } = await supabase
         .from('users')
         .update(dbUpdates)
         .eq('id', input.userId)
         .select()
         .single();
+
+      const updateDuration = Date.now() - updateStartTime;
+      console.log(`[Users] Database update completed in ${updateDuration}ms`);
 
       if (error) {
         console.error('[Users] Error updating user:', error);
