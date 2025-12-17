@@ -126,24 +126,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         console.log('[Twilio Webhook] 💾 Saving lead to CRM...');
 
-        // Get the first company (default company for now)
-        const companiesResponse = await fetch(`${supabaseUrl}/rest/v1/companies?select=id&limit=1`, {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-          },
-        });
-
-        if (!companiesResponse.ok) {
-          throw new Error('Failed to fetch company');
-        }
-
-        const companies = await companiesResponse.json();
-        if (!companies || companies.length === 0) {
-          throw new Error('No companies found');
-        }
-
-        const companyId = companies[0].id;
+        // TODO: When multi-company is implemented, lookup company by Twilio number
+        // For now, use hardcoded company ID
+        const companyId = '3fd6f909-5c10-45eb-98af-83eb26879eec';
+        console.log('[Twilio Webhook] 🏢 Using company ID:', companyId);
 
         // Determine lead status based on budget
         const budgetValue = parseInt((state.budget || '0').replace(/[^0-9]/g, '')) || 0;
