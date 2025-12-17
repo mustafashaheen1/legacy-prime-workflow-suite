@@ -37,13 +37,17 @@ export default function SettingsScreen() {
   );
 
   const updateUserMutation = trpc.users.updateUser.useMutation({
+    onMutate: (variables) => {
+      console.log('[Settings] onMutate called with:', variables);
+    },
     onSuccess: (data) => {
+      console.log('[Settings] onSuccess called with data:', data);
       console.log('[Settings] User updated successfully', data);
       console.log('[Settings] Platform.OS:', Platform.OS);
       console.log('[Settings] About to show alert...');
       try {
         if (Platform.OS === 'web') {
-          console.log('[Settings] Calling window.alert...');
+          console.log('[Settings] Calling alert...');
           alert('User updated successfully');
         } else {
           Alert.alert('Success', 'User updated successfully');
@@ -56,6 +60,7 @@ export default function SettingsScreen() {
       setSelectedUser(null);
     },
     onError: (error) => {
+      console.error('[Settings] onError called with:', error);
       console.error('[Settings] Error updating user:', error);
       console.log('[Settings] Platform.OS:', Platform.OS);
       try {
@@ -68,10 +73,17 @@ export default function SettingsScreen() {
         console.error('[Settings] Error showing error alert:', e);
       }
     },
+    onSettled: (data, error) => {
+      console.log('[Settings] onSettled called with data:', data, 'error:', error);
+    },
   });
 
   const deleteUserMutation = trpc.users.deleteUser.useMutation({
+    onMutate: (variables) => {
+      console.log('[Settings] deleteUser onMutate called with:', variables);
+    },
     onSuccess: (data) => {
+      console.log('[Settings] deleteUser onSuccess called with data:', data);
       console.log('[Settings] User deleted successfully', data);
       console.log('[Settings] Platform.OS:', Platform.OS);
       try {
@@ -86,6 +98,7 @@ export default function SettingsScreen() {
       usersQuery.refetch();
     },
     onError: (error) => {
+      console.error('[Settings] deleteUser onError called with:', error);
       console.error('[Settings] Error deleting user:', error);
       console.log('[Settings] Platform.OS:', Platform.OS);
       try {
@@ -97,6 +110,9 @@ export default function SettingsScreen() {
       } catch (e) {
         console.error('[Settings] Error showing error alert:', e);
       }
+    },
+    onSettled: (data, error) => {
+      console.log('[Settings] deleteUser onSettled called with data:', data, 'error:', error);
     },
   });
 
