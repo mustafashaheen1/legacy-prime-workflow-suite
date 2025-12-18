@@ -28,5 +28,21 @@ export const getUsersProcedure = publicProcedure
       throw new Error(`Failed to fetch users: ${error.message}`);
     }
 
-    return { users: users || [] };
+    // Transform database response to camelCase
+    const transformedUsers = (users || []).map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      companyId: user.company_id,
+      avatar: user.avatar || undefined,
+      phone: user.phone || undefined,
+      address: user.address || undefined,
+      hourlyRate: user.hourly_rate || undefined,
+      isActive: user.is_active,
+      createdAt: user.created_at,
+      rateChangeRequest: user.rate_change_request || undefined,
+    }));
+
+    return { users: transformedUsers };
   });

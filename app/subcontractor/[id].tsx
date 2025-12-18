@@ -6,6 +6,7 @@ import { useApp } from '@/contexts/AppContext';
 import { BusinessFile, Subcontractor } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import { trpc } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 
 export default function SubcontractorProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -84,23 +85,32 @@ export default function SubcontractorProfileScreen() {
 
   const handleApproveSubcontractor = async (approved: boolean) => {
     try {
-      await approveSubcontractorMutation.mutateAsync({
-        subcontractorId: subcontractor.id,
+      console.log('[Subcontractor] Approving subcontractor:', subcontractor.id, subcontractor.name);
+
+      // Update directly with Supabase to bypass backend timeout
+      const { error } = await supabase
+        .from('subcontractors')
+        .update({
+          approved,
+          approved_by: user?.id || 'user_current',
+          approved_date: new Date().toISOString()
+        })
+        .eq('id', subcontractor.id);
+
+      if (error) throw error;
+
+      // Update local state
+      await updateSubcontractor(subcontractor.id, {
         approved,
         approvedBy: user?.id || 'user_current',
-      });
-
-      await updateSubcontractor(subcontractor.id, { 
-        approved, 
-        approvedBy: user?.id || 'user_current', 
-        approvedDate: new Date().toISOString() 
+        approvedDate: new Date().toISOString()
       });
 
       Alert.alert('Success', `Subcontractor ${approved ? 'approved' : 'rejected'} successfully`);
       setShowApproveModal(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Approve] Error:', error);
-      Alert.alert('Error', 'Failed to update approval status');
+      Alert.alert('Error', error.message || 'Failed to update approval status');
     }
   };
 
