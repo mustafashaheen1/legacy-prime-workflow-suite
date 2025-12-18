@@ -8,6 +8,7 @@ import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3,
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
+import { supabase } from '@/lib/supabase';
 
 export default function SettingsScreen() {
   const { user: currentUser, company, setCompany, logout } = useApp();
@@ -391,10 +392,29 @@ export default function SettingsScreen() {
                                 });
 
                             if (confirmed) {
-                              console.log('[Settings] Deleting user via backend:', user.id);
-                              // Use backend mutation which has service role key (bypasses RLS)
-                              // The mutation's onSuccess callback will handle refetch and alert
-                              deleteUserMutation.mutate({ userId: user.id });
+                              (async () => {
+                                try {
+                                  console.log('[Settings] Deleting user directly with Supabase:', user.id);
+
+                                  const { error } = await supabase
+                                    .from('users')
+                                    .delete()
+                                    .eq('id', user.id);
+
+                                  if (error) {
+                                    console.error('[Settings] Delete error:', error);
+                                    throw error;
+                                  }
+
+                                  console.log('[Settings] User deleted, refetching...');
+                                  await usersQuery.refetch();
+
+                                  alert('Employee account rejected and deleted');
+                                } catch (error: any) {
+                                  console.error('[Settings] Error:', error);
+                                  alert(`Error: ${error.message}`);
+                                }
+                              })();
                             }
                           }}
                         >
@@ -402,14 +422,28 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.approveButton}
-                          onPress={() => {
-                            console.log('[Settings] Approving user:', user.id, user.name);
-                            // Use backend mutation which has service role key (bypasses RLS)
-                            // The mutation's onSuccess callback will handle refetch and alert
-                            updateUserMutation.mutate({
-                              userId: user.id,
-                              updates: { isActive: true }
-                            });
+                          onPress={async () => {
+                            try {
+                              console.log('[Settings] Approving user:', user.id, user.name);
+
+                              const { error } = await supabase
+                                .from('users')
+                                .update({ is_active: true })
+                                .eq('id', user.id);
+
+                              if (error) {
+                                console.error('[Settings] Approve error:', error);
+                                throw error;
+                              }
+
+                              console.log('[Settings] User approved, refetching...');
+                              await usersQuery.refetch();
+
+                              alert('User approved successfully');
+                            } catch (error: any) {
+                              console.error('[Settings] Error:', error);
+                              alert(`Error: ${error.message}`);
+                            }
                           }}
                         >
                           <Text style={styles.approveButtonText}>Approve</Text>
