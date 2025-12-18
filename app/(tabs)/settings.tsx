@@ -393,16 +393,24 @@ export default function SettingsScreen() {
 
                             if (confirmed) {
                               try {
+                                console.log('[Settings] Deleting user from database:', user.id);
                                 // Delete directly with Supabase
                                 const { error: dbError } = await supabase.from('users').delete().eq('id', user.id);
-                                if (dbError) throw dbError;
+                                if (dbError) {
+                                  console.error('[Settings] Database delete error:', dbError);
+                                  throw dbError;
+                                }
 
+                                console.log('[Settings] User deleted from database, now deleting from auth');
                                 const { error: authError } = await supabase.auth.admin.deleteUser(user.id);
                                 if (authError) console.warn('Auth delete failed:', authError);
 
+                                console.log('[Settings] Refetching users list');
+                                await usersQuery.refetch();
+
                                 alert('Employee account rejected and deleted');
-                                usersQuery.refetch();
                               } catch (error: any) {
+                                console.error('[Settings] Error during rejection:', error);
                                 alert(`Error: ${error.message}`);
                               }
                             }
@@ -421,11 +429,17 @@ export default function SettingsScreen() {
                                 .update({ is_active: true })
                                 .eq('id', user.id);
 
-                              if (error) throw error;
+                              if (error) {
+                                console.error('[Settings] Approve error:', error);
+                                throw error;
+                              }
+
+                              console.log('[Settings] User approved, refetching list');
+                              await usersQuery.refetch();
 
                               alert('User approved successfully');
-                              usersQuery.refetch();
                             } catch (error: any) {
+                              console.error('[Settings] Error during approval:', error);
                               alert(`Error: ${error.message}`);
                             }
                           }}
