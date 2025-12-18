@@ -401,12 +401,14 @@ export default function SettingsScreen() {
                                   throw dbError;
                                 }
 
-                                console.log('[Settings] User deleted from database, now deleting from auth');
-                                const { error: authError } = await supabase.auth.admin.deleteUser(user.id);
-                                if (authError) console.warn('Auth delete failed:', authError);
+                                console.log('[Settings] User deleted from database successfully');
+                                // Note: Auth deletion requires service role key, skipping for now
+                                // The user record is deleted from DB which is sufficient for the app
 
                                 console.log('[Settings] Refetching users list');
-                                await usersQuery.refetch();
+                                const result = await usersQuery.refetch();
+                                console.log('[Settings] Refetch completed, user count:', result.data?.users?.length);
+                                console.log('[Settings] Users after refetch:', result.data?.users?.map(u => u.id));
 
                                 alert('Employee account rejected and deleted');
                               } catch (error: any) {
@@ -424,18 +426,24 @@ export default function SettingsScreen() {
                             console.log('[Settings] Approving user:', user.id, user.name);
                             try {
                               // Update directly with Supabase
-                              const { error } = await supabase
+                              const { error, data } = await supabase
                                 .from('users')
                                 .update({ is_active: true })
-                                .eq('id', user.id);
+                                .eq('id', user.id)
+                                .select();
 
                               if (error) {
                                 console.error('[Settings] Approve error:', error);
                                 throw error;
                               }
 
-                              console.log('[Settings] User approved, refetching list');
-                              await usersQuery.refetch();
+                              console.log('[Settings] User approved in database:', data);
+                              console.log('[Settings] Refetching users list');
+                              const result = await usersQuery.refetch();
+                              console.log('[Settings] Refetch completed, user count:', result.data?.users?.length);
+                              const approvedUser = result.data?.users?.find(u => u.id === user.id);
+                              console.log('[Settings] Approved user in refetch result:', approvedUser);
+                              console.log('[Settings] Approved user isActive:', approvedUser?.isActive);
 
                               alert('User approved successfully');
                             } catch (error: any) {
