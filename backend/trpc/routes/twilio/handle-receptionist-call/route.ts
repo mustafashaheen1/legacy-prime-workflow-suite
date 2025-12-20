@@ -237,7 +237,13 @@ export const handleReceptionistCallProcedure = publicProcedure
       const hasBudget = state.collectedInfo.budget.length > 0;
       const hasEnoughInfo = hasName && hasProjectType && hasBudget; // Require ALL three
 
-      console.log("[Receptionist] Info status:", { hasName, hasProjectType, hasBudget, hasEnoughInfo });
+      console.log("[Receptionist] ========================================");
+      console.log("[Receptionist] INFO CHECK:");
+      console.log("[Receptionist]   - Name:", state.collectedInfo.name || "❌ MISSING");
+      console.log("[Receptionist]   - Project:", state.collectedInfo.projectType || "❌ MISSING");
+      console.log("[Receptionist]   - Budget:", state.collectedInfo.budget || "❌ MISSING");
+      console.log("[Receptionist]   - Has Enough Info?", hasEnoughInfo ? "✅ YES - ENDING CALL" : "❌ NO - CONTINUING");
+      console.log("[Receptionist] ========================================");
 
       if (hasEnoughInfo) {
         // Generate final response
@@ -377,6 +383,9 @@ NEXT STEP: ${nextQuestion}
 
 Generate a warm, enthusiastic response (1-2 sentences max). Show genuine excitement about helping with their project!`;
 
+      console.log("[Receptionist] 🤖 GENERATING AI RESPONSE...");
+      console.log("[Receptionist] Next Question Should Be:", nextQuestion);
+
       const completion = await openai.chat.completions.create({
         model: 'gpt-4',
         messages: [
@@ -386,7 +395,7 @@ Generate a warm, enthusiastic response (1-2 sentences max). Show genuine excitem
       });
       const aiResponse = completion.choices[0]?.message?.content || "Could you tell me more about your project?";
 
-      console.log("[Receptionist] AI Response:", aiResponse);
+      console.log("[Receptionist] 🤖 AI WILL SAY:", aiResponse);
 
       state.conversationHistory.push({
         role: 'assistant',
