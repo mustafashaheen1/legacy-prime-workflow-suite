@@ -69,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Check if they're asking about pricing (be flexible with how they ask)
     const isPricingQuestion = lower.match(/(?:how much|what.*cost|price|pricing|budget|expensive|afford|cost|much)/);
-    const mentionsProject = lower.match(/kitchen|bathroom|remodel|renovation|addition|basement|deck|patio|model/);
+    const mentionsProject = lower.match(/kitchen|bathroom|paint|floor|roof|deck|patio|basement|addition|siding|window|door|drywall|electrical|plumbing|hvac|remodel|renovation|model/);
 
     // If they mention both cost/price AND a project type, assume it's a pricing question
     const likelyPricingQuestion = isPricingQuestion && mentionsProject;
@@ -145,12 +145,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Extract project
+    // Extract project type
     if (!state.project) {
       if (lower.includes('kitchen')) state.project = 'Kitchen';
       else if (lower.includes('bathroom')) state.project = 'Bathroom';
+      else if (lower.includes('painting') || lower.includes('paint')) state.project = 'Painting';
+      else if (lower.includes('flooring') || lower.includes('floor')) state.project = 'Flooring';
+      else if (lower.includes('roof') || lower.includes('roofing')) state.project = 'Roofing';
+      else if (lower.includes('deck') || lower.includes('patio')) state.project = 'Deck/Patio';
+      else if (lower.includes('basement')) state.project = 'Basement';
+      else if (lower.includes('addition') || lower.includes('add on')) state.project = 'Addition';
+      else if (lower.includes('siding') || lower.includes('exterior')) state.project = 'Exterior';
+      else if (lower.includes('window') || lower.includes('door')) state.project = 'Windows/Doors';
+      else if (lower.includes('drywall')) state.project = 'Drywall';
+      else if (lower.includes('electrical') || lower.includes('electric')) state.project = 'Electrical';
+      else if (lower.includes('plumbing') || lower.includes('plumber')) state.project = 'Plumbing';
+      else if (lower.includes('hvac') || lower.includes('heating') || lower.includes('cooling')) state.project = 'HVAC';
       else if (lower.includes('remodel') || lower.includes('renovation')) state.project = 'Remodel';
-      else if (lower.includes('addition')) state.project = 'Addition';
+
       if (state.project) console.log('[Twilio Webhook] Extracted project:', state.project);
     }
 
