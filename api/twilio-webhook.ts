@@ -79,21 +79,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let estimate = '';
       if (lower.includes('kitchen')) {
         projectType = 'kitchen remodel';
+        state.project = 'Kitchen'; // Save to state!
         estimate = '$15,000 to $50,000 depending on the size and finishes';
       } else if (lower.includes('bathroom')) {
         projectType = 'bathroom remodel';
+        state.project = 'Bathroom'; // Save to state!
         estimate = '$12,000 to $40,000 depending on size and quality';
       } else if (lower.includes('addition')) {
         projectType = 'addition';
+        state.project = 'Addition'; // Save to state!
         estimate = '$100 to $300 per square foot';
       } else if (lower.includes('basement')) {
         projectType = 'basement finishing';
+        state.project = 'Basement'; // Save to state!
         estimate = '$30,000 to $75,000 for a typical basement';
       } else {
         projectType = 'remodel';
+        state.project = 'Remodel'; // Save to state!
         estimate = 'varies based on the scope, typically $20,000 to $100,000';
       }
 
+      console.log('[Twilio Webhook] 📝 Extracted project from question:', state.project);
       const pricingResponse = `Great question! A ${projectType} typically costs ${estimate}. I'd love to help you with this! What's your name?`;
 
       const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
