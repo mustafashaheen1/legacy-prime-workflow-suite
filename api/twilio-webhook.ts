@@ -67,6 +67,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const lower = SpeechResult.toLowerCase();
 
+    // Check if they're asking about pricing
+    const isPricingQuestion = lower.match(/(?:how much|what.*cost|price|pricing|budget|expensive|afford)/);
+    const mentionsProject = lower.match(/kitchen|bathroom|remodel|renovation|addition|basement|deck|patio/);
+
+    if (isPricingQuestion && mentionsProject && state.step === 2) {
+      // They asked a pricing question on first response - answer it!
+      console.log('[Twilio Webhook] 💰 Detected pricing question - providing estimate');
+
+      let projectType = '';
+      let estimate = '';
+      if (lower.includes('kitchen')) {
+        projectType = 'kitchen remodel';
+        estimate = '$15,000 to $50,000 depending on the size and finishes';
+      } else if (lower.includes('bathroom')) {
+        projectType = 'bathroom remodel';
+        estimate = '$12,000 to $40,000 depending on size and quality';
+      } else if (lower.includes('addition')) {
+        projectType = 'addition';
+        estimate = '$100 to $300 per square foot';
+      } else if (lower.includes('basement')) {
+        projectType = 'basement finishing';
+        estimate = '$30,000 to $75,000 for a typical basement';
+      } else {
+        projectType = 'remodel';
+        estimate = 'varies based on the scope, typically $20,000 to $100,000';
+      }
+
+      const pricingResponse = `Great question! A ${projectType} typically costs ${estimate}. I'd love to help you with this! What's your name?`;
+
+      const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
+      const actionUrl = `${webhookUrl}?state=${encodeURIComponent(encodedState)}`;
+
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${actionUrl}" method="POST" speechTimeout="auto">
+    <Say voice="alice">${pricingResponse}</Say>
+  </Gather>
+</Response>`;
+
+      res.setHeader('Content-Type', 'text/xml');
+      return res.status(200).send(twiml);
+    }
+
     // Extract name (more flexible patterns)
     if (!state.name) {
       const namePatterns = [
