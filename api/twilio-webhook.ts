@@ -135,11 +135,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const lowerName = extractedName.toLowerCase();
           const nonNames = ['yes', 'yeah', 'yep', 'sure', 'okay', 'ok', 'hello', 'hi', 'hey',
                            'kitchen', 'bathroom', 'remodel', 'renovation', 'addition', 'roofing',
-                           'basement', 'deck', 'patio', 'flooring', 'painting', 'project'];
-          if (!nonNames.includes(lowerName) && extractedName.split(' ').length <= 3) {
+                           'basement', 'deck', 'patio', 'flooring', 'painting', 'project', 'work',
+                           'need', 'want', 'looking', 'interested'];
+
+          // Check if ANY word in the name is a non-name word
+          const words = lowerName.split(' ');
+          const containsNonName = words.some(word => nonNames.includes(word));
+
+          if (!containsNonName && extractedName.split(' ').length <= 3) {
             state.name = extractedName;
             console.log('[Twilio Webhook] ✅ Extracted name:', state.name);
             break;
+          } else if (containsNonName) {
+            console.log('[Twilio Webhook] ⏭️ Skipped non-name:', extractedName);
           }
         }
       }
