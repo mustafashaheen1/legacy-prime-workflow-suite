@@ -357,13 +357,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).send(twiml);
   }
 
-  // Ask for missing information
+  // Ask for missing information with adaptive order
+  // If project is mentioned first, ask budget → name (more natural flow)
+  // Otherwise, ask name → project → budget (default flow)
   let question = '';
-  if (!state.name) {
+
+  if (state.project && !state.budget) {
+    // Project known: ask for budget next (natural follow-up to their stated need)
+    question = 'Great! I can help with that. What kind of budget are you working with for this project?';
+  } else if (state.project && state.budget && !state.name) {
+    // Project + budget known: ask for name last
+    question = 'Perfect! And who am I speaking with?';
+  } else if (!state.name) {
+    // Default flow: ask for name first
     question = 'Great! What is your name?';
   } else if (!state.project) {
+    // Name known: ask for project
     question = 'Wonderful! What type of project do you need help with?';
   } else if (!state.budget) {
+    // Name + project known: ask for budget
     question = 'Perfect! What kind of budget are you working with for this project?';
   }
 
