@@ -352,6 +352,16 @@ Generate a warm closing message thanking them by name and promising a callback w
       if (!hasProjectType) missingInfo.push("project type");
       if (!hasBudget) missingInfo.push("budget");
 
+      // Prioritize what to ask for next
+      let nextQuestion = "";
+      if (!hasName) {
+        nextQuestion = "Ask for their name in a friendly way.";
+      } else if (!hasProjectType) {
+        nextQuestion = "Ask what type of project they need help with.";
+      } else if (!hasBudget) {
+        nextQuestion = "Ask about their budget for the project. Be warm and enthusiastic!";
+      }
+
       const nextPrompt = `Based on this conversation:
 ${conversationContext}
 
@@ -363,7 +373,9 @@ Current information collected:
 
 Missing: ${missingInfo.join(', ')}
 
-Generate the next response. Ask for ONE missing piece of information in a natural way. Keep it SHORT (1 sentence). Don't be repetitive.`;
+NEXT STEP: ${nextQuestion}
+
+Generate a warm, enthusiastic response (1-2 sentences max). Show genuine excitement about helping with their project!`;
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4',
