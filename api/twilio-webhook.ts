@@ -67,11 +67,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const lower = SpeechResult.toLowerCase();
 
-    // Check if they're asking about pricing
-    const isPricingQuestion = lower.match(/(?:how much|what.*cost|price|pricing|budget|expensive|afford)/);
+    // Check if they're asking about pricing (be flexible with how they ask)
+    const isPricingQuestion = lower.match(/(?:how much|what.*cost|price|pricing|budget|expensive|afford|cost|much)/);
     const mentionsProject = lower.match(/kitchen|bathroom|remodel|renovation|addition|basement|deck|patio|model/);
 
-    if (isPricingQuestion && mentionsProject && state.step === 2) {
+    // If they mention both cost/price AND a project type, assume it's a pricing question
+    const likelyPricingQuestion = isPricingQuestion && mentionsProject;
+
+    if (likelyPricingQuestion && state.step === 2) {
       // They asked a pricing question on first response - answer it!
       console.log('[Twilio Webhook] 💰 Detected pricing question - providing estimate');
 
