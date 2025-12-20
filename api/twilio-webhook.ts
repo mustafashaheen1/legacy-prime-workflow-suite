@@ -69,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Check if they're asking about pricing
     const isPricingQuestion = lower.match(/(?:how much|what.*cost|price|pricing|budget|expensive|afford)/);
-    const mentionsProject = lower.match(/kitchen|bathroom|remodel|renovation|addition|basement|deck|patio/);
+    const mentionsProject = lower.match(/kitchen|bathroom|remodel|renovation|addition|basement|deck|patio|model/);
 
     if (isPricingQuestion && mentionsProject && state.step === 2) {
       // They asked a pricing question on first response - answer it!
@@ -170,12 +170,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      // Also check for word numbers
-      if (!state.budget && lower.includes('thousand')) {
-        const numMatch = SpeechResult.match(/(\d+)\s*thousand/i);
-        if (numMatch) {
-          state.budget = `$${numMatch[1]},000`;
-          console.log('[Twilio Webhook] ✅ Extracted budget from words:', state.budget);
+      // Also check for word numbers (thousand, million)
+      if (!state.budget) {
+        // Check for "million" first (higher priority)
+        if (lower.includes('million')) {
+          const millionMatch = SpeechResult.match(/(\d+(?:\.\d+)?)\s*million/i);
+          if (millionMatch) {
+            const value = parseFloat(millionMatch[1]) * 1000000;
+            state.budget = `$${value.toLocaleString()}`;
+            console.log('[Twilio Webhook] ✅ Extracted budget from million:', state.budget);
+          } else if (lower.match(/\b(?:a|one)\s*million/i)) {
+            // "a million" or "one million"
+            state.budget = '$1,000,000';
+            console.log('[Twilio Webhook] ✅ Extracted budget: a million');
+          }
+        }
+        // Check for "thousand"
+        else if (lower.includes('thousand')) {
+          const thousandMatch = SpeechResult.match(/(\d+)\s*thousand/i);
+          if (thousandMatch) {
+            state.budget = `$${thousandMatch[1]},000`;
+            console.log('[Twilio Webhook] ✅ Extracted budget from thousand:', state.budget);
+          } else if (lower.match(/\b(?:a|one)\s*thousand/i)) {
+            // "a thousand" or "one thousand"
+            state.budget = '$1,000';
+            console.log('[Twilio Webhook] ✅ Extracted budget: a thousand');
+          }
+        }
+        // Check for "hundred"
+        else if (lower.includes('hundred')) {
+          const hundredMatch = SpeechResult.match(/(\d+)\s*hundred/i);
+          if (hundredMatch) {
+            state.budget = `$${parseInt(hundredMatch[1]) * 100}`;
+            console.log('[Twilio Webhook] ✅ Extracted budget from hundred:', state.budget);
+          }
         }
       }
     }
