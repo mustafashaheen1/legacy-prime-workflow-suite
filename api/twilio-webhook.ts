@@ -113,7 +113,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Check if we have enough information to qualify the lead
-  const hasEnoughInfo = state.name && (state.project || state.budget);
+  // Require ALL three: name, project, AND budget
+  const hasEnoughInfo = state.name && state.project && state.budget;
 
   if (hasEnoughInfo) {
     console.log('[Twilio Webhook] ✅ QUALIFIED LEAD:', state);
@@ -181,7 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('[Twilio Webhook] ⚠️ Supabase not configured, skipping CRM save');
     }
 
-    const closingMessage = `Thank you ${state.name.split(' ')[0]}. We have received your ${state.project || 'project'} inquiry${state.budget ? ' with a budget of ' + state.budget : ''}. We will call you back within 24 hours.`;
+    const closingMessage = `Wonderful, ${state.name.split(' ')[0]}! Thanks for sharing that you're interested in a ${state.project} project with a budget of ${state.budget}. One of our project managers will call you back within 24 hours to discuss the details. We're excited to help with your project!`;
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -198,11 +199,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Ask for missing information
   let question = '';
   if (!state.name) {
-    question = 'What is your name?';
+    question = 'Great! What is your name?';
   } else if (!state.project) {
-    question = 'What type of project do you need help with?';
+    question = 'Wonderful! What type of project do you need help with?';
   } else if (!state.budget) {
-    question = 'What is your budget for this project?';
+    question = 'Perfect! What kind of budget are you working with for this project?';
   }
 
   console.log('[Twilio Webhook] Asking:', question);
