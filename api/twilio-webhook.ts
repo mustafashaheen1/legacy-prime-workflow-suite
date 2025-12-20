@@ -172,6 +172,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Also check for word numbers (thousand, million)
       if (!state.budget) {
+        const wordToNumber: { [key: string]: number } = {
+          'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+          'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+          'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+          'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
+          'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+          'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90,
+          'hundred': 100, 'thousand': 1000, 'million': 1000000
+        };
+
         // Check for "million" first (higher priority)
         if (lower.includes('million')) {
           const millionMatch = SpeechResult.match(/(\d+(?:\.\d+)?)\s*million/i);
@@ -180,9 +190,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             state.budget = `$${value.toLocaleString()}`;
             console.log('[Twilio Webhook] ✅ Extracted budget from million:', state.budget);
           } else if (lower.match(/\b(?:a|one)\s*million/i)) {
-            // "a million" or "one million"
             state.budget = '$1,000,000';
             console.log('[Twilio Webhook] ✅ Extracted budget: a million');
+          } else {
+            // Try to parse word numbers like "thirty million"
+            const words = SpeechResult.toLowerCase().split(/\s+/);
+            for (let i = 0; i < words.length - 1; i++) {
+              if (words[i + 1] === 'million' && wordToNumber[words[i]]) {
+                const value = wordToNumber[words[i]] * 1000000;
+                state.budget = `$${value.toLocaleString()}`;
+                console.log('[Twilio Webhook] ✅ Extracted word million:', state.budget);
+                break;
+              }
+            }
           }
         }
         // Check for "thousand"
@@ -192,9 +212,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             state.budget = `$${thousandMatch[1]},000`;
             console.log('[Twilio Webhook] ✅ Extracted budget from thousand:', state.budget);
           } else if (lower.match(/\b(?:a|one)\s*thousand/i)) {
-            // "a thousand" or "one thousand"
             state.budget = '$1,000';
             console.log('[Twilio Webhook] ✅ Extracted budget: a thousand');
+          } else {
+            // Try to parse word numbers like "thirty thousand", "fifty thousand"
+            const words = SpeechResult.toLowerCase().split(/\s+/);
+            for (let i = 0; i < words.length - 1; i++) {
+              if (words[i + 1] === 'thousand' && wordToNumber[words[i]]) {
+                const value = wordToNumber[words[i]] * 1000;
+                state.budget = `$${value.toLocaleString()}`;
+                console.log('[Twilio Webhook] ✅ Extracted word thousand:', state.budget);
+                break;
+              }
+            }
           }
         }
         // Check for "hundred"
@@ -203,6 +233,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (hundredMatch) {
             state.budget = `$${parseInt(hundredMatch[1]) * 100}`;
             console.log('[Twilio Webhook] ✅ Extracted budget from hundred:', state.budget);
+          } else {
+            // Try word numbers like "five hundred"
+            const words = SpeechResult.toLowerCase().split(/\s+/);
+            for (let i = 0; i < words.length - 1; i++) {
+              if (words[i + 1] === 'hundred' && wordToNumber[words[i]]) {
+                const value = wordToNumber[words[i]] * 100;
+                state.budget = `$${value}`;
+                console.log('[Twilio Webhook] ✅ Extracted word hundred:', state.budget);
+                break;
+              }
+            }
           }
         }
       }
