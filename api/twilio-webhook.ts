@@ -102,12 +102,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (state.project) console.log('[Twilio Webhook] Extracted project:', state.project);
     }
 
-    // Extract budget
+    // Extract budget (handle various formats: $50000, $50,000, 50k, fifty thousand, etc.)
     if (!state.budget) {
-      const budgetMatch = SpeechResult.match(/\$?\d{1,3}(?:,\d{3})*/);
-      if (budgetMatch) {
-        state.budget = budgetMatch[0];
-        console.log('[Twilio Webhook] Extracted budget:', state.budget);
+      // Try different patterns
+      const patterns = [
+        /\$?\d{1,3}(?:,\d{3})+/,           // $50,000 or 50,000
+        /\$?\d+k/i,                        // 50k or $50k
+        /\$?\d{4,}/,                       // $50000 (4+ digits without commas)
+        /(?:around|about|roughly|approximately)?\s*\$?\d+(?:,\d{3})*/i, // around $50,000
+      ];
+
+      for (const pattern of patterns) {
+        const budgetMatch = SpeechResult.match(pattern);
+        if (budgetMatch) {
+          state.budget = budgetMatch[0];
+          console.log('[Twilio Webhook] ✅ Extracted budget:', state.budget);
+          break;
+        }
+      }
+
+      // Also check for word numbers
+      if (!state.budget && lower.includes('thousand')) {
+        const numMatch = SpeechResult.match(/(\d+)\s*thousand/i);
+        if (numMatch) {
+          state.budget = `$${numMatch[1]},000`;
+          console.log('[Twilio Webhook] ✅ Extracted budget from words:', state.budget);
+        }
       }
     }
   }
