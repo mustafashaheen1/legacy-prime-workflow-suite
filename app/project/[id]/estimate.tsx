@@ -1561,21 +1561,46 @@ Respond ONLY with JSON array:
 
 Use "custom" if no match.`;
 
-      // Call OpenAI with generous timeout (Vercel Pro has 300s limit)
-      const result = await vanillaClient.openai.chat.mutate({
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          {
-            role: 'user',
-            content: `Scope: ${textInput}${imageAnalysisText}\n\nGenerate estimate items.`
-          }
-        ],
-        model: 'gpt-4o-mini',
-        temperature: 0.7,
+      // Call OpenAI directly from client to avoid Vercel timeout issues
+      const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+
+      if (!apiKey) {
+        Alert.alert('Error', 'OpenAI API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your environment variables.');
+        return;
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt,
+            },
+            {
+              role: 'user',
+              content: `Scope: ${textInput}${imageAnalysisText}\n\nGenerate estimate items.`
+            }
+          ],
+          temperature: 0.7,
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const result = {
+        success: true,
+        message: data.choices[0]?.message?.content || '',
+        usage: data.usage,
+      };
 
       console.log('[AI Estimate] API Response:', result);
 
