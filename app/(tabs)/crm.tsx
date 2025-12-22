@@ -414,7 +414,7 @@ export default function CRMScreen() {
     setShowEstimateTypeModal(true);
   };
 
-  const createRegularEstimate = (clientId: string) => {
+  const createRegularEstimate = async (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
 
@@ -430,12 +430,12 @@ export default function CRMScreen() {
       startDate: new Date().toISOString(),
     };
 
-    addProject(newProject);
+    await addProject(newProject);
     setShowEstimateTypeModal(false);
     router.push(`/project/${newProject.id}/estimate`);
   };
 
-  const createTakeoffEstimate = (clientId: string) => {
+  const createTakeoffEstimate = async (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
 
@@ -451,7 +451,7 @@ export default function CRMScreen() {
       startDate: new Date().toISOString(),
     };
 
-    addProject(newProject);
+    await addProject(newProject);
     setShowEstimateTypeModal(false);
     router.push(`/project/${newProject.id}/takeoff`);
   };
