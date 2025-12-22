@@ -7,7 +7,11 @@ import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { masterPriceList, PriceListItem, priceListCategories, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { EstimateItem, Estimate, ProjectFile } from '@/types';
-import { trpcClient } from '@/lib/trpc';
+import { vanillaClient } from '@/lib/trpc';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { Audio } from 'expo-av';
 
 export default function EstimateScreen() {
   const { id } = useLocalSearchParams();
@@ -1320,26 +1324,78 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: 
   const [textInput, setTextInput] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<Array<{uri: string; type: string; name: string}>>([]);
 
   const handleMicrophone = async () => {
-    if (isRecording) {
-      setIsRecording(false);
-      Alert.alert('Voice Input', 'Voice recording stopped. Transcription would happen here.');
-      return;
-    }
-    
-    setIsRecording(true);
-    Alert.alert(
-      'Voice Input',
-      'Recording started. Tap the microphone again to stop.',
-      [
-        {
-          text: 'Stop Recording',
-          onPress: () => setIsRecording(false)
+    try {
+      if (isRecording && recording) {
+        // Stop recording
+        console.log('[AI Estimate] Stopping recording...');
+        setIsRecording(false);
+
+        await recording.stopAndUnloadAsync();
+        const uri = recording.getURI();
+
+        if (!uri) {
+          Alert.alert('Error', 'Failed to get recording');
+          setRecording(null);
+          return;
         }
-      ]
-    );
+
+        console.log('[AI Estimate] Recording saved to:', uri);
+
+        // Convert to base64
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // Transcribe with OpenAI Whisper
+        console.log('[AI Estimate] Transcribing audio...');
+        const result = await vanillaClient.openai.speechToText.mutate({
+          audioBase64: base64,
+          language: 'en',
+        });
+
+        setRecording(null);
+
+        if (result.success && result.text) {
+          // Append transcribed text to the input
+          setTextInput(prev => prev ? `${prev} ${result.text}` : result.text);
+          console.log('[AI Estimate] Transcription:', result.text);
+        } else {
+          Alert.alert('Error', 'Failed to transcribe audio');
+        }
+      } else {
+        // Start recording
+        console.log('[AI Estimate] Requesting microphone permissions...');
+        const permission = await Audio.requestPermissionsAsync();
+
+        if (!permission.granted) {
+          Alert.alert('Permission Required', 'Microphone permission is required for voice input');
+          return;
+        }
+
+        console.log('[AI Estimate] Starting recording...');
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        const { recording: newRecording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+
+        setRecording(newRecording);
+        setIsRecording(true);
+        console.log('[AI Estimate] Recording started');
+      }
+    } catch (error) {
+      console.error('[AI Estimate] Microphone error:', error);
+      setIsRecording(false);
+      setRecording(null);
+      Alert.alert('Error', 'Failed to record audio');
+    }
   };
 
   const handleCameraOrFile = async () => {
@@ -1349,14 +1405,88 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: 
       [
         {
           text: 'Take Photo',
-          onPress: () => {
-            Alert.alert('Camera', 'Camera feature would open here to capture photos or video');
+          onPress: async () => {
+            try {
+              const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+
+              if (!permissionResult.granted) {
+                Alert.alert('Permission Required', 'Camera permission is required to take photos');
+                return;
+              }
+
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                allowsEditing: false,
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                const asset = result.assets[0];
+                setAttachedFiles(prev => [...prev, {
+                  uri: asset.uri,
+                  type: asset.type || 'image',
+                  name: `photo-${Date.now()}.jpg`,
+                }]);
+              }
+            } catch (error) {
+              console.error('[AI Estimate] Camera error:', error);
+              Alert.alert('Error', 'Failed to take photo');
+            }
           }
         },
         {
-          text: 'Choose File',
-          onPress: () => {
-            Alert.alert('File Picker', 'File picker would open here to select photos or documents');
+          text: 'Choose Photo',
+          onPress: async () => {
+            try {
+              const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+              if (!permissionResult.granted) {
+                Alert.alert('Permission Required', 'Media library permission is required to select photos');
+                return;
+              }
+
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsMultipleSelection: true,
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets.length > 0) {
+                const newFiles = result.assets.map((asset, index) => ({
+                  uri: asset.uri,
+                  type: asset.type || 'image',
+                  name: asset.fileName || `image-${Date.now()}-${index}.jpg`,
+                }));
+                setAttachedFiles(prev => [...prev, ...newFiles]);
+              }
+            } catch (error) {
+              console.error('[AI Estimate] Image picker error:', error);
+              Alert.alert('Error', 'Failed to select photos');
+            }
+          }
+        },
+        {
+          text: 'Choose Document',
+          onPress: async () => {
+            try {
+              const result = await DocumentPicker.getDocumentAsync({
+                type: '*/*',
+                multiple: true,
+                copyToCacheDirectory: true,
+              });
+
+              if (!result.canceled && result.assets.length > 0) {
+                const newFiles = result.assets.map(asset => ({
+                  uri: asset.uri,
+                  type: asset.mimeType || 'document',
+                  name: asset.name,
+                }));
+                setAttachedFiles(prev => [...prev, ...newFiles]);
+              }
+            } catch (error) {
+              console.error('[AI Estimate] Document picker error:', error);
+              Alert.alert('Error', 'Failed to select documents');
+            }
           }
         },
         {
@@ -1376,8 +1506,40 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: 
     setIsGenerating(true);
     try {
       console.log('[AI Estimate] Generating estimate from description:', textInput);
-      
-      const priceListContext = masterPriceList.map(item => 
+
+      // Analyze attached images if any
+      let imageAnalysisText = '';
+      const imageFiles = attachedFiles.filter(file => file.type.startsWith('image'));
+
+      if (imageFiles.length > 0) {
+        console.log('[AI Estimate] Analyzing', imageFiles.length, 'attached images');
+
+        for (const imageFile of imageFiles) {
+          try {
+            // Read file and convert to base64
+            const base64 = await FileSystem.readAsStringAsync(imageFile.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+
+            // Analyze image with OpenAI Vision
+            const analysisResult = await vanillaClient.openai.imageAnalysis.mutate({
+              imageBase64: base64,
+              prompt: 'Analyze this construction/renovation image. Describe what work needs to be done, materials visible, measurements if any, and any other details relevant to creating a construction estimate.',
+              maxTokens: 500,
+            });
+
+            if (analysisResult.success && analysisResult.analysis) {
+              imageAnalysisText += `\n\nImage Analysis (${imageFile.name}):\n${analysisResult.analysis}`;
+              console.log('[AI Estimate] Image analyzed:', imageFile.name);
+            }
+          } catch (error) {
+            console.error('[AI Estimate] Failed to analyze image:', imageFile.name, error);
+            // Continue with other images
+          }
+        }
+      }
+
+      const priceListContext = masterPriceList.map(item =>
         `ID: ${item.id}, Name: ${item.name}, Category: ${item.category}, Unit: ${item.unit}, Price: ${item.unitPrice}`
       ).join('\n');
 
@@ -1413,7 +1575,7 @@ Example response:
   }
 ]`;
 
-      const result = await trpcClient.openai.chat.mutate({
+      const result = await vanillaClient.openai.chat.mutate({
         messages: [
           {
             role: 'system',
@@ -1421,7 +1583,7 @@ Example response:
           },
           {
             role: 'user',
-            content: `Scope of Work: ${textInput}\n\nPlease generate line items for this estimate based on the price list provided.`
+            content: `Scope of Work: ${textInput}${imageAnalysisText}\n\nPlease generate line items for this estimate based on the price list provided and the information from any image analysis above.`
           }
         ],
         model: 'gpt-4o',
