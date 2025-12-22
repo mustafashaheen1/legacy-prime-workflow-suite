@@ -1561,26 +1561,21 @@ Respond ONLY with JSON array:
 
 Use "custom" if no match.`;
 
-      // Add timeout (30s for Vercel Pro plan with 60s limit)
-      const result = await Promise.race([
-        vanillaClient.openai.chat.mutate({
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt,
-            },
-            {
-              role: 'user',
-              content: `Scope: ${textInput}${imageAnalysisText}\n\nGenerate estimate items.`
-            }
-          ],
-          model: 'gpt-4o-mini',
-          temperature: 0.7,
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('AI request timeout - please try again. The OpenAI API may be slow right now.')), 30000)
-        )
-      ]);
+      // Call OpenAI with generous timeout (Vercel Pro has 300s limit)
+      const result = await vanillaClient.openai.chat.mutate({
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: `Scope: ${textInput}${imageAnalysisText}\n\nGenerate estimate items.`
+          }
+        ],
+        model: 'gpt-4o-mini',
+        temperature: 0.7,
+      });
 
       console.log('[AI Estimate] API Response:', result);
 

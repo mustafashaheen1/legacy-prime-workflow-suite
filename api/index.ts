@@ -2,9 +2,7 @@ import { handle } from '@hono/node-server/vercel';
 import app from '../backend/hono.js';
 
 export const config = {
-  runtime: 'nodejs20.x',
-  maxDuration: 60,
-  regions: ['iad1'],
+  maxDuration: 300,
 };
 
 export default handle(app);
