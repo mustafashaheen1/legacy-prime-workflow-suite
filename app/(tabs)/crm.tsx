@@ -432,7 +432,11 @@ export default function CRMScreen() {
 
     await addProject(newProject);
     setShowEstimateTypeModal(false);
-    router.push(`/project/${newProject.id}/estimate`);
+
+    // Small delay to ensure state propagation before navigation
+    setTimeout(() => {
+      router.push(`/project/${newProject.id}/estimate`);
+    }, 100);
   };
 
   const createTakeoffEstimate = async (clientId: string) => {
@@ -453,7 +457,11 @@ export default function CRMScreen() {
 
     await addProject(newProject);
     setShowEstimateTypeModal(false);
-    router.push(`/project/${newProject.id}/takeoff`);
+
+    // Small delay to ensure state propagation before navigation
+    setTimeout(() => {
+      router.push(`/project/${newProject.id}/takeoff`);
+    }, 100);
   };
 
 
@@ -1535,7 +1543,16 @@ export default function CRMScreen() {
 
             <TouchableOpacity
               style={styles.estimateTypeCard}
-              onPress={() => selectedClientForEstimate && createRegularEstimate(selectedClientForEstimate)}
+              onPress={async () => {
+                if (selectedClientForEstimate) {
+                  try {
+                    await createRegularEstimate(selectedClientForEstimate);
+                  } catch (error) {
+                    console.error('Error creating regular estimate:', error);
+                    Alert.alert('Error', 'Failed to create estimate. Please try again.');
+                  }
+                }
+              }}
             >
               <View style={styles.estimateTypeIconContainer}>
                 <Calculator size={32} color="#2563EB" />
@@ -1550,7 +1567,16 @@ export default function CRMScreen() {
 
             <TouchableOpacity
               style={styles.estimateTypeCard}
-              onPress={() => selectedClientForEstimate && createTakeoffEstimate(selectedClientForEstimate)}
+              onPress={async () => {
+                if (selectedClientForEstimate) {
+                  try {
+                    await createTakeoffEstimate(selectedClientForEstimate);
+                  } catch (error) {
+                    console.error('Error creating takeoff estimate:', error);
+                    Alert.alert('Error', 'Failed to create estimate. Please try again.');
+                  }
+                }
+              }}
             >
               <View style={styles.estimateTypeIconContainer}>
                 <ClipboardList size={32} color="#10B981" />
