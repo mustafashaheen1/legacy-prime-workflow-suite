@@ -67,6 +67,8 @@ import { addPhotoProcedure } from "./routes/photos/add-photo/route.js";
 import { addTaskProcedure } from "./routes/tasks/add-task/route.js";
 import { updateTaskProcedure } from "./routes/tasks/update-task/route.js";
 import { getTasksProcedure } from "./routes/tasks/get-tasks/route.js";
+import { getPriceListProcedure } from "./routes/price-list/get-price-list/route.js";
+import { getCategoriesProcedure } from "./routes/price-list/get-categories/route.js";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -171,6 +173,10 @@ export const appRouter = createTRPCRouter({
     getProjects: getProjectsProcedure,
     updateProject: updateProjectProcedure,
     getProjectCosts: getProjectCostsProcedure,
+  }),
+  priceList: createTRPCRouter({
+    getPriceList: getPriceListProcedure,
+    getCategories: getCategoriesProcedure,
   }),
 });
 
