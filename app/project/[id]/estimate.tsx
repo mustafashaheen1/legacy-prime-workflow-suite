@@ -1564,10 +1564,14 @@ Use "custom" if no match.`;
       // Call OpenAI directly from client to avoid Vercel timeout issues
       const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
+      console.log('[AI Estimate] OpenAI API key present:', !!apiKey);
+
       if (!apiKey) {
         Alert.alert('Error', 'OpenAI API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your environment variables.');
         return;
       }
+
+      console.log('[AI Estimate] Calling OpenAI API directly...');
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -1591,11 +1595,17 @@ Use "custom" if no match.`;
         }),
       });
 
+      console.log('[AI Estimate] OpenAI API response status:', response.status);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[AI Estimate] OpenAI API error:', errorText);
         throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log('[AI Estimate] OpenAI API success, processing response...');
+
       const result = {
         success: true,
         message: data.choices[0]?.message?.content || '',
