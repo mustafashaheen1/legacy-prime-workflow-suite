@@ -1539,41 +1539,25 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: 
         }
       }
 
-      const priceListContext = masterPriceList.map(item =>
-        `ID: ${item.id}, Name: ${item.name}, Category: ${item.category}, Unit: ${item.unit}, Price: ${item.unitPrice}`
+      // Limit to first 150 items to avoid token limits
+      const limitedPriceList = masterPriceList.slice(0, 150);
+
+      const priceListContext = limitedPriceList.map(item =>
+        `${item.id}|${item.name}|${item.category}|${item.unit}|$${item.unitPrice}`
       ).join('\n');
 
-      const systemPrompt = `You are an expert construction estimator. Your job is to analyze scope of work descriptions and match them to line items from an existing price list.
+      const systemPrompt = `You are a construction estimator. Match the scope of work to items from this price list.
 
-You must ONLY use items from the provided price list. Do not create new items unless the exact match doesn't exist.
-
-Rules:
-1. Read the user's scope of work carefully
-2. Match each work item to the closest item in the price list
-3. Estimate realistic quantities based on the scope
-4. Return ONLY items that are relevant to the scope described
-5. If quantities are specified (e.g., "4 linear feet"), use those exact quantities
-6. Always prefer items from the price list over creating custom items
-
-Price List:
+Price List (ID|Name|Category|Unit|Price):
 ${priceListContext}
 
-Respond with a JSON array of line items. Each item must have:
-- priceListItemId: the ID from the price list (or "custom" if no match)
-- quantity: the estimated quantity
-- notes: brief explanation of why this item was selected and how quantity was determined
-- customName: only if priceListItemId is "custom"
-- customUnit: only if priceListItemId is "custom"
-- customPrice: only if priceListItemId is "custom"
+Rules:
+1. Use item IDs from the list above
+2. Estimate realistic quantities
+3. If no exact match exists, use "custom" as priceListItemId
 
-Example response:
-[
-  {
-    "priceListItemId": "pl-258",
-    "quantity": 4,
-    "notes": "Based on 4 linear feet of semi custom cabinets specified in scope"
-  }
-]`;
+Respond with ONLY valid JSON (no markdown):
+[{"priceListItemId":"pl-1","quantity":10,"notes":"reason"}]`;
 
       const result = await vanillaClient.openai.chat.mutate({
         messages: [

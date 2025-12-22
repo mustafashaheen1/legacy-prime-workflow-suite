@@ -81,8 +81,45 @@ export const trpcClient = trpc.createClient({
 export const vanillaClient = createTRPCProxyClient<AppRouter>({
   transformer: superjson,
   links: [
-    httpBatchLink({
+    httpLink({
       url: `${getBaseUrl()}/trpc`,
+      async fetch(url, options) {
+        console.log('[tRPC Vanilla] Fetching:', url);
+
+        const requestInit = {
+          ...options,
+          headers: {
+            ...options?.headers,
+            'Content-Type': 'application/json',
+          },
+        };
+
+        try {
+          const response = await fetch(url, requestInit);
+
+          console.log('[tRPC Vanilla] Response status:', response.status);
+
+          // Clone the response before reading for error logging
+          if (!response.ok) {
+            const clonedResponse = response.clone();
+            try {
+              const text = await clonedResponse.text();
+              console.error('[tRPC Vanilla] Error response (first 500 chars):', text.substring(0, 500));
+
+              if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                throw new Error(`Server returned HTML instead of JSON. Status: ${response.status}. API endpoint may not be found.`);
+              }
+            } catch (logError) {
+              console.error('[tRPC Vanilla] Could not read error body');
+            }
+          }
+
+          return response;
+        } catch (error: any) {
+          console.error('[tRPC Vanilla] Fetch error:', error.message);
+          throw error;
+        }
+      },
     }),
   ],
 });
