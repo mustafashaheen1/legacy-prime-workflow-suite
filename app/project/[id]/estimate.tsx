@@ -1539,40 +1539,48 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: 
         }
       }
 
-      // Limit to first 150 items to avoid token limits
-      const limitedPriceList = masterPriceList.slice(0, 150);
+      // Limit to 50 items to stay within Vercel timeout limits
+      // Prioritize common categories for construction estimates
+      const commonCategories = ['Labor', 'Materials', 'Equipment', 'Cabinets', 'Countertops', 'Plumbing', 'Electrical', 'Flooring', 'Painting', 'Drywall'];
+      const priorityItems = masterPriceList.filter(item =>
+        commonCategories.some(cat => item.category.includes(cat))
+      );
+      const limitedPriceList = [...priorityItems.slice(0, 40), ...masterPriceList.slice(0, 10)].slice(0, 50);
 
       const priceListContext = limitedPriceList.map(item =>
-        `${item.id}|${item.name}|${item.category}|${item.unit}|$${item.unitPrice}`
+        `${item.id}|${item.name}|${item.unit}|$${item.unitPrice}`
       ).join('\n');
 
-      const systemPrompt = `You are a construction estimator. Match the scope of work to items from this price list.
+      const systemPrompt = `Construction estimator. Match scope to price list items.
 
-Price List (ID|Name|Category|Unit|Price):
+Items (ID|Name|Unit|Price):
 ${priceListContext}
 
-Rules:
-1. Use item IDs from the list above
-2. Estimate realistic quantities
-3. If no exact match exists, use "custom" as priceListItemId
+Respond ONLY with JSON array:
+[{"priceListItemId":"pl-1","quantity":10,"notes":"reason"}]
 
-Respond with ONLY valid JSON (no markdown):
-[{"priceListItemId":"pl-1","quantity":10,"notes":"reason"}]`;
+Use "custom" if no match.`;
 
-      const result = await vanillaClient.openai.chat.mutate({
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          {
-            role: 'user',
-            content: `Scope of Work: ${textInput}${imageAnalysisText}\n\nPlease generate line items for this estimate based on the price list provided and the information from any image analysis above.`
-          }
-        ],
-        model: 'gpt-4o',
-        temperature: 0.7,
-      });
+      // Add timeout to prevent hanging
+      const result = await Promise.race([
+        vanillaClient.openai.chat.mutate({
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt,
+            },
+            {
+              role: 'user',
+              content: `Scope: ${textInput}${imageAnalysisText}\n\nGenerate estimate items.`
+            }
+          ],
+          model: 'gpt-4o-mini',
+          temperature: 0.7,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('AI request timeout - please try again')), 8000)
+        )
+      ]);
 
       console.log('[AI Estimate] API Response:', result);
 
