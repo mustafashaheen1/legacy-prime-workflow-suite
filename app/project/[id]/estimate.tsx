@@ -464,7 +464,14 @@ export default function EstimateScreen() {
 
   const getPriceListItem = (priceListItemId: string): PriceListItem | undefined => {
     if (priceListItemId === 'custom') return undefined;
-    return masterPriceList.find(item => item.id === priceListItemId);
+
+    // Check master price list first
+    const masterItem = masterPriceList.find(item => item.id === priceListItemId);
+    if (masterItem) return masterItem;
+
+    // Then check custom price list items
+    const customItem = customPriceListItems.find(item => item.id === priceListItemId);
+    return customItem;
   };
 
   const updateCustomItemName = (itemId: string, name: string) => {
@@ -1447,7 +1454,11 @@ Example response:
       
       for (const aiItem of aiGeneratedItems) {
         if (aiItem.priceListItemId && aiItem.priceListItemId !== 'custom') {
-          const priceListItem = masterPriceList.find(pl => pl.id === aiItem.priceListItemId);
+          // Check both master and custom price list items
+          let priceListItem = masterPriceList.find(pl => pl.id === aiItem.priceListItemId);
+          if (!priceListItem) {
+            priceListItem = customPriceListItems.find(pl => pl.id === aiItem.priceListItemId);
+          }
           if (priceListItem) {
             const estimateItem: EstimateItem = {
               id: `ai-generated-${Date.now()}-${generatedItems.length}`,
