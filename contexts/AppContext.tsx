@@ -555,29 +555,34 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Optimistically update UI
     setProjects(prev => [...prev, project]);
 
-    // Save to backend if company exists
+    // Save to backend asynchronously (don't block UI)
     if (company?.id) {
-      try {
-        const { vanillaClient } = await import('@/lib/trpc');
-        await vanillaClient.projects.addProject.mutate({
-          companyId: company.id,
-          name: project.name,
-          budget: project.budget,
-          expenses: project.expenses,
-          progress: project.progress,
-          status: project.status,
-          image: project.image,
-          hoursWorked: project.hoursWorked,
-          startDate: project.startDate,
-          endDate: project.endDate,
+      // Fire and forget - don't await this
+      import('@/lib/trpc').then(({ vanillaClient }) => {
+        // Add a 5 second timeout to fail faster than Vercel's 10s limit
+        Promise.race([
+          vanillaClient.projects.addProject.mutate({
+            companyId: company.id,
+            name: project.name,
+            budget: project.budget,
+            expenses: project.expenses,
+            progress: project.progress,
+            status: project.status,
+            image: project.image,
+            hoursWorked: project.hoursWorked,
+            startDate: project.startDate,
+            endDate: project.endDate,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Backend sync timeout')), 5000)
+          )
+        ]).then(() => {
+          console.log('[App] ✓ Project synced to backend:', project.name);
+        }).catch((error) => {
+          console.warn('[App] ⚠️ Backend sync failed (continuing offline):', error.message);
+          // Don't rollback - keep the optimistic update
         });
-        console.log('[App] Project saved to backend:', project.name);
-      } catch (error) {
-        console.error('[App] Error saving project to backend:', error);
-        // Don't rollback - keep the optimistic update
-        // The user can work offline and it will sync later
-        console.warn('[App] Continuing with local-only project');
-      }
+      });
     }
   }, [company]);
 
