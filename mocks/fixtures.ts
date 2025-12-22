@@ -279,7 +279,7 @@ export const fixtureClients: Client[] = [
     email: 'jennifer.wilson@example.com',
     phone: '+1 (555) 223-3445',
     address: '987 Cedar Ln, Oakland, CA 94601',
-    source: 'Other',
+    source: 'Phone Call',
     status: 'Lead',
     lastContacted: '2025-01-06',
     nextFollowUpDate: '2025-01-13',

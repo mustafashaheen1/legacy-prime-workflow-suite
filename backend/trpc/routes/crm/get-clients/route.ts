@@ -32,7 +32,7 @@ export const getClientsProcedure = publicProcedure
         address: client.address || undefined,
         email: client.email,
         phone: client.phone,
-        source: client.source as 'Google' | 'Referral' | 'Ad' | 'Other',
+        source: client.source as 'Google' | 'Referral' | 'Ad' | 'Phone Call',
         status: client.status as 'Lead' | 'Project' | 'Completed',
         lastContacted: client.last_contacted || undefined,
         lastContactDate: client.last_contact_date || undefined,

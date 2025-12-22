@@ -85,7 +85,7 @@ CREATE TABLE clients (
   address TEXT,
   email TEXT NOT NULL,
   phone TEXT NOT NULL,
-  source TEXT CHECK (source IN ('Google', 'Referral', 'Ad', 'Other')),
+  source TEXT CHECK (source IN ('Google', 'Referral', 'Ad', 'Phone Call')),
   status TEXT DEFAULT 'Lead' CHECK (status IN ('Lead', 'Project', 'Completed')),
   last_contacted TEXT,
   last_contact_date TIMESTAMPTZ,

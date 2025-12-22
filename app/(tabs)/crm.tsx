@@ -180,7 +180,7 @@ export default function CRMScreen() {
             leadsByGoogle,
             leadsByReferral,
             leadsByAd,
-            leadsByOther: clients.filter(c => c.source === 'Other' && c.status === 'Lead').length,
+            leadsByPhoneCall: clients.filter(c => c.source === 'Phone Call' && c.status === 'Lead').length,
           });
         },
       }),
@@ -219,7 +219,7 @@ export default function CRMScreen() {
         description: 'Search and filter clients by status, source, or other criteria',
         zodSchema: z.object({
           status: z.enum(['Lead', 'Project', 'Completed', 'All']).optional().describe('Filter by client status'),
-          source: z.enum(['Google', 'Referral', 'Ad', 'Other', 'All']).optional().describe('Filter by lead source'),
+          source: z.enum(['Google', 'Referral', 'Ad', 'Phone Call', 'All']).optional().describe('Filter by lead source'),
         }),
         execute(input) {
           let filtered = clients;
@@ -603,7 +603,7 @@ export default function CRMScreen() {
     }
 
     if (client.nextFollowUpDate) {
-      const followUpDate = new Date(client.nextFollowUpDate);
+      const followUpDate = new Date(client.nextFollowUpDate + 'T00:00:00');
       const daysUntilFollowUp = Math.floor((followUpDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       if (daysUntilFollowUp <= 0) {
         suggestions.push('Follow-up date reached – contact client now');
@@ -940,14 +940,22 @@ export default function CRMScreen() {
                   <View style={[styles.statusBadge, client.status === 'Lead' ? styles.leadBadge : styles.projectBadge]}>
                     <Text style={styles.statusText}>{client.status}</Text>
                   </View>
-                  <Text style={styles.clientDate}>Last contacted: {client.lastContactDate || client.lastContacted}</Text>
+                  {(client.lastContactDate || client.lastContacted) && (
+                    <Text style={styles.clientDate}>
+                      Last contacted: {
+                        client.lastContactDate
+                          ? new Date(client.lastContactDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                          : client.lastContacted
+                      }
+                    </Text>
+                  )}
                   {client.createdAt && (
                     <Text style={styles.clientCreatedDate}>Created: {new Date(client.createdAt).toLocaleDateString()}</Text>
                   )}
                   {client.nextFollowUpDate && (
                     <View style={styles.nextFollowUpRow}>
                       <Calendar size={14} color="#2563EB" />
-                      <Text style={styles.nextFollowUpText}>Next Follow-Up: {new Date(client.nextFollowUpDate).toLocaleDateString()}</Text>
+                      <Text style={styles.nextFollowUpText}>Next Follow-Up: {new Date(client.nextFollowUpDate + 'T00:00:00').toLocaleDateString()}</Text>
                     </View>
                   )}
                   
@@ -1191,9 +1199,9 @@ export default function CRMScreen() {
                 onChangeText={setNewClientPhone}
                 keyboardType="phone-pad"
               />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Source (Google, Referral, Ad, Other)" 
+              <TextInput
+                style={styles.input}
+                placeholder="Source (Google, Referral, Ad, Phone Call)"
                 placeholderTextColor="#9CA3AF"
                 value={newClientSource}
                 onChangeText={setNewClientSource}
@@ -1206,9 +1214,9 @@ export default function CRMScreen() {
                     return;
                   }
 
-                  const sourceValue = newClientSource as 'Google' | 'Referral' | 'Ad' | 'Other';
-                  if (!['Google', 'Referral', 'Ad', 'Other'].includes(sourceValue)) {
-                    Alert.alert('Error', 'Source must be one of: Google, Referral, Ad, Other');
+                  const sourceValue = newClientSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call';
+                  if (!['Google', 'Referral', 'Ad', 'Phone Call'].includes(sourceValue)) {
+                    Alert.alert('Error', 'Source must be one of: Google, Referral, Ad, Phone Call');
                     return;
                   }
 
@@ -1221,6 +1229,7 @@ export default function CRMScreen() {
                     source: sourceValue,
                     status: 'Lead',
                     lastContacted: new Date().toLocaleDateString(),
+                    lastContactDate: new Date().toISOString(),
                     createdAt: new Date().toISOString(),
                   };
 
@@ -1921,9 +1930,11 @@ export default function CRMScreen() {
                       name: newCallLog.callerName,
                       email: newCallLog.callerEmail || '',
                       phone: newCallLog.callerPhone,
-                      source: 'Other',
+                      source: 'Phone Call',
                       status: 'Lead',
                       lastContacted: new Date().toLocaleDateString(),
+                      lastContactDate: new Date().toISOString(),
+                      createdAt: new Date().toISOString(),
                     };
                     addClient(newClient);
                     Alert.alert('Success', `Test call log added! ${newCallLog.callerName} has been added to CRM as a qualified lead.`);

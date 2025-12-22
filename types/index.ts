@@ -141,7 +141,7 @@ export interface Client {
   address?: string;
   email: string;
   phone: string;
-  source: 'Google' | 'Referral' | 'Ad' | 'Other';
+  source: 'Google' | 'Referral' | 'Ad' | 'Phone Call';
   status: 'Lead' | 'Project' | 'Completed';
   lastContacted: string;
   lastContactDate?: string;

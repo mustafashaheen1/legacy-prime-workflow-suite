@@ -266,9 +266,10 @@ app.post("/twilio/receptionist", async (c) => {
                 name: state.collectedInfo.name,
                 email: `${state.collectedInfo.phone}@temporary.com`, // Placeholder email
                 phone: state.collectedInfo.phone,
-                source: 'Other',
+                source: 'Phone Call',
                 status: 'Lead',
                 last_contacted: 'AI Call - ' + new Date().toLocaleString(),
+                last_contact_date: new Date().toISOString(),
                 next_follow_up_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
               })
               .select()

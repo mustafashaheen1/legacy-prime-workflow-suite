@@ -949,7 +949,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                     style={styles.formInput}
                     value={projectSource}
                     onChangeText={setProjectSource}
-                    placeholder="Google, Referral, Ad, Other"
+                    placeholder="Google, Referral, Ad, Phone Call"
                     placeholderTextColor="#9CA3AF"
                   />
                 </View>
@@ -1000,9 +1000,9 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
 
                     addProject(newProject);
 
-                    const sourceValue = projectSource.trim() || 'Other';
-                    const validSources = ['Google', 'Referral', 'Ad', 'Other'];
-                    const finalSource = validSources.includes(sourceValue) ? sourceValue as 'Google' | 'Referral' | 'Ad' | 'Other' : 'Other';
+                    const sourceValue = projectSource.trim() || 'Phone Call';
+                    const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
+                    const finalSource = validSources.includes(sourceValue) ? sourceValue as 'Google' | 'Referral' | 'Ad' | 'Phone Call' : 'Phone Call';
 
                     const existingClient = clients.find(c => 
                       c.email.toLowerCase() === projectEmail.toLowerCase() ||

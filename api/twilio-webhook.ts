@@ -304,8 +304,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           phone: state.phone,
           email: '', // Not collected in call
           status: isQualified ? 'Project' : 'Lead',
-          source: 'Other', // Database constraint: only allows Google, Referral, Ad, Other
+          source: 'Phone Call', // Database constraint: only allows Google, Referral, Ad, Phone Call
           address: `[AI Call] ${state.project || 'General Inquiry'} - Budget: ${state.budget || 'Not specified'}`,
+          last_contacted: 'AI Call - ' + new Date().toLocaleString(),
+          last_contact_date: new Date().toISOString(),
           next_follow_up_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         };
 
