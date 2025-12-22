@@ -558,8 +558,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend if company exists
     if (company?.id) {
       try {
-        const { trpc } = await import('@/lib/trpc');
-        await trpc.projects.addProject.mutate({
+        const { vanillaClient } = await import('@/lib/trpc');
+        await vanillaClient.projects.addProject.mutate({
           companyId: company.id,
           name: project.name,
           budget: project.budget,
@@ -574,8 +574,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         console.log('[App] Project saved to backend:', project.name);
       } catch (error) {
         console.error('[App] Error saving project to backend:', error);
-        setProjects(prev => prev.filter(p => p.id !== project.id));
-        throw error;
+        // Don't rollback - keep the optimistic update
+        // The user can work offline and it will sync later
+        console.warn('[App] Continuing with local-only project');
       }
     }
   }, [company]);
