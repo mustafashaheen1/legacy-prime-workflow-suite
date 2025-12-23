@@ -362,6 +362,8 @@ export default function EstimateScreen() {
 
       const result = await response.json();
 
+      console.log('[Estimate] Response result:', result);
+
       if (result.success && result.estimate) {
         console.log('[Estimate] Estimate saved successfully:', result.estimate.id);
 
@@ -384,9 +386,18 @@ export default function EstimateScreen() {
         await saveEstimateAsFile(newEstimate);
         await clearDraft();
 
-        Alert.alert('Success', 'Estimate saved successfully to database', [
-          { text: 'OK', onPress: () => router.back() }
+        Alert.alert('Success', 'Estimate saved successfully!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              console.log('[Estimate] Navigating to CRM page...');
+              router.push('/crm');
+            }
+          }
         ]);
+      } else {
+        console.error('[Estimate] Invalid response structure:', result);
+        throw new Error('Invalid response from server');
       }
     } catch (error: any) {
       console.error('[Estimate] Error saving estimate:', error);
@@ -513,7 +524,7 @@ export default function EstimateScreen() {
       Alert.alert(
         'Success',
         'Estimate saved to database and email prepared! Your email client should open with the estimate details.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => router.push('/crm') }]
       );
     } catch (error: any) {
       console.error('[Estimate] Error sending estimate:', error);
@@ -638,7 +649,7 @@ export default function EstimateScreen() {
       Alert.alert(
         'Success',
         'Estimate saved to database and signature request sent! Your email client should open with the estimate details.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => router.push('/crm') }]
       );
     } catch (error: any) {
       console.error('[Estimate] Error requesting signature:', error);
