@@ -50,7 +50,7 @@ export const createEstimateProcedure = publicProcedure
           tax_amount: input.taxAmount,
           total: input.total,
           status: input.status,
-        } as any)
+        })
         .select('id, project_id, name, subtotal, tax_rate, tax_amount, total, status, created_date')
         .single();
 
@@ -89,7 +89,7 @@ export const createEstimateProcedure = publicProcedure
 
         const { error: itemsError } = await supabase
           .from('estimate_items')
-          .insert(itemsToInsert as any);
+          .insert(itemsToInsert);
 
         console.log('[Estimates] Step 2 completed in', Date.now() - startTime, 'ms');
 

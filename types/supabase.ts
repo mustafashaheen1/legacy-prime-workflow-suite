@@ -68,8 +68,8 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['projects']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['projects']['Insert']>;
       };
       clients: {
         Row: {
@@ -86,8 +86,8 @@ export type Database = {
           next_follow_up_date: string | null;
           created_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['clients']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['clients']['Insert']>;
       };
       expenses: {
         Row: {
@@ -102,8 +102,8 @@ export type Database = {
           receipt_url: string | null;
           created_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['expenses']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['expenses']['Insert']>;
       };
       photos: {
         Row: {
@@ -120,8 +120,8 @@ export type Database = {
           compressed: boolean | null;
           created_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['photos']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['photos']['Insert']>;
       };
       tasks: {
         Row: {
@@ -134,8 +134,8 @@ export type Database = {
           completed: boolean;
           created_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['tasks']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['tasks']['Insert']>;
       };
       clock_entries: {
         Row: {
@@ -151,8 +151,8 @@ export type Database = {
           lunch_breaks: any | null;
           created_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['clock_entries']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['clock_entries']['Insert']>;
       };
       estimates: {
         Row: {
@@ -167,8 +167,8 @@ export type Database = {
           status: 'draft' | 'sent' | 'approved' | 'rejected';
           created_date: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['estimates']['Row'], 'id' | 'created_date'>;
+        Update: Partial<Database['public']['Tables']['estimates']['Insert']>;
       };
       estimate_items: {
         Row: {
@@ -189,8 +189,8 @@ export type Database = {
           separator_label: string | null;
           created_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['estimate_items']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['estimate_items']['Insert']>;
       };
       call_logs: {
         Row: {
@@ -206,8 +206,8 @@ export type Database = {
           lead_data: any | null;
           created_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['call_logs']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['call_logs']['Insert']>;
       };
       custom_price_list_items: {
         Row: {
@@ -223,8 +223,8 @@ export type Database = {
           is_custom: boolean | null;
           created_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['custom_price_list_items']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['custom_price_list_items']['Insert']>;
       };
       custom_categories: {
         Row: {
@@ -233,8 +233,8 @@ export type Database = {
           name: string;
           created_at: string;
         };
-        Insert: any;
-        Update: any;
+        Insert: Omit<Database['public']['Tables']['custom_categories']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['custom_categories']['Insert']>;
       };
     };
   };
