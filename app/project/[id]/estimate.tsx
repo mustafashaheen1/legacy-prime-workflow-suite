@@ -13,6 +13,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
 import Constants from 'expo-constants';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 export default function EstimateScreen() {
   const { id } = useLocalSearchParams();
@@ -483,49 +485,160 @@ export default function EstimateScreen() {
       await saveEstimateAsFile(newEstimate);
       await clearDraft();
 
-    const itemsText = items.map((item, index) => {
-      if (item.isSeparator) {
-        return `\n--- ${item.separatorLabel?.toUpperCase() || 'SECTION'} ---\n`;
-      }
-      const priceListItem = getPriceListItem(item.priceListItemId);
-      const isCustom = item.priceListItemId === 'custom';
-      const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
-      const itemUnit = isCustom ? (item.customUnit || 'EA') : (priceListItem?.unit || '');
-      const displayPrice = item.customPrice ?? item.unitPrice;
-      const notes = item.notes ? ` (${item.notes})` : '';
-      
-      if (showUnitsQty) {
-        return `${index + 1}. ${itemName}\n   Qty: ${item.quantity} ${itemUnit} @ ${displayPrice.toFixed(2)} = ${item.total.toFixed(2)}${notes}`;
+      // Generate PDF
+      console.log('[Estimate] Generating PDF...');
+      const markupPercentNum = parseFloat(markupPercent) || 0;
+      const taxPercentNum = parseFloat(taxPercent) || 0;
+
+      // Build HTML for PDF
+      const itemsHtml = items.map((item, index) => {
+        if (item.isSeparator) {
+          return `
+            <tr style="background: #f0f0f0;">
+              <td colspan="4" style="padding: 12px; font-weight: bold; text-align: center;">
+                ${item.separatorLabel?.toUpperCase() || 'SECTION'}
+              </td>
+            </tr>
+          `;
+        }
+        const priceListItem = getPriceListItem(item.priceListItemId);
+        const isCustom = item.priceListItemId === 'custom';
+        const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
+        const itemUnit = isCustom ? (item.customUnit || 'EA') : (priceListItem?.unit || '');
+        const displayPrice = item.customPrice ?? item.unitPrice;
+        const notes = item.notes ? `<br/><small style="color: #666;">${item.notes}</small>` : '';
+
+        if (showUnitsQty) {
+          return `
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${itemName}${notes}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity} ${itemUnit}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">$${displayPrice.toFixed(2)}</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">$${item.total.toFixed(2)}</td>
+            </tr>
+          `;
+        } else {
+          return `
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${itemName}${notes}</td>
+              <td colspan="3" style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">$${item.total.toFixed(2)}</td>
+            </tr>
+          `;
+        }
+      }).join('');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .header h1 { color: #333; margin-bottom: 10px; }
+            .info { margin-bottom: 30px; }
+            .info p { margin: 5px 0; color: #666; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th { background: #333; color: white; padding: 12px; text-align: left; }
+            .totals { margin-top: 20px; text-align: right; }
+            .totals-row { display: flex; justify-content: flex-end; padding: 8px 0; }
+            .totals-label { width: 200px; font-weight: bold; }
+            .totals-value { width: 150px; text-align: right; }
+            .total-row { border-top: 2px solid #333; margin-top: 10px; padding-top: 10px; font-size: 1.2em; font-weight: bold; }
+            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Legacy Prime Construction</h1>
+            <h2>${estimateName}</h2>
+          </div>
+
+          <div class="info">
+            <p><strong>Project:</strong> ${project?.name || 'N/A'}</p>
+            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                ${showUnitsQty ? '<th style="text-align: center;">Quantity</th><th style="text-align: right;">Unit Price</th>' : ''}
+                <th style="text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <div class="totals-row">
+              <div class="totals-label">Subtotal:</div>
+              <div class="totals-value">$${subtotal.toFixed(2)}</div>
+            </div>
+            ${markupPercentNum > 0 ? `
+              <div class="totals-row">
+                <div class="totals-label">Markup (${markupPercentNum}%):</div>
+                <div class="totals-value">$${markupAmount.toFixed(2)}</div>
+              </div>
+              <div class="totals-row">
+                <div class="totals-label">Subtotal w/ Markup:</div>
+                <div class="totals-value">$${subtotalWithMarkup.toFixed(2)}</div>
+              </div>
+            ` : ''}
+            <div class="totals-row">
+              <div class="totals-label">Tax (${taxPercentNum}%):</div>
+              <div class="totals-value">$${taxAmount.toFixed(2)}</div>
+            </div>
+            <div class="totals-row total-row">
+              <div class="totals-label">TOTAL:</div>
+              <div class="totals-value">$${total.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Thank you for choosing Legacy Prime Construction!</p>
+            <p>Please review and let us know if you have any questions.</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({ html });
+      console.log('[Estimate] PDF generated:', uri);
+
+      // Share the PDF
+      if (Platform.OS === 'web') {
+        // On web, download the PDF
+        const blob = await fetch(uri).then(r => r.blob());
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${estimateName}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        Alert.alert(
+          'Success',
+          'Estimate saved and PDF downloaded!',
+          [{ text: 'OK', onPress: () => router.push('/crm') }]
+        );
       } else {
-        return `${index + 1}. ${itemName}\n   ${item.total.toFixed(2)}${notes}`;
+        // On native, share the PDF
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Share Estimate PDF',
+          UTI: 'com.adobe.pdf',
+        });
+
+        Alert.alert(
+          'Success',
+          'Estimate saved to database!',
+          [{ text: 'OK', onPress: () => router.push('/crm') }]
+        );
       }
-    }).join('\n\n');
-
-    const markupPercentNum = parseFloat(markupPercent) || 0;
-    const taxPercentNum = parseFloat(taxPercent) || 0;
-    let totalsText = `--- TOTALS ---\nSubtotal: ${subtotal.toFixed(2)}`;
-    if (markupPercentNum > 0) {
-      totalsText += `\nMarkup (${markupPercentNum}%): ${markupAmount.toFixed(2)}\nSubtotal w/ Markup: ${subtotalWithMarkup.toFixed(2)}`;
-    }
-    totalsText += `\nTax (${taxPercentNum}%): ${taxAmount.toFixed(2)}\nTOTAL: ${total.toFixed(2)}`;
-
-    const emailBody = `Hi,\n\nPlease find your estimate for ${estimateName}.\n\nPROJECT: ${project.name}\n\n--- LINE ITEMS ---\n${itemsText}\n\n${totalsText}\n\nPlease review and let us know if you have any questions.\n\nBest regards,\nLegacy Prime Construction`;
-    
-    const emailUrl = `mailto:?subject=${encodeURIComponent(`Estimate: ${estimateName}`)}&body=${encodeURIComponent(emailBody)}`;
-    
-    if (Platform.OS === 'web') {
-      window.open(emailUrl, '_blank');
-    } else {
-      Linking.openURL(emailUrl).catch(() => {
-        Alert.alert('Error', 'Unable to open email client');
-      });
-    }
-
-      Alert.alert(
-        'Success',
-        'Estimate saved to database and email prepared! Your email client should open with the estimate details.',
-        [{ text: 'OK', onPress: () => router.push('/crm') }]
-      );
     } catch (error: any) {
       console.error('[Estimate] Error sending estimate:', error);
       Alert.alert('Error', `Failed to send estimate: ${error.message || 'Unknown error'}`);

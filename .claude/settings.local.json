@@ -56,7 +56,9 @@
       "Bash(sudo chown:*)",
       "Bash(~/.bun/bin/bunx vercel:*)",
       "Bash(bun --version:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(~/.bun/bin/bun add:*)",
+      "Bash(npx expo install:*)"
     ],
     "deny": [],
     "ask": []
