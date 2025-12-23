@@ -307,52 +307,136 @@ export default function EstimateScreen() {
     const totals = validateEstimate();
     if (!totals) return;
 
+    if (!company?.id) {
+      Alert.alert('Error', 'Company information not found. Please try again.');
+      return;
+    }
+
     const { subtotal, taxAmount, total } = totals;
 
-    const newEstimate: Estimate = {
-      id: `estimate-${Date.now()}`,
-      projectId: id as string,
-      name: estimateName,
-      items,
-      subtotal,
-      taxRate: parseFloat(taxPercent) || 0,
-      taxAmount,
-      total,
-      createdDate: new Date().toISOString(),
-      status: 'draft',
-    };
+    try {
+      console.log('[Estimate] Saving estimate to Supabase...');
 
-    addEstimate(newEstimate);
-    await saveEstimateAsFile(newEstimate);
-    await clearDraft();
-    
-    Alert.alert('Success', 'Estimate saved successfully and stored in project files', [
-      { text: 'OK', onPress: () => router.back() }
-    ]);
+      // Save to Supabase via backend
+      const result = await vanillaClient.estimates.createEstimate.mutate({
+        companyId: company.id,
+        projectId: id as string,
+        name: estimateName,
+        items: items.map(item => ({
+          priceListItemId: item.priceListItemId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          customPrice: item.customPrice,
+          total: item.total,
+          budget: item.budget,
+          budgetUnitPrice: item.budgetUnitPrice,
+          notes: item.notes,
+          customName: item.customName,
+          customUnit: item.customUnit,
+          customCategory: item.customCategory,
+          isSeparator: item.isSeparator,
+          separatorLabel: item.separatorLabel,
+        })),
+        subtotal,
+        taxRate: parseFloat(taxPercent) || 0,
+        taxAmount,
+        total,
+        status: 'draft',
+      });
+
+      if (result.success && result.estimate) {
+        console.log('[Estimate] Estimate saved successfully:', result.estimate.id);
+
+        // Also add to local state for immediate UI update
+        const newEstimate: Estimate = {
+          id: result.estimate.id,
+          projectId: id as string,
+          name: estimateName,
+          items,
+          subtotal,
+          taxRate: parseFloat(taxPercent) || 0,
+          taxAmount,
+          total,
+          createdDate: new Date().toISOString(),
+          status: 'draft',
+        };
+        addEstimate(newEstimate);
+
+        // Save as project file for backward compatibility
+        await saveEstimateAsFile(newEstimate);
+        await clearDraft();
+
+        Alert.alert('Success', 'Estimate saved successfully to database', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      }
+    } catch (error: any) {
+      console.error('[Estimate] Error saving estimate:', error);
+      Alert.alert('Error', `Failed to save estimate: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const sendEstimateAsPDF = async () => {
     const totals = validateEstimate();
     if (!totals) return;
 
+    if (!company?.id) {
+      Alert.alert('Error', 'Company information not found. Please try again.');
+      return;
+    }
+
     const { subtotal, markupAmount, subtotalWithMarkup, taxAmount, total } = totals;
 
-    const newEstimate: Estimate = {
-      id: `estimate-${Date.now()}`,
-      projectId: id as string,
-      name: estimateName,
-      items,
-      subtotal,
-      taxRate: parseFloat(taxPercent) || 0,
-      taxAmount,
-      total,
-      createdDate: new Date().toISOString(),
-      status: 'sent',
-    };
+    try {
+      console.log('[Estimate] Saving estimate to Supabase (status: sent)...');
 
-    addEstimate(newEstimate);
-    await saveEstimateAsFile(newEstimate);
-    await clearDraft();
+      // Save to Supabase via backend
+      const result = await vanillaClient.estimates.createEstimate.mutate({
+        companyId: company.id,
+        projectId: id as string,
+        name: estimateName,
+        items: items.map(item => ({
+          priceListItemId: item.priceListItemId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          customPrice: item.customPrice,
+          total: item.total,
+          budget: item.budget,
+          budgetUnitPrice: item.budgetUnitPrice,
+          notes: item.notes,
+          customName: item.customName,
+          customUnit: item.customUnit,
+          customCategory: item.customCategory,
+          isSeparator: item.isSeparator,
+          separatorLabel: item.separatorLabel,
+        })),
+        subtotal,
+        taxRate: parseFloat(taxPercent) || 0,
+        taxAmount,
+        total,
+        status: 'sent',
+      });
+
+      if (!result.success || !result.estimate) {
+        throw new Error('Failed to save estimate to database');
+      }
+
+      const newEstimate: Estimate = {
+        id: result.estimate.id,
+        projectId: id as string,
+        name: estimateName,
+        items,
+        subtotal,
+        taxRate: parseFloat(taxPercent) || 0,
+        taxAmount,
+        total,
+        createdDate: new Date().toISOString(),
+        status: 'sent',
+      };
+
+      addEstimate(newEstimate);
+      await saveEstimateAsFile(newEstimate);
+      await clearDraft();
 
     const itemsText = items.map((item, index) => {
       if (item.isSeparator) {
@@ -392,35 +476,78 @@ export default function EstimateScreen() {
       });
     }
 
-    Alert.alert(
-      'Success', 
-      'Estimate saved to project files and email prepared! Your email client should open with the estimate details.',
-      [{ text: 'OK', onPress: () => router.back() }]
-    );
+      Alert.alert(
+        'Success',
+        'Estimate saved to database and email prepared! Your email client should open with the estimate details.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch (error: any) {
+      console.error('[Estimate] Error sending estimate:', error);
+      Alert.alert('Error', `Failed to send estimate: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const requestSignature = async () => {
     const totals = validateEstimate();
     if (!totals) return;
 
+    if (!company?.id) {
+      Alert.alert('Error', 'Company information not found. Please try again.');
+      return;
+    }
+
     const { subtotal, markupAmount, subtotalWithMarkup, taxAmount, total } = totals;
 
-    const newEstimate: Estimate = {
-      id: `estimate-${Date.now()}`,
-      projectId: id as string,
-      name: estimateName,
-      items,
-      subtotal,
-      taxRate: parseFloat(taxPercent) || 0,
-      taxAmount,
-      total,
-      createdDate: new Date().toISOString(),
-      status: 'sent',
-    };
+    try {
+      console.log('[Estimate] Saving estimate to Supabase (status: sent)...');
 
-    addEstimate(newEstimate);
-    await saveEstimateAsFile(newEstimate);
-    await clearDraft();
+      // Save to Supabase via backend
+      const result = await vanillaClient.estimates.createEstimate.mutate({
+        companyId: company.id,
+        projectId: id as string,
+        name: estimateName,
+        items: items.map(item => ({
+          priceListItemId: item.priceListItemId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          customPrice: item.customPrice,
+          total: item.total,
+          budget: item.budget,
+          budgetUnitPrice: item.budgetUnitPrice,
+          notes: item.notes,
+          customName: item.customName,
+          customUnit: item.customUnit,
+          customCategory: item.customCategory,
+          isSeparator: item.isSeparator,
+          separatorLabel: item.separatorLabel,
+        })),
+        subtotal,
+        taxRate: parseFloat(taxPercent) || 0,
+        taxAmount,
+        total,
+        status: 'sent',
+      });
+
+      if (!result.success || !result.estimate) {
+        throw new Error('Failed to save estimate to database');
+      }
+
+      const newEstimate: Estimate = {
+        id: result.estimate.id,
+        projectId: id as string,
+        name: estimateName,
+        items,
+        subtotal,
+        taxRate: parseFloat(taxPercent) || 0,
+        taxAmount,
+        total,
+        createdDate: new Date().toISOString(),
+        status: 'sent',
+      };
+
+      addEstimate(newEstimate);
+      await saveEstimateAsFile(newEstimate);
+      await clearDraft();
 
     const itemsText = items.map((item, index) => {
       if (item.isSeparator) {
@@ -460,11 +587,15 @@ export default function EstimateScreen() {
       });
     }
 
-    Alert.alert(
-      'Success', 
-      'Estimate saved to project files and signature request sent! Your email client should open with the estimate details.',
-      [{ text: 'OK', onPress: () => router.back() }]
-    );
+      Alert.alert(
+        'Success',
+        'Estimate saved to database and signature request sent! Your email client should open with the estimate details.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch (error: any) {
+      console.error('[Estimate] Error requesting signature:', error);
+      Alert.alert('Error', `Failed to request signature: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const getPriceListItem = (priceListItemId: string): PriceListItem | undefined => {
