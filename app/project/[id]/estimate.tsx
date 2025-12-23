@@ -44,6 +44,7 @@ export default function EstimateScreen() {
   const [showAddSeparatorModal, setShowAddSeparatorModal] = useState<boolean>(false);
   const [newSeparatorLabel, setNewSeparatorLabel] = useState<string>('');
   const [showAIGenerateModal, setShowAIGenerateModal] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const project = projects.find(p => p.id === id);
 
@@ -304,6 +305,8 @@ export default function EstimateScreen() {
   };
 
   const saveEstimate = async () => {
+    if (isSaving) return; // Prevent double-clicks
+
     const totals = validateEstimate();
     if (!totals) return;
 
@@ -314,6 +317,7 @@ export default function EstimateScreen() {
 
     const { subtotal, taxAmount, total } = totals;
 
+    setIsSaving(true);
     try {
       console.log('[Estimate] Saving estimate to Supabase...');
 
@@ -373,6 +377,8 @@ export default function EstimateScreen() {
     } catch (error: any) {
       console.error('[Estimate] Error saving estimate:', error);
       Alert.alert('Error', `Failed to save estimate: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1093,12 +1099,17 @@ export default function EstimateScreen() {
           </View>
 
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={styles.saveButton}
+            <TouchableOpacity
+              style={[styles.saveButton, isSaving && styles.buttonDisabled]}
               onPress={saveEstimate}
+              disabled={isSaving}
             >
-              <Check size={16} color="#FFFFFF" />
-              <Text style={styles.saveButtonText}>Save</Text>
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Check size={16} color="#FFFFFF" />
+              )}
+              <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : 'Save'}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -2566,6 +2577,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
     gap: 4,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   saveButtonText: {
     color: '#FFFFFF',
