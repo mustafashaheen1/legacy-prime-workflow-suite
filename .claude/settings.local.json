@@ -52,7 +52,10 @@
       "Bash(python3:*)",
       "Bash(bun install --frozen-lockfile)",
       "Bash(bun add:*)",
-      "Bash(vercel env:*)"
+      "Bash(vercel env:*)",
+      "Bash(sudo chown:*)",
+      "Bash(~/.bun/bin/bunx vercel:*)",
+      "Bash(bun --version:*)"
     ],
     "deny": [],
     "ask": []
