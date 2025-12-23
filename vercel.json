@@ -3,12 +3,17 @@
   "outputDirectory": "dist",
   "installCommand": "bun install",
   "functions": {
+    "api/create-estimate.ts": {
+      "maxDuration": 30,
+      "memory": 512
+    },
     "api/**/*.ts": {
       "maxDuration": 60,
       "memory": 1024
     }
   },
   "rewrites": [
+    { "source": "/api/create-estimate", "destination": "/api/create-estimate" },
     { "source": "/api/stripe-payment", "destination": "/api/stripe-payment" },
     { "source": "/api/activate-subscription", "destination": "/api/activate-subscription" },
     { "source": "/trpc/(.*)", "destination": "/api" },

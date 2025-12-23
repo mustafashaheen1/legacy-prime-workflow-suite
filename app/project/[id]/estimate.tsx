@@ -321,32 +321,45 @@ export default function EstimateScreen() {
     try {
       console.log('[Estimate] Saving estimate to Supabase...');
 
-      // Save to Supabase via backend
-      const result = await vanillaClient.estimates.createEstimate.mutate({
-        companyId: company.id,
-        projectId: id as string,
-        name: estimateName,
-        items: items.map(item => ({
-          priceListItemId: item.priceListItemId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          customPrice: item.customPrice,
-          total: item.total,
-          budget: item.budget,
-          budgetUnitPrice: item.budgetUnitPrice,
-          notes: item.notes,
-          customName: item.customName,
-          customUnit: item.customUnit,
-          customCategory: item.customCategory,
-          isSeparator: item.isSeparator,
-          separatorLabel: item.separatorLabel,
-        })),
-        subtotal,
-        taxRate: parseFloat(taxPercent) || 0,
-        taxAmount,
-        total,
-        status: 'draft',
+      // Save to Supabase via lightweight backend endpoint
+      const response = await fetch('/api/create-estimate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyId: company.id,
+          projectId: id as string,
+          name: estimateName,
+          items: items.map(item => ({
+            priceListItemId: item.priceListItemId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            customPrice: item.customPrice,
+            total: item.total,
+            budget: item.budget,
+            budgetUnitPrice: item.budgetUnitPrice,
+            notes: item.notes,
+            customName: item.customName,
+            customUnit: item.customUnit,
+            customCategory: item.customCategory,
+            isSeparator: item.isSeparator,
+            separatorLabel: item.separatorLabel,
+          })),
+          subtotal,
+          taxRate: parseFloat(taxPercent) || 0,
+          taxAmount,
+          total,
+          status: 'draft',
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save estimate');
+      }
+
+      const result = await response.json();
 
       if (result.success && result.estimate) {
         console.log('[Estimate] Estimate saved successfully:', result.estimate.id);
@@ -396,32 +409,45 @@ export default function EstimateScreen() {
     try {
       console.log('[Estimate] Saving estimate to Supabase (status: sent)...');
 
-      // Save to Supabase via backend
-      const result = await vanillaClient.estimates.createEstimate.mutate({
-        companyId: company.id,
-        projectId: id as string,
-        name: estimateName,
-        items: items.map(item => ({
-          priceListItemId: item.priceListItemId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          customPrice: item.customPrice,
-          total: item.total,
-          budget: item.budget,
-          budgetUnitPrice: item.budgetUnitPrice,
-          notes: item.notes,
-          customName: item.customName,
-          customUnit: item.customUnit,
-          customCategory: item.customCategory,
-          isSeparator: item.isSeparator,
-          separatorLabel: item.separatorLabel,
-        })),
-        subtotal,
-        taxRate: parseFloat(taxPercent) || 0,
-        taxAmount,
-        total,
-        status: 'sent',
+      // Save to Supabase via lightweight backend endpoint
+      const response = await fetch('/api/create-estimate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyId: company.id,
+          projectId: id as string,
+          name: estimateName,
+          items: items.map(item => ({
+            priceListItemId: item.priceListItemId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            customPrice: item.customPrice,
+            total: item.total,
+            budget: item.budget,
+            budgetUnitPrice: item.budgetUnitPrice,
+            notes: item.notes,
+            customName: item.customName,
+            customUnit: item.customUnit,
+            customCategory: item.customCategory,
+            isSeparator: item.isSeparator,
+            separatorLabel: item.separatorLabel,
+          })),
+          subtotal,
+          taxRate: parseFloat(taxPercent) || 0,
+          taxAmount,
+          total,
+          status: 'sent',
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save estimate');
+      }
+
+      const result = await response.json();
 
       if (!result.success || !result.estimate) {
         throw new Error('Failed to save estimate to database');
@@ -507,32 +533,45 @@ export default function EstimateScreen() {
     try {
       console.log('[Estimate] Saving estimate to Supabase (status: sent)...');
 
-      // Save to Supabase via backend
-      const result = await vanillaClient.estimates.createEstimate.mutate({
-        companyId: company.id,
-        projectId: id as string,
-        name: estimateName,
-        items: items.map(item => ({
-          priceListItemId: item.priceListItemId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          customPrice: item.customPrice,
-          total: item.total,
-          budget: item.budget,
-          budgetUnitPrice: item.budgetUnitPrice,
-          notes: item.notes,
-          customName: item.customName,
-          customUnit: item.customUnit,
-          customCategory: item.customCategory,
-          isSeparator: item.isSeparator,
-          separatorLabel: item.separatorLabel,
-        })),
-        subtotal,
-        taxRate: parseFloat(taxPercent) || 0,
-        taxAmount,
-        total,
-        status: 'sent',
+      // Save to Supabase via lightweight backend endpoint
+      const response = await fetch('/api/create-estimate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyId: company.id,
+          projectId: id as string,
+          name: estimateName,
+          items: items.map(item => ({
+            priceListItemId: item.priceListItemId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            customPrice: item.customPrice,
+            total: item.total,
+            budget: item.budget,
+            budgetUnitPrice: item.budgetUnitPrice,
+            notes: item.notes,
+            customName: item.customName,
+            customUnit: item.customUnit,
+            customCategory: item.customCategory,
+            isSeparator: item.isSeparator,
+            separatorLabel: item.separatorLabel,
+          })),
+          subtotal,
+          taxRate: parseFloat(taxPercent) || 0,
+          taxAmount,
+          total,
+          status: 'sent',
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save estimate');
+      }
+
+      const result = await response.json();
 
       if (!result.success || !result.estimate) {
         throw new Error('Failed to save estimate to database');
