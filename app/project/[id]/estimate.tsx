@@ -330,6 +330,7 @@ export default function EstimateScreen() {
         body: JSON.stringify({
           companyId: company.id,
           projectId: id as string,
+          projectName: project?.name,
           name: estimateName,
           items: items.map(item => ({
             priceListItemId: item.priceListItemId,
@@ -418,6 +419,7 @@ export default function EstimateScreen() {
         body: JSON.stringify({
           companyId: company.id,
           projectId: id as string,
+          projectName: project?.name,
           name: estimateName,
           items: items.map(item => ({
             priceListItemId: item.priceListItemId,
@@ -542,6 +544,7 @@ export default function EstimateScreen() {
         body: JSON.stringify({
           companyId: company.id,
           projectId: id as string,
+          projectName: project?.name,
           name: estimateName,
           items: items.map(item => ({
             priceListItemId: item.priceListItemId,

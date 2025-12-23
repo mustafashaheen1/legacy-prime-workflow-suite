@@ -16,6 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const {
       companyId,
       projectId,
+      projectName,
       name,
       items,
       subtotal,
@@ -45,13 +46,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Handle project ID - if it's not a UUID, we need to find or create the project in the database
+    let dbProjectId = projectId;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+
+    if (!isUUID) {
+      console.log('[Create Estimate] Non-UUID project ID detected:', projectId);
+      console.log('[Create Estimate] Looking for project in database...');
+
+      // Try to find existing project by name
+      const { data: existingProject } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('name', projectName || 'Unnamed Project')
+        .single();
+
+      if (existingProject) {
+        console.log('[Create Estimate] Found existing project:', existingProject.id);
+        dbProjectId = existingProject.id;
+      } else {
+        // Create new project in database
+        console.log('[Create Estimate] Creating new project in database...');
+        const { data: newProject, error: projectError } = await supabase
+          .from('projects')
+          .insert({
+            company_id: companyId,
+            name: projectName || 'Unnamed Project',
+            budget: 0,
+            expenses: 0,
+            progress: 0,
+            status: 'active',
+            hours_worked: 0,
+          } as any)
+          .select('id')
+          .single();
+
+        if (projectError || !newProject) {
+          console.error('[Create Estimate] Failed to create project:', projectError);
+          return res.status(500).json({
+            error: `Failed to create project: ${projectError?.message || 'Unknown error'}`,
+          });
+        }
+
+        console.log('[Create Estimate] Created new project:', newProject.id);
+        dbProjectId = newProject.id;
+      }
+    }
+
     // 1. Insert the estimate record
-    console.log('[Create Estimate] Inserting estimate record...');
+    console.log('[Create Estimate] Inserting estimate record with project ID:', dbProjectId);
     const { data: estimate, error: estimateError } = await supabase
       .from('estimates')
       .insert({
         company_id: companyId,
-        project_id: projectId,
+        project_id: dbProjectId,
         name,
         subtotal,
         tax_rate: taxRate,
