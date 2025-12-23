@@ -5,4 +5,4 @@ export const config = {
   maxDuration: 60, // Vercel Pro plan maximum
 };
 
-export default handle(app);
+export default handle(app as any);
