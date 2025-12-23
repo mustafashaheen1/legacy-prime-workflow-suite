@@ -35,8 +35,32 @@ export const createEstimateProcedure = publicProcedure
   .mutation(async ({ input }) => {
     const startTime = Date.now();
     console.log('[Estimates] Creating estimate:', input.name, 'for project:', input.projectId);
+    console.log('[Estimates] ⚠️ TEMPORARY: Skipping database operations for testing');
 
     try {
+      // TEMPORARY: Return mock data without database operations
+      const mockEstimateId = `estimate-${Date.now()}`;
+      console.log('[Estimates] Mock estimate created:', mockEstimateId);
+      console.log('[Estimates] Total time:', Date.now() - startTime, 'ms');
+
+      return {
+        success: true,
+        estimate: {
+          id: mockEstimateId,
+          projectId: input.projectId,
+          name: input.name,
+          subtotal: input.subtotal,
+          taxRate: input.taxRate,
+          taxAmount: input.taxAmount,
+          total: input.total,
+          status: input.status,
+          createdDate: new Date().toISOString(),
+          items: input.items || [],
+        },
+      };
+
+      // ORIGINAL CODE COMMENTED OUT FOR TESTING:
+      /*
       // 1. Insert the estimate record
       console.log('[Estimates] Step 1: Inserting estimate record...');
       const { data: estimate, error: estimateError } = await supabase
@@ -120,6 +144,7 @@ export const createEstimateProcedure = publicProcedure
           items: input.items || [],
         },
       };
+      */
     } catch (error: any) {
       console.error('[Estimates] Unexpected error creating estimate:', error);
       console.error('[Estimates] Error occurred after', Date.now() - startTime, 'ms');

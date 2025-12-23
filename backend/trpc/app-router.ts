@@ -71,6 +71,7 @@ import { getPriceListProcedure } from "./routes/price-list/get-price-list/route.
 import { getCategoriesProcedure } from "./routes/price-list/get-categories/route.js";
 import { createEstimateProcedure } from "./routes/estimates/create-estimate/route.js";
 import { getEstimatesProcedure } from "./routes/estimates/get-estimates/route.js";
+import { testEstimateProcedure } from "./routes/estimates/test-estimate/route.js";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -183,6 +184,7 @@ export const appRouter = createTRPCRouter({
   estimates: createTRPCRouter({
     createEstimate: createEstimateProcedure,
     getEstimates: getEstimatesProcedure,
+    testEstimate: testEstimateProcedure,
   }),
 });
 
