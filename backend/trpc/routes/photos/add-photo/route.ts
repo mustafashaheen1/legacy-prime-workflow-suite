@@ -1,6 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import { supabase } from "../../../../lib/supabase.js";
+import { createClient } from '@supabase/supabase-js';
 import { uploadToS3, generateS3Key, deleteFromS3 } from "../../../../lib/s3.js";
 import { validateImageFile, base64ToBuffer, getFileExtension } from "../../../../lib/file-validation.js";
 
@@ -20,6 +20,17 @@ export const addPhotoProcedure = publicProcedure
   )
   .mutation(async ({ input }) => {
     console.log('[Photos] Adding photo for project:', input.projectId);
+
+    // Create Supabase client INSIDE the handler (not at module level)
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[Photos] Supabase not configured');
+      throw new Error('Database not configured. Please add Supabase environment variables.');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     try {
       // 1. Validate file type and size

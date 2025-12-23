@@ -2,7 +2,7 @@ import { z } from "zod";
 import { publicProcedure } from "../../../create-context.js";
 import twilio from "twilio";
 import OpenAI from "openai";
-import { supabase } from "../../../../lib/supabase.js";
+import { createClient } from '@supabase/supabase-js';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -154,12 +154,23 @@ export const handleReceptionistCallProcedure = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
+    // Create Supabase client INSIDE the handler (not at module level)
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[Twilio] Supabase not configured');
+      throw new Error('Database not configured. Please add Supabase environment variables.');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
     try {
       console.log("[Receptionist] ====== NEW CALL EVENT ======");
       console.log("[Receptionist] CallSid:", input.CallSid);
       console.log("[Receptionist] From:", input.From);
       console.log("[Receptionist] Speech:", input.SpeechResult || "(none - initial call)");
-      
+
       const twiml = new twilio.twiml.VoiceResponse();
 
       // Initialize or parse conversation state

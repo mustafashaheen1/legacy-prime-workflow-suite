@@ -1,6 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import { supabase } from "../../../../lib/supabase.js";
+import { createClient } from '@supabase/supabase-js';
 
 export const getClientsProcedure = publicProcedure
   .input(
@@ -10,6 +10,17 @@ export const getClientsProcedure = publicProcedure
   )
   .query(async ({ input }) => {
     console.log('[CRM] Fetching clients for company:', input.companyId);
+
+    // Create Supabase client INSIDE the handler (not at module level)
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[CRM] Supabase not configured');
+      throw new Error('Database not configured. Please add Supabase environment variables.');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     try {
       const { data, error } = await supabase

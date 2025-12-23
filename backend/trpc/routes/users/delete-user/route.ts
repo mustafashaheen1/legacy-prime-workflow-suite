@@ -1,6 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import { supabase } from "../../../../lib/supabase.js";
+import { createClient } from '@supabase/supabase-js';
 
 export const deleteUserProcedure = publicProcedure
   .input(
@@ -11,13 +11,18 @@ export const deleteUserProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Users] Deleting user:', input.userId);
 
-    try {
-      // Check if Supabase is configured
-      if (!supabase) {
-        console.error('[Users] Supabase not configured - check environment variables');
-        throw new Error('Database not configured. Please contact support.');
-      }
+    // Create Supabase client INSIDE the handler (not at module level)
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[Users] Supabase not configured');
+      throw new Error('Database not configured. Please add Supabase environment variables.');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    try {
       // Delete from users table (this will cascade to auth.users if configured)
       console.log('[Users] Deleting from users table...');
       const dbStartTime = Date.now();
