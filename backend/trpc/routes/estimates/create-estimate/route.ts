@@ -33,10 +33,12 @@ export const createEstimateProcedure = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
+    const startTime = Date.now();
     console.log('[Estimates] Creating estimate:', input.name, 'for project:', input.projectId);
 
     try {
       // 1. Insert the estimate record
+      console.log('[Estimates] Step 1: Inserting estimate record...');
       const { data: estimate, error: estimateError } = await supabase
         .from('estimates')
         .insert({
@@ -49,8 +51,10 @@ export const createEstimateProcedure = publicProcedure
           total: input.total,
           status: input.status,
         } as any)
-        .select()
+        .select('id, project_id, name, subtotal, tax_rate, tax_amount, total, status, created_date')
         .single();
+
+      console.log('[Estimates] Step 1 completed in', Date.now() - startTime, 'ms');
 
       if (estimateError) {
         console.error('[Estimates] Error creating estimate:', estimateError);
@@ -63,37 +67,43 @@ export const createEstimateProcedure = publicProcedure
 
       console.log('[Estimates] Estimate created successfully:', estimate.id);
 
-      // 2. Insert the estimate items
-      const itemsToInsert = input.items.map(item => ({
-        estimate_id: estimate.id,
-        price_list_item_id: item.priceListItemId,
-        quantity: item.quantity,
-        unit_price: item.unitPrice,
-        custom_price: item.customPrice,
-        total: item.total,
-        budget: item.budget,
-        budget_unit_price: item.budgetUnitPrice,
-        notes: item.notes,
-        custom_name: item.customName,
-        custom_unit: item.customUnit,
-        custom_category: item.customCategory,
-        is_separator: item.isSeparator || false,
-        separator_label: item.separatorLabel,
-      }));
+      // 2. Insert the estimate items (if any)
+      if (input.items && input.items.length > 0) {
+        console.log('[Estimates] Step 2: Inserting', input.items.length, 'estimate items...');
+        const itemsToInsert = input.items.map(item => ({
+          estimate_id: estimate.id,
+          price_list_item_id: item.priceListItemId,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          custom_price: item.customPrice,
+          total: item.total,
+          budget: item.budget,
+          budget_unit_price: item.budgetUnitPrice,
+          notes: item.notes,
+          custom_name: item.customName,
+          custom_unit: item.customUnit,
+          custom_category: item.customCategory,
+          is_separator: item.isSeparator || false,
+          separator_label: item.separatorLabel,
+        }));
 
-      const { data: items, error: itemsError } = await supabase
-        .from('estimate_items')
-        .insert(itemsToInsert as any)
-        .select();
+        const { error: itemsError } = await supabase
+          .from('estimate_items')
+          .insert(itemsToInsert as any);
 
-      if (itemsError) {
-        console.error('[Estimates] Error creating estimate items:', itemsError);
-        // Rollback: delete the estimate
-        await supabase.from('estimates').delete().eq('id', estimate.id);
-        throw new Error(`Failed to create estimate items: ${itemsError.message}`);
+        console.log('[Estimates] Step 2 completed in', Date.now() - startTime, 'ms');
+
+        if (itemsError) {
+          console.error('[Estimates] Error creating estimate items:', itemsError);
+          // Rollback: delete the estimate
+          await supabase.from('estimates').delete().eq('id', estimate.id);
+          throw new Error(`Failed to create estimate items: ${itemsError.message}`);
+        }
+
+        console.log('[Estimates] Estimate items created successfully');
       }
 
-      console.log('[Estimates] Estimate items created successfully:', items?.length);
+      console.log('[Estimates] Total time:', Date.now() - startTime, 'ms');
 
       return {
         success: true,
@@ -107,26 +117,12 @@ export const createEstimateProcedure = publicProcedure
           total: estimate.total,
           status: estimate.status,
           createdDate: estimate.created_date,
-          items: items?.map(item => ({
-            id: item.id,
-            priceListItemId: item.price_list_item_id,
-            quantity: item.quantity,
-            unitPrice: item.unit_price,
-            customPrice: item.custom_price,
-            total: item.total,
-            budget: item.budget,
-            budgetUnitPrice: item.budget_unit_price,
-            notes: item.notes,
-            customName: item.custom_name,
-            customUnit: item.custom_unit,
-            customCategory: item.custom_category,
-            isSeparator: item.is_separator,
-            separatorLabel: item.separator_label,
-          })) || [],
+          items: input.items || [],
         },
       };
     } catch (error: any) {
       console.error('[Estimates] Unexpected error creating estimate:', error);
+      console.error('[Estimates] Error occurred after', Date.now() - startTime, 'ms');
       throw new Error(error.message || 'Failed to create estimate');
     }
   });
