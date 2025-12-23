@@ -19,7 +19,7 @@ export const getEstimatesProcedure = publicProcedure
         .select('*')
         .eq('project_id', input.projectId)
         .eq('company_id', input.companyId)
-        .order('created_date', { ascending: false });
+        .order('created_date', { ascending: false }) as any;
 
       if (estimatesError) {
         console.error('[Estimates] Error getting estimates:', estimatesError);
@@ -35,12 +35,12 @@ export const getEstimatesProcedure = publicProcedure
       }
 
       // 2. Get items for all estimates
-      const estimateIds = estimates.map(e => e.id);
+      const estimateIds = estimates.map((e: any) => e.id);
       const { data: allItems, error: itemsError } = await supabase
         .from('estimate_items')
         .select('*')
         .in('estimate_id', estimateIds)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }) as any;
 
       if (itemsError) {
         console.error('[Estimates] Error getting estimate items:', itemsError);
@@ -48,7 +48,7 @@ export const getEstimatesProcedure = publicProcedure
       }
 
       // 3. Map items to their estimates
-      const estimatesWithItems = estimates.map(estimate => ({
+      const estimatesWithItems = estimates.map((estimate: any) => ({
         id: estimate.id,
         projectId: estimate.project_id,
         name: estimate.name,
@@ -59,8 +59,8 @@ export const getEstimatesProcedure = publicProcedure
         status: estimate.status,
         createdDate: estimate.created_date,
         items: (allItems || [])
-          .filter(item => item.estimate_id === estimate.id)
-          .map(item => ({
+          .filter((item: any) => item.estimate_id === estimate.id)
+          .map((item: any) => ({
             id: item.id,
             priceListItemId: item.price_list_item_id,
             quantity: item.quantity,
