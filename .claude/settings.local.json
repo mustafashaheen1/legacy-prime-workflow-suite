@@ -55,7 +55,8 @@
       "Bash(vercel env:*)",
       "Bash(sudo chown:*)",
       "Bash(~/.bun/bin/bunx vercel:*)",
-      "Bash(bun --version:*)"
+      "Bash(bun --version:*)",
+      "Bash(npx supabase:*)"
     ],
     "deny": [],
     "ask": []
