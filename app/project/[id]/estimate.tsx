@@ -12,6 +12,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
+import Constants from 'expo-constants';
 
 export default function EstimateScreen() {
   const { id } = useLocalSearchParams();
@@ -1562,9 +1563,10 @@ Respond ONLY with JSON array:
 Use "custom" if no match.`;
 
       // Call OpenAI directly from client to avoid Vercel timeout issues
-      const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+      const apiKey = Constants.expoConfig?.extra?.openaiApiKey || process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
       console.log('[AI Estimate] OpenAI API key present:', !!apiKey);
+      console.log('[AI Estimate] Using expo-constants:', !!Constants.expoConfig?.extra?.openaiApiKey);
 
       if (!apiKey) {
         Alert.alert('Error', 'OpenAI API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your environment variables.');
