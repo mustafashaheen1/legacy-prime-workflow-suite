@@ -698,39 +698,67 @@ export default function EstimateScreen() {
         </html>
       `;
 
-      // Handle PDF generation differently for web vs mobile
-      if (Platform.OS === 'web') {
-        // On web, we'll save the estimate and show success
-        // The user can use the Preview button to view/print/download the PDF
-        Alert.alert(
-          'Success',
-          'Estimate saved successfully! Use the Preview button to view, print, or download the PDF.',
-          [{ text: 'OK', onPress: () => router.push('/crm') }]
-        );
-      } else {
-        // On mobile, generate PDF and open email composer
-        const { uri } = await Print.printToFileAsync({ html });
-        console.log('[Estimate] PDF generated:', uri);
+      // Generate PDF and open email composer (same for web and mobile)
+      console.log('[Estimate] Generating PDF file...');
+      const { uri } = await Print.printToFileAsync({ html });
+      console.log('[Estimate] PDF generated successfully:', uri);
 
-        // Open email composer with PDF attachment
-        const isAvailable = await MailComposer.isAvailableAsync();
-        if (!isAvailable) {
+      // Open email composer with PDF attachment
+      console.log('[Estimate] Opening email composer...');
+      const isAvailable = await MailComposer.isAvailableAsync();
+
+      if (!isAvailable) {
+        console.warn('[Estimate] Mail composer not available');
+
+        // On web, fall back to mailto link with instructions
+        if (Platform.OS === 'web') {
+          const emailSubject = encodeURIComponent(`Estimate: ${estimateName}`);
+          const emailBody = encodeURIComponent(
+            `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!\n\n(Note: Please manually attach the downloaded PDF to this email)`
+          );
+
+          // Download the PDF first
+          if (typeof window !== 'undefined') {
+            const pdfName = `${project?.name || 'Project'} - ${estimateName}.pdf`;
+            const link = document.createElement('a');
+            link.href = uri;
+            link.download = pdfName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            console.log('[Estimate] PDF downloaded:', pdfName);
+
+            // Then open mailto link
+            setTimeout(() => {
+              window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
+            }, 500);
+          }
+
+          Alert.alert(
+            'Success',
+            'Estimate saved and PDF downloaded! Your email client will open - please attach the downloaded PDF manually.',
+            [{ text: 'OK', onPress: () => router.push('/crm') }]
+          );
+        } else {
           Alert.alert('Error', 'Email is not available on this device');
-          return;
         }
-
-        await MailComposer.composeAsync({
-          subject: `Estimate: ${estimateName}`,
-          body: `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`,
-          attachments: [uri],
-        });
-
-        Alert.alert(
-          'Success',
-          'Estimate saved to database!',
-          [{ text: 'OK', onPress: () => router.push('/crm') }]
-        );
+        return;
       }
+
+      // Mail composer is available - use it
+      console.log('[Estimate] Composing email with attachment...');
+      await MailComposer.composeAsync({
+        subject: `Estimate: ${estimateName}`,
+        body: `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`,
+        attachments: [uri],
+      });
+
+      console.log('[Estimate] Email composer closed');
+      Alert.alert(
+        'Success',
+        'Estimate saved to database!',
+        [{ text: 'OK', onPress: () => router.push('/crm') }]
+      );
     } catch (error: any) {
       console.error('[Estimate] Error sending estimate:', error);
       Alert.alert('Error', `Failed to send estimate: ${error.message || 'Unknown error'}`);
