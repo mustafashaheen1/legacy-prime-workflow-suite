@@ -698,28 +698,39 @@ export default function EstimateScreen() {
         </html>
       `;
 
-      // Generate PDF
-      const { uri } = await Print.printToFileAsync({ html });
-      console.log('[Estimate] PDF generated:', uri);
+      // Handle PDF generation differently for web vs mobile
+      if (Platform.OS === 'web') {
+        // On web, we'll save the estimate and show success
+        // The user can use the Preview button to view/print/download the PDF
+        Alert.alert(
+          'Success',
+          'Estimate saved successfully! Use the Preview button to view, print, or download the PDF.',
+          [{ text: 'OK', onPress: () => router.push('/crm') }]
+        );
+      } else {
+        // On mobile, generate PDF and open email composer
+        const { uri } = await Print.printToFileAsync({ html });
+        console.log('[Estimate] PDF generated:', uri);
 
-      // Open email composer with PDF attachment
-      const isAvailable = await MailComposer.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert('Error', 'Email is not available on this device');
-        return;
+        // Open email composer with PDF attachment
+        const isAvailable = await MailComposer.isAvailableAsync();
+        if (!isAvailable) {
+          Alert.alert('Error', 'Email is not available on this device');
+          return;
+        }
+
+        await MailComposer.composeAsync({
+          subject: `Estimate: ${estimateName}`,
+          body: `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`,
+          attachments: [uri],
+        });
+
+        Alert.alert(
+          'Success',
+          'Estimate saved to database!',
+          [{ text: 'OK', onPress: () => router.push('/crm') }]
+        );
       }
-
-      await MailComposer.composeAsync({
-        subject: `Estimate: ${estimateName}`,
-        body: `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`,
-        attachments: [uri],
-      });
-
-      Alert.alert(
-        'Success',
-        'Estimate saved to database!',
-        [{ text: 'OK', onPress: () => router.push('/crm') }]
-      );
     } catch (error: any) {
       console.error('[Estimate] Error sending estimate:', error);
       Alert.alert('Error', `Failed to send estimate: ${error.message || 'Unknown error'}`);
