@@ -698,67 +698,74 @@ export default function EstimateScreen() {
         </html>
       `;
 
-      // Generate PDF and open email composer (same for web and mobile)
-      console.log('[Estimate] Generating PDF file...');
-      const { uri } = await Print.printToFileAsync({ html });
-      console.log('[Estimate] PDF generated successfully:', uri);
+      // Handle PDF generation differently for web vs mobile
+      if (Platform.OS === 'web') {
+        console.log('[Estimate] Web platform - opening print dialog...');
 
-      // Open email composer with PDF attachment
-      console.log('[Estimate] Opening email composer...');
-      const isAvailable = await MailComposer.isAvailableAsync();
+        // On web, open the HTML in a new window and trigger print dialog
+        if (typeof window !== 'undefined') {
+          const printWindow = window.open('', '_blank');
+          if (printWindow) {
+            printWindow.document.write(html);
+            printWindow.document.close();
 
-      if (!isAvailable) {
-        console.warn('[Estimate] Mail composer not available');
+            // Wait for content to load, then trigger print
+            printWindow.onload = () => {
+              printWindow.focus();
+              printWindow.print();
+            };
 
-        // On web, fall back to mailto link with instructions
-        if (Platform.OS === 'web') {
-          const emailSubject = encodeURIComponent(`Estimate: ${estimateName}`);
-          const emailBody = encodeURIComponent(
-            `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!\n\n(Note: Please manually attach the downloaded PDF to this email)`
-          );
-
-          // Download the PDF first
-          if (typeof window !== 'undefined') {
-            const pdfName = `${project?.name || 'Project'} - ${estimateName}.pdf`;
-            const link = document.createElement('a');
-            link.href = uri;
-            link.download = pdfName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            console.log('[Estimate] PDF downloaded:', pdfName);
-
-            // Then open mailto link
-            setTimeout(() => {
-              window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
-            }, 500);
+            console.log('[Estimate] Print dialog opened');
           }
-
-          Alert.alert(
-            'Success',
-            'Estimate saved and PDF downloaded! Your email client will open - please attach the downloaded PDF manually.',
-            [{ text: 'OK', onPress: () => router.push('/crm') }]
-          );
-        } else {
-          Alert.alert('Error', 'Email is not available on this device');
         }
-        return;
+
+        // Prepare mailto link
+        const emailSubject = encodeURIComponent(`Estimate: ${estimateName}`);
+        const emailBody = encodeURIComponent(
+          `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`
+        );
+
+        Alert.alert(
+          'Success',
+          'Estimate saved! Print dialog opened - use "Save as PDF" then attach to your email. Click OK to open email client.',
+          [{
+            text: 'OK',
+            onPress: () => {
+              // Open mailto link
+              if (typeof window !== 'undefined') {
+                window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
+              }
+              router.push('/crm');
+            }
+          }]
+        );
+      } else {
+        // On mobile, generate PDF and open email composer
+        console.log('[Estimate] Mobile platform - generating PDF...');
+        const { uri } = await Print.printToFileAsync({ html });
+        console.log('[Estimate] PDF generated:', uri);
+
+        // Open email composer with PDF attachment
+        const isAvailable = await MailComposer.isAvailableAsync();
+        if (!isAvailable) {
+          Alert.alert('Error', 'Email is not available on this device');
+          return;
+        }
+
+        console.log('[Estimate] Opening email composer with attachment...');
+        await MailComposer.composeAsync({
+          subject: `Estimate: ${estimateName}`,
+          body: `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`,
+          attachments: [uri],
+        });
+
+        console.log('[Estimate] Email composer closed');
+        Alert.alert(
+          'Success',
+          'Estimate saved to database!',
+          [{ text: 'OK', onPress: () => router.push('/crm') }]
+        );
       }
-
-      // Mail composer is available - use it
-      console.log('[Estimate] Composing email with attachment...');
-      await MailComposer.composeAsync({
-        subject: `Estimate: ${estimateName}`,
-        body: `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`,
-        attachments: [uri],
-      });
-
-      console.log('[Estimate] Email composer closed');
-      Alert.alert(
-        'Success',
-        'Estimate saved to database!',
-        [{ text: 'OK', onPress: () => router.push('/crm') }]
-      );
     } catch (error: any) {
       console.error('[Estimate] Error sending estimate:', error);
       Alert.alert('Error', `Failed to send estimate: ${error.message || 'Unknown error'}`);
