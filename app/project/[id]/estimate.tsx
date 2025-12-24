@@ -700,7 +700,7 @@ export default function EstimateScreen() {
 
       // Handle PDF generation differently for web vs mobile
       if (Platform.OS === 'web') {
-        console.log('[Estimate] Web platform - opening print dialog...');
+        console.log('[Estimate] Web platform - opening print dialog and email client...');
 
         // Prepare mailto link
         const emailSubject = encodeURIComponent(`Estimate: ${estimateName}`);
@@ -710,6 +710,7 @@ export default function EstimateScreen() {
 
         // On web, open the HTML in a new window and trigger print dialog
         if (typeof window !== 'undefined') {
+          // Open print dialog
           const printWindow = window.open('', '_blank');
           if (printWindow) {
             printWindow.document.write(html);
@@ -722,30 +723,20 @@ export default function EstimateScreen() {
             };
 
             console.log('[Estimate] Print dialog opened');
-
-            // Show native browser alert and open email after user acknowledges
-            setTimeout(() => {
-              const userReady = window.confirm(
-                'Estimate saved!\n\n' +
-                '1. Use "Save as PDF" in the print dialog\n' +
-                '2. Click OK to open your email client\n' +
-                '3. Attach the saved PDF to the email'
-              );
-
-              if (userReady) {
-                console.log('[Estimate] Opening email client...');
-                window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
-
-                // Navigate to CRM after a short delay
-                setTimeout(() => {
-                  router.push('/crm');
-                }, 1000);
-              } else {
-                // User clicked Cancel - just navigate to CRM
-                router.push('/crm');
-              }
-            }, 500);
           }
+
+          // Immediately open email client
+          setTimeout(() => {
+            console.log('[Estimate] Opening email client...');
+            window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
+          }, 1000);
+
+          // Show success message and navigate to CRM
+          setTimeout(() => {
+            if (window.confirm('Estimate saved!\n\nPrint dialog and email client opened.\nSave the PDF and attach it to the email.\n\nClick OK to return to CRM.')) {
+              router.push('/crm');
+            }
+          }, 2000);
         }
       } else {
         // On mobile, generate PDF and open email composer
