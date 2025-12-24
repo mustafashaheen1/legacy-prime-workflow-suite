@@ -15,6 +15,7 @@ import { Audio } from 'expo-av';
 import Constants from 'expo-constants';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as MailComposer from 'expo-mail-composer';
 
 export default function EstimateScreen() {
   const { id } = useLocalSearchParams();
@@ -485,20 +486,21 @@ export default function EstimateScreen() {
       await saveEstimateAsFile(newEstimate);
       await clearDraft();
 
-      // Generate PDF
+      // Generate PDF matching the Preview modal format
       console.log('[Estimate] Generating PDF...');
       const markupPercentNum = parseFloat(markupPercent) || 0;
       const taxPercentNum = parseFloat(taxPercent) || 0;
 
-      // Build HTML for PDF
+      // Build line items HTML (matching Preview modal)
       const itemsHtml = items.map((item, index) => {
         if (item.isSeparator) {
           return `
-            <tr style="background: #f0f0f0;">
-              <td colspan="4" style="padding: 12px; font-weight: bold; text-align: center;">
+            <div style="margin: 20px 0; text-align: center; position: relative;">
+              <div style="border-top: 2px solid #333; position: absolute; width: 100%; top: 50%;"></div>
+              <span style="background: white; padding: 0 20px; position: relative; font-weight: bold; font-size: 14px; color: #333;">
                 ${item.separatorLabel?.toUpperCase() || 'SECTION'}
-              </td>
-            </tr>
+              </span>
+            </div>
           `;
         }
         const priceListItem = getPriceListItem(item.priceListItemId);
@@ -506,100 +508,191 @@ export default function EstimateScreen() {
         const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
         const itemUnit = isCustom ? (item.customUnit || 'EA') : (priceListItem?.unit || '');
         const displayPrice = item.customPrice ?? item.unitPrice;
-        const notes = item.notes ? `<br/><small style="color: #666;">${item.notes}</small>` : '';
+        const notes = item.notes ? `<div style="color: #666; font-size: 12px; margin-top: 4px;">Note: ${item.notes}</div>` : '';
 
-        if (showUnitsQty) {
-          return `
-            <tr>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${itemName}${notes}</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity} ${itemUnit}</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">$${displayPrice.toFixed(2)}</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">$${item.total.toFixed(2)}</td>
-            </tr>
-          `;
-        } else {
-          return `
-            <tr>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${itemName}${notes}</td>
-              <td colspan="3" style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">$${item.total.toFixed(2)}</td>
-            </tr>
-          `;
-        }
+        return `
+          <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e0e0e0;">
+            <div style="font-weight: 500; font-size: 14px; color: #333; margin-bottom: 4px;">
+              ${index + 1}. ${itemName}
+            </div>
+            ${showUnitsQty ? `
+              <div style="color: #666; font-size: 13px;">
+                Qty: ${item.quantity} ${itemUnit} @ $${displayPrice.toFixed(2)} = $${item.total.toFixed(2)}
+              </div>
+            ` : `
+              <div style="color: #666; font-size: 13px;">$${item.total.toFixed(2)}</div>
+            `}
+            ${notes}
+          </div>
+        `;
       }).join('');
 
+      // Build HTML matching Preview modal exactly
       const html = `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <style>
-            body { font-family: Arial, sans-serif; padding: 40px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .header h1 { color: #333; margin-bottom: 10px; }
-            .info { margin-bottom: 30px; }
-            .info p { margin: 5px 0; color: #666; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            th { background: #333; color: white; padding: 12px; text-align: left; }
-            .totals { margin-top: 20px; text-align: right; }
-            .totals-row { display: flex; justify-content: flex-end; padding: 8px 0; }
-            .totals-label { width: 200px; font-weight: bold; }
-            .totals-value { width: 150px; text-align: right; }
-            .total-row { border-top: 2px solid #333; margin-top: 10px; padding-top: 10px; font-size: 1.2em; font-weight: bold; }
-            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #666; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: white;
+            }
+            .company-header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .company-logo {
+              max-width: 200px;
+              max-height: 100px;
+              margin-bottom: 10px;
+            }
+            .company-name {
+              font-size: 24px;
+              font-weight: bold;
+              color: #333;
+              margin-bottom: 5px;
+            }
+            .company-slogan {
+              font-size: 14px;
+              color: #666;
+              font-style: italic;
+            }
+            .company-details {
+              text-align: center;
+              font-size: 12px;
+              color: #666;
+              margin-bottom: 20px;
+              line-height: 1.6;
+            }
+            .divider {
+              border-top: 2px solid #333;
+              margin: 20px 0;
+            }
+            .project-info {
+              margin-bottom: 20px;
+            }
+            .project-name, .estimate-name {
+              font-size: 16px;
+              font-weight: bold;
+              color: #333;
+              margin-bottom: 5px;
+            }
+            .date {
+              font-size: 13px;
+              color: #666;
+            }
+            .section-title {
+              font-size: 18px;
+              font-weight: bold;
+              color: #333;
+              margin: 20px 0 15px 0;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .totals-section {
+              margin-top: 30px;
+            }
+            .totals-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 8px 0;
+              font-size: 14px;
+            }
+            .totals-label {
+              color: #666;
+            }
+            .totals-value {
+              font-weight: 500;
+              color: #333;
+            }
+            .grand-total {
+              border-top: 2px solid #333;
+              margin-top: 10px;
+              padding-top: 15px;
+              font-size: 18px;
+              font-weight: bold;
+            }
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              text-align: center;
+              color: #666;
+              font-size: 13px;
+              line-height: 1.6;
+            }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>Legacy Prime Construction</h1>
-            <h2>${estimateName}</h2>
+          <!-- Company Header -->
+          <div class="company-header">
+            ${company?.logo ? `<img src="${company.logo}" class="company-logo" alt="Company Logo"/>` : ''}
+            <div class="company-name">${company?.name || 'Company Name'}</div>
+            ${company?.slogan ? `<div class="company-slogan">${company.slogan}</div>` : ''}
           </div>
 
-          <div class="info">
-            <p><strong>Project:</strong> ${project?.name || 'N/A'}</p>
-            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+          <!-- Company Details -->
+          <div class="company-details">
+            ${company?.licenseNumber ? `License # ${company.licenseNumber}<br/>` : ''}
+            ${company?.officePhone ? `Office: ${company.officePhone}<br/>` : ''}
+            ${company?.cellPhone ? `Cell: ${company.cellPhone}<br/>` : ''}
+            ${company?.address ? `${company.address}<br/>` : ''}
+            ${company?.email ? `Email: ${company.email}<br/>` : ''}
+            ${company?.website ? `${company.website}` : ''}
           </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                ${showUnitsQty ? '<th style="text-align: center;">Quantity</th><th style="text-align: right;">Unit Price</th>' : ''}
-                <th style="text-align: right;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
+          <div class="divider"></div>
 
-          <div class="totals">
+          <!-- Project Info -->
+          <div class="project-info">
+            <div class="project-name">PROJECT: ${project?.name || 'N/A'}</div>
+            <div class="estimate-name">ESTIMATE: ${estimateName}</div>
+            <div class="date">Date: ${new Date().toLocaleDateString()}</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Line Items -->
+          <div class="section-title">Line Items</div>
+          ${itemsHtml}
+
+          <div class="divider"></div>
+
+          <!-- Totals -->
+          <div class="section-title">Totals</div>
+          <div class="totals-section">
             <div class="totals-row">
-              <div class="totals-label">Subtotal:</div>
-              <div class="totals-value">$${subtotal.toFixed(2)}</div>
+              <span class="totals-label">Subtotal</span>
+              <span class="totals-value">$${subtotal.toFixed(2)}</span>
             </div>
             ${markupPercentNum > 0 ? `
               <div class="totals-row">
-                <div class="totals-label">Markup (${markupPercentNum}%):</div>
-                <div class="totals-value">$${markupAmount.toFixed(2)}</div>
+                <span class="totals-label">Markup (${markupPercent}%)</span>
+                <span class="totals-value">$${markupAmount.toFixed(2)}</span>
               </div>
               <div class="totals-row">
-                <div class="totals-label">Subtotal w/ Markup:</div>
-                <div class="totals-value">$${subtotalWithMarkup.toFixed(2)}</div>
+                <span class="totals-label">Subtotal w/ Markup</span>
+                <span class="totals-value">$${subtotalWithMarkup.toFixed(2)}</span>
               </div>
             ` : ''}
             <div class="totals-row">
-              <div class="totals-label">Tax (${taxPercentNum}%):</div>
-              <div class="totals-value">$${taxAmount.toFixed(2)}</div>
+              <span class="totals-label">Tax (${taxPercent}%)</span>
+              <span class="totals-value">$${taxAmount.toFixed(2)}</span>
             </div>
-            <div class="totals-row total-row">
-              <div class="totals-label">TOTAL:</div>
-              <div class="totals-value">$${total.toFixed(2)}</div>
+            <div class="totals-row grand-total">
+              <span class="totals-label">TOTAL</span>
+              <span class="totals-value">$${total.toFixed(2)}</span>
             </div>
           </div>
 
+          <div class="divider"></div>
+
+          <!-- Footer -->
           <div class="footer">
-            <p>Thank you for choosing Legacy Prime Construction!</p>
-            <p>Please review and let us know if you have any questions.</p>
+            ${company?.estimateTemplate || 'Thank you for your business! Please review and let us know if you have any questions.'}
           </div>
         </body>
         </html>
@@ -609,36 +702,24 @@ export default function EstimateScreen() {
       const { uri } = await Print.printToFileAsync({ html });
       console.log('[Estimate] PDF generated:', uri);
 
-      // Share the PDF
-      if (Platform.OS === 'web') {
-        // On web, download the PDF
-        const blob = await fetch(uri).then(r => r.blob());
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${estimateName}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        Alert.alert(
-          'Success',
-          'Estimate saved and PDF downloaded!',
-          [{ text: 'OK', onPress: () => router.push('/crm') }]
-        );
-      } else {
-        // On native, share the PDF
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Share Estimate PDF',
-          UTI: 'com.adobe.pdf',
-        });
-
-        Alert.alert(
-          'Success',
-          'Estimate saved to database!',
-          [{ text: 'OK', onPress: () => router.push('/crm') }]
-        );
+      // Open email composer with PDF attachment
+      const isAvailable = await MailComposer.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('Error', 'Email is not available on this device');
+        return;
       }
+
+      await MailComposer.composeAsync({
+        subject: `Estimate: ${estimateName}`,
+        body: `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`,
+        attachments: [uri],
+      });
+
+      Alert.alert(
+        'Success',
+        'Estimate saved to database!',
+        [{ text: 'OK', onPress: () => router.push('/crm') }]
+      );
     } catch (error: any) {
       console.error('[Estimate] Error sending estimate:', error);
       Alert.alert('Error', `Failed to send estimate: ${error.message || 'Unknown error'}`);
