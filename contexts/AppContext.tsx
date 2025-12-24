@@ -556,12 +556,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setProjects(prev => [...prev, project]);
 
     // Save to backend asynchronously (don't block UI)
-    if (company?.id) {
+    // Only sync if the project has a non-UUID ID (temporary frontend-only projects)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(project.id);
+
+    if (company?.id && !isUUID) {
+      // This is a temporary project that needs to be synced to backend
       // Fire and forget - don't await this
-      import('@/lib/trpc').then(({ vanillaClient }) => {
-        // Add a 5 second timeout to fail faster than Vercel's 10s limit
-        Promise.race([
-          vanillaClient.projects.addProject.mutate({
+      import('@/lib/trpc').then(async ({ trpc }) => {
+        try {
+          console.log('[App] 🔄 Syncing temporary project to backend:', project.name);
+          const result = await trpc.projects.addProject.mutate({
             companyId: company.id,
             name: project.name,
             budget: project.budget,
@@ -572,17 +576,22 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             hoursWorked: project.hoursWorked,
             startDate: project.startDate,
             endDate: project.endDate,
-          }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Backend sync timeout')), 5000)
-          )
-        ]).then(() => {
-          console.log('[App] ✓ Project synced to backend:', project.name);
-        }).catch((error) => {
+          });
+          console.log('[App] ✓ Project synced to backend with UUID:', result.project.id);
+
+          // Update the project ID in state to use the database UUID
+          setProjects(prev => prev.map(p =>
+            p.id === project.id ? { ...p, id: result.project.id } : p
+          ));
+        } catch (error: any) {
           console.warn('[App] ⚠️ Backend sync failed (continuing offline):', error.message);
           // Don't rollback - keep the optimistic update
-        });
+        }
+      }).catch((error) => {
+        console.error('[App] ⚠️ Failed to import tRPC client:', error);
       });
+    } else if (isUUID) {
+      console.log('[App] ✓ Project already has UUID, skipping backend sync:', project.name);
     }
   }, [company]);
 

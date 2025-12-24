@@ -54,43 +54,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('[Create Estimate] Non-UUID project ID detected:', projectId);
       console.log('[Create Estimate] Looking for project in database...');
 
-      // Try to find existing project by name
-      const { data: existingProject } = await supabase
-        .from('projects')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('name', projectName || 'Unnamed Project')
-        .single();
+      try {
+        // Try to find existing project by name with a short timeout
+        const { data: existingProject, error: findError } = await Promise.race([
+          supabase
+            .from('projects')
+            .select('id')
+            .eq('company_id', companyId)
+            .eq('name', projectName || 'Unnamed Project')
+            .maybeSingle(),
+          new Promise<{ data: null; error: any }>((_, reject) =>
+            setTimeout(() => reject(new Error('Project lookup timeout')), 3000)
+          )
+        ]);
 
-      if (existingProject) {
-        console.log('[Create Estimate] Found existing project:', existingProject.id);
-        dbProjectId = existingProject.id;
-      } else {
-        // Create new project in database
-        console.log('[Create Estimate] Creating new project in database...');
-        const { data: newProject, error: projectError } = await supabase
-          .from('projects')
-          .insert({
-            company_id: companyId,
-            name: projectName || 'Unnamed Project',
-            budget: 0,
-            expenses: 0,
-            progress: 0,
-            status: 'active',
-            hours_worked: 0,
-          } as any)
-          .select('id')
-          .single();
-
-        if (projectError || !newProject) {
-          console.error('[Create Estimate] Failed to create project:', projectError);
-          return res.status(500).json({
-            error: `Failed to create project: ${projectError?.message || 'Unknown error'}`,
-          });
+        if (findError && findError.code !== 'PGRST116') {
+          console.warn('[Create Estimate] Project lookup error:', findError.message);
         }
 
-        console.log('[Create Estimate] Created new project:', newProject.id);
-        dbProjectId = newProject.id;
+        if (existingProject) {
+          console.log('[Create Estimate] Found existing project:', existingProject.id);
+          dbProjectId = existingProject.id;
+        } else {
+          // Create new project in database with upsert to handle race conditions
+          console.log('[Create Estimate] Creating new project in database...');
+          const { data: newProject, error: projectError } = await supabase
+            .from('projects')
+            .upsert({
+              company_id: companyId,
+              name: projectName || 'Unnamed Project',
+              budget: 0,
+              expenses: 0,
+              progress: 0,
+              status: 'active',
+              hours_worked: 0,
+            } as any, {
+              onConflict: 'company_id,name',
+              ignoreDuplicates: false
+            })
+            .select('id')
+            .single();
+
+          if (projectError) {
+            console.error('[Create Estimate] Failed to create project:', projectError);
+            return res.status(500).json({
+              error: `Failed to create project: ${projectError?.message || 'Unknown error'}`,
+            });
+          }
+
+          if (!newProject) {
+            return res.status(500).json({
+              error: 'Failed to create project: No data returned',
+            });
+          }
+
+          console.log('[Create Estimate] Created new project:', newProject.id);
+          dbProjectId = newProject.id;
+        }
+      } catch (error: any) {
+        console.error('[Create Estimate] Error handling project:', error.message);
+        return res.status(500).json({
+          error: `Failed to handle project: ${error.message}`,
+        });
       }
     }
 
