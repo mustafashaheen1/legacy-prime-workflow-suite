@@ -702,6 +702,12 @@ export default function EstimateScreen() {
       if (Platform.OS === 'web') {
         console.log('[Estimate] Web platform - opening print dialog...');
 
+        // Prepare mailto link
+        const emailSubject = encodeURIComponent(`Estimate: ${estimateName}`);
+        const emailBody = encodeURIComponent(
+          `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`
+        );
+
         // On web, open the HTML in a new window and trigger print dialog
         if (typeof window !== 'undefined') {
           const printWindow = window.open('', '_blank');
@@ -716,29 +722,31 @@ export default function EstimateScreen() {
             };
 
             console.log('[Estimate] Print dialog opened');
+
+            // Show native browser alert and open email after user acknowledges
+            setTimeout(() => {
+              const userReady = window.confirm(
+                'Estimate saved!\n\n' +
+                '1. Use "Save as PDF" in the print dialog\n' +
+                '2. Click OK to open your email client\n' +
+                '3. Attach the saved PDF to the email'
+              );
+
+              if (userReady) {
+                console.log('[Estimate] Opening email client...');
+                window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
+
+                // Navigate to CRM after a short delay
+                setTimeout(() => {
+                  router.push('/crm');
+                }, 1000);
+              } else {
+                // User clicked Cancel - just navigate to CRM
+                router.push('/crm');
+              }
+            }, 500);
           }
         }
-
-        // Prepare mailto link
-        const emailSubject = encodeURIComponent(`Estimate: ${estimateName}`);
-        const emailBody = encodeURIComponent(
-          `Please find attached the estimate for ${project?.name || 'your project'}.\n\nTotal: $${total.toFixed(2)}\n\nThank you for your business!`
-        );
-
-        Alert.alert(
-          'Success',
-          'Estimate saved! Print dialog opened - use "Save as PDF" then attach to your email. Click OK to open email client.',
-          [{
-            text: 'OK',
-            onPress: () => {
-              // Open mailto link
-              if (typeof window !== 'undefined') {
-                window.location.href = `mailto:?subject=${emailSubject}&body=${emailBody}`;
-              }
-              router.push('/crm');
-            }
-          }]
-        );
       } else {
         // On mobile, generate PDF and open email composer
         console.log('[Estimate] Mobile platform - generating PDF...');
