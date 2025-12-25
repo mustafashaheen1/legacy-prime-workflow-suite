@@ -6,6 +6,7 @@ import { ArrowLeft, Upload, Plus, Trash2, Check, X, Ruler, Square, MapPin, Save,
 import { useState, useCallback } from 'react';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { masterPriceList, PriceListItem, priceListCategories } from '@/mocks/priceList';
 import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate } from '@/types';
@@ -60,6 +61,9 @@ export default function TakeoffScreen() {
   const [showCategorySelection, setShowCategorySelection] = useState<boolean>(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [aiResults, setAiResults] = useState<string>('');
+  const [aiEstimateItems, setAiEstimateItems] = useState<any[]>([]);
+  const [showAIReview, setShowAIReview] = useState<boolean>(false);
+  const [uploadedDocumentType, setUploadedDocumentType] = useState<'pdf' | 'image' | null>(null);
 
   const project = projects.find(p => p.id === id);
 
@@ -90,7 +94,37 @@ export default function TakeoffScreen() {
       };
       setPlans(prev => [...prev, newPlan]);
       setActivePlanIndex(plans.length);
+      setUploadedDocumentType('image');
       setShowModeSelection(true);
+    }
+  };
+
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const isPdf = asset.mimeType === 'application/pdf' || asset.name?.endsWith('.pdf');
+
+        const newPlan: TakeoffPlan = {
+          id: `plan-${Date.now()}`,
+          uri: asset.uri,
+          name: asset.name || `Document ${plans.length + 1}`,
+          measurements: [],
+          scale: 1,
+        };
+        setPlans(prev => [...prev, newPlan]);
+        setActivePlanIndex(plans.length);
+        setUploadedDocumentType(isPdf ? 'pdf' : 'image');
+        setShowModeSelection(true);
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to pick document');
     }
   };
 
@@ -121,8 +155,8 @@ export default function TakeoffScreen() {
   };
 
   const handleAITakeoff = async () => {
-    if (!activePlan || selectedCategories.length === 0) {
-      Alert.alert('Error', 'Please select at least one category for analysis');
+    if (!activePlan) {
+      Alert.alert('Error', 'Please upload a document first');
       return;
     }
 
@@ -130,91 +164,116 @@ export default function TakeoffScreen() {
       setAiProcessing(true);
       setShowCategorySelection(false);
 
-      console.log('[AI Takeoff] Starting analysis for categories:', selectedCategories);
+      console.log('[AI Takeoff] Starting OpenAI analysis...');
+      console.log('[AI Takeoff] Document type:', uploadedDocumentType);
 
       const base64Image = await convertImageToBase64(activePlan.uri);
-      const imageData = `data:image/jpeg;base64,${base64Image}`;
+      const imageData = `data:${uploadedDocumentType === 'pdf' ? 'application/pdf' : 'image/jpeg'};base64,${base64Image}`;
 
-      const categoryText = selectedCategories.length === priceListCategories.length 
-        ? 'ALL categories' 
-        : selectedCategories.join(', ');
-
-      const prompt = `Analyze this construction blueprint and provide a detailed material takeoff for the following categories: ${categoryText}.
-
-For each item you identify:
-1. Specify the exact item name and category
-2. Provide the quantity
-3. Specify the unit (SF for square feet, LF for linear feet, EA for each item, etc.)
-4. Include any relevant notes or specifications
-
-Format your response as a structured list with:
-- Item name
-- Category
-- Quantity
-- Unit
-- Notes (if applicable)
-
-Be specific and thorough. If you identify multiple items in a category, list them separately.`;
-
-      const response = await fetch('https://toolkit.rork.com/agent/chat', {
+      const response = await fetch('/api/analyze-document', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: prompt },
-                { type: 'image', image: imageData },
-              ],
-            },
-          ],
+          imageData,
+          documentType: uploadedDocumentType,
+          priceListCategories: selectedCategories.length > 0 ? selectedCategories : priceListCategories,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('AI analysis failed');
+        const error = await response.json();
+        throw new Error(error.error || 'AI analysis failed');
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
+      const result = await response.json();
+      console.log('[AI Takeoff] Analysis complete:', result.items.length, 'items found');
 
-      let fullText = '';
-      const decoder = new TextDecoder();
+      // Match items with price list and create estimate items
+      const estimateItems = result.items.map((aiItem: any) => {
+        // Try to find matching item in price list
+        const priceListMatch = masterPriceList.find(
+          (plItem) =>
+            plItem.name.toLowerCase().includes(aiItem.name.toLowerCase()) ||
+            aiItem.name.toLowerCase().includes(plItem.name.toLowerCase())
+        );
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        return {
+          ...aiItem,
+          priceListItemId: priceListMatch?.id || 'custom',
+          suggestedPrice: priceListMatch?.price || aiItem.unitPrice || 0,
+          total: (priceListMatch?.price || aiItem.unitPrice || 0) * aiItem.quantity,
+        };
+      });
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+      setAiEstimateItems(estimateItems);
+      setAiResults(result.rawResponse);
+      setShowAIReview(true);
+      setAiProcessing(false);
 
-        for (const line of lines) {
-          if (line.startsWith('0:')) {
-            try {
-              const jsonStr = line.substring(2);
-              const data = JSON.parse(jsonStr);
-              if (data.type === 'text' && data.text) {
-                fullText += data.text;
-                setAiResults(fullText);
-              }
-            } catch (e) {
-              console.error('[AI Takeoff] Parse error:', e);
-            }
-          }
-        }
-      }
-
-      console.log('[AI Takeoff] Analysis complete:', fullText.length, 'characters');
-      Alert.alert('AI Analysis Complete', 'Review the results below and adjust as needed.');
-    } catch (error) {
+      console.log('[AI Takeoff] Estimate items created:', estimateItems.length);
+    } catch (error: any) {
       console.error('[AI Takeoff] Error:', error);
-      Alert.alert('Error', 'Failed to analyze blueprint. Please try again.');
-    } finally {
+      Alert.alert('Error', `Failed to analyze document: ${error.message}`);
       setAiProcessing(false);
     }
+  };
+
+  const createEstimateFromAI = () => {
+    if (aiEstimateItems.length === 0) return;
+
+    // Calculate totals
+    const subtotal = aiEstimateItems.reduce((sum, item) => sum + item.total, 0);
+    const overhead = subtotal * (overheadPercent / 100);
+    const subtotalWithOverhead = subtotal + overhead;
+    const tax = subtotalWithOverhead * (salesTaxPercent / 100);
+    const total = subtotalWithOverhead + tax;
+
+    const newEstimate: Estimate = {
+      id: `estimate-${Date.now()}`,
+      projectId: id as string,
+      name: estimateName || `AI Takeoff - ${new Date().toLocaleDateString()}`,
+      items: aiEstimateItems.map((aiItem) => ({
+        priceListItemId: aiItem.priceListItemId,
+        quantity: aiItem.quantity,
+        unitPrice: aiItem.suggestedPrice,
+        customPrice: aiItem.priceListItemId === 'custom' ? aiItem.suggestedPrice : undefined,
+        total: aiItem.total,
+        budget: aiItem.total,
+        budgetUnitPrice: aiItem.suggestedPrice,
+        notes: aiItem.notes,
+        customName: aiItem.priceListItemId === 'custom' ? aiItem.name : undefined,
+        customUnit: aiItem.priceListItemId === 'custom' ? aiItem.unit : undefined,
+        customCategory: aiItem.priceListItemId === 'custom' ? aiItem.category : undefined,
+      })),
+      subtotal,
+      taxRate: salesTaxPercent,
+      taxAmount: tax,
+      total,
+      createdDate: new Date().toISOString(),
+      status: 'draft',
+    };
+
+    addEstimate(newEstimate);
+
+    Alert.alert(
+      'Success',
+      `AI-generated estimate created with ${aiEstimateItems.length} items!`,
+      [
+        {
+          text: 'View Estimate',
+          onPress: () => router.push(`/project/${id}/estimate`),
+        },
+        {
+          text: 'OK',
+          onPress: () => {
+            setShowAIReview(false);
+            setAiEstimateItems([]);
+          },
+        },
+      ]
+    );
   };
 
   const handleImagePress = (event: any) => {
@@ -481,10 +540,10 @@ Be specific and thorough. If you identify multiple items in a category, list the
         {plans.length === 0 ? (
           <View style={styles.emptyState}>
             <Upload size={64} color="#9CA3AF" />
-            <Text style={styles.emptyText}>Upload construction plans to start takeoff</Text>
-            <TouchableOpacity style={styles.uploadButton} onPress={pickImage}>
+            <Text style={styles.emptyText}>Upload construction plans or estimates (PDF/Image)</Text>
+            <TouchableOpacity style={styles.uploadButton} onPress={pickDocument}>
               <Upload size={20} color="#FFFFFF" />
-              <Text style={styles.uploadButtonText}>Upload Plans from Device or Cloud</Text>
+              <Text style={styles.uploadButtonText}>Upload PDF or Image</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -994,6 +1053,95 @@ Be specific and thorough. If you identify multiple items in a category, list the
             </View>
           </Modal>
         )}
+
+        {/* AI Review Modal */}
+        <Modal
+          visible={showAIReview}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowAIReview(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.aiResultsModal, { maxHeight: SCREEN_HEIGHT * 0.9 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>AI-Generated Estimate ({aiEstimateItems.length} items)</Text>
+                <TouchableOpacity onPress={() => setShowAIReview(false)}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.aiResultsInstructions}>
+                Review the AI-extracted items below. Edit quantities or prices as needed, then create the estimate.
+              </Text>
+
+              <View style={styles.estimateNameInput}>
+                <Text style={styles.inputLabel}>Estimate Name:</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={estimateName}
+                  onChangeText={setEstimateName}
+                  placeholder="AI Takeoff Estimate"
+                />
+              </View>
+
+              <ScrollView style={styles.aiResultsScroll}>
+                <View style={styles.aiItemsTable}>
+                  <View style={styles.aiItemsHeader}>
+                    <Text style={[styles.aiItemsHeaderText, { flex: 3 }]}>Item</Text>
+                    <Text style={[styles.aiItemsHeaderText, { flex: 1 }]}>Qty</Text>
+                    <Text style={[styles.aiItemsHeaderText, { flex: 1 }]}>Unit</Text>
+                    <Text style={[styles.aiItemsHeaderText, { flex: 1 }]}>Price</Text>
+                    <Text style={[styles.aiItemsHeaderText, { flex: 1 }]}>Total</Text>
+                  </View>
+                  {aiEstimateItems.map((item, index) => (
+                    <View key={index} style={styles.aiItemRow}>
+                      <View style={{ flex: 3 }}>
+                        <Text style={styles.aiItemName}>{item.name}</Text>
+                        <Text style={styles.aiItemCategory}>{item.category}</Text>
+                        {item.notes && <Text style={styles.aiItemNotes}>{item.notes}</Text>}
+                      </View>
+                      <Text style={[styles.aiItemText, { flex: 1 }]}>{item.quantity}</Text>
+                      <Text style={[styles.aiItemText, { flex: 1 }]}>{item.unit}</Text>
+                      <Text style={[styles.aiItemText, { flex: 1 }]}>${item.suggestedPrice.toFixed(2)}</Text>
+                      <Text style={[styles.aiItemText, { flex: 1 }]}>${item.total.toFixed(2)}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.aiTotalsSummary}>
+                  <Text style={styles.aiTotalsText}>
+                    Subtotal: ${aiEstimateItems.reduce((sum, item) => sum + item.total, 0).toFixed(2)}
+                  </Text>
+                  <Text style={styles.aiTotalsText}>
+                    Overhead ({overheadPercent}%): ${(aiEstimateItems.reduce((sum, item) => sum + item.total, 0) * overheadPercent / 100).toFixed(2)}
+                  </Text>
+                  <Text style={styles.aiTotalsText}>
+                    Tax ({salesTaxPercent}%): ${(aiEstimateItems.reduce((sum, item) => sum + item.total, 0) * (1 + overheadPercent/100) * salesTaxPercent / 100).toFixed(2)}
+                  </Text>
+                  <Text style={[styles.aiTotalsText, styles.aiGrandTotal]}>
+                    Total: ${(aiEstimateItems.reduce((sum, item) => sum + item.total, 0) * (1 + overheadPercent/100) * (1 + salesTaxPercent/100)).toFixed(2)}
+                  </Text>
+                </View>
+              </ScrollView>
+
+              <View style={styles.aiResultsFooter}>
+                <TouchableOpacity
+                  style={[styles.aiResultsCloseButton, { backgroundColor: '#6B7280', marginRight: 10 }]}
+                  onPress={() => setShowAIReview(false)}
+                >
+                  <Text style={styles.aiResultsCloseButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.aiResultsCloseButton, { flex: 1 }]}
+                  onPress={createEstimateFromAI}
+                >
+                  <Sparkles size={20} color="#FFFFFF" />
+                  <Text style={styles.aiResultsCloseButtonText}>Create Estimate</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </>
   );
@@ -1675,5 +1823,90 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700' as const,
     color: '#FFFFFF',
+  },
+  estimateNameInput: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#374151',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  aiItemsTable: {
+    paddingHorizontal: 20,
+  },
+  aiItemsHeader: {
+    flexDirection: 'row' as const,
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#E5E7EB',
+    marginBottom: 8,
+  },
+  aiItemsHeaderText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: '#6B7280',
+    textTransform: 'uppercase' as const,
+  },
+  aiItemRow: {
+    flexDirection: 'row' as const,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    alignItems: 'center' as const,
+  },
+  aiItemName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#111827',
+    marginBottom: 2,
+  },
+  aiItemCategory: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  aiItemNotes: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontStyle: 'italic' as const,
+  },
+  aiItemText: {
+    fontSize: 13,
+    color: '#374151',
+    textAlign: 'center' as const,
+  },
+  aiTotalsSummary: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    marginHorizontal: 20,
+    marginBottom: 20,
+  },
+  aiTotalsText: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 8,
+  },
+  aiGrandTotal: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#111827',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 2,
+    borderTopColor: '#E5E7EB',
   },
 });
