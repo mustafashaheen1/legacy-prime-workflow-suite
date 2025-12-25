@@ -113,11 +113,13 @@ export default function TakeoffScreen() {
         console.log('[Image Picker] File size:', sizeMB.toFixed(2), 'MB');
 
         if (sizeMB > 3.5) {
-          Alert.alert(
-            'File Too Large',
-            `This image is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease use a lower resolution image or compress it first.`,
-            [{ text: 'OK' }]
-          );
+          const message = `File Too Large\n\nThis image is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease use a lower resolution image or compress it first.`;
+
+          if (Platform.OS === 'web') {
+            window.alert(message);
+          } else {
+            Alert.alert('File Too Large', message, [{ text: 'OK' }]);
+          }
           return;
         }
       }
@@ -153,11 +155,13 @@ export default function TakeoffScreen() {
           console.log('[Document Picker] File size:', sizeMB.toFixed(2), 'MB');
 
           if (sizeMB > 3.5) {
-            Alert.alert(
-              'File Too Large',
-              `This file is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease compress it first:\n\n• For PDFs: ilovepdf.com/compress_pdf\n• For images: Use lower resolution\n• Or take a screenshot of the document`,
-              [{ text: 'OK' }]
-            );
+            const message = `File Too Large\n\nThis file is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease compress it first:\n• For PDFs: ilovepdf.com/compress_pdf\n• For images: Use lower resolution\n• Or take a screenshot of the document`;
+
+            if (Platform.OS === 'web') {
+              window.alert(message);
+            } else {
+              Alert.alert('File Too Large', message, [{ text: 'OK' }]);
+            }
             return;
           }
         }
@@ -189,7 +193,12 @@ export default function TakeoffScreen() {
       const isImage = file.type.startsWith('image/');
 
       if (!isPdf && !isImage) {
-        Alert.alert('Invalid File', 'Please drop a PDF or image file (JPG, PNG, etc.)');
+        const message = 'Invalid File\n\nPlease drop a PDF or image file (JPG, PNG, etc.)';
+        if (Platform.OS === 'web') {
+          window.alert(message);
+        } else {
+          Alert.alert('Invalid File', 'Please drop a PDF or image file (JPG, PNG, etc.)');
+        }
         return;
       }
 
@@ -198,11 +207,13 @@ export default function TakeoffScreen() {
       console.log('[Drag & Drop] File size:', sizeMB.toFixed(2), 'MB');
 
       if (sizeMB > 3.5) {
-        Alert.alert(
-          'File Too Large',
-          `This file is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease compress it first:\n\n• For PDFs: ilovepdf.com/compress_pdf\n• For images: Use lower resolution\n• Or take a screenshot of the document`,
-          [{ text: 'OK' }]
-        );
+        const message = `File Too Large\n\nThis file is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease compress it first:\n• For PDFs: ilovepdf.com/compress_pdf\n• For images: Use lower resolution\n• Or take a screenshot of the document`;
+
+        if (Platform.OS === 'web') {
+          window.alert(message);
+        } else {
+          Alert.alert('File Too Large', message, [{ text: 'OK' }]);
+        }
         return;
       }
 
@@ -315,11 +326,13 @@ export default function TakeoffScreen() {
 
       if (estimatedSizeMB > 3.5) {
         setAiProcessing(false);
-        Alert.alert(
-          'File Too Large',
-          `This ${uploadedDocumentType?.toUpperCase()} is too large (${estimatedSizeMB.toFixed(1)}MB). Please use a file smaller than 3.5MB.\n\nTips:\n• Compress the PDF\n• Use lower resolution images\n• Split multi-page documents`,
-          [{ text: 'OK' }]
-        );
+        const message = `File Too Large\n\nThis ${uploadedDocumentType?.toUpperCase()} is too large (${estimatedSizeMB.toFixed(1)}MB). Please use a file smaller than 3.5MB.\n\nTips:\n• Compress the PDF\n• Use lower resolution images\n• Split multi-page documents`;
+
+        if (Platform.OS === 'web') {
+          window.alert(message);
+        } else {
+          Alert.alert('File Too Large', message, [{ text: 'OK' }]);
+        }
         return;
       }
 
