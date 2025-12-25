@@ -7,10 +7,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { imageData, documentType, priceListCategories } = req.body;
+    const { imageData, imageUrl, documentType, priceListCategories } = req.body;
 
-    if (!imageData) {
-      return res.status(400).json({ error: 'No image data provided' });
+    if (!imageData && !imageUrl) {
+      return res.status(400).json({ error: 'No image data or URL provided' });
     }
 
     const openai = new OpenAI({
@@ -55,7 +55,7 @@ Do not include any markdown, explanations, or text outside the JSON array. Start
             {
               type: 'image_url',
               image_url: {
-                url: imageData,
+                url: imageUrl || imageData, // Use S3 URL if provided, otherwise base64
               },
             },
           ],

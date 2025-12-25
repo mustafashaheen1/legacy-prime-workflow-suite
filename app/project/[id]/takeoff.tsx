@@ -107,23 +107,6 @@ export default function TakeoffScreen() {
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
 
-      // Check file size (3.5MB limit)
-      if (asset.fileSize) {
-        const sizeMB = asset.fileSize / (1024 * 1024);
-        console.log('[Image Picker] File size:', sizeMB.toFixed(2), 'MB');
-
-        if (sizeMB > 3.5) {
-          const message = `File Too Large\n\nThis image is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease use a lower resolution image or compress it first.`;
-
-          if (Platform.OS === 'web') {
-            window.alert(message);
-          } else {
-            Alert.alert('File Too Large', message, [{ text: 'OK' }]);
-          }
-          return;
-        }
-      }
-
       const newPlan: TakeoffPlan = {
         id: `plan-${Date.now()}`,
         uri: asset.uri,
@@ -148,23 +131,6 @@ export default function TakeoffScreen() {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         const isPdf = asset.mimeType === 'application/pdf' || asset.name?.endsWith('.pdf');
-
-        // Check file size (3.5MB limit)
-        if (asset.size) {
-          const sizeMB = asset.size / (1024 * 1024);
-          console.log('[Document Picker] File size:', sizeMB.toFixed(2), 'MB');
-
-          if (sizeMB > 3.5) {
-            const message = `File Too Large\n\nThis file is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease compress it first:\n• For PDFs: ilovepdf.com/compress_pdf\n• For images: Use lower resolution\n• Or take a screenshot of the document`;
-
-            if (Platform.OS === 'web') {
-              window.alert(message);
-            } else {
-              Alert.alert('File Too Large', message, [{ text: 'OK' }]);
-            }
-            return;
-          }
-        }
 
         const newPlan: TakeoffPlan = {
           id: `plan-${Date.now()}`,
@@ -198,21 +164,6 @@ export default function TakeoffScreen() {
           window.alert(message);
         } else {
           Alert.alert('Invalid File', 'Please drop a PDF or image file (JPG, PNG, etc.)');
-        }
-        return;
-      }
-
-      // Check file size BEFORE processing (3.5MB limit)
-      const sizeMB = file.size / (1024 * 1024);
-      console.log('[Drag & Drop] File size:', sizeMB.toFixed(2), 'MB');
-
-      if (sizeMB > 3.5) {
-        const message = `File Too Large\n\nThis file is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease compress it first:\n• For PDFs: ilovepdf.com/compress_pdf\n• For images: Use lower resolution\n• Or take a screenshot of the document`;
-
-        if (Platform.OS === 'web') {
-          window.alert(message);
-        } else {
-          Alert.alert('File Too Large', message, [{ text: 'OK' }]);
         }
         return;
       }
@@ -317,23 +268,100 @@ export default function TakeoffScreen() {
       console.log('[AI Takeoff] Starting OpenAI analysis...');
       console.log('[AI Takeoff] Document type:', uploadedDocumentType);
 
-      const base64Image = await convertImageToBase64(activePlan.uri);
-      const imageData = `data:${uploadedDocumentType === 'pdf' ? 'application/pdf' : 'image/jpeg'};base64,${base64Image}`;
+      let imageUrl = null;
+      let imageData = null;
 
-      // Check file size (base64 is ~33% larger than original)
-      const estimatedSizeMB = (base64Image.length * 0.75) / (1024 * 1024);
-      console.log('[AI Takeoff] Estimated file size:', estimatedSizeMB.toFixed(2), 'MB');
+      // Get file blob for size check and potential S3 upload
+      let fileBlob: Blob | null = null;
+      let fileSizeMB = 0;
 
-      if (estimatedSizeMB > 3.5) {
-        setAiProcessing(false);
-        const message = `File Too Large\n\nThis ${uploadedDocumentType?.toUpperCase()} is too large (${estimatedSizeMB.toFixed(1)}MB). Please use a file smaller than 3.5MB.\n\nTips:\n• Compress the PDF\n• Use lower resolution images\n• Split multi-page documents`;
+      if (Platform.OS === 'web') {
+        // On web, fetch the blob from the data URI
+        const response = await fetch(activePlan.uri);
+        fileBlob = await response.blob();
+        fileSizeMB = fileBlob.size / (1024 * 1024);
+      } else {
+        // On mobile, we need to estimate from base64
+        const base64Image = await convertImageToBase64(activePlan.uri);
+        fileSizeMB = (base64Image.length * 0.75) / (1024 * 1024);
+      }
 
-        if (Platform.OS === 'web') {
-          window.alert(message);
-        } else {
-          Alert.alert('File Too Large', message, [{ text: 'OK' }]);
+      console.log('[AI Takeoff] File size:', fileSizeMB.toFixed(2), 'MB');
+
+      // If file is larger than 3.5MB, upload to S3 directly
+      if (fileSizeMB > 3.5) {
+        console.log('[AI Takeoff] File too large for direct upload, using S3...');
+
+        try {
+          // Step 1: Get pre-signed upload URL
+          const urlResponse = await fetch('/api/get-s3-upload-url', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              fileName: activePlan.name || `document-${Date.now()}.${uploadedDocumentType}`,
+              fileType: uploadedDocumentType === 'pdf' ? 'application/pdf' : 'image/jpeg',
+            }),
+          });
+
+          if (!urlResponse.ok) {
+            const error = await urlResponse.json();
+            throw new Error(error.error || 'Failed to get upload URL');
+          }
+
+          const { uploadUrl, fileUrl } = await urlResponse.json();
+          console.log('[AI Takeoff] Got pre-signed URL, uploading...');
+
+          // Step 2: Upload file directly to S3 using pre-signed URL
+          if (Platform.OS === 'web' && fileBlob) {
+            const uploadResponse = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: fileBlob,
+              headers: {
+                'Content-Type': uploadedDocumentType === 'pdf' ? 'application/pdf' : 'image/jpeg',
+              },
+            });
+
+            if (!uploadResponse.ok) {
+              throw new Error('Failed to upload to S3');
+            }
+          } else {
+            // Mobile: convert to base64 and upload
+            const base64Image = await convertImageToBase64(activePlan.uri);
+            const base64Data = base64Image.replace(/^data:.+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+
+            const uploadResponse = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: buffer,
+              headers: {
+                'Content-Type': uploadedDocumentType === 'pdf' ? 'application/pdf' : 'image/jpeg',
+              },
+            });
+
+            if (!uploadResponse.ok) {
+              throw new Error('Failed to upload to S3');
+            }
+          }
+
+          imageUrl = fileUrl;
+          console.log('[AI Takeoff] File uploaded to S3:', imageUrl);
+        } catch (error: any) {
+          setAiProcessing(false);
+          const message = `Upload Failed\n\nFailed to upload file to cloud storage: ${error.message}\n\nPlease try again or use a smaller file.`;
+
+          if (Platform.OS === 'web') {
+            window.alert(message);
+          } else {
+            Alert.alert('Upload Failed', message, [{ text: 'OK' }]);
+          }
+          return;
         }
-        return;
+      } else {
+        // File is small enough, use base64 directly
+        const base64Image = await convertImageToBase64(activePlan.uri);
+        imageData = `data:${uploadedDocumentType === 'pdf' ? 'application/pdf' : 'image/jpeg'};base64,${base64Image}`;
       }
 
       const response = await fetch('/api/analyze-document', {
@@ -342,7 +370,8 @@ export default function TakeoffScreen() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageData,
+          imageData: imageUrl ? undefined : imageData, // Only send base64 if not using S3
+          imageUrl, // Send S3 URL if file was uploaded
           documentType: uploadedDocumentType,
           priceListCategories: selectedCategories.length > 0 ? selectedCategories : priceListCategories,
         }),
@@ -721,7 +750,7 @@ export default function TakeoffScreen() {
               <Upload size={20} color="#FFFFFF" />
               <Text style={styles.uploadButtonText}>Choose File</Text>
             </TouchableOpacity>
-            <Text style={styles.uploadHint}>Supports: PDF, JPG, PNG (max 3.5MB)</Text>
+            <Text style={styles.uploadHint}>Supports: PDF, JPG, PNG • AI Takeoff limited to 3.5MB</Text>
           </View>
         ) : (
           <>
