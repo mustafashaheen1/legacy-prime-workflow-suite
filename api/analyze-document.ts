@@ -88,8 +88,16 @@ Do not include any markdown, explanations, or text outside the JSON array. Start
       items = JSON.parse(jsonContent);
     } catch (parseError) {
       console.error('[AI Takeoff] Failed to parse JSON:', parseError);
-      console.error('[AI Takeoff] Content:', jsonContent);
-      throw new Error('Failed to parse AI response as JSON');
+      console.error('[AI Takeoff] Raw content length:', content.length);
+      console.error('[AI Takeoff] First 500 chars:', content.substring(0, 500));
+      console.error('[AI Takeoff] Last 500 chars:', content.substring(Math.max(0, content.length - 500)));
+
+      // Return the error with more context
+      return res.status(500).json({
+        error: 'Failed to parse AI response as JSON',
+        rawResponse: content.substring(0, 1000), // First 1000 chars for debugging
+        parseError: (parseError as Error).message,
+      });
     }
 
     if (!Array.isArray(items)) {

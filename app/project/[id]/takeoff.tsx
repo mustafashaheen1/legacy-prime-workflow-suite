@@ -493,6 +493,10 @@ export default function TakeoffScreen() {
 
       if (!response.ok) {
         const error = await response.json();
+        console.error('[AI Takeoff] API Error:', error);
+        if (error.rawResponse) {
+          console.error('[AI Takeoff] OpenAI returned:', error.rawResponse);
+        }
         throw new Error(error.error || 'AI analysis failed');
       }
 
