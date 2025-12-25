@@ -11,8 +11,14 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { masterPriceList, PriceListItem, priceListCategories } from '@/mocks/priceList';
 import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate } from '@/types';
 import Svg, { Circle, Polygon, Path, Line, Text as SvgText } from 'react-native-svg';
+import * as pdfjsLib from 'pdfjs-dist';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Configure PDF.js worker for web
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  (pdfjsLib as any).GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+}
 
 const MEASUREMENT_COLORS = ['#EF4444', '#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
 
@@ -255,6 +261,67 @@ export default function TakeoffScreen() {
     }
   };
 
+  const convertPdfToImage = async (pdfUri: string): Promise<Blob> => {
+    if (Platform.OS !== 'web') {
+      throw new Error('PDF conversion only supported on web');
+    }
+
+    try {
+      console.log('[PDF Conversion] Loading PDF from:', pdfUri);
+
+      // Fetch PDF as array buffer
+      const response = await fetch(pdfUri);
+      const arrayBuffer = await response.arrayBuffer();
+
+      // Load PDF with PDF.js
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+
+      console.log('[PDF Conversion] PDF loaded, pages:', pdf.numPages);
+
+      // Get first page
+      const page = await pdf.getPage(1);
+
+      // Set scale for good quality (2x)
+      const viewport = page.getViewport({ scale: 2.0 });
+
+      console.log('[PDF Conversion] Rendering page:', viewport.width, 'x', viewport.height);
+
+      // Create canvas
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      if (!context) {
+        throw new Error('Could not get canvas context');
+      }
+
+      // Render PDF page to canvas
+      await page.render({
+        canvasContext: context,
+        viewport: viewport,
+      }).promise;
+
+      console.log('[PDF Conversion] Page rendered to canvas');
+
+      // Convert canvas to blob
+      return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            console.log('[PDF Conversion] PNG created, size:', blob.size, 'bytes');
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to create blob from canvas'));
+          }
+        }, 'image/png');
+      });
+    } catch (error) {
+      console.error('[PDF Conversion] Error:', error);
+      throw error;
+    }
+  };
+
   const handleAITakeoff = async () => {
     if (!activePlan) {
       Alert.alert('Error', 'Please upload a document first');
@@ -290,68 +357,38 @@ export default function TakeoffScreen() {
       console.log('[AI Takeoff] Document type:', uploadedDocumentType);
 
       // If it's a PDF, convert to image first (OpenAI Vision doesn't support PDFs)
-      if (uploadedDocumentType === 'pdf') {
-        console.log('[AI Takeoff] Converting PDF to image...');
+      if (uploadedDocumentType === 'pdf' && Platform.OS === 'web') {
+        console.log('[AI Takeoff] Converting PDF to image (client-side)...');
 
         try {
-          // For large PDFs, use S3 URL; for small PDFs, use base64
-          let conversionPayload: any = {
-            fileName: activePlan.name || `document-${Date.now()}.pdf`,
-          };
+          // Convert PDF to PNG using browser
+          const pngBlob = await convertPdfToImage(activePlan.uri);
 
-          if (fileSizeMB > 3.5) {
-            // Use S3 URL if we already uploaded it
-            if (!imageUrl) {
-              // Upload to S3 first if not already done
-              const urlResponse = await fetch('/api/get-s3-upload-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  fileName: activePlan.name || `document-${Date.now()}.pdf`,
-                  fileType: 'application/pdf',
-                }),
-              });
-
-              if (!urlResponse.ok) throw new Error('Failed to get upload URL');
-
-              const { uploadUrl, fileUrl } = await urlResponse.json();
-
-              // Upload to S3
-              if (Platform.OS === 'web' && fileBlob) {
-                const uploadResponse = await fetch(uploadUrl, {
-                  method: 'PUT',
-                  body: fileBlob,
-                  headers: { 'Content-Type': 'application/pdf' },
-                });
-                if (!uploadResponse.ok) throw new Error('Failed to upload to S3');
-              }
-
-              conversionPayload.pdfUrl = fileUrl;
-            } else {
-              conversionPayload.pdfUrl = imageUrl;
-            }
-          } else {
-            // Use base64 for small files
-            const base64Image = await convertImageToBase64(activePlan.uri);
-            conversionPayload.pdfData = `data:application/pdf;base64,${base64Image}`;
-          }
-
-          // Convert PDF to image
-          const conversionResponse = await fetch('/api/convert-pdf-to-image', {
+          // Upload PNG to S3
+          const urlResponse = await fetch('/api/get-s3-upload-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(conversionPayload),
+            body: JSON.stringify({
+              fileName: `${activePlan.name || 'document'}.png`,
+              fileType: 'image/png',
+            }),
           });
 
-          if (!conversionResponse.ok) {
-            const error = await conversionResponse.json();
-            throw new Error(error.error || 'PDF conversion failed');
-          }
+          if (!urlResponse.ok) throw new Error('Failed to get upload URL');
 
-          const conversionResult = await conversionResponse.json();
-          imageUrl = conversionResult.imageUrl;
-          console.log('[AI Takeoff] PDF converted to image:', imageUrl);
-          console.log('[AI Takeoff] Original PDF pages:', conversionResult.originalPages);
+          const { uploadUrl, fileUrl } = await urlResponse.json();
+
+          // Upload PNG to S3
+          const uploadResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            body: pngBlob,
+            headers: { 'Content-Type': 'image/png' },
+          });
+
+          if (!uploadResponse.ok) throw new Error('Failed to upload image to S3');
+
+          imageUrl = fileUrl;
+          console.log('[AI Takeoff] PDF converted and uploaded:', imageUrl);
         } catch (error: any) {
           setAiProcessing(false);
           const message = `PDF Conversion Failed\n\n${error.message}\n\nPlease try uploading the PDF as an image (screenshot) instead.`;
