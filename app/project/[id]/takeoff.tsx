@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { ArrowLeft, Upload, Plus, Trash2, Check, X, Ruler, Square, MapPin, Save, Sparkles, Tag, ZoomIn, ZoomOut, Download, Settings, Grid3x3, Edit3 } from 'lucide-react-native';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -68,6 +68,25 @@ export default function TakeoffScreen() {
 
   const project = projects.find(p => p.id === id);
 
+  // Prevent browser from opening dropped files
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    const preventDefaults = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    // Prevent drag and drop on the whole window
+    window.addEventListener('dragover', preventDefaults);
+    window.addEventListener('drop', preventDefaults);
+
+    return () => {
+      window.removeEventListener('dragover', preventDefaults);
+      window.removeEventListener('drop', preventDefaults);
+    };
+  }, []);
+
   if (!project) {
     return (
       <View style={styles.container}>
@@ -129,7 +148,7 @@ export default function TakeoffScreen() {
     }
   };
 
-  const handleFileDrop = async (file: File) => {
+  const handleFileDrop = useCallback(async (file: File) => {
     try {
       console.log('[Drag & Drop] File dropped:', file.name, file.type, file.size);
 
@@ -142,12 +161,14 @@ export default function TakeoffScreen() {
         return;
       }
 
-      // Check file size (3.5MB limit)
+      // Check file size BEFORE processing (3.5MB limit)
       const sizeMB = file.size / (1024 * 1024);
+      console.log('[Drag & Drop] File size:', sizeMB.toFixed(2), 'MB');
+
       if (sizeMB > 3.5) {
         Alert.alert(
           'File Too Large',
-          `This file is ${sizeMB.toFixed(1)}MB. Please use a file smaller than 3.5MB.\n\nTips:\n• Compress the PDF\n• Use lower resolution images`,
+          `This file is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease compress it first:\n\n• For PDFs: ilovepdf.com/compress_pdf\n• For images: Use lower resolution\n• Or take a screenshot of the document`,
           [{ text: 'OK' }]
         );
         return;
@@ -174,23 +195,35 @@ export default function TakeoffScreen() {
       console.error('Error handling dropped file:', error);
       Alert.alert('Error', 'Failed to process dropped file');
     }
-  };
+  }, [plans.length]);
 
-  const handleDragOver = (e: any) => {
+  const handleDragOver = useCallback((e: any) => {
     if (Platform.OS !== 'web') return;
     e.preventDefault();
     e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
     setIsDragging(true);
-  };
+  }, []);
 
-  const handleDragLeave = (e: any) => {
+  const handleDragEnter = useCallback((e: any) => {
     if (Platform.OS !== 'web') return;
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
-  };
+  }, []);
 
-  const handleDrop = (e: any) => {
+  const handleDragLeave = useCallback((e: any) => {
+    if (Platform.OS !== 'web') return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Only hide if leaving the drop zone completely
+    if (e.currentTarget && e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: any) => {
     if (Platform.OS !== 'web') return;
     e.preventDefault();
     e.stopPropagation();
@@ -200,7 +233,7 @@ export default function TakeoffScreen() {
     if (files && files.length > 0) {
       handleFileDrop(files[0]);
     }
-  };
+  }, [handleFileDrop]);
 
   const convertImageToBase64 = async (uri: string): Promise<string> => {
     try {
@@ -629,6 +662,7 @@ export default function TakeoffScreen() {
           <View
             style={[styles.emptyState, isDragging && styles.emptyStateDragging]}
             onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
