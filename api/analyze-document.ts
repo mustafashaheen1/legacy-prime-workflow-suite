@@ -72,6 +72,18 @@ Do not include any markdown, explanations, or text outside the JSON array. Start
 
     console.log('[AI Takeoff] Raw response:', content.substring(0, 200));
 
+    // Check if OpenAI couldn't read the document
+    if (content.toLowerCase().includes("unable to analyze") ||
+        content.toLowerCase().includes("cannot analyze") ||
+        content.toLowerCase().includes("can't analyze")) {
+      console.error('[AI Takeoff] OpenAI could not read the document');
+      return res.status(400).json({
+        error: 'Document Not Readable',
+        message: 'The AI could not extract text from this document. This usually means the PDF is a scanned image or has poor quality. Try uploading a text-based PDF or a clearer image.',
+        aiResponse: content,
+      });
+    }
+
     // Extract JSON from the response (in case there's markdown or extra text)
     let jsonContent = content.trim();
 

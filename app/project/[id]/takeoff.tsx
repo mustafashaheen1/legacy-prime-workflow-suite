@@ -282,10 +282,23 @@ export default function TakeoffScreen() {
       // Get first page
       const page = await pdf.getPage(1);
 
-      // Set scale for good quality (2x)
-      const viewport = page.getViewport({ scale: 2.0 });
+      // Set scale for good quality
+      // Start with 1.5x scale (good balance between quality and file size)
+      let scale = 1.5;
+      let viewport = page.getViewport({ scale });
 
-      console.log('[PDF Conversion] Rendering page:', viewport.width, 'x', viewport.height);
+      console.log('[PDF Conversion] Initial viewport:', viewport.width, 'x', viewport.height);
+
+      // If resulting image would be too large, scale down
+      const estimatedSize = viewport.width * viewport.height * 4; // RGBA
+      const maxSize = 4096 * 4096 * 4; // 4K max
+      if (estimatedSize > maxSize) {
+        const scaleFactor = Math.sqrt(maxSize / estimatedSize);
+        scale = 1.5 * scaleFactor;
+        viewport = page.getViewport({ scale });
+        console.log('[PDF Conversion] Reduced scale to:', scale.toFixed(2));
+        console.log('[PDF Conversion] New size:', viewport.width, 'x', viewport.height);
+      }
 
       // Create canvas
       const canvas = document.createElement('canvas');
@@ -497,7 +510,13 @@ export default function TakeoffScreen() {
         if (error.rawResponse) {
           console.error('[AI Takeoff] OpenAI returned:', error.rawResponse);
         }
-        throw new Error(error.error || 'AI analysis failed');
+        if (error.aiResponse) {
+          console.error('[AI Takeoff] AI Response:', error.aiResponse);
+        }
+
+        // Show user-friendly error message
+        const errorMessage = error.message || error.error || 'AI analysis failed';
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
