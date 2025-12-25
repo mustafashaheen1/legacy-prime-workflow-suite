@@ -19,31 +19,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[AI Takeoff] Starting OpenAI analysis...');
 
-    const prompt = `You are a construction estimator AI. Analyze this ${documentType || 'construction document'} and extract a detailed material takeoff and cost estimate.
+    const prompt = `You are analyzing an IMAGE of a construction document/blueprint. This is a PNG image, not a PDF.
+
+CRITICAL INSTRUCTIONS:
+- This is an IMAGE file that you can see with your vision capabilities
+- Look at the image carefully and extract ALL visible text, numbers, measurements, and quantities
+- Even if the image quality is not perfect, extract whatever you can read
+- If you can see ANY construction-related information, extract it
 
 ${priceListCategories ? `Focus on these categories: ${priceListCategories.join(', ')}` : 'Include all relevant construction categories.'}
 
-For each item you identify, provide:
+For each item you can identify in the image, provide:
 1. Item name (be specific, e.g., "2x4x8 Lumber" not just "Lumber")
-2. Category (e.g., Framing, Electrical, Plumbing, Drywall, etc.)
-3. Quantity (numerical value)
-4. Unit (SF, LF, EA, CY, etc.)
-5. Estimated unit price in USD (if visible, otherwise provide a reasonable estimate)
-6. Any notes or specifications
+2. Category (e.g., Framing, Electrical, Plumbing, Drywall, Flooring, etc.)
+3. Quantity (numerical value you see)
+4. Unit (SF, LF, EA, CY, SY, etc.)
+5. Estimated unit price in USD (if visible, otherwise use construction industry standard pricing)
+6. Any notes or specifications visible
 
-IMPORTANT: Respond ONLY with a valid JSON array in this exact format:
+RESPONSE FORMAT - CRITICAL:
+Respond ONLY with a valid JSON array. NO explanations, NO markdown, NO other text.
+Even if you can only extract partial information, provide it in this format:
+
 [
   {
-    "name": "Item name",
-    "category": "Category name",
+    "name": "Item name from image",
+    "category": "Category",
     "quantity": 100,
     "unit": "SF",
     "unitPrice": 2.50,
-    "notes": "Any relevant notes"
+    "notes": "Description or specs from image"
   }
 ]
 
-Do not include any markdown, explanations, or text outside the JSON array. Start your response with [ and end with ].`;
+If you cannot read any construction information from the image at all, respond with an empty array: []
+
+Start your response with [ and end with ].`;
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -113,10 +124,21 @@ Do not include any markdown, explanations, or text outside the JSON array. Start
     }
 
     if (!Array.isArray(items)) {
+      console.error('[AI Takeoff] Response is not an array:', typeof items);
       throw new Error('AI response is not an array');
     }
 
     console.log('[AI Takeoff] Successfully parsed', items.length, 'items');
+
+    if (items.length === 0) {
+      console.warn('[AI Takeoff] No items extracted from document');
+      return res.status(400).json({
+        error: 'No Items Found',
+        message: 'The AI could not extract any construction items from this document. The image may be unclear, too low quality, or not contain a standard construction takeoff/estimate format.',
+        success: false,
+        items: [],
+      });
+    }
 
     return res.status(200).json({
       success: true,
