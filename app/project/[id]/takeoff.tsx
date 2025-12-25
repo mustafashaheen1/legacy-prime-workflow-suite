@@ -911,6 +911,65 @@ export default function TakeoffScreen() {
           </View>
         </Modal>
 
+        {/* Mode Selection Modal */}
+        <Modal
+          visible={showModeSelection}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowModeSelection(false)}
+        >
+          <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={styles.modeSelectionModal}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Choose Takeoff Mode</Text>
+                <TouchableOpacity onPress={() => setShowModeSelection(false)}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modeSelectionSubtitle}>
+                How would you like to process this document?
+              </Text>
+
+              <TouchableOpacity
+                style={styles.modeOption}
+                onPress={() => {
+                  setTakeoffMode('ai');
+                  setShowModeSelection(false);
+                  // Auto-select all categories for AI
+                  setSelectedCategories([...priceListCategories]);
+                  // Start AI analysis immediately
+                  setTimeout(() => handleAITakeoff(), 100);
+                }}
+              >
+                <Sparkles size={32} color="#2563EB" />
+                <View style={styles.modeOptionContent}>
+                  <Text style={styles.modeOptionTitle}>AI Takeoff</Text>
+                  <Text style={styles.modeOptionDescription}>
+                    Let AI automatically extract quantities, materials, and pricing from your document
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modeOption}
+                onPress={() => {
+                  setTakeoffMode('manual');
+                  setShowModeSelection(false);
+                }}
+              >
+                <Ruler size={32} color="#6B7280" />
+                <View style={styles.modeOptionContent}>
+                  <Text style={styles.modeOptionTitle}>Manual Takeoff</Text>
+                  <Text style={styles.modeOptionDescription}>
+                    Manually measure and mark up the blueprint with takeoff tools
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         <Modal
           visible={showCategorySelection}
           transparent
@@ -1908,5 +1967,43 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 2,
     borderTopColor: '#E5E7EB',
+  },
+  modeSelectionModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+  },
+  modeSelectionSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 24,
+    textAlign: 'center' as const,
+  },
+  modeOption: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  modeOptionContent: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  modeOptionTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#111827',
+    marginBottom: 4,
+  },
+  modeOptionDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
   },
 });
