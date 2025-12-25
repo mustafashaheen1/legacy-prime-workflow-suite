@@ -287,9 +287,86 @@ export default function TakeoffScreen() {
       }
 
       console.log('[AI Takeoff] File size:', fileSizeMB.toFixed(2), 'MB');
+      console.log('[AI Takeoff] Document type:', uploadedDocumentType);
 
-      // If file is larger than 3.5MB, upload to S3 directly
-      if (fileSizeMB > 3.5) {
+      // If it's a PDF, convert to image first (OpenAI Vision doesn't support PDFs)
+      if (uploadedDocumentType === 'pdf') {
+        console.log('[AI Takeoff] Converting PDF to image...');
+
+        try {
+          // For large PDFs, use S3 URL; for small PDFs, use base64
+          let conversionPayload: any = {
+            fileName: activePlan.name || `document-${Date.now()}.pdf`,
+          };
+
+          if (fileSizeMB > 3.5) {
+            // Use S3 URL if we already uploaded it
+            if (!imageUrl) {
+              // Upload to S3 first if not already done
+              const urlResponse = await fetch('/api/get-s3-upload-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  fileName: activePlan.name || `document-${Date.now()}.pdf`,
+                  fileType: 'application/pdf',
+                }),
+              });
+
+              if (!urlResponse.ok) throw new Error('Failed to get upload URL');
+
+              const { uploadUrl, fileUrl } = await urlResponse.json();
+
+              // Upload to S3
+              if (Platform.OS === 'web' && fileBlob) {
+                const uploadResponse = await fetch(uploadUrl, {
+                  method: 'PUT',
+                  body: fileBlob,
+                  headers: { 'Content-Type': 'application/pdf' },
+                });
+                if (!uploadResponse.ok) throw new Error('Failed to upload to S3');
+              }
+
+              conversionPayload.pdfUrl = fileUrl;
+            } else {
+              conversionPayload.pdfUrl = imageUrl;
+            }
+          } else {
+            // Use base64 for small files
+            const base64Image = await convertImageToBase64(activePlan.uri);
+            conversionPayload.pdfData = `data:application/pdf;base64,${base64Image}`;
+          }
+
+          // Convert PDF to image
+          const conversionResponse = await fetch('/api/convert-pdf-to-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(conversionPayload),
+          });
+
+          if (!conversionResponse.ok) {
+            const error = await conversionResponse.json();
+            throw new Error(error.error || 'PDF conversion failed');
+          }
+
+          const conversionResult = await conversionResponse.json();
+          imageUrl = conversionResult.imageUrl;
+          console.log('[AI Takeoff] PDF converted to image:', imageUrl);
+          console.log('[AI Takeoff] Original PDF pages:', conversionResult.originalPages);
+        } catch (error: any) {
+          setAiProcessing(false);
+          const message = `PDF Conversion Failed\n\n${error.message}\n\nPlease try uploading the PDF as an image (screenshot) instead.`;
+
+          if (Platform.OS === 'web') {
+            window.alert(message);
+          } else {
+            Alert.alert('Conversion Failed', message, [{ text: 'OK' }]);
+          }
+          return;
+        }
+      }
+
+      // If file is larger than 3.5MB and not already uploaded (not a PDF that was converted), upload to S3 directly
+      if (fileSizeMB > 3.5 && !imageUrl && uploadedDocumentType !== 'pdf') {
         console.log('[AI Takeoff] File too large for direct upload, using S3...');
 
         try {
@@ -358,8 +435,8 @@ export default function TakeoffScreen() {
           }
           return;
         }
-      } else {
-        // File is small enough, use base64 directly
+      } else if (!imageUrl) {
+        // File is small enough and not already converted, use base64 directly
         const base64Image = await convertImageToBase64(activePlan.uri);
         imageData = `data:${uploadedDocumentType === 'pdf' ? 'application/pdf' : 'image/jpeg'};base64,${base64Image}`;
       }
@@ -733,25 +810,48 @@ export default function TakeoffScreen() {
         </View>
 
         {plans.length === 0 ? (
-          <View
-            style={[styles.emptyState, isDragging && styles.emptyStateDragging]}
-            onDragOver={handleDragOver}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <Upload size={64} color={isDragging ? "#2563EB" : "#9CA3AF"} />
-            <Text style={[styles.emptyText, isDragging && styles.emptyTextDragging]}>
-              {isDragging
-                ? "Drop your file here"
-                : "Drag & drop PDF or image here, or click to upload"}
-            </Text>
-            <TouchableOpacity style={styles.uploadButton} onPress={pickDocument}>
-              <Upload size={20} color="#FFFFFF" />
-              <Text style={styles.uploadButtonText}>Choose File</Text>
-            </TouchableOpacity>
-            <Text style={styles.uploadHint}>Supports: PDF, JPG, PNG • AI Takeoff limited to 3.5MB</Text>
-          </View>
+          Platform.OS === 'web' ? (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '40px',
+                border: `2px dashed ${isDragging ? '#2563EB' : '#D1D5DB'}`,
+                borderRadius: '12px',
+                margin: '20px',
+                backgroundColor: isDragging ? '#EFF6FF' : '#F9FAFB',
+                flexDirection: 'column',
+              }}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <Upload size={64} color={isDragging ? "#2563EB" : "#9CA3AF"} />
+              <Text style={[styles.emptyText, isDragging && styles.emptyTextDragging]}>
+                {isDragging
+                  ? "Drop your file here"
+                  : "Drag & drop PDF or image here, or click to upload"}
+              </Text>
+              <TouchableOpacity style={styles.uploadButton} onPress={pickDocument}>
+                <Upload size={20} color="#FFFFFF" />
+                <Text style={styles.uploadButtonText}>Choose File</Text>
+              </TouchableOpacity>
+              <Text style={styles.uploadHint}>Supports: PDF, JPG, PNG • AI Takeoff limited to 3.5MB</Text>
+            </div>
+          ) : (
+            <View style={styles.emptyState}>
+              <Upload size={64} color="#9CA3AF" />
+              <Text style={styles.emptyText}>Tap to upload a blueprint or document</Text>
+              <TouchableOpacity style={styles.uploadButton} onPress={pickDocument}>
+                <Upload size={20} color="#FFFFFF" />
+                <Text style={styles.uploadButtonText}>Choose File</Text>
+              </TouchableOpacity>
+              <Text style={styles.uploadHint}>Supports: PDF, JPG, PNG</Text>
+            </View>
+          )
         ) : (
           <>
             <View style={styles.planTabs}>
