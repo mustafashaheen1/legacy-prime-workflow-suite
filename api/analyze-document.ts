@@ -7,10 +7,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { imageData, imageUrl, documentType, priceListCategories } = req.body;
+    const { imageData, imageUrl, imageUrls, documentType, priceListCategories } = req.body;
 
-    if (!imageData && !imageUrl) {
+    if (!imageData && !imageUrl && (!imageUrls || imageUrls.length === 0)) {
       return res.status(400).json({ error: 'No image data or URL provided' });
+    }
+
+    // Use multiple images if provided, otherwise single image
+    const urls = imageUrls && imageUrls.length > 0 ? imageUrls : (imageUrl ? [imageUrl] : []);
+    const hasMultiplePages = urls.length > 1;
+
+    if (hasMultiplePages) {
+      console.log(`[AI Takeoff] Analyzing ${urls.length} pages...`);
     }
 
     const openai = new OpenAI({
@@ -56,20 +64,32 @@ If you cannot read any construction information from the image at all, respond w
 
 Start your response with [ and end with ].`;
 
+    // Build content array with prompt and all images
+    const messageContent: any[] = [{ type: 'text', text: prompt }];
+
+    // Add all images to the content array
+    if (urls.length > 0) {
+      urls.forEach((url, index) => {
+        messageContent.push({
+          type: 'image_url',
+          image_url: { url },
+        });
+      });
+    } else if (imageData) {
+      messageContent.push({
+        type: 'image_url',
+        image_url: { url: imageData },
+      });
+    }
+
+    console.log(`[AI Takeoff] Sending ${messageContent.length - 1} image(s) to OpenAI...`);
+
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            {
-              type: 'image_url',
-              image_url: {
-                url: imageUrl || imageData, // Use S3 URL if provided, otherwise base64
-              },
-            },
-          ],
+          content: messageContent,
         },
       ],
       max_tokens: 4096,

@@ -261,7 +261,7 @@ export default function TakeoffScreen() {
     }
   };
 
-  const convertPdfToImage = async (pdfUri: string): Promise<Blob> => {
+  const convertPdfToImages = async (pdfUri: string): Promise<{ blobs: Blob[], pageCount: number }> => {
     if (Platform.OS !== 'web') {
       throw new Error('PDF conversion only supported on web');
     }
@@ -279,56 +279,62 @@ export default function TakeoffScreen() {
 
       console.log('[PDF Conversion] PDF loaded, pages:', pdf.numPages);
 
-      // Get first page
-      const page = await pdf.getPage(1);
+      const blobs: Blob[] = [];
+      const maxPagesToProcess = Math.min(pdf.numPages, 10); // Limit to 10 pages max
 
-      // Set scale for good quality
-      // Start with 1.5x scale (good balance between quality and file size)
-      let scale = 1.5;
-      let viewport = page.getViewport({ scale });
+      // Convert all pages (up to 10)
+      for (let pageNum = 1; pageNum <= maxPagesToProcess; pageNum++) {
+        console.log(`[PDF Conversion] Processing page ${pageNum}/${maxPagesToProcess}...`);
 
-      console.log('[PDF Conversion] Initial viewport:', viewport.width, 'x', viewport.height);
+        const page = await pdf.getPage(pageNum);
 
-      // If resulting image would be too large, scale down
-      const estimatedSize = viewport.width * viewport.height * 4; // RGBA
-      const maxSize = 4096 * 4096 * 4; // 4K max
-      if (estimatedSize > maxSize) {
-        const scaleFactor = Math.sqrt(maxSize / estimatedSize);
-        scale = 1.5 * scaleFactor;
-        viewport = page.getViewport({ scale });
-        console.log('[PDF Conversion] Reduced scale to:', scale.toFixed(2));
-        console.log('[PDF Conversion] New size:', viewport.width, 'x', viewport.height);
+        // Set scale for good quality
+        let scale = 1.5;
+        let viewport = page.getViewport({ scale });
+
+        // If resulting image would be too large, scale down
+        const estimatedSize = viewport.width * viewport.height * 4; // RGBA
+        const maxSize = 4096 * 4096 * 4; // 4K max
+        if (estimatedSize > maxSize) {
+          const scaleFactor = Math.sqrt(maxSize / estimatedSize);
+          scale = 1.5 * scaleFactor;
+          viewport = page.getViewport({ scale });
+        }
+
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        if (!context) {
+          throw new Error('Could not get canvas context');
+        }
+
+        // Render PDF page to canvas
+        await page.render({
+          canvasContext: context,
+          viewport: viewport,
+        }).promise;
+
+        // Convert canvas to blob
+        const blob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error(`Failed to create blob for page ${pageNum}`));
+            }
+          }, 'image/png');
+        });
+
+        blobs.push(blob);
+        console.log(`[PDF Conversion] Page ${pageNum} converted, size: ${blob.size} bytes`);
       }
 
-      // Create canvas
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      console.log(`[PDF Conversion] All ${blobs.length} pages converted successfully`);
 
-      if (!context) {
-        throw new Error('Could not get canvas context');
-      }
-
-      // Render PDF page to canvas
-      await page.render({
-        canvasContext: context,
-        viewport: viewport,
-      }).promise;
-
-      console.log('[PDF Conversion] Page rendered to canvas');
-
-      // Convert canvas to blob
-      return new Promise((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (blob) {
-            console.log('[PDF Conversion] PNG created, size:', blob.size, 'bytes');
-            resolve(blob);
-          } else {
-            reject(new Error('Failed to create blob from canvas'));
-          }
-        }, 'image/png');
-      });
+      return { blobs, pageCount: pdf.numPages };
     } catch (error) {
       console.error('[PDF Conversion] Error:', error);
       throw error;
@@ -369,39 +375,49 @@ export default function TakeoffScreen() {
       console.log('[AI Takeoff] File size:', fileSizeMB.toFixed(2), 'MB');
       console.log('[AI Takeoff] Document type:', uploadedDocumentType);
 
-      // If it's a PDF, convert to image first (OpenAI Vision doesn't support PDFs)
+      // If it's a PDF, convert all pages to images (OpenAI Vision doesn't support PDFs)
+      let imageUrls: string[] = [];
       if (uploadedDocumentType === 'pdf' && Platform.OS === 'web') {
-        console.log('[AI Takeoff] Converting PDF to image (client-side)...');
+        console.log('[AI Takeoff] Converting PDF pages to images (client-side)...');
 
         try {
-          // Convert PDF to PNG using browser
-          const pngBlob = await convertPdfToImage(activePlan.uri);
+          // Convert all PDF pages to PNGs
+          const { blobs, pageCount } = await convertPdfToImages(activePlan.uri);
+          console.log(`[AI Takeoff] Converting ${blobs.length} pages...`);
 
-          // Upload PNG to S3
-          const urlResponse = await fetch('/api/get-s3-upload-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fileName: `${activePlan.name || 'document'}.png`,
-              fileType: 'image/png',
-            }),
-          });
+          // Upload all pages to S3
+          for (let i = 0; i < blobs.length; i++) {
+            const pageNum = i + 1;
+            console.log(`[AI Takeoff] Uploading page ${pageNum}...`);
 
-          if (!urlResponse.ok) throw new Error('Failed to get upload URL');
+            // Get pre-signed URL for this page
+            const urlResponse = await fetch('/api/get-s3-upload-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: `${activePlan.name || 'document'}-page${pageNum}.png`,
+                fileType: 'image/png',
+              }),
+            });
 
-          const { uploadUrl, fileUrl } = await urlResponse.json();
+            if (!urlResponse.ok) throw new Error(`Failed to get upload URL for page ${pageNum}`);
 
-          // Upload PNG to S3
-          const uploadResponse = await fetch(uploadUrl, {
-            method: 'PUT',
-            body: pngBlob,
-            headers: { 'Content-Type': 'image/png' },
-          });
+            const { uploadUrl, fileUrl } = await urlResponse.json();
 
-          if (!uploadResponse.ok) throw new Error('Failed to upload image to S3');
+            // Upload PNG to S3
+            const uploadResponse = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: blobs[i],
+              headers: { 'Content-Type': 'image/png' },
+            });
 
-          imageUrl = fileUrl;
-          console.log('[AI Takeoff] PDF converted and uploaded:', imageUrl);
+            if (!uploadResponse.ok) throw new Error(`Failed to upload page ${pageNum} to S3`);
+
+            imageUrls.push(fileUrl);
+            console.log(`[AI Takeoff] Page ${pageNum} uploaded:`, fileUrl);
+          }
+
+          console.log(`[AI Takeoff] All ${imageUrls.length} pages uploaded successfully`);
         } catch (error: any) {
           setAiProcessing(false);
           const message = `PDF Conversion Failed\n\n${error.message}\n\nPlease try uploading the PDF as an image (screenshot) instead.`;
@@ -497,8 +513,9 @@ export default function TakeoffScreen() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageData: imageUrl ? undefined : imageData, // Only send base64 if not using S3
-          imageUrl, // Send S3 URL if file was uploaded
+          imageData: (imageUrls.length === 0 && !imageUrl) ? imageData : undefined, // Only send base64 if not using S3
+          imageUrl: imageUrls.length > 0 ? imageUrls[0] : imageUrl, // For backwards compatibility
+          imageUrls: imageUrls.length > 0 ? imageUrls : undefined, // Send all page URLs if multi-page PDF
           documentType: uploadedDocumentType,
           priceListCategories: selectedCategories.length > 0 ? selectedCategories : priceListCategories,
         }),
