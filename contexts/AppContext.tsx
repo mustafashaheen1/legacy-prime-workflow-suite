@@ -561,35 +561,53 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     if (company?.id && !isUUID) {
       // This is a temporary project that needs to be synced to backend
-      // Fire and forget - don't await this
-      import('@/lib/trpc').then(async ({ trpc }) => {
+      // Use direct fetch instead of tRPC to avoid client issues
+      (async () => {
         try {
           console.log('[App] 🔄 Syncing temporary project to backend:', project.name);
-          const result = await trpc.projects.addProject.mutate({
-            companyId: company.id,
-            name: project.name,
-            budget: project.budget,
-            expenses: project.expenses,
-            progress: project.progress,
-            status: project.status,
-            image: project.image,
-            hoursWorked: project.hoursWorked,
-            startDate: project.startDate,
-            endDate: project.endDate,
-          });
-          console.log('[App] ✓ Project synced to backend with UUID:', result.project.id);
 
-          // Update the project ID in state to use the database UUID
-          setProjects(prev => prev.map(p =>
-            p.id === project.id ? { ...p, id: result.project.id } : p
-          ));
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          const response = await fetch(`${baseUrl}/trpc/projects.addProject`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              json: {
+                companyId: company.id,
+                name: project.name,
+                budget: project.budget,
+                expenses: project.expenses,
+                progress: project.progress,
+                status: project.status,
+                image: project.image,
+                hoursWorked: project.hoursWorked,
+                startDate: project.startDate,
+                endDate: project.endDate,
+              },
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Backend sync failed: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const result = data.result.data.json;
+
+          if (result.success && result.project) {
+            console.log('[App] ✓ Project synced to backend with UUID:', result.project.id);
+
+            // Update the project ID in state to use the database UUID
+            setProjects(prev => prev.map(p =>
+              p.id === project.id ? { ...p, id: result.project.id } : p
+            ));
+          }
         } catch (error: any) {
           console.warn('[App] ⚠️ Backend sync failed (continuing offline):', error.message);
           // Don't rollback - keep the optimistic update
         }
-      }).catch((error) => {
-        console.error('[App] ⚠️ Failed to import tRPC client:', error);
-      });
+      })();
     } else if (isUUID) {
       console.log('[App] ✓ Project already has UUID, skipping backend sync:', project.name);
     }

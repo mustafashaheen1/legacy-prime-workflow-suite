@@ -64,6 +64,7 @@ export default function TakeoffScreen() {
   const [aiEstimateItems, setAiEstimateItems] = useState<any[]>([]);
   const [showAIReview, setShowAIReview] = useState<boolean>(false);
   const [uploadedDocumentType, setUploadedDocumentType] = useState<'pdf' | 'image' | null>(null);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
 
   const project = projects.find(p => p.id === id);
 
@@ -128,6 +129,79 @@ export default function TakeoffScreen() {
     }
   };
 
+  const handleFileDrop = async (file: File) => {
+    try {
+      console.log('[Drag & Drop] File dropped:', file.name, file.type, file.size);
+
+      // Check if it's a PDF or image
+      const isPdf = file.type === 'application/pdf';
+      const isImage = file.type.startsWith('image/');
+
+      if (!isPdf && !isImage) {
+        Alert.alert('Invalid File', 'Please drop a PDF or image file (JPG, PNG, etc.)');
+        return;
+      }
+
+      // Check file size (3.5MB limit)
+      const sizeMB = file.size / (1024 * 1024);
+      if (sizeMB > 3.5) {
+        Alert.alert(
+          'File Too Large',
+          `This file is ${sizeMB.toFixed(1)}MB. Please use a file smaller than 3.5MB.\n\nTips:\n• Compress the PDF\n• Use lower resolution images`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Convert file to data URL
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const uri = e.target?.result as string;
+        const newPlan: TakeoffPlan = {
+          id: `plan-${Date.now()}`,
+          uri,
+          name: file.name || `Document ${plans.length + 1}`,
+          measurements: [],
+          scale: 1,
+        };
+        setPlans(prev => [...prev, newPlan]);
+        setActivePlanIndex(plans.length);
+        setUploadedDocumentType(isPdf ? 'pdf' : 'image');
+        setShowModeSelection(true);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error handling dropped file:', error);
+      Alert.alert('Error', 'Failed to process dropped file');
+    }
+  };
+
+  const handleDragOver = (e: any) => {
+    if (Platform.OS !== 'web') return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: any) => {
+    if (Platform.OS !== 'web') return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: any) => {
+    if (Platform.OS !== 'web') return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      handleFileDrop(files[0]);
+    }
+  };
+
   const convertImageToBase64 = async (uri: string): Promise<string> => {
     try {
       if (Platform.OS === 'web') {
@@ -169,6 +243,20 @@ export default function TakeoffScreen() {
 
       const base64Image = await convertImageToBase64(activePlan.uri);
       const imageData = `data:${uploadedDocumentType === 'pdf' ? 'application/pdf' : 'image/jpeg'};base64,${base64Image}`;
+
+      // Check file size (base64 is ~33% larger than original)
+      const estimatedSizeMB = (base64Image.length * 0.75) / (1024 * 1024);
+      console.log('[AI Takeoff] Estimated file size:', estimatedSizeMB.toFixed(2), 'MB');
+
+      if (estimatedSizeMB > 3.5) {
+        setAiProcessing(false);
+        Alert.alert(
+          'File Too Large',
+          `This ${uploadedDocumentType?.toUpperCase()} is too large (${estimatedSizeMB.toFixed(1)}MB). Please use a file smaller than 3.5MB.\n\nTips:\n• Compress the PDF\n• Use lower resolution images\n• Split multi-page documents`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
 
       const response = await fetch('/api/analyze-document', {
         method: 'POST',
@@ -538,13 +626,23 @@ export default function TakeoffScreen() {
         </View>
 
         {plans.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Upload size={64} color="#9CA3AF" />
-            <Text style={styles.emptyText}>Upload construction plans or estimates (PDF/Image)</Text>
+          <View
+            style={[styles.emptyState, isDragging && styles.emptyStateDragging]}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <Upload size={64} color={isDragging ? "#2563EB" : "#9CA3AF"} />
+            <Text style={[styles.emptyText, isDragging && styles.emptyTextDragging]}>
+              {isDragging
+                ? "Drop your file here"
+                : "Drag & drop PDF or image here, or click to upload"}
+            </Text>
             <TouchableOpacity style={styles.uploadButton} onPress={pickDocument}>
               <Upload size={20} color="#FFFFFF" />
-              <Text style={styles.uploadButtonText}>Upload PDF or Image</Text>
+              <Text style={styles.uploadButtonText}>Choose File</Text>
             </TouchableOpacity>
+            <Text style={styles.uploadHint}>Supports: PDF, JPG, PNG (max 3.5MB)</Text>
           </View>
         ) : (
           <>
@@ -1246,6 +1344,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 40,
+    borderWidth: 2,
+    borderStyle: 'dashed' as const,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    margin: 20,
+    backgroundColor: '#F9FAFB',
+  },
+  emptyStateDragging: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
   },
   emptyText: {
     fontSize: 16,
@@ -1253,6 +1361,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 24,
     textAlign: 'center',
+  },
+  emptyTextDragging: {
+    color: '#2563EB',
+    fontWeight: '600' as const,
   },
   uploadButton: {
     flexDirection: 'row',
@@ -1267,6 +1379,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600' as const,
+  },
+  uploadHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 12,
+    textAlign: 'center' as const,
   },
   planTabs: {
     backgroundColor: '#FFFFFF',
