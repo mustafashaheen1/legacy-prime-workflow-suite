@@ -105,9 +105,26 @@ export default function TakeoffScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+
+      // Check file size (3.5MB limit)
+      if (asset.fileSize) {
+        const sizeMB = asset.fileSize / (1024 * 1024);
+        console.log('[Image Picker] File size:', sizeMB.toFixed(2), 'MB');
+
+        if (sizeMB > 3.5) {
+          Alert.alert(
+            'File Too Large',
+            `This image is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease use a lower resolution image or compress it first.`,
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+
       const newPlan: TakeoffPlan = {
         id: `plan-${Date.now()}`,
-        uri: result.assets[0].uri,
+        uri: asset.uri,
         name: `Plan ${plans.length + 1}`,
         measurements: [],
         scale: 1,
@@ -129,6 +146,21 @@ export default function TakeoffScreen() {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         const isPdf = asset.mimeType === 'application/pdf' || asset.name?.endsWith('.pdf');
+
+        // Check file size (3.5MB limit)
+        if (asset.size) {
+          const sizeMB = asset.size / (1024 * 1024);
+          console.log('[Document Picker] File size:', sizeMB.toFixed(2), 'MB');
+
+          if (sizeMB > 3.5) {
+            Alert.alert(
+              'File Too Large',
+              `This file is ${sizeMB.toFixed(1)}MB, which exceeds the 3.5MB limit.\n\nPlease compress it first:\n\n• For PDFs: ilovepdf.com/compress_pdf\n• For images: Use lower resolution\n• Or take a screenshot of the document`,
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+        }
 
         const newPlan: TakeoffPlan = {
           id: `plan-${Date.now()}`,
