@@ -544,11 +544,17 @@ export default function TakeoffScreen() {
       const estimateItems = await Promise.all(result.items.map(async (aiItem: any) => {
         // Helper function for better fuzzy matching
         const fuzzyMatch = (aiItemName: string, category: string, priceList: any[]) => {
-          const aiLower = aiItemName.toLowerCase();
+          // Strip common prefixes that don't help with matching
+          let cleanedName = aiItemName
+            .replace(/^(proposed|existing|new|old|current|future)\s+/i, '')
+            .trim();
+
+          const aiLower = cleanedName.toLowerCase();
           const keywords = aiLower.split(/[\s,\-_]+/).filter(w => w.length > 2);
 
           let bestMatch: any = null;
           let bestScore = 0;
+          let topMatches: Array<{item: any, score: number}> = [];
 
           for (const plItem of priceList) {
             let score = 0;
@@ -580,22 +586,24 @@ export default function TakeoffScreen() {
                 }
               });
 
-              // Penalize if very few keywords matched (avoid single-word false matches)
+              // Coverage ratio
               const coverageRatio = keywords.length > 0 ? keywordMatches / keywords.length : 0;
-              if (coverageRatio < 0.3 && keywords.length > 1) {
-                // Less than 30% of keywords matched - probably not a good match
-                score = Math.floor(score * 0.5); // Cut score in half
+
+              // Penalize very low coverage (but less aggressively)
+              if (coverageRatio < 0.25 && keywords.length > 2) {
+                // Less than 25% of keywords matched with 3+ keywords
+                score = Math.floor(score * 0.6); // Reduce by 40% instead of 50%
               }
 
-              // Bonus for high coverage
-              if (coverageRatio >= 0.6) {
-                score += 20; // Good coverage bonus
+              // Bonus for good coverage
+              if (coverageRatio >= 0.5) {
+                score += 15; // Good coverage bonus
               }
 
               // Bonus for matching multiple significant words (reverse matching)
               let reverseMatches = 0;
               plKeywords.forEach(plKeyword => {
-                if (aiLower.includes(plKeyword)) {
+                if (aiLower.includes(plKeyword) && plKeyword.length > 3) {
                   reverseMatches++;
                 }
               });
@@ -605,8 +613,23 @@ export default function TakeoffScreen() {
             }
 
             // Category match bonus
-            if (plItem.category && category && plItem.category.toLowerCase() === category.toLowerCase()) {
-              score += 25;
+            if (plItem.category && category) {
+              const plCategory = plItem.category.toLowerCase();
+              const aiCategory = category.toLowerCase();
+
+              // Exact category match
+              if (plCategory === aiCategory) {
+                score += 25;
+              }
+              // Partial category match (one contains the other)
+              else if (plCategory.includes(aiCategory) || aiCategory.includes(plCategory)) {
+                score += 15;
+              }
+            }
+
+            // Track top matches for debugging
+            if (score > 10) {
+              topMatches.push({ item: plItem, score });
             }
 
             if (score > bestScore) {
@@ -615,9 +638,19 @@ export default function TakeoffScreen() {
             }
           }
 
-          // Increased threshold to require more substantial matches
-          // Need at least 35 points: either category(25) + 2 keywords(30) or contains match(80)
-          return bestScore >= 35 ? bestMatch : null;
+          // Sort top matches by score
+          topMatches.sort((a, b) => b.score - a.score);
+
+          // Log top 3 matches for debugging
+          if (topMatches.length > 0) {
+            console.log(`[AI Takeoff] Top matches for "${aiItemName}" (cleaned: "${cleanedName}"):`);
+            topMatches.slice(0, 3).forEach((match, i) => {
+              console.log(`  ${i + 1}. "${match.item.name}" - Score: ${match.score} (${match.item.category || 'No category'})`);
+            });
+          }
+
+          // Threshold: 30 points (balanced between too strict and too lenient)
+          return bestScore >= 30 ? bestMatch : null;
         };
 
         // Try to find matching item using fuzzy matching
