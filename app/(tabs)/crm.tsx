@@ -63,6 +63,11 @@ export default function CRMScreen() {
   const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
   const { initiateCall, isLoadingCall } = useTwilioCalls();
   const sendInspectionLinkMutation = trpc.crm.sendInspectionLink.useMutation();
+  const createInspectionVideoLinkMutation = trpc.crm.createInspectionVideoLink.useMutation();
+  const getInspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery(
+    { companyId: company?.id || '' },
+    { enabled: !!company?.id }
+  );
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [showAddForm, setShowAddForm] = useState<boolean>(true);
   const [newClientName, setNewClientName] = useState<string>('');
@@ -757,31 +762,65 @@ export default function CRMScreen() {
 
   const sendInspectionLink = async (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
-    if (!client) return;
+    if (!client || !company) return;
+
+    if (!client.email) {
+      Alert.alert('Missing Email', 'Please add an email address for this client before sending an inspection link.');
+      return;
+    }
 
     try {
-      console.log('[CRM] Sending inspection link to:', client.name, client.phone);
-      
-      const result = await sendInspectionLinkMutation.mutateAsync({
+      console.log('[CRM] Creating video inspection link for:', client.name);
+
+      // Create video inspection link in database
+      const result = await createInspectionVideoLinkMutation.mutateAsync({
+        clientId: client.id,
+        companyId: company.id,
         clientName: client.name,
-        clientPhone: client.phone,
-        projectId: clientId,
+        clientEmail: client.email,
+        notes: `Video inspection request for ${client.name}`,
       });
 
-      if (result.success) {
+      if (result.success && result.inspectionUrl) {
+        // Prepare email content
+        const emailSubject = encodeURIComponent('Video Inspection Request - Legacy Prime Construction');
+        const emailBody = encodeURIComponent(
+          `Hi ${client.name.split(' ')[0]},\n\n` +
+          `Thank you for your interest in Legacy Prime Construction!\n\n` +
+          `We'd like to gather some information about your project. Please click the link below to record a short video walkthrough:\n\n` +
+          `${result.inspectionUrl}\n\n` +
+          `In the video, please show us:\n` +
+          `• The project area/room(s)\n` +
+          `• Any specific details or concerns\n` +
+          `• Relevant measurements if possible\n\n` +
+          `This will help us provide you with an accurate estimate quickly.\n\n` +
+          `The link expires in 14 days.\n\n` +
+          `Best regards,\n` +
+          `Legacy Prime Construction Team`
+        );
+
+        // Open email client
+        const mailtoUrl = `mailto:${client.email}?subject=${emailSubject}&body=${emailBody}`;
+
+        await Linking.openURL(mailtoUrl);
+
         Alert.alert(
-          'Inspection Link Sent',
-          `We've sent an inspection link to ${client.name} at ${client.phone}.\n\nThe client will be able to record videos, take photos, and provide measurements. All data will be stored in their project folder and AI will generate a preliminary Scope of Work and estimate.`,
+          'Email Client Opened',
+          `Your email client has been opened with a pre-filled message for ${client.name}.\n\nPlease review and send the email with the inspection link.`,
           [{ text: 'OK' }]
         );
 
-        updateClient(clientId, { 
+        // Update client's last contacted date
+        updateClient(clientId, {
           lastContacted: new Date().toLocaleDateString(),
           lastContactDate: new Date().toISOString()
         });
+
+        // Refresh inspection videos list
+        getInspectionVideosQuery.refetch();
       }
     } catch (error: any) {
-      console.error('[CRM] Error sending inspection link:', error);
+      console.error('[CRM] Error creating inspection link:', error);
       
       let errorMessage = 'Failed to send inspection link. Please try again.';
       

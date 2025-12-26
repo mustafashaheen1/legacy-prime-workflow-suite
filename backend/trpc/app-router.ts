@@ -51,6 +51,12 @@ import { sendInspectionLinkProcedure } from "./routes/crm/send-inspection-link/r
 import { submitInspectionDataProcedure } from "./routes/crm/submit-inspection-data/route.js";
 import { addClientProcedure } from "./routes/crm/add-client/route.js";
 import { getClientsProcedure } from "./routes/crm/get-clients/route.js";
+import { createInspectionVideoLinkProcedure } from "./routes/crm/create-inspection-video-link/route.js";
+import { validateInspectionTokenProcedure } from "./routes/crm/validate-inspection-token/route.js";
+import { getVideoUploadUrlProcedure } from "./routes/crm/get-video-upload-url/route.js";
+import { completeVideoUploadProcedure } from "./routes/crm/complete-video-upload/route.js";
+import { getInspectionVideosProcedure } from "./routes/crm/get-inspection-videos/route.js";
+import { getVideoViewUrlProcedure } from "./routes/crm/get-video-view-url/route.js";
 import { createPaymentIntentProcedure } from "./routes/stripe/create-payment-intent/route.js";
 import { createSubscriptionProcedure } from "./routes/stripe/create-subscription/route.js";
 import { verifyPaymentProcedure } from "./routes/stripe/verify-payment/route.js";
@@ -165,6 +171,12 @@ export const appRouter = createTRPCRouter({
     getClients: getClientsProcedure,
     sendInspectionLink: sendInspectionLinkProcedure,
     submitInspectionData: submitInspectionDataProcedure,
+    createInspectionVideoLink: createInspectionVideoLinkProcedure,
+    validateInspectionToken: validateInspectionTokenProcedure,
+    getVideoUploadUrl: getVideoUploadUrlProcedure,
+    completeVideoUpload: completeVideoUploadProcedure,
+    getInspectionVideos: getInspectionVideosProcedure,
+    getVideoViewUrl: getVideoViewUrlProcedure,
   }),
   stripe: createTRPCRouter({
     createPaymentIntent: createPaymentIntentProcedure,
