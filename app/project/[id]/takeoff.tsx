@@ -571,9 +571,14 @@ export default function TakeoffScreen() {
             createdAt: new Date().toISOString(),
           };
 
-          await addCustomPriceListItem(newPriceListItem);
+          try {
+            await addCustomPriceListItem(newPriceListItem);
+            console.log('[AI Takeoff] Added new item to price list:', newPriceListItem.name);
+          } catch (error) {
+            console.warn('[AI Takeoff] Failed to add to price list (continuing):', error);
+          }
+
           priceListMatch = newPriceListItem;
-          console.log('[AI Takeoff] Added new item to price list:', newPriceListItem.name);
         }
 
         return {

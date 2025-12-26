@@ -927,7 +927,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Optimistically update UI
     setCustomPriceListItems(prev => [...prev, item]);
 
-    // Save to backend if company exists
+    // Save to backend if company exists (non-blocking)
     if (company?.id) {
       try {
         const { trpc } = await import('@/lib/trpc');
@@ -952,9 +952,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         }
       } catch (error) {
         console.error('[App] Error saving custom price list item to backend:', error);
-        // Rollback on error
-        setCustomPriceListItems(prev => prev.filter(i => i.id !== item.id));
-        throw error;
+        // Keep the item in state even if backend fails (offline-first)
+        // Save to AsyncStorage as fallback
+        const updated = [...customPriceListItems, item];
+        await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updated));
+        console.log('[App] Saved custom price list item to AsyncStorage (offline):', item.name);
       }
     } else {
       // Fallback to AsyncStorage if no company

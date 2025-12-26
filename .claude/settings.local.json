@@ -59,7 +59,8 @@
       "Bash(npx supabase:*)",
       "Bash(~/.bun/bin/bun add:*)",
       "Bash(npx expo install:*)",
-      "Bash(bunx expo install:*)"
+      "Bash(bunx expo install:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []
