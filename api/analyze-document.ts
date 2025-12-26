@@ -152,11 +152,13 @@ Start your response with [ and end with ].`;
 
     if (items.length === 0) {
       console.warn('[AI Takeoff] No items extracted from document');
+      console.warn('[AI Takeoff] OpenAI returned empty array. Raw response:', content);
       return res.status(400).json({
         error: 'No Items Found',
         message: 'The AI could not extract any construction items from this document. The image may be unclear, too low quality, or not contain a standard construction takeoff/estimate format.',
         success: false,
         items: [],
+        rawResponse: content, // Include raw response for debugging
       });
     }
 
