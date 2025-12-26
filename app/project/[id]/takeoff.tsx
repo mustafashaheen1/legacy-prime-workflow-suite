@@ -638,19 +638,31 @@ export default function TakeoffScreen() {
             }
           }
 
-          // Sort top matches by score
-          topMatches.sort((a, b) => b.score - a.score);
+          // Sort top matches by score, with tie-breakers for same scores
+          topMatches.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+
+            // Tie-breaker 1: Prefer items with higher unit prices (more substantial/specific items)
+            if (a.item.unitPrice !== b.item.unitPrice) {
+              return (b.item.unitPrice || 0) - (a.item.unitPrice || 0);
+            }
+
+            // Tie-breaker 2: Prefer shorter names (more general/common items)
+            return a.item.name.length - b.item.name.length;
+          });
 
           // Log top 3 matches for debugging
           if (topMatches.length > 0) {
             console.log(`[AI Takeoff] Top matches for "${aiItemName}" (cleaned: "${cleanedName}"):`);
             topMatches.slice(0, 3).forEach((match, i) => {
-              console.log(`  ${i + 1}. "${match.item.name}" - Score: ${match.score} (${match.item.category || 'No category'})`);
+              const price = match.item.unitPrice ? `$${match.item.unitPrice}` : 'No price';
+              console.log(`  ${i + 1}. "${match.item.name}" - Score: ${match.score} (${match.item.category || 'No category'}) [${price}]`);
             });
           }
 
-          // Threshold: 30 points (balanced between too strict and too lenient)
-          return bestScore >= 30 ? bestMatch : null;
+          // Threshold: 25 points (allow category-only matches for specialized items)
+          // This helps when keywords don't match but category is correct
+          return bestScore >= 25 ? bestMatch : null;
         };
 
         // Try to find matching item using fuzzy matching
