@@ -623,7 +623,7 @@ export default function TakeoffScreen() {
               }
               // Partial category match (one contains the other)
               else if (plCategory.includes(aiCategory) || aiCategory.includes(plCategory)) {
-                score += 15;
+                score += 22; // Increased from 15 to handle close category matches better
               }
             }
 
@@ -660,9 +660,10 @@ export default function TakeoffScreen() {
             });
           }
 
-          // Threshold: 25 points (allow category-only matches for specialized items)
-          // This helps when keywords don't match but category is correct
-          return bestScore >= 25 ? bestMatch : null;
+          // Threshold: 22 points (allow partial category matches for specialized items)
+          // This handles cases where AI extracts slightly different category names
+          // e.g., "Storm drainage" vs "Storm drainage & footing drainage"
+          return bestScore >= 22 ? bestMatch : null;
         };
 
         // Try to find matching item using fuzzy matching
