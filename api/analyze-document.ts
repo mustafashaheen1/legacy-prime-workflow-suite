@@ -7,10 +7,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { imageData, imageUrl, imageUrls, documentType, priceListCategories } = req.body;
+    const { imageData, imageUrl, imageUrls, documentType, priceListCategories, priceListItems } = req.body;
 
     if (!imageData && !imageUrl && (!imageUrls || imageUrls.length === 0)) {
       return res.status(400).json({ error: 'No image data or URL provided' });
+    }
+
+    if (!priceListItems || !Array.isArray(priceListItems) || priceListItems.length === 0) {
+      return res.status(400).json({ error: 'Price list items are required' });
     }
 
     // Use multiple images if provided, otherwise single image
@@ -25,42 +29,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    console.log('[AI Takeoff] Starting OpenAI analysis...');
+    console.log('[AI Takeoff] Starting OpenAI analysis with', priceListItems.length, 'price list items...');
 
-    const prompt = `You are analyzing an IMAGE of a construction document/blueprint. This is a PNG image, not a PDF.
+    // Format price list for AI with categories grouped
+    const priceListByCategory: Record<string, any[]> = {};
+    priceListItems.forEach((item: any) => {
+      const category = item.category || 'Other';
+      if (!priceListByCategory[category]) {
+        priceListByCategory[category] = [];
+      }
+      priceListByCategory[category].push({
+        id: item.id,
+        name: item.name,
+        unit: item.unit,
+        unitPrice: item.unitPrice,
+        description: item.description || '',
+      });
+    });
+
+    // Create a concise price list string for the AI
+    const priceListText = Object.entries(priceListByCategory)
+      .map(([category, items]) => {
+        const itemsList = items
+          .map((item: any) => `  - ${item.name} (${item.unit}) - $${item.unitPrice} [ID: ${item.id}]`)
+          .join('\n');
+        return `${category}:\n${itemsList}`;
+      })
+      .join('\n\n');
+
+    const prompt = `You are a construction estimator analyzing a construction document/blueprint IMAGE.
+
+YOUR TASK:
+1. Analyze the image to understand what construction work is proposed
+2. Select appropriate items from the PRICE LIST DATABASE below
+3. Estimate quantities based on the document
+4. Return ONLY items that exist in the price list - NO custom items
+
+AVAILABLE PRICE LIST ITEMS:
+${priceListText}
 
 CRITICAL INSTRUCTIONS:
-- This is an IMAGE file that you can see with your vision capabilities
-- Look at the image carefully and extract ALL visible text, numbers, measurements, and quantities
-- Even if the image quality is not perfect, extract whatever you can read
-- If you can see ANY construction-related information, extract it
-
-${priceListCategories ? `Focus on these categories: ${priceListCategories.join(', ')}` : 'Include all relevant construction categories.'}
-
-For each item you can identify in the image, provide:
-1. Item name (be specific, e.g., "2x4x8 Lumber" not just "Lumber")
-2. Category (e.g., Framing, Electrical, Plumbing, Drywall, Flooring, etc.)
-3. Quantity (numerical value you see)
-4. Unit (SF, LF, EA, CY, SY, etc.)
-5. Estimated unit price in USD (if visible, otherwise use construction industry standard pricing)
-6. Any notes or specifications visible
+- Look at the image carefully to understand the scope of work
+- For each type of work you see, select the most appropriate item from the price list above
+- Use the item ID from the price list (shown in brackets [ID: ...])
+- Estimate realistic quantities based on what you see in the document
+- If you see measurements, use them to calculate quantities
+- ONLY use items from the price list above - do NOT invent new items
+- If no suitable item exists in the price list for some work, skip it
 
 RESPONSE FORMAT - CRITICAL:
 Respond ONLY with a valid JSON array. NO explanations, NO markdown, NO other text.
-Even if you can only extract partial information, provide it in this format:
 
 [
   {
-    "name": "Item name from image",
-    "category": "Category",
+    "priceListItemId": "item-id-from-database",
     "quantity": 100,
-    "unit": "SF",
-    "unitPrice": 2.50,
-    "notes": "Description or specs from image"
+    "notes": "Any relevant notes or specifications from the image"
   }
 ]
 
-If you cannot read any construction information from the image at all, respond with an empty array: []
+If you cannot identify any work that matches the price list, respond with an empty array: []
 
 Start your response with [ and end with ].`;
 

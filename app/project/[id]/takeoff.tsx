@@ -518,6 +518,7 @@ export default function TakeoffScreen() {
           imageUrls: imageUrls.length > 0 ? imageUrls : undefined, // Send all page URLs if multi-page PDF
           documentType: uploadedDocumentType,
           priceListCategories: selectedCategories.length > 0 ? selectedCategories : priceListCategories,
+          priceListItems: masterPriceList, // Send full price list for AI to select from
         }),
       });
 
@@ -539,184 +540,32 @@ export default function TakeoffScreen() {
       const result = await response.json();
       console.log('[AI Takeoff] Analysis complete:', result.items.length, 'items found');
 
-      // Match items with price list and create estimate items
-      // Also add new items to custom price list
-      const estimateItems = await Promise.all(result.items.map(async (aiItem: any) => {
-        // Helper function for better fuzzy matching
-        const fuzzyMatch = (aiItemName: string, category: string, priceList: any[]) => {
-          // Strip common prefixes that don't help with matching
-          let cleanedName = aiItemName
-            .replace(/^(proposed|existing|new|old|current|future)\s+/i, '')
-            .trim();
+      // AI now returns items with priceListItemId instead of names
+      // Look up the full item details from the price list
+      const estimateItems = result.items.map((aiItem: any) => {
+        const priceListItem = masterPriceList.find(item => item.id === aiItem.priceListItemId);
 
-          const aiLower = cleanedName.toLowerCase();
-          const keywords = aiLower.split(/[\s,\-_]+/).filter(w => w.length > 2);
-
-          let bestMatch: any = null;
-          let bestScore = 0;
-          let topMatches: Array<{item: any, score: number}> = [];
-
-          for (const plItem of priceList) {
-            let score = 0;
-            const plLower = plItem.name.toLowerCase();
-            const plDesc = (plItem.description || '').toLowerCase();
-            const plKeywords = plLower.split(/[\s,\-_]+/).filter(w => w.length > 2);
-
-            // Exact match gets highest score
-            if (aiLower === plLower) {
-              score = 100;
-            }
-            // Contains match gets good score
-            else if (plLower.includes(aiLower) || aiLower.includes(plLower)) {
-              score = 80;
-            }
-            // Keyword matching with coverage analysis
-            else {
-              let keywordMatches = 0;
-              let descriptionMatches = 0;
-
-              keywords.forEach(keyword => {
-                if (plLower.includes(keyword)) {
-                  keywordMatches++;
-                  score += 15;
-                }
-                if (plDesc.includes(keyword)) {
-                  descriptionMatches++;
-                  score += 5;
-                }
-              });
-
-              // Coverage ratio
-              const coverageRatio = keywords.length > 0 ? keywordMatches / keywords.length : 0;
-
-              // Penalize very low coverage (but less aggressively)
-              if (coverageRatio < 0.25 && keywords.length > 2) {
-                // Less than 25% of keywords matched with 3+ keywords
-                score = Math.floor(score * 0.6); // Reduce by 40% instead of 50%
-              }
-
-              // Bonus for good coverage
-              if (coverageRatio >= 0.5) {
-                score += 15; // Good coverage bonus
-              }
-
-              // Bonus for matching multiple significant words (reverse matching)
-              let reverseMatches = 0;
-              plKeywords.forEach(plKeyword => {
-                if (aiLower.includes(plKeyword) && plKeyword.length > 3) {
-                  reverseMatches++;
-                }
-              });
-              if (reverseMatches >= 2) {
-                score += 10; // Multiple words from database item found in AI item
-              }
-            }
-
-            // Category match bonus
-            if (plItem.category && category) {
-              const plCategory = plItem.category.toLowerCase();
-              const aiCategory = category.toLowerCase();
-
-              // Exact category match
-              if (plCategory === aiCategory) {
-                score += 25;
-              }
-              // Partial category match (one contains the other)
-              else if (plCategory.includes(aiCategory) || aiCategory.includes(plCategory)) {
-                score += 22; // Increased from 15 to handle close category matches better
-              }
-            }
-
-            // Track top matches for debugging
-            if (score > 10) {
-              topMatches.push({ item: plItem, score });
-            }
-
-            if (score > bestScore) {
-              bestScore = score;
-              bestMatch = plItem;
-            }
-          }
-
-          // Sort top matches by score, with tie-breakers for same scores
-          topMatches.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score;
-
-            // Tie-breaker 1: Prefer items with higher unit prices (more substantial/specific items)
-            if (a.item.unitPrice !== b.item.unitPrice) {
-              return (b.item.unitPrice || 0) - (a.item.unitPrice || 0);
-            }
-
-            // Tie-breaker 2: Prefer shorter names (more general/common items)
-            return a.item.name.length - b.item.name.length;
-          });
-
-          // Log top 3 matches for debugging
-          if (topMatches.length > 0) {
-            console.log(`[AI Takeoff] Top matches for "${aiItemName}" (cleaned: "${cleanedName}"):`);
-            topMatches.slice(0, 3).forEach((match, i) => {
-              const price = match.item.unitPrice ? `$${match.item.unitPrice}` : 'No price';
-              console.log(`  ${i + 1}. "${match.item.name}" - Score: ${match.score} (${match.item.category || 'No category'}) [${price}]`);
-            });
-          }
-
-          // Threshold: 22 points (allow partial category matches for specialized items)
-          // This handles cases where AI extracts slightly different category names
-          // e.g., "Storm drainage" vs "Storm drainage & footing drainage"
-          return bestScore >= 22 ? bestMatch : null;
-        };
-
-        // Try to find matching item using fuzzy matching
-        console.log(`[AI Takeoff] Searching match for: "${aiItem.name}" (Category: ${aiItem.category})`);
-        let priceListMatch = fuzzyMatch(aiItem.name, aiItem.category, masterPriceList);
-
-        if (priceListMatch) {
-          console.log(`[AI Takeoff] ✓ Matched "${aiItem.name}" → DB: "${priceListMatch.name}" ($${priceListMatch.unitPrice})`);
+        if (!priceListItem) {
+          console.error('[AI Takeoff] Item not found in price list:', aiItem.priceListItemId);
+          return null;
         }
 
-        // Also check custom price list items
-        if (!priceListMatch) {
-          priceListMatch = fuzzyMatch(aiItem.name, aiItem.category, customPriceListItems);
-          if (priceListMatch) {
-            console.log(`[AI Takeoff] ✓ Matched "${aiItem.name}" → Custom: "${priceListMatch.name}"`);
-          }
-        }
-
-        // If no match found, create a new custom price list item
-        if (!priceListMatch) {
-          console.log(`[AI Takeoff] ✗ No match for "${aiItem.name}" (${aiItem.category}) - creating custom item`);
-
-          const newPriceListItem = {
-            id: `custom-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            category: aiItem.category || 'General',
-            name: aiItem.name,
-            description: aiItem.notes || '',
-            unit: aiItem.unit || 'EA',
-            unitPrice: aiItem.unitPrice || 0,
-            isCustom: true as const,
-            createdAt: new Date().toISOString(),
-          };
-
-          try {
-            await addCustomPriceListItem(newPriceListItem);
-            console.log('[AI Takeoff] Added new item to price list:', newPriceListItem.name);
-          } catch (error) {
-            console.warn('[AI Takeoff] Failed to add to price list (continuing):', error);
-          }
-
-          priceListMatch = newPriceListItem;
-        }
+        console.log(`[AI Takeoff] ✓ Using "${priceListItem.name}" x ${aiItem.quantity} ${priceListItem.unit} ($${priceListItem.unitPrice})`);
 
         return {
-          ...aiItem,
-          priceListItemId: priceListMatch.id,
-          suggestedPrice: priceListMatch.unitPrice || aiItem.unitPrice || 0,
-          total: (priceListMatch.unitPrice || aiItem.unitPrice || 0) * aiItem.quantity,
+          priceListItemId: priceListItem.id,
+          name: priceListItem.name,
+          category: priceListItem.category,
+          unit: priceListItem.unit,
+          quantity: aiItem.quantity,
+          suggestedPrice: priceListItem.unitPrice,
+          total: priceListItem.unitPrice * aiItem.quantity,
+          notes: aiItem.notes || '',
         };
-      }));
+      }).filter(Boolean); // Remove null entries
 
       setAiEstimateItems(estimateItems);
-      setAiResults(result.rawResponse);
+      setAiResults(result.rawResponse || JSON.stringify(result.items, null, 2));
       setShowAIReview(true);
       setAiProcessing(false);
 
