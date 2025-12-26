@@ -246,6 +246,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setClockEntries([]);
           }
 
+          // Load custom price list items
+          try {
+            const priceListResponse = await fetch(
+              `${baseUrl}/trpc/priceList.getPriceList?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+            );
+            const priceListData = await priceListResponse.json();
+            const priceListResult = priceListData.result.data.json;
+            if (priceListResult.success && priceListResult.items) {
+              // Filter for custom items only (company-specific)
+              const customItems = priceListResult.items.filter((item: any) => item.isCustom);
+              setCustomPriceListItems(customItems);
+              console.log('[App] ✅ Loaded', customItems.length, 'custom price list items');
+            } else {
+              setCustomPriceListItems([]);
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading custom price list items:', error?.message || error);
+            setCustomPriceListItems([]);
+          }
+
           console.log('[App] ✅ Finished reloading data after company change');
         } catch (error: any) {
           console.error('[App] ❌ Fatal error reloading data after company change:', error?.message || error);
@@ -496,6 +516,30 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           } catch (error) {
             console.error('[App] Error loading tasks:', error);
             setTasks([]);
+          }
+
+          // Load custom price list items from database
+          try {
+            const priceListResponse = await fetch(
+              `${baseUrl}/trpc/priceList.getPriceList?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
+            );
+            const priceListData = await priceListResponse.json();
+            const priceListResult = priceListData.result.data.json;
+            if (priceListResult.success && priceListResult.items) {
+              // Filter for custom items only (company-specific)
+              const customItems = priceListResult.items.filter((item: any) => item.isCustom);
+              setCustomPriceListItems(customItems);
+              console.log('[App] Loaded', customItems.length, 'custom price list items from database');
+            } else {
+              setCustomPriceListItems([]);
+            }
+          } catch (error) {
+            console.error('[App] Error loading custom price list items:', error);
+            // Fallback to AsyncStorage data if backend fails
+            const parsedCustomItems = safeJsonParse<CustomPriceListItem[]>(storedCustomItems, 'customPriceListItems', []);
+            if (Array.isArray(parsedCustomItems)) {
+              setCustomPriceListItems(parsedCustomItems);
+            }
           }
 
         } catch (error) {
@@ -880,10 +924,44 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, []);
 
   const addCustomPriceListItem = useCallback(async (item: CustomPriceListItem) => {
-    const updated = [...customPriceListItems, item];
-    setCustomPriceListItems(updated);
-    await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updated));
-  }, [customPriceListItems]);
+    // Optimistically update UI
+    setCustomPriceListItems(prev => [...prev, item]);
+
+    // Save to backend if company exists
+    if (company?.id) {
+      try {
+        const { trpc } = await import('@/lib/trpc');
+        const result = await trpc.priceList.addPriceListItem.mutate({
+          companyId: company.id,
+          category: item.category,
+          name: item.name,
+          description: item.description || '',
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          laborCost: item.laborCost,
+          materialCost: item.materialCost,
+          isCustom: true,
+        });
+
+        if (result.success && result.item) {
+          // Update the item with the database ID
+          setCustomPriceListItems(prev =>
+            prev.map(i => i.id === item.id ? { ...i, id: result.item.id } : i)
+          );
+          console.log('[App] Custom price list item saved to backend:', item.name);
+        }
+      } catch (error) {
+        console.error('[App] Error saving custom price list item to backend:', error);
+        // Rollback on error
+        setCustomPriceListItems(prev => prev.filter(i => i.id !== item.id));
+        throw error;
+      }
+    } else {
+      // Fallback to AsyncStorage if no company
+      const updated = [...customPriceListItems, item];
+      await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updated));
+    }
+  }, [company, customPriceListItems]);
 
   const deleteCustomPriceListItem = useCallback(async (id: string) => {
     const updated = customPriceListItems.filter(item => item.id !== id);

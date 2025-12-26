@@ -639,25 +639,16 @@ export default function TakeoffScreen() {
     setAiEstimateItems([]);
     setAiResults('');
 
-    // Show success message and navigate
+    // Show success message (stay on takeoff page)
     if (Platform.OS === 'web') {
-      const viewEstimate = window.confirm(
-        `✓ AI-generated estimate created with ${aiEstimateItems.length} items!\n\nWould you like to view the estimate now?`
+      window.alert(
+        `✓ Estimate "${newEstimate.name}" created successfully with ${aiEstimateItems.length} items!\n\nYou can view it in the Estimate tab.`
       );
-      if (viewEstimate) {
-        router.push(`/project/${id}/estimate`);
-      }
     } else {
       Alert.alert(
         'Success',
-        `AI-generated estimate created with ${aiEstimateItems.length} items!`,
-        [
-          {
-            text: 'View Estimate',
-            onPress: () => router.push(`/project/${id}/estimate`),
-          },
-          { text: 'OK' },
-        ]
+        `Estimate "${newEstimate.name}" created successfully with ${aiEstimateItems.length} items!\n\nYou can view it in the Estimate tab.`,
+        [{ text: 'OK' }]
       );
     }
   };
