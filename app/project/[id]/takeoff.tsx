@@ -606,23 +606,32 @@ export default function TakeoffScreen() {
 
     addEstimate(newEstimate);
 
-    Alert.alert(
-      'Success',
-      `AI-generated estimate created with ${aiEstimateItems.length} items!`,
-      [
-        {
-          text: 'View Estimate',
-          onPress: () => router.push(`/project/${id}/estimate`),
-        },
-        {
-          text: 'OK',
-          onPress: () => {
-            setShowAIReview(false);
-            setAiEstimateItems([]);
+    // Close the modal and reset state
+    setShowAIReview(false);
+    setAiEstimateItems([]);
+    setAiResults('');
+
+    // Show success message and navigate
+    if (Platform.OS === 'web') {
+      const viewEstimate = window.confirm(
+        `✓ AI-generated estimate created with ${aiEstimateItems.length} items!\n\nWould you like to view the estimate now?`
+      );
+      if (viewEstimate) {
+        router.push(`/project/${id}/estimate`);
+      }
+    } else {
+      Alert.alert(
+        'Success',
+        `AI-generated estimate created with ${aiEstimateItems.length} items!`,
+        [
+          {
+            text: 'View Estimate',
+            onPress: () => router.push(`/project/${id}/estimate`),
           },
-        },
-      ]
-    );
+          { text: 'OK' },
+        ]
+      );
+    }
   };
 
   const handleImagePress = (event: any) => {
@@ -1456,45 +1465,6 @@ export default function TakeoffScreen() {
             </View>
           </View>
         </Modal>
-
-        {aiResults && !aiProcessing && (
-          <Modal
-            visible={true}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setAiResults('')}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.aiResultsModal}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>AI Takeoff Results</Text>
-                  <TouchableOpacity onPress={() => setAiResults('')}>
-                    <X size={24} color="#6B7280" />
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.aiResultsInstructions}>
-                  Review the AI analysis below. You can now use the manual tools to add these items to your takeoff or adjust as needed.
-                </Text>
-
-                <ScrollView style={styles.aiResultsScroll}>
-                  <View style={styles.aiResultsContent}>
-                    <Text style={styles.aiResultsText}>{aiResults}</Text>
-                  </View>
-                </ScrollView>
-
-                <View style={styles.aiResultsFooter}>
-                  <TouchableOpacity
-                    style={styles.aiResultsCloseButton}
-                    onPress={() => setAiResults('')}
-                  >
-                    <Text style={styles.aiResultsCloseButtonText}>Close & Continue Takeoff</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
-        )}
 
         {/* AI Review Modal */}
         <Modal
