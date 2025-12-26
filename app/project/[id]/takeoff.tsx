@@ -554,6 +554,7 @@ export default function TakeoffScreen() {
             let score = 0;
             const plLower = plItem.name.toLowerCase();
             const plDesc = (plItem.description || '').toLowerCase();
+            const plKeywords = plLower.split(/[\s,\-_]+/).filter(w => w.length > 2);
 
             // Exact match gets highest score
             if (aiLower === plLower) {
@@ -563,15 +564,47 @@ export default function TakeoffScreen() {
             else if (plLower.includes(aiLower) || aiLower.includes(plLower)) {
               score = 80;
             }
-            // Keyword matching
+            // Keyword matching with coverage analysis
             else {
+              let keywordMatches = 0;
+              let descriptionMatches = 0;
+
               keywords.forEach(keyword => {
-                if (plLower.includes(keyword)) score += 15;
-                if (plDesc.includes(keyword)) score += 5;
+                if (plLower.includes(keyword)) {
+                  keywordMatches++;
+                  score += 15;
+                }
+                if (plDesc.includes(keyword)) {
+                  descriptionMatches++;
+                  score += 5;
+                }
               });
+
+              // Penalize if very few keywords matched (avoid single-word false matches)
+              const coverageRatio = keywords.length > 0 ? keywordMatches / keywords.length : 0;
+              if (coverageRatio < 0.3 && keywords.length > 1) {
+                // Less than 30% of keywords matched - probably not a good match
+                score = Math.floor(score * 0.5); // Cut score in half
+              }
+
+              // Bonus for high coverage
+              if (coverageRatio >= 0.6) {
+                score += 20; // Good coverage bonus
+              }
+
+              // Bonus for matching multiple significant words (reverse matching)
+              let reverseMatches = 0;
+              plKeywords.forEach(plKeyword => {
+                if (aiLower.includes(plKeyword)) {
+                  reverseMatches++;
+                }
+              });
+              if (reverseMatches >= 2) {
+                score += 10; // Multiple words from database item found in AI item
+              }
             }
 
-            // Category match bonus (increased to help matching)
+            // Category match bonus
             if (plItem.category && category && plItem.category.toLowerCase() === category.toLowerCase()) {
               score += 25;
             }
@@ -582,28 +615,30 @@ export default function TakeoffScreen() {
             }
           }
 
-          // Only return match if score is good enough (threshold: 20 - lowered to allow category+keyword matches)
-          return bestScore >= 20 ? bestMatch : null;
+          // Increased threshold to require more substantial matches
+          // Need at least 35 points: either category(25) + 2 keywords(30) or contains match(80)
+          return bestScore >= 35 ? bestMatch : null;
         };
 
         // Try to find matching item using fuzzy matching
+        console.log(`[AI Takeoff] Searching match for: "${aiItem.name}" (Category: ${aiItem.category})`);
         let priceListMatch = fuzzyMatch(aiItem.name, aiItem.category, masterPriceList);
 
         if (priceListMatch) {
-          console.log(`[AI Takeoff] Matched "${aiItem.name}" → "${priceListMatch.name}" ($${priceListMatch.unitPrice})`);
+          console.log(`[AI Takeoff] ✓ Matched "${aiItem.name}" → DB: "${priceListMatch.name}" ($${priceListMatch.unitPrice})`);
         }
 
         // Also check custom price list items
         if (!priceListMatch) {
           priceListMatch = fuzzyMatch(aiItem.name, aiItem.category, customPriceListItems);
           if (priceListMatch) {
-            console.log(`[AI Takeoff] Matched "${aiItem.name}" → Custom: "${priceListMatch.name}"`);
+            console.log(`[AI Takeoff] ✓ Matched "${aiItem.name}" → Custom: "${priceListMatch.name}"`);
           }
         }
 
         // If no match found, create a new custom price list item
         if (!priceListMatch) {
-          console.log(`[AI Takeoff] No match for "${aiItem.name}" (${aiItem.category}) - creating custom item`);
+          console.log(`[AI Takeoff] ✗ No match for "${aiItem.name}" (${aiItem.category}) - creating custom item`);
 
           const newPriceListItem = {
             id: `custom-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
