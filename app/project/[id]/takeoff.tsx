@@ -542,24 +542,69 @@ export default function TakeoffScreen() {
       // Match items with price list and create estimate items
       // Also add new items to custom price list
       const estimateItems = await Promise.all(result.items.map(async (aiItem: any) => {
-        // Try to find matching item in master price list
-        let priceListMatch = masterPriceList.find(
-          (plItem) =>
-            plItem.name.toLowerCase().includes(aiItem.name.toLowerCase()) ||
-            aiItem.name.toLowerCase().includes(plItem.name.toLowerCase())
-        );
+        // Helper function for better fuzzy matching
+        const fuzzyMatch = (aiItemName: string, category: string, priceList: any[]) => {
+          const aiLower = aiItemName.toLowerCase();
+          const keywords = aiLower.split(/[\s,\-_]+/).filter(w => w.length > 2);
+
+          let bestMatch: any = null;
+          let bestScore = 0;
+
+          for (const plItem of priceList) {
+            let score = 0;
+            const plLower = plItem.name.toLowerCase();
+            const plDesc = (plItem.description || '').toLowerCase();
+
+            // Exact match gets highest score
+            if (aiLower === plLower) {
+              score = 100;
+            }
+            // Contains match gets good score
+            else if (plLower.includes(aiLower) || aiLower.includes(plLower)) {
+              score = 80;
+            }
+            // Keyword matching
+            else {
+              keywords.forEach(keyword => {
+                if (plLower.includes(keyword)) score += 15;
+                if (plDesc.includes(keyword)) score += 5;
+              });
+            }
+
+            // Category match bonus
+            if (plItem.category && category && plItem.category.toLowerCase() === category.toLowerCase()) {
+              score += 20;
+            }
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestMatch = plItem;
+            }
+          }
+
+          // Only return match if score is good enough (threshold: 30)
+          return bestScore >= 30 ? bestMatch : null;
+        };
+
+        // Try to find matching item using fuzzy matching
+        let priceListMatch = fuzzyMatch(aiItem.name, aiItem.category, masterPriceList);
+
+        if (priceListMatch) {
+          console.log(`[AI Takeoff] Matched "${aiItem.name}" → "${priceListMatch.name}" ($${priceListMatch.unitPrice})`);
+        }
 
         // Also check custom price list items
         if (!priceListMatch) {
-          priceListMatch = customPriceListItems.find(
-            (plItem) =>
-              plItem.name.toLowerCase().includes(aiItem.name.toLowerCase()) ||
-              aiItem.name.toLowerCase().includes(plItem.name.toLowerCase())
-          );
+          priceListMatch = fuzzyMatch(aiItem.name, aiItem.category, customPriceListItems);
+          if (priceListMatch) {
+            console.log(`[AI Takeoff] Matched "${aiItem.name}" → Custom: "${priceListMatch.name}"`);
+          }
         }
 
         // If no match found, create a new custom price list item
         if (!priceListMatch) {
+          console.log(`[AI Takeoff] No match for "${aiItem.name}" (${aiItem.category}) - creating custom item`);
+
           const newPriceListItem = {
             id: `custom-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             category: aiItem.category || 'General',
