@@ -571,9 +571,9 @@ export default function TakeoffScreen() {
               });
             }
 
-            // Category match bonus
+            // Category match bonus (increased to help matching)
             if (plItem.category && category && plItem.category.toLowerCase() === category.toLowerCase()) {
-              score += 20;
+              score += 25;
             }
 
             if (score > bestScore) {
@@ -582,8 +582,8 @@ export default function TakeoffScreen() {
             }
           }
 
-          // Only return match if score is good enough (threshold: 30)
-          return bestScore >= 30 ? bestMatch : null;
+          // Only return match if score is good enough (threshold: 20 - lowered to allow category+keyword matches)
+          return bestScore >= 20 ? bestMatch : null;
         };
 
         // Try to find matching item using fuzzy matching
