@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip } from 'lucide-react-native';
+import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip, Search, X } from 'lucide-react-native';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { masterPriceList, PriceListItem, priceListCategories, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { EstimateItem, Estimate, ProjectFile } from '@/types';
@@ -48,6 +48,7 @@ export default function EstimateScreen() {
   const [newSeparatorLabel, setNewSeparatorLabel] = useState<string>('');
   const [showAIGenerateModal, setShowAIGenerateModal] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const project = projects.find(p => p.id === id);
 
@@ -165,7 +166,19 @@ export default function EstimateScreen() {
   const getCategoryItems = (category: string) => {
     const masterItems = masterPriceList.filter(item => item.category === category);
     const customItems = customPriceListItems.filter(item => item.category === category);
-    return [...masterItems, ...customItems];
+    const allItems = [...masterItems, ...customItems];
+
+    // Filter by search query if present
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      return allItems.filter(item =>
+        item.name.toLowerCase().includes(query) ||
+        item.description?.toLowerCase().includes(query) ||
+        item.unit.toLowerCase().includes(query)
+      );
+    }
+
+    return allItems;
   };
 
   const addTemplateItem = () => {
@@ -936,7 +949,7 @@ export default function EstimateScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
@@ -951,6 +964,21 @@ export default function EstimateScreen() {
             placeholder="Estimate name"
             placeholderTextColor="#9CA3AF"
           />
+        </View>
+        <View style={styles.searchContainer}>
+          <Search size={18} color="#6B7280" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search items..."
+            placeholderTextColor="#9CA3AF"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClear}>
+              <X size={16} color="#6B7280" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -2243,6 +2271,30 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#1F2937',
     padding: 0,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginLeft: 12,
+    minWidth: 200,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1F2937',
+    padding: 0,
+    outlineStyle: 'none' as any,
+  },
+  searchClear: {
+    padding: 4,
+    marginLeft: 4,
   },
   categoryBar: {
     backgroundColor: '#FFFFFF',

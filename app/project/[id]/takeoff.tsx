@@ -44,7 +44,7 @@ const ARCHITECTURAL_SCALES = [
 export default function TakeoffScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, addEstimate } = useApp();
+  const { projects, addEstimate, customPriceListItems, addCustomPriceListItem } = useApp();
   const insets = useSafeAreaInsets();
 
   const [plans, setPlans] = useState<TakeoffPlan[]>([]);
@@ -540,21 +540,49 @@ export default function TakeoffScreen() {
       console.log('[AI Takeoff] Analysis complete:', result.items.length, 'items found');
 
       // Match items with price list and create estimate items
-      const estimateItems = result.items.map((aiItem: any) => {
-        // Try to find matching item in price list
-        const priceListMatch = masterPriceList.find(
+      // Also add new items to custom price list
+      const estimateItems = await Promise.all(result.items.map(async (aiItem: any) => {
+        // Try to find matching item in master price list
+        let priceListMatch = masterPriceList.find(
           (plItem) =>
             plItem.name.toLowerCase().includes(aiItem.name.toLowerCase()) ||
             aiItem.name.toLowerCase().includes(plItem.name.toLowerCase())
         );
 
+        // Also check custom price list items
+        if (!priceListMatch) {
+          priceListMatch = customPriceListItems.find(
+            (plItem) =>
+              plItem.name.toLowerCase().includes(aiItem.name.toLowerCase()) ||
+              aiItem.name.toLowerCase().includes(plItem.name.toLowerCase())
+          );
+        }
+
+        // If no match found, create a new custom price list item
+        if (!priceListMatch) {
+          const newPriceListItem = {
+            id: `custom-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            category: aiItem.category || 'General',
+            name: aiItem.name,
+            description: aiItem.notes || '',
+            unit: aiItem.unit || 'EA',
+            unitPrice: aiItem.unitPrice || 0,
+            isCustom: true as const,
+            createdAt: new Date().toISOString(),
+          };
+
+          await addCustomPriceListItem(newPriceListItem);
+          priceListMatch = newPriceListItem;
+          console.log('[AI Takeoff] Added new item to price list:', newPriceListItem.name);
+        }
+
         return {
           ...aiItem,
-          priceListItemId: priceListMatch?.id || 'custom',
-          suggestedPrice: priceListMatch?.price || aiItem.unitPrice || 0,
-          total: (priceListMatch?.price || aiItem.unitPrice || 0) * aiItem.quantity,
+          priceListItemId: priceListMatch.id,
+          suggestedPrice: priceListMatch.unitPrice || aiItem.unitPrice || 0,
+          total: (priceListMatch.unitPrice || aiItem.unitPrice || 0) * aiItem.quantity,
         };
-      });
+      }));
 
       setAiEstimateItems(estimateItems);
       setAiResults(result.rawResponse);
