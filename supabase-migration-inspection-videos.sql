@@ -36,6 +36,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Drop trigger if it exists, then create it
+DROP TRIGGER IF EXISTS update_inspection_videos_updated_at ON inspection_videos;
+
 CREATE TRIGGER update_inspection_videos_updated_at
   BEFORE UPDATE ON inspection_videos
   FOR EACH ROW
@@ -44,26 +47,26 @@ CREATE TRIGGER update_inspection_videos_updated_at
 -- Enable Row Level Security (RLS)
 ALTER TABLE inspection_videos ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
--- Allow public access to validate token (for public inspection page)
+-- RLS Policies (drop if exist, then create)
+DROP POLICY IF EXISTS "Allow public to validate token" ON inspection_videos;
 CREATE POLICY "Allow public to validate token"
   ON inspection_videos
   FOR SELECT
   USING (true);
 
--- Allow public to update video details when completing upload
+DROP POLICY IF EXISTS "Allow public to complete upload" ON inspection_videos;
 CREATE POLICY "Allow public to complete upload"
   ON inspection_videos
   FOR UPDATE
   USING (true);
 
--- Allow companies to view their own inspection videos
+DROP POLICY IF EXISTS "Companies can view own videos" ON inspection_videos;
 CREATE POLICY "Companies can view own videos"
   ON inspection_videos
   FOR SELECT
   USING (company_id = (current_setting('request.jwt.claims', true)::json->>'company_id')::uuid);
 
--- Allow companies to create inspection video links
+DROP POLICY IF EXISTS "Companies can create inspection links" ON inspection_videos;
 CREATE POLICY "Companies can create inspection links"
   ON inspection_videos
   FOR INSERT
