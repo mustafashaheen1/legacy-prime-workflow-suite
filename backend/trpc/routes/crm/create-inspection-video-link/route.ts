@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context.js";
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from "../../../../lib/supabase.js";
 import { randomUUID } from 'crypto';
 
 export const createInspectionVideoLinkProcedure = publicProcedure
@@ -17,14 +17,9 @@ export const createInspectionVideoLinkProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[CRM] Creating inspection video link for:', input.clientName);
 
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabase) {
       throw new Error('Supabase not configured');
     }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     try {
       // Generate unique secure token
