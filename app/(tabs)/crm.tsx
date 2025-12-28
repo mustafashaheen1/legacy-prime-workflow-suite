@@ -1027,6 +1027,67 @@ export default function CRMScreen() {
                       </View>
                     ) : null;
                   })()}
+
+                  {(() => {
+                    const clientVideos = getInspectionVideosQuery.data?.inspections?.filter(
+                      v => v.clientId === client.id
+                    ) || [];
+
+                    return clientVideos.length > 0 ? (
+                      <View style={styles.inspectionVideosContainer}>
+                        <View style={styles.inspectionVideosHeader}>
+                          <Camera size={14} color="#8B5CF6" />
+                          <Text style={styles.inspectionVideosTitle}>
+                            Inspection Videos ({clientVideos.length})
+                          </Text>
+                        </View>
+                        {clientVideos.map((video) => (
+                          <View key={video.id} style={styles.inspectionVideoItem}>
+                            <View style={styles.videoInfo}>
+                              <Text style={styles.videoStatus}>
+                                {video.status === 'completed' ? '✅' : '⏳'} {video.status === 'completed' ? 'Completed' : 'Pending'}
+                              </Text>
+                              <Text style={styles.videoDate}>
+                                {new Date(video.createdAt).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </Text>
+                              {video.status === 'completed' && video.videoDuration && (
+                                <Text style={styles.videoDuration}>
+                                  Duration: {Math.floor(video.videoDuration / 60)}:{(video.videoDuration % 60).toString().padStart(2, '0')}
+                                </Text>
+                              )}
+                            </View>
+                            {video.status === 'completed' && video.videoUrl && (
+                              <TouchableOpacity
+                                style={styles.viewVideoButton}
+                                onPress={async () => {
+                                  try {
+                                    const result = await trpc.crm.getVideoViewUrl.query({ videoKey: video.videoUrl });
+                                    if (result.viewUrl) {
+                                      Linking.openURL(result.viewUrl);
+                                    }
+                                  } catch (error) {
+                                    Alert.alert('Error', 'Failed to load video');
+                                  }
+                                }}
+                              >
+                                <Text style={styles.viewVideoButtonText}>▶ View Video</Text>
+                              </TouchableOpacity>
+                            )}
+                            {video.status === 'pending' && (
+                              <Text style={styles.pendingText}>
+                                Expires: {new Date(video.expiresAt).toLocaleDateString()}
+                              </Text>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    ) : null;
+                  })()}
                 </View>
               </View>
               <View style={styles.clientActions}>
@@ -1072,14 +1133,14 @@ export default function CRMScreen() {
                   <Calculator size={16} color="#FFFFFF" />
                   <Text style={styles.estimateButtonText}>Create Estimate</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.inspectionButton}
                   onPress={() => sendInspectionLink(client.id)}
-                  disabled={sendInspectionLinkMutation.isPending}
+                  disabled={createInspectionVideoLinkMutation.isPending}
                 >
                   <Camera size={16} color="#FFFFFF" />
                   <Text style={styles.inspectionButtonText}>
-                    {sendInspectionLinkMutation.isPending ? 'Sending...' : 'Send Inspection Link'}
+                    {createInspectionVideoLinkMutation.isPending ? 'Creating Link...' : 'Send Inspection Link'}
                   </Text>
                 </TouchableOpacity>
                 {client.status === 'Lead' && (
@@ -3992,6 +4053,70 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B21A8',
     lineHeight: 16,
+  },
+  inspectionVideosContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  inspectionVideosHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  inspectionVideosTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: '#1E40AF',
+  },
+  inspectionVideoItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  videoInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  videoStatus: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  videoDate: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  videoDuration: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic' as const,
+  },
+  viewVideoButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  viewVideoButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
+  pendingText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontStyle: 'italic' as const,
   },
   metricsWidget: {
     backgroundColor: '#FFFFFF',
