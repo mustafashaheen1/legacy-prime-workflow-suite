@@ -31,6 +31,7 @@ export const createInspectionVideoLinkProcedure = publicProcedure
       expiresAt.setDate(expiresAt.getDate() + 14);
 
       // Insert into database
+      // @ts-ignore - Supabase types not properly generated
       const { data, error } = await supabase
         .from('inspection_videos')
         .insert({
@@ -51,6 +52,10 @@ export const createInspectionVideoLinkProcedure = publicProcedure
       if (error) {
         console.error('[CRM] Error creating inspection link:', error);
         throw new Error(`Failed to create inspection link: ${error.message}`);
+      }
+
+      if (!data) {
+        throw new Error('No data returned from insert');
       }
 
       const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';

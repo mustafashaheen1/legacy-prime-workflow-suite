@@ -210,6 +210,7 @@ app.get("/debug/inspection-videos", async (c) => {
     expiresAt.setDate(expiresAt.getDate() + 14);
 
     const insertStart = Date.now();
+    // @ts-ignore - Supabase types not properly generated
     const { data: insertData, error: insertError } = await supabase
       .from('inspection_videos')
       .insert({
