@@ -77,6 +77,25 @@ app.get("/health", (c) => {
   });
 });
 
+app.get("/test-uuid", (c) => {
+  try {
+    const testUuid = crypto.randomUUID();
+    return c.json({
+      status: "ok",
+      uuid: testUuid,
+      crypto_available: true,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    return c.json({
+      status: "error",
+      error: error.message,
+      crypto_available: false,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 app.get("/debug/env", (c) => {
   return c.json({
     status: "ok",
