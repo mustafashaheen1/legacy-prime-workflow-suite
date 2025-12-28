@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context.js";
 import { supabase } from "../../../../lib/supabase.js";
-import { randomUUID } from 'crypto';
 
 export const createInspectionVideoLinkProcedure = publicProcedure
   .input(
@@ -22,21 +21,19 @@ export const createInspectionVideoLinkProcedure = publicProcedure
     }
 
     try {
-      // Generate unique secure token
-      const token = randomUUID();
-      const inspectionId = randomUUID();
+      console.log('[CRM] Step 1: Setting up data...');
 
       // Set expiration to 14 days from now
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 14);
 
-      // Insert into database
+      console.log('[CRM] Step 2: Inserting into database (let Supabase generate UUIDs)...');
+
+      // Insert into database - let Supabase generate the UUIDs
       // @ts-ignore - Supabase types not properly generated
       const { data, error } = await supabase
         .from('inspection_videos')
         .insert({
-          id: inspectionId,
-          token: token,
           client_id: input.clientId,
           company_id: input.companyId,
           project_id: input.projectId || null,
@@ -48,6 +45,8 @@ export const createInspectionVideoLinkProcedure = publicProcedure
         })
         .select()
         .single();
+
+      console.log('[CRM] Step 3: Insert completed, checking for errors...');
 
       if (error) {
         console.error('[CRM] Error creating inspection link:', error);
