@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS inspection_videos (
   company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
   client_name TEXT NOT NULL,
-  client_email TEXT NOT NULL,
+  client_email TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed')),
   video_url TEXT,
   video_duration INTEGER,

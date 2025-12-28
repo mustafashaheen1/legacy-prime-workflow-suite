@@ -764,11 +764,6 @@ export default function CRMScreen() {
     const client = clients.find(c => c.id === clientId);
     if (!client || !company) return;
 
-    if (!client.email) {
-      Alert.alert('Missing Email', 'Please add an email address for this client before sending an inspection link.');
-      return;
-    }
-
     try {
       console.log('[CRM] Creating video inspection link for:', client.name);
 
@@ -777,7 +772,7 @@ export default function CRMScreen() {
         clientId: client.id,
         companyId: company.id,
         clientName: client.name,
-        clientEmail: client.email,
+        clientEmail: client.email || undefined,
         notes: `Video inspection request for ${client.name}`,
       });
 
@@ -799,14 +794,19 @@ export default function CRMScreen() {
           `Legacy Prime Construction Team`
         );
 
-        // Open email client
-        const mailtoUrl = `mailto:${client.email}?subject=${emailSubject}&body=${emailBody}`;
+        // Open email client (with or without recipient pre-filled)
+        const recipientEmail = client.email || '';
+        const mailtoUrl = `mailto:${recipientEmail}?subject=${emailSubject}&body=${emailBody}`;
 
         await Linking.openURL(mailtoUrl);
 
+        const message = client.email
+          ? `Your email client has been opened with a pre-filled message for ${client.name}.\n\nPlease review and send the email with the inspection link.`
+          : `Your email client has been opened with a pre-filled message.\n\nPlease add ${client.name}'s email address and send the inspection link.`;
+
         Alert.alert(
           'Email Client Opened',
-          `Your email client has been opened with a pre-filled message for ${client.name}.\n\nPlease review and send the email with the inspection link.`,
+          message,
           [{ text: 'OK' }]
         );
 

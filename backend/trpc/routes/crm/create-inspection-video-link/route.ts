@@ -10,7 +10,7 @@ export const createInspectionVideoLinkProcedure = publicProcedure
       companyId: z.string().uuid(),
       projectId: z.string().uuid().optional(),
       clientName: z.string(),
-      clientEmail: z.string().email(),
+      clientEmail: z.string().email().optional(),
       notes: z.string().optional(),
     })
   )
@@ -45,7 +45,7 @@ export const createInspectionVideoLinkProcedure = publicProcedure
           company_id: input.companyId,
           project_id: input.projectId || null,
           client_name: input.clientName,
-          client_email: input.clientEmail,
+          client_email: input.clientEmail || '',
           status: 'pending',
           notes: input.notes || null,
           expires_at: expiresAt.toISOString(),
