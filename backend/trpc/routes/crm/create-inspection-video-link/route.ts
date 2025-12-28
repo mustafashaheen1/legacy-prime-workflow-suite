@@ -5,6 +5,7 @@ import { supabase } from "../../../../lib/supabase.js";
 export const createInspectionVideoLinkProcedure = publicProcedure
   .input(
     z.object({
+      token: z.string().uuid(),
       clientId: z.string().uuid(),
       companyId: z.string().uuid(),
       projectId: z.string().uuid().optional(),
@@ -29,11 +30,12 @@ export const createInspectionVideoLinkProcedure = publicProcedure
 
       console.log('[CRM] Step 2: Inserting into database (let Supabase generate UUIDs)...');
 
-      // Insert into database - let Supabase generate the UUIDs
+      // Insert into database with pre-generated token from frontend
       // @ts-ignore - Supabase types not properly generated
       const { data, error } = await supabase
         .from('inspection_videos')
         .insert({
+          token: input.token,
           client_id: input.clientId,
           company_id: input.companyId,
           project_id: input.projectId || null,
@@ -58,9 +60,9 @@ export const createInspectionVideoLinkProcedure = publicProcedure
       }
 
       const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-      const inspectionUrl = `${baseUrl}/inspection/${token}`;
+      const inspectionUrl = `${baseUrl}/inspection/${data.token}`;
 
-      console.log('[CRM] Inspection video link created:', inspectionId);
+      console.log('[CRM] Inspection video link created:', data.id);
 
       return {
         success: true,

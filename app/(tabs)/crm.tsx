@@ -767,58 +767,71 @@ export default function CRMScreen() {
     try {
       console.log('[CRM] Creating video inspection link for:', client.name);
 
-      // Create video inspection link in database
-      const result = await createInspectionVideoLinkMutation.mutateAsync({
+      // Generate token client-side for immediate use
+      const token = crypto.randomUUID();
+      const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+      const inspectionUrl = `${baseUrl}/inspection/${token}`;
+
+      console.log('[CRM] Generated inspection link:', inspectionUrl);
+
+      // Prepare email content
+      const emailSubject = encodeURIComponent('Video Inspection Request - Legacy Prime Construction');
+      const emailBody = encodeURIComponent(
+        `Hi ${client.name.split(' ')[0]},\n\n` +
+        `Thank you for your interest in Legacy Prime Construction!\n\n` +
+        `We'd like to gather some information about your project. Please click the link below to record a short video walkthrough:\n\n` +
+        `${inspectionUrl}\n\n` +
+        `In the video, please show us:\n` +
+        `• The project area/room(s)\n` +
+        `• Any specific details or concerns\n` +
+        `• Relevant measurements if possible\n\n` +
+        `This will help us provide you with an accurate estimate quickly.\n\n` +
+        `The link expires in 14 days.\n\n` +
+        `Best regards,\n` +
+        `Legacy Prime Construction Team`
+      );
+
+      // Open email client immediately (don't wait for database)
+      const recipientEmail = client.email || '';
+      const mailtoUrl = `mailto:${recipientEmail}?subject=${emailSubject}&body=${emailBody}`;
+
+      await Linking.openURL(mailtoUrl);
+
+      const message = client.email
+        ? `Your email client has been opened with a pre-filled message for ${client.name}.\n\nPlease review and send the email with the inspection link.`
+        : `Your email client has been opened with a pre-filled message.\n\nPlease add ${client.name}'s email address and send the inspection link.`;
+
+      Alert.alert(
+        'Email Client Opened',
+        message,
+        [{ text: 'OK' }]
+      );
+
+      // Update client's last contacted date
+      updateClient(clientId, {
+        lastContacted: new Date().toLocaleDateString(),
+        lastContactDate: new Date().toISOString()
+      });
+
+      // Store in database asynchronously (fire-and-forget)
+      console.log('[CRM] Storing inspection link in database...');
+      createInspectionVideoLinkMutation.mutate({
+        token,
         clientId: client.id,
         companyId: company.id,
         clientName: client.name,
         clientEmail: client.email || undefined,
         notes: `Video inspection request for ${client.name}`,
+      }, {
+        onSuccess: () => {
+          console.log('[CRM] Inspection link stored in database successfully');
+          getInspectionVideosQuery.refetch();
+        },
+        onError: (err) => {
+          console.warn('[CRM] Failed to store inspection link in database (non-critical):', err);
+          // Don't show error to user - link already sent
+        }
       });
-
-      if (result.success && result.inspectionUrl) {
-        // Prepare email content
-        const emailSubject = encodeURIComponent('Video Inspection Request - Legacy Prime Construction');
-        const emailBody = encodeURIComponent(
-          `Hi ${client.name.split(' ')[0]},\n\n` +
-          `Thank you for your interest in Legacy Prime Construction!\n\n` +
-          `We'd like to gather some information about your project. Please click the link below to record a short video walkthrough:\n\n` +
-          `${result.inspectionUrl}\n\n` +
-          `In the video, please show us:\n` +
-          `• The project area/room(s)\n` +
-          `• Any specific details or concerns\n` +
-          `• Relevant measurements if possible\n\n` +
-          `This will help us provide you with an accurate estimate quickly.\n\n` +
-          `The link expires in 14 days.\n\n` +
-          `Best regards,\n` +
-          `Legacy Prime Construction Team`
-        );
-
-        // Open email client (with or without recipient pre-filled)
-        const recipientEmail = client.email || '';
-        const mailtoUrl = `mailto:${recipientEmail}?subject=${emailSubject}&body=${emailBody}`;
-
-        await Linking.openURL(mailtoUrl);
-
-        const message = client.email
-          ? `Your email client has been opened with a pre-filled message for ${client.name}.\n\nPlease review and send the email with the inspection link.`
-          : `Your email client has been opened with a pre-filled message.\n\nPlease add ${client.name}'s email address and send the inspection link.`;
-
-        Alert.alert(
-          'Email Client Opened',
-          message,
-          [{ text: 'OK' }]
-        );
-
-        // Update client's last contacted date
-        updateClient(clientId, {
-          lastContacted: new Date().toLocaleDateString(),
-          lastContactDate: new Date().toISOString()
-        });
-
-        // Refresh inspection videos list
-        getInspectionVideosQuery.refetch();
-      }
     } catch (error: any) {
       console.error('[CRM] Error creating inspection link:', error);
       
