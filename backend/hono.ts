@@ -142,6 +142,105 @@ app.get("/debug/supabase", async (c) => {
   }
 });
 
+app.get("/debug/inspection-videos", async (c) => {
+  try {
+    console.log('[Debug] Testing inspection_videos table...');
+
+    if (!supabase) {
+      return c.json({
+        status: "error",
+        error: "Supabase client not initialized",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const startTime = Date.now();
+
+    // Test if table exists by querying it
+    const { data: tableData, error: tableError } = await supabase
+      .from('inspection_videos')
+      .select('id')
+      .limit(1);
+
+    const queryDuration = Date.now() - startTime;
+
+    if (tableError) {
+      return c.json({
+        status: "error",
+        error: tableError.message,
+        duration_ms: queryDuration,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Now try to insert a test record
+    const { data: clients } = await supabase.from('clients').select('id, name').limit(1).single();
+    const { data: companies } = await supabase.from('companies').select('id').limit(1).single();
+
+    if (!clients || !companies) {
+      return c.json({
+        status: "error",
+        error: "No test clients or companies found",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const testToken = crypto.randomUUID();
+    const testId = crypto.randomUUID();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 14);
+
+    const insertStart = Date.now();
+    const { data: insertData, error: insertError } = await supabase
+      .from('inspection_videos')
+      .insert({
+        id: testId,
+        token: testToken,
+        client_id: clients.id,
+        company_id: companies.id,
+        client_name: clients.name,
+        client_email: 'test@example.com',
+        status: 'pending',
+        notes: 'Debug test insertion',
+        expires_at: expiresAt.toISOString(),
+      })
+      .select()
+      .single();
+
+    const insertDuration = Date.now() - insertStart;
+
+    if (insertError) {
+      return c.json({
+        status: "error",
+        message: "Insert failed",
+        error: insertError.message,
+        insert_duration_ms: insertDuration,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Clean up test record
+    await supabase.from('inspection_videos').delete().eq('id', testId);
+
+    return c.json({
+      status: "ok",
+      message: "inspection_videos table working correctly",
+      query_duration_ms: queryDuration,
+      insert_duration_ms: insertDuration,
+      total_duration_ms: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[Debug] inspection_videos test error:', error);
+    return c.json({
+      status: "error",
+      error: error.message || "Unknown error",
+      stack: error.stack?.substring(0, 500),
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 app.post("/twilio/receptionist", async (c) => {
   try {
     const body = await c.req.parseBody();
