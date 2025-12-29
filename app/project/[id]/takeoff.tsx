@@ -716,54 +716,40 @@ export default function TakeoffScreen() {
   const createEstimateFromAI = () => {
     if (aiEstimateItems.length === 0) return;
 
-    // Calculate totals
-    const subtotal = aiEstimateItems.reduce((sum, item) => sum + item.total, 0);
-    const overhead = subtotal * (overheadPercent / 100);
-    const subtotalWithOverhead = subtotal + overhead;
-    const tax = subtotalWithOverhead * (salesTaxPercent / 100);
-    const total = subtotalWithOverhead + tax;
+    // Convert AI estimate items to measurements for the Takeoff Summary
+    const newMeasurements: TakeoffMeasurement[] = aiEstimateItems.map((aiItem, index) => ({
+      id: `ai-meas-${Date.now()}-${index}`,
+      type: 'count', // AI items don't have drawn shapes, treat as count
+      points: [], // No visual points for AI-generated items
+      quantity: aiItem.quantity,
+      priceListItemId: aiItem.priceListItemId,
+      color: MEASUREMENT_COLORS[index % MEASUREMENT_COLORS.length],
+      notes: aiItem.notes || 'AI-generated',
+    }));
 
-    const newEstimate: Estimate = {
-      id: `estimate-${Date.now()}`,
-      projectId: id as string,
-      name: estimateName || `AI Takeoff - ${new Date().toLocaleDateString()}`,
-      items: aiEstimateItems.map((aiItem) => ({
-        priceListItemId: aiItem.priceListItemId,
-        quantity: aiItem.quantity,
-        unitPrice: aiItem.suggestedPrice,
-        customPrice: aiItem.priceListItemId === 'custom' ? aiItem.suggestedPrice : undefined,
-        total: aiItem.total,
-        budget: aiItem.total,
-        budgetUnitPrice: aiItem.suggestedPrice,
-        notes: aiItem.notes,
-        customName: aiItem.priceListItemId === 'custom' ? aiItem.name : undefined,
-        customUnit: aiItem.priceListItemId === 'custom' ? aiItem.unit : undefined,
-        customCategory: aiItem.priceListItemId === 'custom' ? aiItem.category : undefined,
-      })),
-      subtotal,
-      taxRate: salesTaxPercent,
-      taxAmount: tax,
-      total,
-      createdDate: new Date().toISOString(),
-      status: 'draft',
-    };
+    // Add measurements to the active plan
+    if (activePlan) {
+      setPlans(prev => prev.map((plan, idx) =>
+        idx === activePlanIndex
+          ? { ...plan, measurements: [...plan.measurements, ...newMeasurements] }
+          : plan
+      ));
+    }
 
-    addEstimate(newEstimate);
-
-    // Close the modal and reset state
+    // Close the AI review modal
     setShowAIReview(false);
     setAiEstimateItems([]);
     setAiResults('');
 
-    // Show success message (stay on takeoff page)
+    // Show success message
     if (Platform.OS === 'web') {
       window.alert(
-        `✓ Estimate "${newEstimate.name}" created successfully with ${aiEstimateItems.length} items!\n\nYou can view it in the Estimate tab.`
+        `✓ ${newMeasurements.length} items added to Takeoff Summary!\n\nReview the items in the right panel and click "Confirm Totals" when ready to create the estimate.`
       );
     } else {
       Alert.alert(
         'Success',
-        `Estimate "${newEstimate.name}" created successfully with ${aiEstimateItems.length} items!\n\nYou can view it in the Estimate tab.`,
+        `${newMeasurements.length} items added to Takeoff Summary!\n\nReview the items in the right panel and click "Confirm Totals" when ready to create the estimate.`,
         [{ text: 'OK' }]
       );
     }
