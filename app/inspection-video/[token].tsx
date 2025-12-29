@@ -186,16 +186,115 @@ export default function InspectionVideoScreen() {
     );
   }
 
+  // For web platform, use HTML5 video input
   if (Platform.OS === 'web') {
+    const handleWebVideoSelect = async (event: any) => {
+      const file = event.target.files?.[0];
+      if (file && file.type.startsWith('video/')) {
+        const videoUrl = URL.createObjectURL(file);
+        setVideoUri(videoUrl);
+        setStatus('recorded');
+      }
+    };
+
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.container}>
         <Stack.Screen options={{ title: 'Video Inspection', headerShown: true }} />
-        <View style={styles.infoCard}>
-          <VideoIcon size={64} color="#2563EB" />
-          <Text style={styles.infoTitle}>Mobile Device Required</Text>
-          <Text style={styles.infoText}>
-            Please open this link on your mobile device to record a video inspection.
+
+        <View style={styles.header}>
+          <Text style={styles.companyName}>Legacy Prime Construction</Text>
+          <Text style={styles.clientName}>Video Inspection for {inspectionData?.clientName || 'Client'}</Text>
+          <Text style={styles.instructions}>
+            Record a video walkthrough of the project area. Show us the space, details, and any specific concerns.
           </Text>
+        </View>
+
+        <View style={styles.cameraContainer}>
+          {status === 'recorded' && videoUri ? (
+            <Video
+              source={{ uri: videoUri }}
+              style={styles.camera}
+              useNativeControls
+              resizeMode="contain"
+              isLooping
+            />
+          ) : (
+            <View style={[styles.camera, { backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' }]}>
+              <VideoIcon size={64} color="#FFFFFF" />
+              <Text style={{ color: '#FFFFFF', marginTop: 16, fontSize: 16 }}>
+                Tap below to record or upload video
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.controls}>
+          {status === 'idle' && (
+            <>
+              <label htmlFor="video-input" style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '16px',
+                cursor: 'pointer',
+                width: '100%'
+              }}>
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '40px',
+                  backgroundColor: '#FFFFFF',
+                  border: '4px solid #EF4444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <div style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '30px',
+                    backgroundColor: '#EF4444'
+                  }} />
+                </div>
+                <Text style={styles.controlText}>Tap to record or upload video</Text>
+              </label>
+              <input
+                id="video-input"
+                type="file"
+                accept="video/*"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={handleWebVideoSelect}
+              />
+            </>
+          )}
+
+          {status === 'recorded' && (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={styles.retakeButton}
+                onPress={() => {
+                  if (videoUri) URL.revokeObjectURL(videoUri);
+                  setVideoUri(null);
+                  setStatus('idle');
+                }}
+              >
+                <RotateCw size={20} color="#6B7280" />
+                <Text style={styles.retakeButtonText}>Retake</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.submitButton} onPress={uploadVideo}>
+                <Check size={20} color="#FFFFFF" />
+                <Text style={styles.submitButtonText}>Submit Video</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {status === 'uploading' && (
+            <>
+              <Loader size={48} color="#2563EB" />
+              <Text style={styles.controlText}>Uploading video...</Text>
+            </>
+          )}
         </View>
       </View>
     );
