@@ -1679,7 +1679,7 @@ export default function TakeoffScreen() {
 
               <View style={styles.aiResultsFooter}>
                 <TouchableOpacity
-                  style={[styles.aiResultsCloseButton, { backgroundColor: '#6B7280', marginRight: 10 }]}
+                  style={[styles.aiResultsCloseButton, { backgroundColor: '#6B7280' }]}
                   onPress={() => setShowAIReview(false)}
                 >
                   <Text style={styles.aiResultsCloseButtonText}>Cancel</Text>
@@ -1905,7 +1905,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    width: 380,
+    width: 480,
     backgroundColor: '#FFFFFF',
     borderLeftWidth: 1,
     borderLeftColor: '#E5E7EB',
@@ -2381,10 +2381,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   aiResultsFooter: {
+    flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    gap: 12,
   },
   aiResultsCloseButton: {
     backgroundColor: '#2563EB',
