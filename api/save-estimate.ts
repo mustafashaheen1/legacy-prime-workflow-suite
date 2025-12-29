@@ -32,23 +32,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Save estimate to database
-    const { data, error } = await supabase
-      .from('estimates')
-      .insert({
-        id: estimate.id,
-        project_id: estimate.projectId,
-        name: estimate.name,
-        items: estimate.items,
-        subtotal: estimate.subtotal,
-        tax_rate: estimate.taxRate,
-        tax_amount: estimate.taxAmount,
-        total: estimate.total,
-        status: estimate.status,
-        created_date: estimate.createdDate,
-      })
-      .select()
-      .single();
+    // Use raw SQL to bypass schema cache issues
+    const { data, error } = await supabase.rpc('insert_estimate', {
+      p_id: estimate.id,
+      p_project_id: estimate.projectId,
+      p_name: estimate.name,
+      p_items: JSON.stringify(estimate.items),
+      p_subtotal: estimate.subtotal,
+      p_tax_rate: estimate.taxRate,
+      p_tax_amount: estimate.taxAmount,
+      p_total: estimate.total,
+      p_status: estimate.status,
+      p_created_date: estimate.createdDate,
+    });
 
     if (error) {
       console.error('[SaveEstimate] Database error:', error);
