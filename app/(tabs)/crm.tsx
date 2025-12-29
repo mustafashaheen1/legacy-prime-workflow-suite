@@ -210,9 +210,7 @@ export default function CRMScreen() {
             return JSON.stringify({ error: `No client found matching "${input.identifier}"` });
           }
           
-          const clientEstimates = estimates.filter(est =>
-            est.projectId.includes(client.name) || est.name.includes(client.name)
-          );
+          const clientEstimates = estimates; // Show all estimates
           
           return JSON.stringify({
             ...client,
@@ -593,9 +591,7 @@ export default function CRMScreen() {
     const now = new Date();
     const daysSinceContact = Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24));
     
-    const clientEstimates = estimates.filter(est => 
-      est.projectId.includes(client.name) || est.name.includes(client.name)
-    );
+    const clientEstimates = estimates; // Show all estimates
     const hasSentEstimate = clientEstimates.some(e => e.status === 'sent');
     const hasApprovedEstimate = clientEstimates.some(e => e.status === 'approved');
 
@@ -1552,9 +1548,9 @@ export default function CRMScreen() {
                 const client = clients.find(c => c.id === selectedClientForEstimate);
                 if (!client) return null;
 
-                const clientEstimates = estimates.filter(est => 
-                  est.projectId.includes(client.name) || est.name.includes(client.name)
-                );
+                const clientEstimates = estimates; // Show all estimates for now
+                const clientEstimates = estimates; // Show all estimates for now
+                const clientEstimates = estimates; // Show all estimates for now
 
                 if (clientEstimates.length === 0) {
                   return (
