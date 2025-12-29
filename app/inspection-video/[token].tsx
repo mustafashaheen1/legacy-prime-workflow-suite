@@ -163,13 +163,25 @@ export default function InspectionVideoScreen() {
 
         console.log('[InspectionVideo] Video uploaded to S3 successfully');
 
-        // Complete the inspection with S3 key
-        const result = await completeInspectionMutation.mutateAsync({
-          token,
-          videoKey: key,
-          videoDuration: 0,
-          videoSize: file.size,
+        // Complete the inspection with S3 key using direct API endpoint
+        const completeResponse = await fetch(`${apiUrl}/api/complete-inspection-video`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            videoKey: key,
+            videoDuration: 0,
+            videoSize: file.size,
+          }),
         });
+
+        if (!completeResponse.ok) {
+          const errorData = await completeResponse.json();
+          throw new Error(errorData.error || 'Failed to complete inspection');
+        }
+
+        const result = await completeResponse.json();
+        console.log('[InspectionVideo] Inspection marked as complete:', result);
 
         if (result.success) {
           setStatus('complete');
