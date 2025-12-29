@@ -813,25 +813,38 @@ export default function CRMScreen() {
         lastContactDate: new Date().toISOString()
       });
 
-      // Store in database asynchronously (fire-and-forget)
+      // Store in database asynchronously using direct API endpoint (bypasses tRPC timeout issue)
       console.log('[CRM] Storing inspection link in database...');
-      createInspectionVideoLinkMutation.mutate({
-        token,
-        clientId: client.id,
-        companyId: company.id,
-        clientName: client.name,
-        clientEmail: client.email || undefined,
-        notes: `Video inspection request for ${client.name}`,
-      }, {
-        onSuccess: () => {
-          console.log('[CRM] Inspection link stored in database successfully');
-          getInspectionVideosQuery.refetch();
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
+      fetch(`${apiUrl}/api/create-inspection-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        onError: (err) => {
+        body: JSON.stringify({
+          token,
+          clientId: client.id,
+          companyId: company.id,
+          projectId: undefined,
+          clientName: client.name,
+          clientEmail: client.email || null,
+          notes: `Video inspection request for ${client.name}`,
+        }),
+      })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to store inspection link');
+          }
+          console.log('[CRM] Inspection link stored in database successfully');
+          console.log('[CRM] Database INSERT took:', data.insertDuration, 'ms');
+          getInspectionVideosQuery.refetch();
+        })
+        .catch((err) => {
           console.warn('[CRM] Failed to store inspection link in database (non-critical):', err);
           // Don't show error to user - link already sent
-        }
-      });
+        });
     } catch (error: any) {
       console.error('[CRM] Error creating inspection link:', error);
       
