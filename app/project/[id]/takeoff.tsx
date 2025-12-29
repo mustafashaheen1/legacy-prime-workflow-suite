@@ -855,15 +855,27 @@ export default function TakeoffScreen() {
   };
 
   const generateEstimate = () => {
+    console.log('[Takeoff] Confirm Totals clicked');
+    console.log('[Takeoff] Estimate name:', estimateName);
+
     if (!estimateName.trim()) {
-      Alert.alert('Error', 'Please enter an estimate name');
+      if (Platform.OS === 'web') {
+        window.alert('Please enter an estimate name in the header field above.');
+      } else {
+        Alert.alert('Error', 'Please enter an estimate name');
+      }
       return;
     }
 
     const allMeasurements = plans.flatMap(plan => plan.measurements);
+    console.log('[Takeoff] Measurements count:', allMeasurements.length);
 
     if (allMeasurements.length === 0) {
-      Alert.alert('Error', 'Please add at least one measurement');
+      if (Platform.OS === 'web') {
+        window.alert('Please add at least one measurement before creating an estimate.');
+      } else {
+        Alert.alert('Error', 'Please add at least one measurement');
+      }
       return;
     }
 
@@ -871,11 +883,15 @@ export default function TakeoffScreen() {
 
     // Show confirmation dialog
     const confirmMessage = `Create estimate "${estimateName}"?\n\nItems: ${allMeasurements.length}\nSubtotal: $${subtotal.toFixed(2)}\nGrand Total: $${total.toFixed(2)}`;
+    console.log('[Takeoff] Showing confirmation dialog');
 
     if (Platform.OS === 'web') {
       if (!window.confirm(confirmMessage)) {
+        console.log('[Takeoff] User cancelled');
         return;
       }
+      console.log('[Takeoff] User confirmed, creating estimate');
+      createEstimateAndNavigate(allMeasurements, subtotal, taxAmount, total);
     } else {
       Alert.alert(
         'Create Estimate',
@@ -888,13 +904,12 @@ export default function TakeoffScreen() {
           }
         ]
       );
-      return;
     }
-
-    createEstimateAndNavigate(allMeasurements, subtotal, taxAmount, total);
   };
 
   const createEstimateAndNavigate = (allMeasurements: TakeoffMeasurement[], subtotal: number, taxAmount: number, total: number) => {
+    console.log('[Takeoff] Creating estimate...');
+
     const items: EstimateItem[] = allMeasurements.map(measurement => {
       const priceListItem = masterPriceList.find(item => item.id === measurement.priceListItemId);
       if (!priceListItem) return null;
@@ -909,6 +924,8 @@ export default function TakeoffScreen() {
       };
     }).filter(Boolean) as EstimateItem[];
 
+    console.log('[Takeoff] Created', items.length, 'estimate items');
+
     const newEstimate: Estimate = {
       id: `estimate-${Date.now()}`,
       projectId: id as string,
@@ -922,7 +939,9 @@ export default function TakeoffScreen() {
       status: 'draft',
     };
 
+    console.log('[Takeoff] Saving estimate:', newEstimate.id);
     addEstimate(newEstimate);
+    console.log('[Takeoff] Estimate saved successfully');
 
     // Show success message and navigate to CRM
     if (Platform.OS === 'web') {
@@ -936,6 +955,7 @@ export default function TakeoffScreen() {
     }
 
     // Navigate to CRM page
+    console.log('[Takeoff] Navigating to CRM...');
     router.push('/(tabs)/crm');
   };
 
