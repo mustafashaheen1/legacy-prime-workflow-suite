@@ -138,17 +138,69 @@ export default function TakeoffScreen() {
         const asset = result.assets[0];
         const isPdf = asset.mimeType === 'application/pdf' || asset.name?.endsWith('.pdf');
 
-        const newPlan: TakeoffPlan = {
-          id: `plan-${Date.now()}`,
-          uri: asset.uri,
-          name: asset.name || `Document ${plans.length + 1}`,
-          measurements: [],
-          scale: 1,
-        };
-        setPlans(prev => [...prev, newPlan]);
-        setActivePlanIndex(plans.length);
-        setUploadedDocumentType(isPdf ? 'pdf' : 'image');
-        setShowModeSelection(true);
+        // If it's a PDF on web, convert all pages to images for display
+        if (isPdf && Platform.OS === 'web') {
+          console.log('[PDF Upload] Converting PDF pages to images for display...');
+          try {
+            // Convert all pages of PDF to images
+            const { blobs, pageCount } = await convertPdfToImages(asset.uri);
+            if (blobs.length === 0) {
+              throw new Error('Failed to convert PDF pages');
+            }
+
+            console.log(`[PDF Upload] Converting ${blobs.length} pages to plans...`);
+
+            // Convert each blob to data URL and create a plan for each page
+            const newPlans: TakeoffPlan[] = [];
+            for (let i = 0; i < blobs.length; i++) {
+              const imageDataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blobs[i]);
+              });
+
+              const pageName = blobs.length > 1
+                ? `${asset.name} - Page ${i + 1}`
+                : asset.name || `Document ${plans.length + 1}`;
+
+              newPlans.push({
+                id: `plan-${Date.now()}-${i}`,
+                uri: imageDataUrl,
+                name: pageName,
+                measurements: [],
+                scale: 1,
+              });
+            }
+
+            setPlans(prev => [...prev, ...newPlans]);
+            setActivePlanIndex(plans.length); // Set to first new plan
+            setUploadedDocumentType('pdf');
+            setShowModeSelection(true);
+
+            console.log(`[PDF Upload] Created ${newPlans.length} plans successfully`);
+          } catch (error) {
+            console.error('[PDF Upload] Conversion failed:', error);
+            if (Platform.OS === 'web') {
+              window.alert('PDF Conversion Failed\n\nCould not convert PDF to image for display. Please try uploading a PDF screenshot instead.');
+            } else {
+              Alert.alert('Conversion Failed', 'Could not convert PDF to image for display.');
+            }
+          }
+        } else {
+          // For images or native PDF handling, proceed as normal
+          const newPlan: TakeoffPlan = {
+            id: `plan-${Date.now()}`,
+            uri: asset.uri,
+            name: asset.name || `Document ${plans.length + 1}`,
+            measurements: [],
+            scale: 1,
+          };
+          setPlans(prev => [...prev, newPlan]);
+          setActivePlanIndex(plans.length);
+          setUploadedDocumentType(isPdf ? 'pdf' : 'image');
+          setShowModeSelection(true);
+        }
       }
     } catch (error) {
       console.error('Error picking document:', error);
@@ -174,23 +226,80 @@ export default function TakeoffScreen() {
         return;
       }
 
-      // Convert file to data URL
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const uri = e.target?.result as string;
-        const newPlan: TakeoffPlan = {
-          id: `plan-${Date.now()}`,
-          uri,
-          name: file.name || `Document ${plans.length + 1}`,
-          measurements: [],
-          scale: 1,
+      // If it's a PDF, convert all pages to images for display
+      if (isPdf && Platform.OS === 'web') {
+        console.log('[PDF Upload] Converting PDF pages to images for display...');
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const pdfDataUrl = e.target?.result as string;
+
+          try {
+            // Convert all pages of PDF to images
+            const { blobs, pageCount } = await convertPdfToImages(pdfDataUrl);
+            if (blobs.length === 0) {
+              throw new Error('Failed to convert PDF pages');
+            }
+
+            console.log(`[PDF Upload] Converting ${blobs.length} pages to plans...`);
+
+            // Convert each blob to data URL and create a plan for each page
+            const newPlans: TakeoffPlan[] = [];
+            for (let i = 0; i < blobs.length; i++) {
+              const imageDataUrl = await new Promise<string>((resolve, reject) => {
+                const imageReader = new FileReader();
+                imageReader.onloadend = () => resolve(imageReader.result as string);
+                imageReader.onerror = reject;
+                imageReader.readAsDataURL(blobs[i]);
+              });
+
+              const pageName = blobs.length > 1
+                ? `${file.name} - Page ${i + 1}`
+                : file.name || `Document ${plans.length + 1}`;
+
+              newPlans.push({
+                id: `plan-${Date.now()}-${i}`,
+                uri: imageDataUrl,
+                name: pageName,
+                measurements: [],
+                scale: 1,
+              });
+            }
+
+            setPlans(prev => [...prev, ...newPlans]);
+            setActivePlanIndex(plans.length); // Set to first new plan
+            setUploadedDocumentType('pdf');
+            setShowModeSelection(true);
+
+            console.log(`[PDF Upload] Created ${newPlans.length} plans successfully`);
+          } catch (error) {
+            console.error('[PDF Upload] Conversion failed:', error);
+            if (Platform.OS === 'web') {
+              window.alert('PDF Conversion Failed\n\nCould not convert PDF to image for display. Please try uploading a PDF screenshot instead.');
+            } else {
+              Alert.alert('Conversion Failed', 'Could not convert PDF to image for display.');
+            }
+          }
         };
-        setPlans(prev => [...prev, newPlan]);
-        setActivePlanIndex(plans.length);
-        setUploadedDocumentType(isPdf ? 'pdf' : 'image');
-        setShowModeSelection(true);
-      };
-      reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
+      } else {
+        // For images, proceed as normal
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const uri = e.target?.result as string;
+          const newPlan: TakeoffPlan = {
+            id: `plan-${Date.now()}`,
+            uri,
+            name: file.name || `Document ${plans.length + 1}`,
+            measurements: [],
+            scale: 1,
+          };
+          setPlans(prev => [...prev, newPlan]);
+          setActivePlanIndex(plans.length);
+          setUploadedDocumentType('image');
+          setShowModeSelection(true);
+        };
+        reader.readAsDataURL(file);
+      }
     } catch (error) {
       console.error('Error handling dropped file:', error);
       Alert.alert('Error', 'Failed to process dropped file');
