@@ -27,9 +27,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'S3 bucket not configured' });
     }
 
-    // Generate unique filename
+    // Generate unique filename with appropriate folder
     const timestamp = Date.now();
-    const uniqueFileName = `takeoff-documents/${timestamp}-${fileName}`;
+    const folder = fileName.startsWith('inspection-') ? 'inspection-videos' : 'takeoff-documents';
+    const uniqueFileName = `${folder}/${timestamp}-${fileName}`;
 
     // Create pre-signed URL for PUT operation
     const command = new PutObjectCommand({

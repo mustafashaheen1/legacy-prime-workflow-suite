@@ -119,20 +119,73 @@ export default function InspectionVideoScreen() {
 
     try {
       setStatus('uploading');
+      console.log('[InspectionVideo] Starting video upload process...');
 
-      // TODO: Implement S3 upload
-      // For now, we'll store the local URI as the video key
-      // In production, you'd upload to S3 and use the S3 key
+      // For web platform, we need to upload to S3
+      if (Platform.OS === 'web' && videoUri.startsWith('blob:')) {
+        // Get the video file from the blob URL
+        const response = await fetch(videoUri);
+        const blob = await response.blob();
+        const file = new File([blob], `inspection-${token}.mp4`, { type: 'video/mp4' });
 
-      const result = await completeInspectionMutation.mutateAsync({
-        token,
-        videoKey: videoUri, // In production, this would be the S3 key
-        videoDuration: 0, // TODO: Get actual duration
-        videoSize: 0, // TODO: Get actual size
-      });
+        console.log('[InspectionVideo] Video file size:', file.size, 'bytes');
 
-      if (result.success) {
-        setStatus('complete');
+        // Get presigned S3 upload URL
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+        const urlResponse = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: `inspection-${token}.mp4`,
+            fileType: 'video/mp4',
+          }),
+        });
+
+        if (!urlResponse.ok) {
+          throw new Error('Failed to get upload URL');
+        }
+
+        const { uploadUrl, key, fileUrl } = await urlResponse.json();
+        console.log('[InspectionVideo] Got presigned URL, uploading to S3...');
+
+        // Upload directly to S3
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': 'video/mp4',
+          },
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload video to S3');
+        }
+
+        console.log('[InspectionVideo] Video uploaded to S3 successfully');
+
+        // Complete the inspection with S3 key
+        const result = await completeInspectionMutation.mutateAsync({
+          token,
+          videoKey: key,
+          videoDuration: 0,
+          videoSize: file.size,
+        });
+
+        if (result.success) {
+          setStatus('complete');
+        }
+      } else {
+        // For native platform (future implementation)
+        const result = await completeInspectionMutation.mutateAsync({
+          token,
+          videoKey: videoUri,
+          videoDuration: 0,
+          videoSize: 0,
+        });
+
+        if (result.success) {
+          setStatus('complete');
+        }
       }
     } catch (error: any) {
       console.error('[InspectionVideo] Error uploading video:', error);
