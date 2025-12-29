@@ -14,75 +14,25 @@ export const createInspectionVideoLinkProcedure = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
+    console.log('[CRM] ===== PROCEDURE STARTED =====');
     console.log('[CRM] Creating inspection video link for:', input.clientName);
+    console.log('[CRM] Token:', input.token);
 
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // TEMPORARY: Skip database entirely to test if this is the issue
+    // Just return success immediately
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 14);
 
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase not configured');
-    }
+    const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+    const inspectionUrl = `${baseUrl}/inspection-video/${input.token}`;
 
-    try {
-      console.log('[CRM] Step 1: Setting up data...');
-      const startTime = Date.now();
+    console.log('[CRM] Returning success WITHOUT database insert (test mode)');
+    console.log('[CRM] ===== PROCEDURE COMPLETED =====');
 
-      // Set expiration to 14 days from now
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 14);
-
-      console.log('[CRM] Step 2: Attempting database insert with token:', input.token);
-      console.log('[CRM] Using direct REST API call to Supabase...');
-
-      // Use Supabase REST API directly instead of JS client
-      // This bypasses any client-side connection pooling issues
-      const response = await fetch(`${supabaseUrl}/rest/v1/inspection_videos`, {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal' // Don't return the inserted row
-        },
-        body: JSON.stringify({
-          token: input.token,
-          client_id: input.clientId,
-          company_id: input.companyId,
-          project_id: input.projectId || null,
-          client_name: input.clientName,
-          client_email: input.clientEmail || '',
-          status: 'pending',
-          notes: input.notes || null,
-          expires_at: expiresAt.toISOString(),
-        }),
-      });
-
-      const elapsed = Date.now() - startTime;
-      console.log(`[CRM] Step 3: Insert completed in ${elapsed}ms, status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[CRM] Supabase REST API Error:', {
-          status: response.status,
-          statusText: response.statusText,
-          body: errorText,
-        });
-        throw new Error(`Failed to create inspection link: ${response.statusText} (${response.status})`);
-      }
-
-      const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-      const inspectionUrl = `${baseUrl}/inspection-video/${input.token}`;
-
-      console.log('[CRM] Inspection video link created with token:', input.token);
-
-      return {
-        success: true,
-        token: input.token,
-        inspectionUrl,
-        expiresAt: expiresAt.toISOString(),
-      };
-    } catch (error: any) {
-      console.error('[CRM] Unexpected error creating inspection link:', error);
-      throw new Error(error.message || 'Failed to create inspection link');
-    }
+    return {
+      success: true,
+      token: input.token,
+      inspectionUrl,
+      expiresAt: expiresAt.toISOString(),
+    };
   });
