@@ -59,8 +59,13 @@ export const createInspectionVideoLinkProcedure = publicProcedure
       console.log(`[CRM] Step 3: Insert completed in ${elapsed}ms, checking for errors...`);
 
       if (error) {
-        console.error('[CRM] Error creating inspection link:', error);
-        throw new Error(`Failed to create inspection link: ${error.message}`);
+        console.error('[CRM] Supabase Error Details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        throw new Error(`Failed to create inspection link: ${error.message} (${error.code})`);
       }
 
       if (!data) {
