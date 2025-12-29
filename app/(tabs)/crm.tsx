@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform, RefreshControl } from 'react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon, Camera } from 'lucide-react-native';
 import { Project, Client, CallLog } from '@/types';
@@ -58,7 +58,7 @@ const promotionTemplates: MessageTemplate[] = [
 ];
 
 export default function CRMScreen() {
-  const { clients, addClient, addProject, updateClient, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog, company, refreshClients } = useApp();
+  const { clients, addClient, addProject, updateClient, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog, company, refreshClients, refreshEstimates } = useApp();
   const router = useRouter();
   const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
   const { initiateCall, isLoadingCall } = useTwilioCalls();
@@ -69,6 +69,12 @@ export default function CRMScreen() {
     { enabled: !!company?.id }
   );
   const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  // Load estimates from database when component mounts
+  useEffect(() => {
+    console.log('[CRM] Loading estimates from database...');
+    refreshEstimates();
+  }, [refreshEstimates]);
   const [showAddForm, setShowAddForm] = useState<boolean>(true);
   const [newClientName, setNewClientName] = useState<string>('');
   const [newClientAddress, setNewClientAddress] = useState<string>('');
