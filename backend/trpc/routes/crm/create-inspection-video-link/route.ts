@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { publicProcedure } from "../../../create-context.js";
-import { createClient } from '@supabase/supabase-js';
 
 export const createInspectionVideoLinkProcedure = publicProcedure
   .input(
@@ -24,8 +23,6 @@ export const createInspectionVideoLinkProcedure = publicProcedure
       throw new Error('Supabase not configured');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     try {
       console.log('[CRM] Step 1: Setting up data...');
       const startTime = Date.now();
@@ -35,14 +32,19 @@ export const createInspectionVideoLinkProcedure = publicProcedure
       expiresAt.setDate(expiresAt.getDate() + 14);
 
       console.log('[CRM] Step 2: Attempting database insert with token:', input.token);
-      console.log('[CRM] Supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL?.substring(0, 30) + '...');
+      console.log('[CRM] Using direct REST API call to Supabase...');
 
-      // Insert into database with pre-generated token from frontend
-      // Using minimal query without .select() to avoid timeout
-      // @ts-ignore - Supabase types not properly generated
-      const { error } = await supabase
-        .from('inspection_videos')
-        .insert({
+      // Use Supabase REST API directly instead of JS client
+      // This bypasses any client-side connection pooling issues
+      const response = await fetch(`${supabaseUrl}/rest/v1/inspection_videos`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal' // Don't return the inserted row
+        },
+        body: JSON.stringify({
           token: input.token,
           client_id: input.clientId,
           company_id: input.companyId,
@@ -52,19 +54,20 @@ export const createInspectionVideoLinkProcedure = publicProcedure
           status: 'pending',
           notes: input.notes || null,
           expires_at: expiresAt.toISOString(),
-        });
+        }),
+      });
 
       const elapsed = Date.now() - startTime;
-      console.log(`[CRM] Step 3: Insert completed in ${elapsed}ms, checking for errors...`);
+      console.log(`[CRM] Step 3: Insert completed in ${elapsed}ms, status: ${response.status}`);
 
-      if (error) {
-        console.error('[CRM] Supabase Error Details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[CRM] Supabase REST API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
         });
-        throw new Error(`Failed to create inspection link: ${error.message} (${error.code})`);
+        throw new Error(`Failed to create inspection link: ${response.statusText} (${response.status})`);
       }
 
       const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';
