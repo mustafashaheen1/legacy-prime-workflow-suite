@@ -770,7 +770,7 @@ export default function CRMScreen() {
       // Generate token client-side for immediate use
       const token = crypto.randomUUID();
       const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-      const inspectionUrl = `${baseUrl}/inspection/${token}`;
+      const inspectionUrl = `${baseUrl}/inspection-video/${token}`;
 
       console.log('[CRM] Generated inspection link:', inspectionUrl);
 

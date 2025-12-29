@@ -60,7 +60,7 @@ export const createInspectionVideoLinkProcedure = publicProcedure
       }
 
       const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-      const inspectionUrl = `${baseUrl}/inspection/${data.token}`;
+      const inspectionUrl = `${baseUrl}/inspection-video/${data.token}`;
 
       console.log('[CRM] Inspection video link created:', data.id);
 
