@@ -71,6 +71,9 @@ export default function TakeoffScreen() {
   const [showAIReview, setShowAIReview] = useState<boolean>(false);
   const [uploadedDocumentType, setUploadedDocumentType] = useState<'pdf' | 'image' | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [pdfConverting, setPdfConverting] = useState<boolean>(false);
+  const [pdfConversionProgress, setPdfConversionProgress] = useState<string>('');
+  const [originalPdfUri, setOriginalPdfUri] = useState<string | null>(null);
 
   const project = projects.find(p => p.id === id);
 
@@ -141,7 +144,13 @@ export default function TakeoffScreen() {
         // If it's a PDF on web, convert all pages to images for display
         if (isPdf && Platform.OS === 'web') {
           console.log('[PDF Upload] Converting PDF pages to images for display...');
+          setPdfConverting(true);
+          setPdfConversionProgress('Loading PDF...');
+
           try {
+            // Store original PDF URI for AI processing
+            setOriginalPdfUri(asset.uri);
+
             // Convert all pages of PDF to images
             const { blobs, pageCount } = await convertPdfToImages(asset.uri);
             if (blobs.length === 0) {
@@ -153,6 +162,8 @@ export default function TakeoffScreen() {
             // Convert each blob to data URL and create a plan for each page
             const newPlans: TakeoffPlan[] = [];
             for (let i = 0; i < blobs.length; i++) {
+              setPdfConversionProgress(`Processing page ${i + 1} of ${blobs.length}...`);
+
               const imageDataUrl = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result as string);
@@ -176,11 +187,13 @@ export default function TakeoffScreen() {
             setPlans(prev => [...prev, ...newPlans]);
             setActivePlanIndex(plans.length); // Set to first new plan
             setUploadedDocumentType('pdf');
+            setPdfConverting(false);
             setShowModeSelection(true);
 
             console.log(`[PDF Upload] Created ${newPlans.length} plans successfully`);
           } catch (error) {
             console.error('[PDF Upload] Conversion failed:', error);
+            setPdfConverting(false);
             if (Platform.OS === 'web') {
               window.alert('PDF Conversion Failed\n\nCould not convert PDF to image for display. Please try uploading a PDF screenshot instead.');
             } else {
@@ -229,11 +242,17 @@ export default function TakeoffScreen() {
       // If it's a PDF, convert all pages to images for display
       if (isPdf && Platform.OS === 'web') {
         console.log('[PDF Upload] Converting PDF pages to images for display...');
+        setPdfConverting(true);
+        setPdfConversionProgress('Loading PDF...');
+
         const reader = new FileReader();
         reader.onload = async (e) => {
           const pdfDataUrl = e.target?.result as string;
 
           try {
+            // Store original PDF URI for AI processing
+            setOriginalPdfUri(pdfDataUrl);
+
             // Convert all pages of PDF to images
             const { blobs, pageCount } = await convertPdfToImages(pdfDataUrl);
             if (blobs.length === 0) {
@@ -245,6 +264,8 @@ export default function TakeoffScreen() {
             // Convert each blob to data URL and create a plan for each page
             const newPlans: TakeoffPlan[] = [];
             for (let i = 0; i < blobs.length; i++) {
+              setPdfConversionProgress(`Processing page ${i + 1} of ${blobs.length}...`);
+
               const imageDataUrl = await new Promise<string>((resolve, reject) => {
                 const imageReader = new FileReader();
                 imageReader.onloadend = () => resolve(imageReader.result as string);
@@ -268,11 +289,13 @@ export default function TakeoffScreen() {
             setPlans(prev => [...prev, ...newPlans]);
             setActivePlanIndex(plans.length); // Set to first new plan
             setUploadedDocumentType('pdf');
+            setPdfConverting(false);
             setShowModeSelection(true);
 
             console.log(`[PDF Upload] Created ${newPlans.length} plans successfully`);
           } catch (error) {
             console.error('[PDF Upload] Conversion failed:', error);
+            setPdfConverting(false);
             if (Platform.OS === 'web') {
               window.alert('PDF Conversion Failed\n\nCould not convert PDF to image for display. Please try uploading a PDF screenshot instead.');
             } else {
@@ -490,8 +513,12 @@ export default function TakeoffScreen() {
         console.log('[AI Takeoff] Converting PDF pages to images (client-side)...');
 
         try {
+          // Use original PDF URI (not the converted image URI)
+          const pdfUriToConvert = originalPdfUri || activePlan.uri;
+          console.log('[AI Takeoff] Using PDF URI for conversion');
+
           // Convert all PDF pages to PNGs
-          const { blobs, pageCount } = await convertPdfToImages(activePlan.uri);
+          const { blobs, pageCount } = await convertPdfToImages(pdfUriToConvert);
           console.log(`[AI Takeoff] Converting ${blobs.length} pages...`);
 
           // Upload all pages to S3
@@ -1570,6 +1597,26 @@ export default function TakeoffScreen() {
                   <Text style={styles.aiResultsText}>{aiResults}</Text>
                 </ScrollView>
               )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* PDF Conversion Loading Modal */}
+        <Modal
+          visible={pdfConverting}
+          transparent
+          animationType="fade"
+        >
+          <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={styles.aiProcessingModal}>
+              <ActivityIndicator size="large" color="#2563EB" />
+              <Text style={styles.aiProcessingTitle}>Converting PDF...</Text>
+              <Text style={styles.aiProcessingText}>
+                {pdfConversionProgress}
+              </Text>
+              <Text style={[styles.aiProcessingText, { marginTop: 8, fontSize: 12, color: '#9CA3AF' }]}>
+                This may take a moment for large PDFs
+              </Text>
             </View>
           </View>
         </Modal>
