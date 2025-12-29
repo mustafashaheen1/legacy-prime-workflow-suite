@@ -85,6 +85,7 @@ interface AppState {
   getNotifications: (unreadOnly?: boolean) => Notification[];
   markNotificationRead: (id: string) => Promise<void>;
   refreshClients: () => Promise<void>;
+  refreshEstimates: () => Promise<void>;
   logout: () => void;
 }
 
@@ -766,6 +767,30 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, [company]);
 
+  const refreshEstimates = useCallback(async () => {
+    console.log('[App] 🔄 Refreshing estimates...');
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/get-estimates`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[App] 📦 Estimates result:', data);
+
+      if (data.success && data.estimates) {
+        setEstimates(data.estimates);
+        console.log('[App] ✅ Refreshed', data.estimates.length, 'estimates');
+      } else {
+        console.log('[App] ⚠️ Query succeeded but no estimates returned');
+      }
+    } catch (error) {
+      console.error('[App] ❌ Error refreshing estimates:', error);
+    }
+  }, []);
+
   const addExpense = useCallback(async (expense: Expense) => {
     // Optimistically update UI
     setExpenses(prev => [...prev, expense]);
@@ -1346,6 +1371,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     getNotifications,
     markNotificationRead,
     refreshClients,
+    refreshEstimates,
     logout,
   }), [
     user,
@@ -1424,6 +1450,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     getNotifications,
     markNotificationRead,
     refreshClients,
+    refreshEstimates,
     logout,
   ]);
 });
