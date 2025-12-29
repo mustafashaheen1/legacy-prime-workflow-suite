@@ -1212,10 +1212,10 @@ export default function TakeoffScreen() {
                 <ScrollView style={styles.totalsScrollView} showsVerticalScrollIndicator={false}>
                   <View style={styles.totalsTable}>
                     <View style={styles.totalsTableHeader}>
-                      <Text style={[styles.totalsTableHeaderText, { flex: 2 }]}>Description</Text>
-                      <Text style={[styles.totalsTableHeaderText, { flex: 0.8, textAlign: 'center' }]}>Qty</Text>
-                      <Text style={[styles.totalsTableHeaderText, { flex: 0.8, textAlign: 'right' }]}>Unit</Text>
-                      <Text style={[styles.totalsTableHeaderText, { flex: 1, textAlign: 'right' }]}>Total</Text>
+                      <Text style={[styles.totalsTableHeaderText, { flex: 3 }]}>Description</Text>
+                      <Text style={[styles.totalsTableHeaderText, { flex: 1, textAlign: 'center' }]}>Qty</Text>
+                      <Text style={[styles.totalsTableHeaderText, { flex: 1, textAlign: 'right' }]}>Unit</Text>
+                      <Text style={[styles.totalsTableHeaderText, { flex: 1.5, textAlign: 'right' }]}>Total</Text>
                     </View>
 
                     {activePlan.measurements.map(measurement => {
@@ -1225,22 +1225,22 @@ export default function TakeoffScreen() {
                       return (
                         <View key={measurement.id} style={styles.totalsTableRow}>
                           <View style={[styles.colorIndicator, { backgroundColor: measurement.color }]} />
-                          <Text style={[styles.totalsTableCell, { flex: 2 }]} numberOfLines={2}>
+                          <Text style={[styles.totalsTableCell, { flex: 3 }]} numberOfLines={2}>
                             {priceListItem.name}
                           </Text>
-                          <Text style={[styles.totalsTableCell, { flex: 0.8, textAlign: 'center' }]}>
+                          <Text style={[styles.totalsTableCell, { flex: 1, textAlign: 'center' }]}>
                             {measurement.quantity}
                           </Text>
-                          <Text style={[styles.totalsTableCell, { flex: 0.8, textAlign: 'right' }]}>
-                            {priceListItem.unitPrice.toFixed(0)}
+                          <Text style={[styles.totalsTableCell, { flex: 1, textAlign: 'right' }]}>
+                            ${priceListItem.unitPrice.toFixed(0)}
                           </Text>
-                          <View style={{ flex: 1, alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <Text style={[styles.totalsTableCellBold, { textAlign: 'right' }]}>
-                              {(measurement.quantity * priceListItem.unitPrice).toFixed(0)}
+                          <View style={{ flex: 1.5, alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <Text style={[styles.totalsTableCellBold, { textAlign: 'right', flex: 1 }]}>
+                              ${(measurement.quantity * priceListItem.unitPrice).toFixed(0)}
                             </Text>
                             <TouchableOpacity
                               onPress={() => removeMeasurement(measurement.id)}
-                              style={{ marginLeft: 4 }}
+                              style={{ marginLeft: 8 }}
                             >
                               <Trash2 size={14} color="#EF4444" />
                             </TouchableOpacity>
@@ -1679,7 +1679,7 @@ export default function TakeoffScreen() {
 
               <View style={styles.aiResultsFooter}>
                 <TouchableOpacity
-                  style={[styles.aiResultsCloseButton, { backgroundColor: '#6B7280' }]}
+                  style={[styles.aiResultsCloseButton, { backgroundColor: '#6B7280', minWidth: 120 }]}
                   onPress={() => setShowAIReview(false)}
                 >
                   <Text style={styles.aiResultsCloseButtonText}>Cancel</Text>
