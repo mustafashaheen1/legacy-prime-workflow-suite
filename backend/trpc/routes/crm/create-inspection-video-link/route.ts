@@ -38,8 +38,9 @@ export const createInspectionVideoLinkProcedure = publicProcedure
       console.log('[CRM] Supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL?.substring(0, 30) + '...');
 
       // Insert into database with pre-generated token from frontend
+      // Using minimal query without .select() to avoid timeout
       // @ts-ignore - Supabase types not properly generated
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('inspection_videos')
         .insert({
           token: input.token,
@@ -51,9 +52,7 @@ export const createInspectionVideoLinkProcedure = publicProcedure
           status: 'pending',
           notes: input.notes || null,
           expires_at: expiresAt.toISOString(),
-        })
-        .select()
-        .single();
+        });
 
       const elapsed = Date.now() - startTime;
       console.log(`[CRM] Step 3: Insert completed in ${elapsed}ms, checking for errors...`);
@@ -68,21 +67,16 @@ export const createInspectionVideoLinkProcedure = publicProcedure
         throw new Error(`Failed to create inspection link: ${error.message} (${error.code})`);
       }
 
-      if (!data) {
-        throw new Error('No data returned from insert');
-      }
-
       const baseUrl = process.env.EXPO_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-      const inspectionUrl = `${baseUrl}/inspection-video/${data.token}`;
+      const inspectionUrl = `${baseUrl}/inspection-video/${input.token}`;
 
-      console.log('[CRM] Inspection video link created:', data.id);
+      console.log('[CRM] Inspection video link created with token:', input.token);
 
       return {
         success: true,
-        inspectionId: data.id,
-        token: data.token,
+        token: input.token,
         inspectionUrl,
-        expiresAt: data.expires_at,
+        expiresAt: expiresAt.toISOString(),
       };
     } catch (error: any) {
       console.error('[CRM] Unexpected error creating inspection link:', error);
