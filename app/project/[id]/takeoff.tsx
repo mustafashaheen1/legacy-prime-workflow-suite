@@ -907,7 +907,7 @@ export default function TakeoffScreen() {
     }
   };
 
-  const createEstimateAndNavigate = (allMeasurements: TakeoffMeasurement[], subtotal: number, taxAmount: number, total: number) => {
+  const createEstimateAndNavigate = async (allMeasurements: TakeoffMeasurement[], subtotal: number, taxAmount: number, total: number) => {
     console.log('[Takeoff] Creating estimate...');
 
     const items: EstimateItem[] = allMeasurements.map(measurement => {
@@ -939,24 +939,52 @@ export default function TakeoffScreen() {
       status: 'draft',
     };
 
-    console.log('[Takeoff] Saving estimate:', newEstimate.id);
-    addEstimate(newEstimate);
-    console.log('[Takeoff] Estimate saved successfully');
+    console.log('[Takeoff] Saving estimate to database:', newEstimate.id);
 
-    // Show success message and navigate to CRM
-    if (Platform.OS === 'web') {
-      window.alert(`✓ Estimate "${estimateName}" created successfully!\n\nYou can view it in the Estimates section of the CRM.`);
-    } else {
-      Alert.alert(
-        'Success',
-        `Estimate "${estimateName}" created successfully!\n\nYou can view it in the Estimates section of the CRM.`,
-        [{ text: 'OK' }]
-      );
+    try {
+      // Save to database via API
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+      const response = await fetch(`${apiUrl}/api/save-estimate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ estimate: newEstimate }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save estimate');
+      }
+
+      const result = await response.json();
+      console.log('[Takeoff] Estimate saved to database successfully');
+
+      // Also save to app context for immediate availability
+      addEstimate(newEstimate);
+
+      // Show success message and navigate to CRM
+      if (Platform.OS === 'web') {
+        window.alert(`✓ Estimate "${estimateName}" created successfully!\n\nYou can view it in the Estimates section of the CRM.`);
+      } else {
+        Alert.alert(
+          'Success',
+          `Estimate "${estimateName}" created successfully!\n\nYou can view it in the Estimates section of the CRM.`,
+          [{ text: 'OK' }]
+        );
+      }
+
+      // Navigate to CRM page
+      console.log('[Takeoff] Navigating to CRM...');
+      router.push('/(tabs)/crm');
+    } catch (error: any) {
+      console.error('[Takeoff] Error saving estimate:', error);
+      if (Platform.OS === 'web') {
+        window.alert(`Failed to save estimate: ${error.message}\n\nPlease try again.`);
+      } else {
+        Alert.alert('Error', `Failed to save estimate: ${error.message}`);
+      }
     }
-
-    // Navigate to CRM page
-    console.log('[Takeoff] Navigating to CRM...');
-    router.push('/(tabs)/crm');
   };
 
   const handleSetScale = () => {
