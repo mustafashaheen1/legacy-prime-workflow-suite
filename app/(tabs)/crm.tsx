@@ -1549,8 +1549,6 @@ export default function CRMScreen() {
                 if (!client) return null;
 
                 const clientEstimates = estimates; // Show all estimates for now
-                const clientEstimates = estimates; // Show all estimates for now
-                const clientEstimates = estimates; // Show all estimates for now
 
                 if (clientEstimates.length === 0) {
                   return (
