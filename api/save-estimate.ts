@@ -32,19 +32,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Use raw SQL to bypass schema cache issues
-    const { data, error } = await supabase.rpc('insert_estimate', {
-      p_id: estimate.id,
-      p_project_id: estimate.projectId,
-      p_name: estimate.name,
-      p_items: JSON.stringify(estimate.items),
-      p_subtotal: estimate.subtotal,
-      p_tax_rate: estimate.taxRate,
-      p_tax_amount: estimate.taxAmount,
-      p_total: estimate.total,
-      p_status: estimate.status,
-      p_created_date: estimate.createdDate,
-    });
+    // Get company_id from project
+    const { data: projectData, error: projectError } = await supabase
+      .from('projects')
+      .select('company_id')
+      .eq('id', estimate.projectId)
+      .single();
+
+    if (projectError || !projectData) {
+      console.error('[SaveEstimate] Project not found:', projectError);
+      return res.status(400).json({ error: 'Project not found' });
+    }
+
+    // Insert estimate directly (schema cache should be refreshed after adding columns)
+    const { data, error } = await supabase
+      .from('estimates')
+      .insert({
+        project_id: estimate.projectId,
+        company_id: projectData.company_id,
+        name: estimate.name,
+        items: estimate.items,
+        subtotal: estimate.subtotal,
+        tax_rate: estimate.taxRate,
+        tax_amount: estimate.taxAmount,
+        total: estimate.total,
+        status: estimate.status,
+        created_date: estimate.createdDate,
+      })
+      .select()
+      .single();
 
     if (error) {
       console.error('[SaveEstimate] Database error:', error);
