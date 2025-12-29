@@ -1641,10 +1641,10 @@ export default function TakeoffScreen() {
                 <View style={styles.aiItemsTable}>
                   <View style={styles.aiItemsHeader}>
                     <Text style={[styles.aiItemsHeaderText, { flex: 3 }]}>Item</Text>
-                    <Text style={[styles.aiItemsHeaderText, { flex: 1 }]}>Qty</Text>
-                    <Text style={[styles.aiItemsHeaderText, { flex: 1 }]}>Unit</Text>
-                    <Text style={[styles.aiItemsHeaderText, { flex: 1 }]}>Price</Text>
-                    <Text style={[styles.aiItemsHeaderText, { flex: 1 }]}>Total</Text>
+                    <Text style={[styles.aiItemsHeaderText, { flex: 1, textAlign: 'center' }]}>Qty</Text>
+                    <Text style={[styles.aiItemsHeaderText, { flex: 1, textAlign: 'center' }]}>Unit</Text>
+                    <Text style={[styles.aiItemsHeaderText, { flex: 1, textAlign: 'right' }]}>Price</Text>
+                    <Text style={[styles.aiItemsHeaderText, { flex: 1, textAlign: 'right' }]}>Total</Text>
                   </View>
                   {aiEstimateItems.map((item, index) => (
                     <View key={index} style={styles.aiItemRow}>
@@ -1653,10 +1653,10 @@ export default function TakeoffScreen() {
                         <Text style={styles.aiItemCategory}>{item.category}</Text>
                         {item.notes && <Text style={styles.aiItemNotes}>{item.notes}</Text>}
                       </View>
-                      <Text style={[styles.aiItemText, { flex: 1 }]}>{item.quantity}</Text>
-                      <Text style={[styles.aiItemText, { flex: 1 }]}>{item.unit}</Text>
-                      <Text style={[styles.aiItemText, { flex: 1 }]}>${item.suggestedPrice.toFixed(2)}</Text>
-                      <Text style={[styles.aiItemText, { flex: 1 }]}>${item.total.toFixed(2)}</Text>
+                      <Text style={[styles.aiItemText, { flex: 1, textAlign: 'center' }]}>{item.quantity}</Text>
+                      <Text style={[styles.aiItemText, { flex: 1, textAlign: 'center' }]}>{item.unit}</Text>
+                      <Text style={[styles.aiItemText, { flex: 1, textAlign: 'right' }]}>${item.suggestedPrice.toFixed(2)}</Text>
+                      <Text style={[styles.aiItemText, { flex: 1, textAlign: 'right' }]}>${item.total.toFixed(2)}</Text>
                     </View>
                   ))}
                 </View>
@@ -1679,7 +1679,7 @@ export default function TakeoffScreen() {
 
               <View style={styles.aiResultsFooter}>
                 <TouchableOpacity
-                  style={[styles.aiResultsCloseButton, { backgroundColor: '#6B7280', minWidth: 120 }]}
+                  style={[styles.aiResultsCloseButton, { backgroundColor: '#6B7280', flex: 1 }]}
                   onPress={() => setShowAIReview(false)}
                 >
                   <Text style={styles.aiResultsCloseButtonText}>Cancel</Text>
@@ -2418,11 +2418,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   aiItemsTable: {
-    paddingHorizontal: 20,
   },
   aiItemsHeader: {
     flexDirection: 'row' as const,
     paddingVertical: 12,
+    paddingHorizontal: 20,
     borderBottomWidth: 2,
     borderBottomColor: '#E5E7EB',
     marginBottom: 8,
@@ -2436,6 +2436,7 @@ const styles = StyleSheet.create({
   aiItemRow: {
     flexDirection: 'row' as const,
     paddingVertical: 12,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
     alignItems: 'center' as const,
@@ -2459,7 +2460,6 @@ const styles = StyleSheet.create({
   aiItemText: {
     fontSize: 13,
     color: '#374151',
-    textAlign: 'center' as const,
   },
   aiTotalsSummary: {
     marginTop: 24,
