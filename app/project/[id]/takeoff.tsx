@@ -861,12 +861,40 @@ export default function TakeoffScreen() {
     }
 
     const allMeasurements = plans.flatMap(plan => plan.measurements);
-    
+
     if (allMeasurements.length === 0) {
       Alert.alert('Error', 'Please add at least one measurement');
       return;
     }
 
+    const { subtotal, overheadAmount, taxAmount, total } = calculateTotals();
+
+    // Show confirmation dialog
+    const confirmMessage = `Create estimate "${estimateName}"?\n\nItems: ${allMeasurements.length}\nSubtotal: $${subtotal.toFixed(2)}\nGrand Total: $${total.toFixed(2)}`;
+
+    if (Platform.OS === 'web') {
+      if (!window.confirm(confirmMessage)) {
+        return;
+      }
+    } else {
+      Alert.alert(
+        'Create Estimate',
+        confirmMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Create',
+            onPress: () => createEstimateAndNavigate(allMeasurements, subtotal, taxAmount, total)
+          }
+        ]
+      );
+      return;
+    }
+
+    createEstimateAndNavigate(allMeasurements, subtotal, taxAmount, total);
+  };
+
+  const createEstimateAndNavigate = (allMeasurements: TakeoffMeasurement[], subtotal: number, taxAmount: number, total: number) => {
     const items: EstimateItem[] = allMeasurements.map(measurement => {
       const priceListItem = masterPriceList.find(item => item.id === measurement.priceListItemId);
       if (!priceListItem) return null;
@@ -880,8 +908,6 @@ export default function TakeoffScreen() {
         notes: measurement.notes || `From takeoff - ${measurement.type}`,
       };
     }).filter(Boolean) as EstimateItem[];
-
-    const { subtotal, overheadAmount, taxAmount, total } = calculateTotals();
 
     const newEstimate: Estimate = {
       id: `estimate-${Date.now()}`,
@@ -897,9 +923,20 @@ export default function TakeoffScreen() {
     };
 
     addEstimate(newEstimate);
-    Alert.alert('Success', 'Estimate created from takeoff measurements', [
-      { text: 'OK', onPress: () => router.back() }
-    ]);
+
+    // Show success message and navigate to CRM
+    if (Platform.OS === 'web') {
+      window.alert(`✓ Estimate "${estimateName}" created successfully!\n\nYou can view it in the Estimates section of the CRM.`);
+    } else {
+      Alert.alert(
+        'Success',
+        `Estimate "${estimateName}" created successfully!\n\nYou can view it in the Estimates section of the CRM.`,
+        [{ text: 'OK' }]
+      );
+    }
+
+    // Navigate to CRM page
+    router.push('/(tabs)/crm');
   };
 
   const handleSetScale = () => {
