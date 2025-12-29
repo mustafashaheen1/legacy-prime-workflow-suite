@@ -23,12 +23,14 @@ export const createInspectionVideoLinkProcedure = publicProcedure
 
     try {
       console.log('[CRM] Step 1: Setting up data...');
+      const startTime = Date.now();
 
       // Set expiration to 14 days from now
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 14);
 
-      console.log('[CRM] Step 2: Inserting into database (let Supabase generate UUIDs)...');
+      console.log('[CRM] Step 2: Attempting database insert with token:', input.token);
+      console.log('[CRM] Supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL?.substring(0, 30) + '...');
 
       // Insert into database with pre-generated token from frontend
       // @ts-ignore - Supabase types not properly generated
@@ -48,7 +50,8 @@ export const createInspectionVideoLinkProcedure = publicProcedure
         .select()
         .single();
 
-      console.log('[CRM] Step 3: Insert completed, checking for errors...');
+      const elapsed = Date.now() - startTime;
+      console.log(`[CRM] Step 3: Insert completed in ${elapsed}ms, checking for errors...`);
 
       if (error) {
         console.error('[CRM] Error creating inspection link:', error);
