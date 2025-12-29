@@ -1092,12 +1092,23 @@ export default function CRMScreen() {
                                 style={styles.viewVideoButton}
                                 onPress={async () => {
                                   try {
-                                    const result = await trpc.crm.getVideoViewUrl.query({ videoKey: video.videoUrl });
+                                    console.log('[CRM] Getting video view URL for:', video.videoUrl);
+                                    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+                                    const response = await fetch(`${apiUrl}/api/get-video-view-url?videoKey=${encodeURIComponent(video.videoUrl)}`);
+
+                                    if (!response.ok) {
+                                      throw new Error('Failed to get video URL');
+                                    }
+
+                                    const result = await response.json();
+                                    console.log('[CRM] Got video view URL');
+
                                     if (result.viewUrl) {
                                       Linking.openURL(result.viewUrl);
                                     }
-                                  } catch (error) {
-                                    Alert.alert('Error', 'Failed to load video');
+                                  } catch (error: any) {
+                                    console.error('[CRM] Error loading video:', error);
+                                    Alert.alert('Error', error.message || 'Failed to load video');
                                   }
                                 }}
                               >
