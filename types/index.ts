@@ -263,12 +263,18 @@ export interface Estimate {
 
 export interface TakeoffMeasurement {
   id: string;
-  type: 'count' | 'length' | 'area';
+  type: 'count' | 'length' | 'area' | 'line' | 'rectangle' | 'circle' | 'polygon';
   points: { x: number; y: number }[];
   quantity: number;
   priceListItemId: string;
   notes?: string;
   color: string;
+  shapeMetadata?: {
+    width?: number;
+    height?: number;
+    radius?: number;
+    center?: { x: number; y: number };
+  };
 }
 
 export interface TakeoffPlan {

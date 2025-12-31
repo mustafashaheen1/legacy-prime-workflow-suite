@@ -1,16 +1,16 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal, Dimensions, Platform, ActivityIndicator, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal, Dimensions, Platform, ActivityIndicator, FlatList, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
-import { ArrowLeft, Upload, Plus, Trash2, Check, X, Ruler, Square, MapPin, Save, Sparkles, Tag, ZoomIn, ZoomOut, Download, Settings, Grid3x3, Edit3 } from 'lucide-react-native';
-import { useState, useCallback, useEffect } from 'react';
+import { ArrowLeft, Upload, Plus, Trash2, Check, X, Ruler, Square, MapPin, Save, Sparkles, Tag, ZoomIn, ZoomOut, Download, Settings, Grid3x3, Edit3, Circle as CircleIcon } from 'lucide-react-native';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { masterPriceList, PriceListItem, priceListCategories } from '@/mocks/priceList';
 import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate } from '@/types';
-import Svg, { Circle, Polygon, Path, Line, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Polygon, Path, Line, Rect, Text as SvgText } from 'react-native-svg';
 import * as pdfjsLib from 'pdfjs-dist';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -74,6 +74,13 @@ export default function TakeoffScreen() {
   const [pdfConverting, setPdfConverting] = useState<boolean>(false);
   const [pdfConversionProgress, setPdfConversionProgress] = useState<string>('');
   const [originalPdfUri, setOriginalPdfUri] = useState<string | null>(null);
+
+  // Shape drawing state
+  const [showShapeSelector, setShowShapeSelector] = useState<boolean>(false);
+  const [selectedShapeType, setSelectedShapeType] = useState<'line' | 'rectangle' | 'circle' | 'polygon' | null>(null);
+  const [dragStartPoint, setDragStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [isDrawingShape, setIsDrawingShape] = useState<boolean>(false);
+  const [dragCurrentPoint, setDragCurrentPoint] = useState<{ x: number; y: number } | null>(null);
 
   const project = projects.find(p => p.id === id);
 
@@ -755,6 +762,76 @@ export default function TakeoffScreen() {
     }
   };
 
+  // PanResponder for shape drawing
+  const imagePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => measurementMode !== null,
+      onMoveShouldSetPanResponder: () => measurementMode !== null,
+
+      onPanResponderGrant: (evt) => {
+        if (!measurementMode || !imageLayout) return;
+
+        const { locationX, locationY } = evt.nativeEvent;
+        const relativeX = locationX / imageLayout.width;
+        const relativeY = locationY / imageLayout.height;
+        const newPoint = { x: relativeX, y: relativeY };
+
+        // Handle different shape types
+        if (selectedShapeType === 'polygon' || measurementMode === 'count') {
+          // Multi-click behavior for polygon and count
+          setCurrentPoints(prev => [...prev, newPoint]);
+          if (measurementMode === 'count') {
+            setShowItemPicker(true);
+          }
+        } else if (selectedShapeType === 'line' || selectedShapeType === 'rectangle' || selectedShapeType === 'circle') {
+          // Start drag for line, rectangle, circle
+          setDragStartPoint(newPoint);
+          setDragCurrentPoint(newPoint);
+          setIsDrawingShape(true);
+        }
+      },
+
+      onPanResponderMove: (evt) => {
+        if (!isDrawingShape || !imageLayout) return;
+
+        const { locationX, locationY } = evt.nativeEvent;
+        const relativeX = locationX / imageLayout.width;
+        const relativeY = locationY / imageLayout.height;
+        setDragCurrentPoint({ x: relativeX, y: relativeY });
+      },
+
+      onPanResponderRelease: () => {
+        if (!isDrawingShape || !dragStartPoint || !dragCurrentPoint) {
+          setIsDrawingShape(false);
+          return;
+        }
+
+        // Complete the shape
+        if (selectedShapeType === 'line') {
+          setCurrentPoints([dragStartPoint, dragCurrentPoint]);
+        } else if (selectedShapeType === 'rectangle') {
+          // Create 4 corner points for rectangle
+          const points = [
+            dragStartPoint,
+            { x: dragCurrentPoint.x, y: dragStartPoint.y },
+            dragCurrentPoint,
+            { x: dragStartPoint.x, y: dragCurrentPoint.y },
+          ];
+          setCurrentPoints(points);
+        } else if (selectedShapeType === 'circle') {
+          // Store center and edge point
+          setCurrentPoints([dragStartPoint, dragCurrentPoint]);
+        }
+
+        // Reset drag state and show item picker
+        setIsDrawingShape(false);
+        setDragStartPoint(null);
+        setDragCurrentPoint(null);
+        setShowItemPicker(true);
+      },
+    })
+  ).current;
+
   const handleImagePress = (event: any) => {
     if (!measurementMode || !activePlan || !imageLayout) return;
 
@@ -781,14 +858,58 @@ export default function TakeoffScreen() {
   const cancelMeasurement = () => {
     setCurrentPoints([]);
     setMeasurementMode(null);
+    setSelectedShapeType(null);
+    setDragStartPoint(null);
+    setDragCurrentPoint(null);
+    setIsDrawingShape(false);
   };
 
   const addMeasurementWithItem = (priceListItem: PriceListItem) => {
     if (!activePlan) return;
 
     let quantity = 1;
-    
-    if (measurementMode === 'length' && currentPoints.length >= 2) {
+    let shapeMetadata: any = {};
+
+    // Calculate quantity based on shape type
+    if (selectedShapeType === 'line' && currentPoints.length === 2) {
+      // LINE: Calculate length
+      const dx = currentPoints[1].x - currentPoints[0].x;
+      const dy = currentPoints[1].y - currentPoints[0].y;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      quantity = Math.round(length * 1000 * scale);
+
+    } else if (selectedShapeType === 'rectangle' && currentPoints.length === 4) {
+      // RECTANGLE: Calculate area as width × height
+      const width = Math.abs(currentPoints[2].x - currentPoints[0].x);
+      const height = Math.abs(currentPoints[2].y - currentPoints[0].y);
+      const area = width * height;
+      quantity = Math.round(area * 1000000 * scale * scale);
+
+      shapeMetadata = { width, height };
+
+    } else if (selectedShapeType === 'circle' && currentPoints.length === 2) {
+      // CIRCLE: Calculate area as π × r²
+      const dx = currentPoints[1].x - currentPoints[0].x;
+      const dy = currentPoints[1].y - currentPoints[0].y;
+      const radius = Math.sqrt(dx * dx + dy * dy);
+      const area = Math.PI * radius * radius;
+      quantity = Math.round(area * 1000000 * scale * scale);
+
+      shapeMetadata = { radius, center: currentPoints[0] };
+
+    } else if (selectedShapeType === 'polygon' && currentPoints.length >= 3) {
+      // POLYGON: Use shoelace formula
+      let area = 0;
+      for (let i = 0; i < currentPoints.length; i++) {
+        const j = (i + 1) % currentPoints.length;
+        area += currentPoints[i].x * currentPoints[j].y;
+        area -= currentPoints[j].x * currentPoints[i].y;
+      }
+      area = Math.abs(area / 2);
+      quantity = Math.round(area * 1000000 * scale * scale);
+
+    } else if (measurementMode === 'length' && currentPoints.length >= 2) {
+      // FALLBACK: Multi-segment line (existing logic)
       let totalLength = 0;
       for (let i = 0; i < currentPoints.length - 1; i++) {
         const dx = currentPoints[i + 1].x - currentPoints[i].x;
@@ -797,6 +918,7 @@ export default function TakeoffScreen() {
       }
       quantity = Math.round(totalLength * 1000 * scale);
     } else if (measurementMode === 'area' && currentPoints.length >= 3) {
+      // FALLBACK: Polygon area (existing logic)
       let area = 0;
       for (let i = 0; i < currentPoints.length; i++) {
         const j = (i + 1) % currentPoints.length;
@@ -810,21 +932,23 @@ export default function TakeoffScreen() {
     const colorIndex = activePlan.measurements.length % MEASUREMENT_COLORS.length;
     const newMeasurement: TakeoffMeasurement = {
       id: `meas-${Date.now()}`,
-      type: measurementMode!,
+      type: selectedShapeType || measurementMode!,
       points: currentPoints,
       quantity,
       priceListItemId: priceListItem.id,
       color: MEASUREMENT_COLORS[colorIndex],
+      shapeMetadata: Object.keys(shapeMetadata).length > 0 ? shapeMetadata : undefined,
     };
 
-    setPlans(prev => prev.map((plan, idx) => 
-      idx === activePlanIndex 
+    setPlans(prev => prev.map((plan, idx) =>
+      idx === activePlanIndex
         ? { ...plan, measurements: [...plan.measurements, newMeasurement] }
         : plan
     ));
 
     setCurrentPoints([]);
     setMeasurementMode(null);
+    setSelectedShapeType(null);
     setShowItemPicker(false);
   };
 
@@ -1003,6 +1127,7 @@ export default function TakeoffScreen() {
 
     return (
       <>
+        {/* Render completed measurements */}
         {activePlan.measurements.map(measurement => {
           if (measurement.type === 'count') {
             return measurement.points.map((point, idx) => (
@@ -1016,8 +1141,10 @@ export default function TakeoffScreen() {
                 strokeWidth={2}
               />
             ));
-          } else if (measurement.type === 'length') {
-            const pathData = measurement.points.map((point, idx) => 
+
+          } else if (measurement.type === 'line' || measurement.type === 'length') {
+            // LINE: render as Path
+            const pathData = measurement.points.map((point, idx) =>
               `${idx === 0 ? 'M' : 'L'} ${point.x * imageLayout.width} ${point.y * imageLayout.height}`
             ).join(' ');
             return (
@@ -1029,8 +1156,52 @@ export default function TakeoffScreen() {
                 fill="none"
               />
             );
-          } else if (measurement.type === 'area') {
-            const points = measurement.points.map(p => 
+
+          } else if (measurement.type === 'rectangle') {
+            // RECTANGLE: render as Rect
+            if (measurement.points.length < 4) return null;
+            const x = Math.min(measurement.points[0].x, measurement.points[2].x) * imageLayout.width;
+            const y = Math.min(measurement.points[0].y, measurement.points[2].y) * imageLayout.height;
+            const width = Math.abs(measurement.points[2].x - measurement.points[0].x) * imageLayout.width;
+            const height = Math.abs(measurement.points[2].y - measurement.points[0].y) * imageLayout.height;
+
+            return (
+              <Rect
+                key={measurement.id}
+                x={x}
+                y={y}
+                width={width}
+                height={height}
+                fill={`${measurement.color}40`}
+                stroke={measurement.color}
+                strokeWidth={3}
+              />
+            );
+
+          } else if (measurement.type === 'circle') {
+            // CIRCLE: render as Circle
+            if (measurement.points.length < 2) return null;
+            const center = measurement.points[0];
+            const edge = measurement.points[1];
+            const dx = (edge.x - center.x) * imageLayout.width;
+            const dy = (edge.y - center.y) * imageLayout.height;
+            const radius = Math.sqrt(dx * dx + dy * dy);
+
+            return (
+              <Circle
+                key={measurement.id}
+                cx={center.x * imageLayout.width}
+                cy={center.y * imageLayout.height}
+                r={radius}
+                fill={`${measurement.color}40`}
+                stroke={measurement.color}
+                strokeWidth={3}
+              />
+            );
+
+          } else if (measurement.type === 'polygon' || measurement.type === 'area') {
+            // POLYGON: render as Polygon
+            const points = measurement.points.map(p =>
               `${p.x * imageLayout.width},${p.y * imageLayout.height}`
             ).join(' ');
             return (
@@ -1043,10 +1214,12 @@ export default function TakeoffScreen() {
               />
             );
           }
+
           return null;
         })}
 
-        {currentPoints.map((point, idx) => (
+        {/* Render current points being placed (for polygon/count modes) */}
+        {!isDrawingShape && currentPoints.map((point, idx) => (
           <Circle
             key={`current-${idx}`}
             cx={point.x * imageLayout.width}
@@ -1058,15 +1231,62 @@ export default function TakeoffScreen() {
           />
         ))}
 
-        {currentPoints.length > 1 && measurementMode === 'length' && (
+        {/* Render preview during polygon drawing */}
+        {!isDrawingShape && currentPoints.length > 1 && selectedShapeType === 'polygon' && (
           <Path
-            d={currentPoints.map((point, idx) => 
+            d={currentPoints.map((point, idx) =>
               `${idx === 0 ? 'M' : 'L'} ${point.x * imageLayout.width} ${point.y * imageLayout.height}`
             ).join(' ')}
             stroke="#3B82F6"
-            strokeWidth={3}
+            strokeWidth={2}
             fill="none"
+            strokeDasharray="5,5"
           />
+        )}
+
+        {/* Render preview during drag (line, rectangle, circle) */}
+        {isDrawingShape && dragStartPoint && dragCurrentPoint && (
+          <>
+            {selectedShapeType === 'line' && (
+              <Line
+                x1={dragStartPoint.x * imageLayout.width}
+                y1={dragStartPoint.y * imageLayout.height}
+                x2={dragCurrentPoint.x * imageLayout.width}
+                y2={dragCurrentPoint.y * imageLayout.height}
+                stroke="#3B82F6"
+                strokeWidth={3}
+                strokeDasharray="5,5"
+              />
+            )}
+
+            {selectedShapeType === 'rectangle' && (
+              <Rect
+                x={Math.min(dragStartPoint.x, dragCurrentPoint.x) * imageLayout.width}
+                y={Math.min(dragStartPoint.y, dragCurrentPoint.y) * imageLayout.height}
+                width={Math.abs(dragCurrentPoint.x - dragStartPoint.x) * imageLayout.width}
+                height={Math.abs(dragCurrentPoint.y - dragStartPoint.y) * imageLayout.height}
+                fill="#3B82F640"
+                stroke="#3B82F6"
+                strokeWidth={3}
+                strokeDasharray="5,5"
+              />
+            )}
+
+            {selectedShapeType === 'circle' && (
+              <Circle
+                cx={dragStartPoint.x * imageLayout.width}
+                cy={dragStartPoint.y * imageLayout.height}
+                r={Math.sqrt(
+                  Math.pow((dragCurrentPoint.x - dragStartPoint.x) * imageLayout.width, 2) +
+                  Math.pow((dragCurrentPoint.y - dragStartPoint.y) * imageLayout.height, 2)
+                )}
+                fill="#3B82F640"
+                stroke="#3B82F6"
+                strokeWidth={3}
+                strokeDasharray="5,5"
+              />
+            )}
+          </>
         )}
       </>
     );
@@ -1178,8 +1398,10 @@ export default function TakeoffScreen() {
                 <TouchableOpacity
                   style={[styles.toolButton, measurementMode === 'area' && styles.activeToolButton]}
                   onPress={() => {
-                    setMeasurementMode('area');
+                    setShowShapeSelector(true);
                     setCurrentPoints([]);
+                    setDragStartPoint(null);
+                    setDragCurrentPoint(null);
                   }}
                 >
                   <Square size={18} color={measurementMode === 'area' ? '#FFFFFF' : '#2563EB'} />
@@ -1261,10 +1483,8 @@ export default function TakeoffScreen() {
                   setImageLayout({ width, height, x, y });
                 }}
               >
-                <TouchableOpacity
-                  activeOpacity={1}
-                  onPress={handleImagePress}
-                  disabled={!measurementMode}
+                <View
+                  {...imagePanResponder.panHandlers}
                   style={styles.imageTouchable}
                 >
                   <Image
@@ -1281,7 +1501,7 @@ export default function TakeoffScreen() {
                       {renderMeasurements()}
                     </Svg>
                   )}
-                </TouchableOpacity>
+                </View>
               </View>
             </View>
 
@@ -1564,6 +1784,79 @@ export default function TakeoffScreen() {
                   </Text>
                 </View>
               </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Shape Selection Modal */}
+        <Modal
+          visible={showShapeSelector}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowShapeSelector(false)}
+        >
+          <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={styles.shapeSelectionModal}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Shape to Draw</Text>
+                <TouchableOpacity onPress={() => setShowShapeSelector(false)}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.shapeGrid}>
+                <TouchableOpacity
+                  style={styles.shapeOption}
+                  onPress={() => {
+                    setSelectedShapeType('line');
+                    setMeasurementMode('length');
+                    setShowShapeSelector(false);
+                  }}
+                >
+                  <Edit3 size={32} color="#2563EB" />
+                  <Text style={styles.shapeOptionTitle}>Line</Text>
+                  <Text style={styles.shapeOptionDescription}>Click and drag to draw a straight line</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shapeOption}
+                  onPress={() => {
+                    setSelectedShapeType('rectangle');
+                    setMeasurementMode('area');
+                    setShowShapeSelector(false);
+                  }}
+                >
+                  <Square size={32} color="#2563EB" />
+                  <Text style={styles.shapeOptionTitle}>Rectangle</Text>
+                  <Text style={styles.shapeOptionDescription}>Click and drag from corner to corner</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shapeOption}
+                  onPress={() => {
+                    setSelectedShapeType('circle');
+                    setMeasurementMode('area');
+                    setShowShapeSelector(false);
+                  }}
+                >
+                  <CircleIcon size={32} color="#2563EB" />
+                  <Text style={styles.shapeOptionTitle}>Circle</Text>
+                  <Text style={styles.shapeOptionDescription}>Click center and drag to edge</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shapeOption}
+                  onPress={() => {
+                    setSelectedShapeType('polygon');
+                    setMeasurementMode('area');
+                    setShowShapeSelector(false);
+                  }}
+                >
+                  <Grid3x3 size={32} color="#2563EB" />
+                  <Text style={styles.shapeOptionTitle}>Polygon</Text>
+                  <Text style={styles.shapeOptionDescription}>Click multiple points to create custom shape</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -2606,5 +2899,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     lineHeight: 18,
+  },
+  shapeSelectionModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '90%',
+    maxWidth: 600,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+    paddingVertical: 8,
+  },
+  shapeGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    padding: 16,
+    gap: 12,
+  },
+  shapeOption: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center' as const,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  shapeOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  shapeOptionDescription: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center' as const,
   },
 });
