@@ -13,6 +13,8 @@ import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate, AnnotationElem
 import Svg, { Circle, Polygon, Path, Line, Rect, Text as SvgText } from 'react-native-svg';
 import * as pdfjsLib from 'pdfjs-dist';
 import ImageAnnotation from '@/components/ImageAnnotation';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -86,6 +88,9 @@ export default function TakeoffScreen() {
 
   // Annotation state
   const [showAnnotation, setShowAnnotation] = useState<boolean>(false);
+
+  // Ref for exporting
+  const imageContainerRef = useRef<any>(null);
 
   const project = projects.find(p => p.id === id);
 
@@ -730,6 +735,51 @@ export default function TakeoffScreen() {
       console.error('[AI Takeoff] Error:', error);
       Alert.alert('Error', `Failed to analyze document: ${error.message}`);
       setAiProcessing(false);
+    }
+  };
+
+  const handleExportCurrentPage = async () => {
+    if (!activePlan || !imageContainerRef.current) {
+      Alert.alert('Error', 'No page to export');
+      return;
+    }
+
+    if (Platform.OS !== 'web') {
+      Alert.alert('Export', 'Export is currently only supported on web');
+      return;
+    }
+
+    try {
+      console.log('[Export] Starting export of current page...');
+
+      // Capture the image container (including image + SVG overlay)
+      const canvas = await html2canvas(imageContainerRef.current, {
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#FFFFFF',
+        scale: 2, // Higher quality
+      });
+
+      console.log('[Export] Canvas captured:', canvas.width, 'x', canvas.height);
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+
+      // Download PDF
+      const fileName = `${activePlan.name || 'takeoff-page'}.pdf`;
+      pdf.save(fileName);
+
+      console.log('[Export] PDF saved:', fileName);
+    } catch (error: any) {
+      console.error('[Export] Error:', error);
+      Alert.alert('Export Failed', `Failed to export page: ${error.message}`);
     }
   };
 
@@ -1611,7 +1661,10 @@ export default function TakeoffScreen() {
                   <Text style={styles.toolButtonText}>Annotate</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.toolButton}>
+                <TouchableOpacity
+                  style={styles.toolButton}
+                  onPress={handleExportCurrentPage}
+                >
                   <Download size={18} color="#2563EB" />
                   <Text style={styles.toolButtonText}>Export</Text>
                 </TouchableOpacity>
@@ -1633,6 +1686,7 @@ export default function TakeoffScreen() {
 
             <View style={styles.imageContainer}>
               <View
+                ref={imageContainerRef}
                 style={styles.imageWrapper}
                 onLayout={(event) => {
                   const { width, height, x, y } = event.nativeEvent.layout;
