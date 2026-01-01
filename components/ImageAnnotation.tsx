@@ -144,14 +144,25 @@ export default function ImageAnnotation({
   };
 
   const handleClear = () => {
-    Alert.alert(
-      'Clear All',
-      'Are you sure you want to clear all annotations?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: () => setElements([]) },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to clear all annotations?')) {
+        setElements([]);
+        setCurrentPath([]);
+        console.log('[Annotation] Cleared all annotations');
+      }
+    } else {
+      Alert.alert(
+        'Clear All',
+        'Are you sure you want to clear all annotations?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Clear', style: 'destructive', onPress: () => {
+            setElements([]);
+            setCurrentPath([]);
+          }},
+        ]
+      );
+    }
   };
 
   const handleSave = () => {
