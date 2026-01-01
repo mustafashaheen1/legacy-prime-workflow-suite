@@ -59,6 +59,7 @@ export default function ImageAnnotation({
   const [elements, setElements] = useState<DrawingElement[]>([]);
   const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
   const [imageSize, setImageSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [containerLayout, setContainerLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
   const [showTextInput, setShowTextInput] = useState<boolean>(false);
   const [textInput, setTextInput] = useState<string>('');
@@ -276,6 +277,11 @@ export default function ImageAnnotation({
 
         <View
           style={styles.imageContainer}
+          onLayout={(e) => {
+            const { width, height } = e.nativeEvent.layout;
+            setContainerLayout({ width, height });
+            console.log('[Annotation] Container layout:', width, height);
+          }}
           {...(Platform.OS !== 'web' ? panResponder.panHandlers : {})}
           {...(Platform.OS === 'web' ? {
             onMouseDown: (e: any) => {
@@ -363,9 +369,8 @@ export default function ImageAnnotation({
 
           <Svg
             style={styles.svgOverlay}
-            width="100%"
-            height="100%"
-            viewBox={`0 0 ${screenWidth} ${screenHeight}`}
+            width={containerLayout.width}
+            height={containerLayout.height}
             pointerEvents="none"
           >
             {elements.map((element) => renderElement(element))}
