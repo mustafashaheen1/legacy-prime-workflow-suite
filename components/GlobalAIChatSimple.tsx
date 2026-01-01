@@ -1159,21 +1159,45 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                       console.log('[Conversation] Ending conversation mode');
                       conversationModeInitialized.current = false;
                       setIsConversationMode(false);
-                      
+
+                      // Stop microphone and recording immediately (without transcription)
                       if (isRecording) {
-                        await stopRecording(false);
+                        console.log('[Conversation] Stopping recording without transcription');
+                        setIsRecording(false);
+                        setIsTranscribing(false);
+
+                        // Stop MediaRecorder immediately
+                        if (Platform.OS === 'web' && mediaRecorderRef.current) {
+                          if (mediaRecorderRef.current.state !== 'inactive') {
+                            mediaRecorderRef.current.stop();
+                          }
+                          mediaRecorderRef.current = null;
+                          audioChunksRef.current = [];
+                        }
                       }
+
+                      // Stop speaking
                       if (isSpeaking) {
                         await stopSpeaking();
                       }
+
+                      // Clear silence timer
                       if (silenceTimerRef.current) {
                         clearTimeout(silenceTimerRef.current);
                         silenceTimerRef.current = null;
                       }
+
+                      // Stop media stream (turns off microphone)
                       if (streamRef.current) {
-                        streamRef.current.getTracks().forEach(track => track.stop());
+                        console.log('[Conversation] Stopping media stream');
+                        streamRef.current.getTracks().forEach(track => {
+                          track.stop();
+                          console.log('[Conversation] Stopped track:', track.kind);
+                        });
                         streamRef.current = null;
                       }
+
+                      // Close audio context
                       if (audioContextRef.current) {
                         audioContextRef.current.close().catch(console.error);
                         audioContextRef.current = null;
@@ -1199,9 +1223,42 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   onPress={() => {
                     setIsOpen(false);
                     if (isConversationMode) {
+                      console.log('[Conversation] Closing modal - ending conversation mode');
+                      conversationModeInitialized.current = false;
                       setIsConversationMode(false);
-                      if (isRecording) stopRecording(false);
+
+                      // Stop recording and microphone immediately
+                      if (isRecording) {
+                        setIsRecording(false);
+                        setIsTranscribing(false);
+
+                        if (Platform.OS === 'web' && mediaRecorderRef.current) {
+                          if (mediaRecorderRef.current.state !== 'inactive') {
+                            mediaRecorderRef.current.stop();
+                          }
+                          mediaRecorderRef.current = null;
+                          audioChunksRef.current = [];
+                        }
+                      }
+
                       if (isSpeaking) stopSpeaking();
+
+                      // Stop media stream
+                      if (streamRef.current) {
+                        streamRef.current.getTracks().forEach(track => track.stop());
+                        streamRef.current = null;
+                      }
+
+                      // Clean up audio context
+                      if (audioContextRef.current) {
+                        audioContextRef.current.close().catch(console.error);
+                        audioContextRef.current = null;
+                      }
+
+                      if (silenceTimerRef.current) {
+                        clearTimeout(silenceTimerRef.current);
+                        silenceTimerRef.current = null;
+                      }
                     }
                   }}
                 >

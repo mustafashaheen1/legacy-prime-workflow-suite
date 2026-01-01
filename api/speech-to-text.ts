@@ -27,8 +27,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const tempFile = `/tmp/audio-${Date.now()}.webm`;
     fs.writeFileSync(tempFile, audioBuffer);
 
-    // Transcribe using OpenAI Whisper
-    const transcription = await openai.audio.transcriptions.create({
+    // Use Whisper translation to convert any language to English
+    const translation = await openai.audio.translations.create({
       file: fs.createReadStream(tempFile),
       model: 'whisper-1',
     });
@@ -36,11 +36,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Clean up temp file
     fs.unlinkSync(tempFile);
 
-    console.log('[STT] Transcription successful:', transcription.text.substring(0, 50));
+    console.log('[STT] Translation to English successful:', translation.text.substring(0, 50));
 
     return res.status(200).json({
       success: true,
-      text: transcription.text,
+      text: translation.text,
     });
   } catch (error: any) {
     console.error('[STT] Error:', error);

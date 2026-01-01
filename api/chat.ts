@@ -19,8 +19,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[AI Chat] Processing chat request with', messages.length, 'messages');
 
+    // Add system message to enforce English responses
+    const systemMessage = {
+      role: 'system',
+      content: 'You are a helpful AI assistant for a construction management app. Always respond in English, regardless of the language of the user\'s input. If the user speaks in another language, acknowledge it politely but respond in English.',
+    };
+
     // Convert messages to OpenAI format
-    const openaiMessages: any[] = messages.map((msg: any) => {
+    const openaiMessages: any[] = [systemMessage, ...messages.map((msg: any) => {
       if (msg.role === 'user' && msg.files && msg.files.length > 0) {
         // Handle messages with images
         const content: any[] = [{ type: 'text', text: msg.text || 'Analyze these images' }];
@@ -44,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         role: msg.role,
         content: msg.text || msg.content,
       };
-    });
+    })];
 
     // Add tool results if present
     if (toolResults && toolResults.length > 0) {
