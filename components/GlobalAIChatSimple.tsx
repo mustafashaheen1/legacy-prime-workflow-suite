@@ -389,8 +389,14 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     try {
       console.log('[STT] Starting transcription...');
 
+      // Convert audio blob to base64 using browser-compatible method
       const arrayBuffer = await audio.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
 
       const response = await fetch('/api/speech-to-text', {
         method: 'POST',
