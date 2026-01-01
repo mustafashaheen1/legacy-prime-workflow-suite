@@ -141,6 +141,8 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const scrollViewRef = useRef<ScrollView>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const voicesLoadedRef = useRef<boolean>(false);
   const pathname = usePathname();
   const isOnChatScreen = pathname === '/chat';
   const isOnAuthScreen = pathname?.includes('/login') || pathname?.includes('/subscription') || pathname?.includes('/signup');
@@ -180,6 +182,42 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       }
     }
   }, [messages, isConversationMode, isSpeaking, isRecording]);
+
+  // Load and cache preferred voice on mount
+  useEffect(() => {
+    if (Platform.OS === 'web' && 'speechSynthesis' in window) {
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        console.log('[TTS] Available voices:', voices.length);
+
+        if (voices.length > 0 && !voicesLoadedRef.current) {
+          // Select a consistent English voice - prefer Google US English
+          const preferredVoice =
+            voices.find(voice => voice.name === 'Google US English') ||
+            voices.find(voice => voice.name.includes('Google') && voice.lang.startsWith('en-US')) ||
+            voices.find(voice => voice.name.includes('Microsoft') && voice.lang.startsWith('en-US')) ||
+            voices.find(voice => voice.lang.startsWith('en-US')) ||
+            voices.find(voice => voice.lang.startsWith('en'));
+
+          if (preferredVoice) {
+            preferredVoiceRef.current = preferredVoice;
+            voicesLoadedRef.current = true;
+            console.log('[TTS] Selected voice:', preferredVoice.name, preferredVoice.lang);
+          }
+        }
+      };
+
+      // Load voices immediately
+      loadVoices();
+
+      // Also listen for voiceschanged event (needed for Chrome)
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+
+      return () => {
+        window.speechSynthesis.onvoiceschanged = null;
+      };
+    }
+  }, []);
 
   const startRecording = async () => {
     try {
@@ -410,14 +448,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         utterance.pitch = 1.0;
         utterance.volume = 1.0;
 
-        // Try to get a good English voice
-        const voices = window.speechSynthesis.getVoices();
-        const preferredVoice = voices.find(voice =>
-          voice.lang.startsWith('en') && (voice.name.includes('Google') || voice.name.includes('Microsoft'))
-        ) || voices.find(voice => voice.lang.startsWith('en'));
-
-        if (preferredVoice) {
-          utterance.voice = preferredVoice;
+        // Use cached voice for consistency and instant playback
+        if (preferredVoiceRef.current) {
+          utterance.voice = preferredVoiceRef.current;
+          console.log('[TTS] Using cached voice:', preferredVoiceRef.current.name);
+        } else {
+          console.warn('[TTS] No cached voice, using default');
         }
 
         utterance.onend = () => {
