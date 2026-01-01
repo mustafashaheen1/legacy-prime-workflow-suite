@@ -1,15 +1,15 @@
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal, Dimensions, Platform, ActivityIndicator, FlatList, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { ArrowLeft, Upload, Plus, Trash2, Check, X, Ruler, Square, MapPin, Save, Sparkles, Tag, ZoomIn, ZoomOut, Download, Settings, Grid3x3, Edit3, Circle as CircleIcon } from 'lucide-react-native';
-import { useState, useCallback, useEffect, useRef } from 'react';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { masterPriceList, PriceListItem, priceListCategories } from '@/mocks/priceList';
-import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate } from '@/types';
+import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate, AnnotationElement } from '@/types';
 import Svg, { Circle, Polygon, Path, Line, Rect, Text as SvgText } from 'react-native-svg';
 import * as pdfjsLib from 'pdfjs-dist';
 import ImageAnnotation from '@/components/ImageAnnotation';
@@ -1251,6 +1251,111 @@ export default function TakeoffScreen() {
           return null;
         })}
 
+        {/* Render annotations */}
+        {activePlan.annotations?.map(annotation => {
+          switch (annotation.type) {
+            case 'pen':
+              if (!annotation.points || annotation.points.length < 2) return null;
+              const pathData = annotation.points
+                .map((point, index) => (index === 0 ? `M ${point.x} ${point.y}` : `L ${point.x} ${point.y}`))
+                .join(' ');
+              return (
+                <Path
+                  key={annotation.id}
+                  d={pathData}
+                  stroke={annotation.color}
+                  strokeWidth={annotation.strokeWidth}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              );
+
+            case 'rectangle':
+              if (!annotation.startPoint || !annotation.endPoint) return null;
+              const width = annotation.endPoint.x - annotation.startPoint.x;
+              const height = annotation.endPoint.y - annotation.startPoint.y;
+              return (
+                <Rect
+                  key={annotation.id}
+                  x={annotation.startPoint.x}
+                  y={annotation.startPoint.y}
+                  width={width}
+                  height={height}
+                  stroke={annotation.color}
+                  strokeWidth={annotation.strokeWidth}
+                  fill="none"
+                />
+              );
+
+            case 'circle':
+              if (!annotation.startPoint || !annotation.endPoint) return null;
+              const dx = annotation.endPoint.x - annotation.startPoint.x;
+              const dy = annotation.endPoint.y - annotation.startPoint.y;
+              const radius = Math.sqrt(dx * dx + dy * dy);
+              return (
+                <Circle
+                  key={annotation.id}
+                  cx={annotation.startPoint.x}
+                  cy={annotation.startPoint.y}
+                  r={radius}
+                  stroke={annotation.color}
+                  strokeWidth={annotation.strokeWidth}
+                  fill="none"
+                />
+              );
+
+            case 'arrow':
+              if (!annotation.startPoint || !annotation.endPoint) return null;
+              const angle = Math.atan2(
+                annotation.endPoint.y - annotation.startPoint.y,
+                annotation.endPoint.x - annotation.startPoint.x
+              );
+              const arrowSize = 15;
+              const arrowAngle = Math.PI / 6;
+              const arrowX1 = annotation.endPoint.x - arrowSize * Math.cos(angle - arrowAngle);
+              const arrowY1 = annotation.endPoint.y - arrowSize * Math.sin(angle - arrowAngle);
+              const arrowX2 = annotation.endPoint.x - arrowSize * Math.cos(angle + arrowAngle);
+              const arrowY2 = annotation.endPoint.y - arrowSize * Math.sin(angle + arrowAngle);
+
+              return (
+                <React.Fragment key={annotation.id}>
+                  <Line
+                    x1={annotation.startPoint.x}
+                    y1={annotation.startPoint.y}
+                    x2={annotation.endPoint.x}
+                    y2={annotation.endPoint.y}
+                    stroke={annotation.color}
+                    strokeWidth={annotation.strokeWidth}
+                  />
+                  <Path
+                    d={`M ${annotation.endPoint.x} ${annotation.endPoint.y} L ${arrowX1} ${arrowY1} M ${annotation.endPoint.x} ${annotation.endPoint.y} L ${arrowX2} ${arrowY2}`}
+                    stroke={annotation.color}
+                    strokeWidth={annotation.strokeWidth}
+                  />
+                </React.Fragment>
+              );
+
+            case 'text':
+              if (!annotation.startPoint || !annotation.text) return null;
+              return (
+                <SvgText
+                  key={annotation.id}
+                  x={annotation.startPoint.x}
+                  y={annotation.startPoint.y}
+                  fill={annotation.color}
+                  fontSize={20}
+                  fontWeight="bold"
+                >
+                  {annotation.text}
+                </SvgText>
+              );
+
+            default:
+              return null;
+          }
+        })}
+
         {/* Render current points being placed (for polygon/count modes) */}
         {!isDrawingShape && currentPoints.map((point, idx) => (
           <Circle
@@ -2210,13 +2315,14 @@ export default function TakeoffScreen() {
           <ImageAnnotation
             visible={showAnnotation}
             imageUri={activePlan.uri}
-            onSave={(uri) => {
-              console.log('Annotation saved:', uri);
+            initialAnnotations={activePlan.annotations}
+            onSave={(annotations) => {
+              console.log('Annotation saved:', annotations.length, 'annotations');
+              // Update the plan with the annotations
+              setPlans(prev => prev.map((plan, idx) =>
+                idx === activePlanIndex ? { ...plan, annotations } : plan
+              ));
               setShowAnnotation(false);
-              // Optionally update the plan with the annotated image
-              // setPlans(prev => prev.map((plan, idx) =>
-              //   idx === activePlanIndex ? { ...plan, uri } : plan
-              // ));
             }}
             onCancel={() => setShowAnnotation(false)}
           />

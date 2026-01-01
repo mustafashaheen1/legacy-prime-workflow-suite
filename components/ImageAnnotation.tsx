@@ -41,7 +41,8 @@ type DrawingElement = {
 interface ImageAnnotationProps {
   visible: boolean;
   imageUri: string;
-  onSave: (uri: string) => void;
+  initialAnnotations?: DrawingElement[];
+  onSave: (annotations: DrawingElement[]) => void;
   onCancel: () => void;
 }
 
@@ -50,6 +51,7 @@ const COLORS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#1F2937'
 export default function ImageAnnotation({
   visible,
   imageUri,
+  initialAnnotations,
   onSave,
   onCancel,
 }: ImageAnnotationProps) {
@@ -67,6 +69,17 @@ export default function ImageAnnotation({
 
   const screenWidth = Dimensions.get('window').width;
   const screenHeight = Dimensions.get('window').height;
+
+  // Load initial annotations when modal opens
+  React.useEffect(() => {
+    if (visible && initialAnnotations) {
+      setElements(initialAnnotations);
+    } else if (!visible) {
+      // Reset when modal closes
+      setElements([]);
+      setCurrentPath([]);
+    }
+  }, [visible, initialAnnotations]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -166,7 +179,8 @@ export default function ImageAnnotation({
   };
 
   const handleSave = () => {
-    onSave(imageUri);
+    console.log('[Annotation] Saving annotations:', elements.length);
+    onSave(elements);
   };
 
   const renderElement = (element: DrawingElement) => {

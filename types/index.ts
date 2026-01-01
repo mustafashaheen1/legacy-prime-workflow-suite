@@ -277,12 +277,24 @@ export interface TakeoffMeasurement {
   };
 }
 
+export interface AnnotationElement {
+  type: 'pen' | 'text' | 'rectangle' | 'circle' | 'arrow';
+  color: string;
+  strokeWidth: number;
+  points?: { x: number; y: number }[];
+  startPoint?: { x: number; y: number };
+  endPoint?: { x: number; y: number };
+  text?: string;
+  id: string;
+}
+
 export interface TakeoffPlan {
   id: string;
   uri: string;
   name: string;
   measurements: TakeoffMeasurement[];
   scale?: number;
+  annotations?: AnnotationElement[];
 }
 
 export interface CallLog {
