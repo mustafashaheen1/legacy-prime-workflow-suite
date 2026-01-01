@@ -61,7 +61,10 @@
       "Bash(npx expo install:*)",
       "Bash(bunx expo install:*)",
       "Bash(npm run:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

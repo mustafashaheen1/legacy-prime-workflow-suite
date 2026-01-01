@@ -765,8 +765,21 @@ export default function TakeoffScreen() {
   // PanResponder for shape drawing
   const imagePanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => measurementMode !== null,
-      onMoveShouldSetPanResponder: () => measurementMode !== null,
+      onStartShouldSetPanResponder: (evt, gestureState) => {
+        const hasMode = measurementMode !== null;
+        // On web, only respond if there's an actual mouse button press
+        if (Platform.OS === 'web') {
+          return hasMode && gestureState.numberActiveTouches > 0;
+        }
+        return hasMode;
+      },
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        const hasMode = measurementMode !== null;
+        if (Platform.OS === 'web') {
+          return hasMode && gestureState.numberActiveTouches > 0;
+        }
+        return hasMode;
+      },
 
       onPanResponderGrant: (evt) => {
         console.log('[PanResponder] Grant - measurementMode:', measurementMode, 'selectedShapeType:', selectedShapeType, 'imageLayout:', imageLayout);
@@ -1513,6 +1526,7 @@ export default function TakeoffScreen() {
                       style={StyleSheet.absoluteFill}
                       width={imageLayout.width}
                       height={imageLayout.height}
+                      pointerEvents="none"
                     >
                       {renderMeasurements()}
                     </Svg>
