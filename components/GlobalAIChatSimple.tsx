@@ -1292,9 +1292,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           {messages.length === 0 && (
             <View style={styles.emptyState}>
               <Bot size={56} color="#D1D5DB" strokeWidth={2} />
-              <Text style={styles.emptyStateTitle}>¡Pregúntame lo que quieras!</Text>
+              <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
               <Text style={styles.emptyStateText}>
-                Puedo analizar imágenes, hacer takeoff de planos, generar imágenes, y responder tus preguntas. ¡Pruébame!
+                I can analyze images, do blueprint takeoffs, generate images, and answer your questions. Try me!
               </Text>
             </View>
           )}
@@ -1558,9 +1558,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               {messages.length === 0 && (
                 <View style={styles.emptyState}>
                   <Bot size={56} color="#D1D5DB" strokeWidth={2} />
-                  <Text style={styles.emptyStateTitle}>¡Pregúntame lo que quieras!</Text>
+                  <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
                   <Text style={styles.emptyStateText}>
-                    Puedo analizar imágenes de construcción, hacer takeoff de planos, y responder tus preguntas. ¡Pruébame!
+                    I can analyze construction images, do blueprint takeoffs, and answer your questions. Try me!
                   </Text>
                 </View>
               )}

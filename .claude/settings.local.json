@@ -64,7 +64,9 @@
       "Bash(head:*)",
       "Bash(git log:*)",
       "Bash(git show:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npm ls:*)",
+      "Bash(npx rork start:*)"
     ],
     "deny": [],
     "ask": []
