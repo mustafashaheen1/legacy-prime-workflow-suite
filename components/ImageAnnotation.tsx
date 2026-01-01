@@ -279,16 +279,23 @@ export default function ImageAnnotation({
           {...(Platform.OS !== 'web' ? panResponder.panHandlers : {})}
           {...(Platform.OS === 'web' ? {
             onMouseDown: (e: any) => {
-              console.log('[Annotation] Mouse down');
+              console.log('[Annotation] Mouse down on tool:', selectedTool);
               const containerRect = e.currentTarget.getBoundingClientRect();
               const startX = e.clientX - containerRect.left;
               const startY = e.clientY - containerRect.top;
 
+              console.log('[Annotation] Start coordinates:', startX, startY);
+
               if (selectedTool === 'text') {
                 setTextPosition({ x: startX, y: startY });
                 setShowTextInput(true);
-              } else if (selectedTool === 'pen') {
-                setCurrentPath([{ x: startX, y: startY }]);
+                return;
+              }
+
+              let pathPoints: { x: number; y: number }[] = [];
+              if (selectedTool === 'pen') {
+                pathPoints = [{ x: startX, y: startY }];
+                setCurrentPath(pathPoints);
               } else {
                 setStartPoint({ x: startX, y: startY });
               }
@@ -298,7 +305,9 @@ export default function ImageAnnotation({
                 const moveY = moveEvent.clientY - containerRect.top;
 
                 if (selectedTool === 'pen') {
-                  setCurrentPath((prev) => [...prev, { x: moveX, y: moveY }]);
+                  pathPoints.push({ x: moveX, y: moveY });
+                  setCurrentPath([...pathPoints]);
+                  console.log('[Annotation] Drawing pen, points:', pathPoints.length);
                 }
               };
 
@@ -307,25 +316,28 @@ export default function ImageAnnotation({
                 const endX = upEvent.clientX - containerRect.left;
                 const endY = upEvent.clientY - containerRect.top;
 
-                if (selectedTool === 'pen' && currentPath.length > 0) {
+                if (selectedTool === 'pen' && pathPoints.length > 0) {
+                  pathPoints.push({ x: endX, y: endY });
                   const newElement: DrawingElement = {
                     type: 'pen',
                     color: selectedColor,
                     strokeWidth,
-                    points: [...currentPath, { x: endX, y: endY }],
+                    points: pathPoints,
                     id: Date.now().toString(),
                   };
+                  console.log('[Annotation] Creating pen element with', pathPoints.length, 'points, color:', selectedColor);
                   setElements((prev) => [...prev, newElement]);
                   setCurrentPath([]);
-                } else if (selectedTool !== 'pen' && selectedTool !== 'text' && startPoint) {
+                } else if (selectedTool !== 'pen' && selectedTool !== 'text') {
                   const newElement: DrawingElement = {
                     type: selectedTool,
                     color: selectedColor,
                     strokeWidth,
-                    startPoint,
+                    startPoint: { x: startX, y: startY },
                     endPoint: { x: endX, y: endY },
                     id: Date.now().toString(),
                   };
+                  console.log('[Annotation] Creating', selectedTool, 'element, color:', selectedColor);
                   setElements((prev) => [...prev, newElement]);
                   setStartPoint(null);
                 }
@@ -349,7 +361,13 @@ export default function ImageAnnotation({
             }}
           />
 
-          <Svg style={styles.svgOverlay} pointerEvents="none">
+          <Svg
+            style={styles.svgOverlay}
+            width="100%"
+            height="100%"
+            viewBox={`0 0 ${screenWidth} ${screenHeight}`}
+            pointerEvents="none"
+          >
             {elements.map((element) => renderElement(element))}
             {selectedTool === 'pen' && currentPath.length > 0 && (
               <Path
