@@ -777,14 +777,14 @@ export default function TakeoffScreen() {
         const newPoint = { x: relativeX, y: relativeY };
 
         // Handle different shape types
-        if (selectedShapeType === 'polygon' || measurementMode === 'count') {
-          // Multi-click behavior for polygon and count
+        if (selectedShapeType === 'polygon' || measurementMode === 'count' || (!selectedShapeType && measurementMode === 'area')) {
+          // Multi-click behavior for polygon, count, and legacy area mode
           setCurrentPoints(prev => [...prev, newPoint]);
           if (measurementMode === 'count') {
             setShowItemPicker(true);
           }
-        } else if (selectedShapeType === 'line' || selectedShapeType === 'rectangle' || selectedShapeType === 'circle') {
-          // Start drag for line, rectangle, circle
+        } else if (selectedShapeType === 'line' || selectedShapeType === 'rectangle' || selectedShapeType === 'circle' || (!selectedShapeType && measurementMode === 'length')) {
+          // Start drag for line, rectangle, circle, and legacy length mode
           setDragStartPoint(newPoint);
           setDragCurrentPoint(newPoint);
           setIsDrawingShape(true);
@@ -807,8 +807,13 @@ export default function TakeoffScreen() {
         }
 
         // Complete the shape
-        if (selectedShapeType === 'line') {
+        if (selectedShapeType === 'line' || (!selectedShapeType && measurementMode === 'length')) {
           setCurrentPoints([dragStartPoint, dragCurrentPoint]);
+          // For single-segment lines, show item picker immediately
+          setIsDrawingShape(false);
+          setDragStartPoint(null);
+          setDragCurrentPoint(null);
+          setShowItemPicker(true);
         } else if (selectedShapeType === 'rectangle') {
           // Create 4 corner points for rectangle
           const points = [
@@ -818,16 +823,18 @@ export default function TakeoffScreen() {
             { x: dragStartPoint.x, y: dragCurrentPoint.y },
           ];
           setCurrentPoints(points);
+          setIsDrawingShape(false);
+          setDragStartPoint(null);
+          setDragCurrentPoint(null);
+          setShowItemPicker(true);
         } else if (selectedShapeType === 'circle') {
           // Store center and edge point
           setCurrentPoints([dragStartPoint, dragCurrentPoint]);
+          setIsDrawingShape(false);
+          setDragStartPoint(null);
+          setDragCurrentPoint(null);
+          setShowItemPicker(true);
         }
-
-        // Reset drag state and show item picker
-        setIsDrawingShape(false);
-        setDragStartPoint(null);
-        setDragCurrentPoint(null);
-        setShowItemPicker(true);
       },
     })
   ).current;
@@ -1232,7 +1239,7 @@ export default function TakeoffScreen() {
         ))}
 
         {/* Render preview during polygon drawing */}
-        {!isDrawingShape && currentPoints.length > 1 && selectedShapeType === 'polygon' && (
+        {!isDrawingShape && currentPoints.length > 1 && (selectedShapeType === 'polygon' || (!selectedShapeType && measurementMode === 'area')) && (
           <Path
             d={currentPoints.map((point, idx) =>
               `${idx === 0 ? 'M' : 'L'} ${point.x * imageLayout.width} ${point.y * imageLayout.height}`
