@@ -65,6 +65,7 @@ export default function TakeoffScreen() {
   const [takeoffMode, setTakeoffMode] = useState<'manual' | 'ai' | null>(null);
   const [showModeSelection, setShowModeSelection] = useState<boolean>(false);
   const [aiProcessing, setAiProcessing] = useState<boolean>(false);
+  const [aiAnalyzingAllPages, setAiAnalyzingAllPages] = useState<boolean>(false);
   const [showCategorySelection, setShowCategorySelection] = useState<boolean>(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [aiResults, setAiResults] = useState<string>('');
@@ -484,7 +485,7 @@ export default function TakeoffScreen() {
     }
   };
 
-  const handleAITakeoff = async () => {
+  const handleAITakeoff = async (analyzeAllPages: boolean = false) => {
     if (!activePlan) {
       Alert.alert('Error', 'Please upload a document first');
       return;
@@ -492,10 +493,12 @@ export default function TakeoffScreen() {
 
     try {
       setAiProcessing(true);
+      setAiAnalyzingAllPages(analyzeAllPages);
       setShowCategorySelection(false);
 
       console.log('[AI Takeoff] Starting OpenAI analysis...');
       console.log('[AI Takeoff] Document type:', uploadedDocumentType);
+      console.log('[AI Takeoff] Analyze all pages:', analyzeAllPages);
 
       let imageUrl = null;
       let imageData = null;
@@ -518,10 +521,12 @@ export default function TakeoffScreen() {
       console.log('[AI Takeoff] File size:', fileSizeMB.toFixed(2), 'MB');
       console.log('[AI Takeoff] Document type:', uploadedDocumentType);
 
-      // If it's a PDF, convert all pages to images (OpenAI Vision doesn't support PDFs)
+      // Determine analysis scope based on mode
       let imageUrls: string[] = [];
-      if (uploadedDocumentType === 'pdf' && Platform.OS === 'web') {
-        console.log('[AI Takeoff] Converting PDF pages to images (client-side)...');
+      if (analyzeAllPages && uploadedDocumentType === 'pdf' && Platform.OS === 'web') {
+        // INITIAL UPLOAD MODE: Analyze whole document for all categories
+        console.log('[AI Takeoff] Converting ALL PDF pages to images for full document analysis...');
+        console.log('[AI Takeoff] Selected categories:', selectedCategories);
 
         try {
           // Use original PDF URI (not the converted image URI)
@@ -576,6 +581,10 @@ export default function TakeoffScreen() {
           }
           return;
         }
+      } else {
+        // MANUAL AI TAKEOFF BUTTON: Analyze only current visible page
+        console.log('[AI Takeoff] Analyzing current page only:', activePlan.name);
+        console.log('[AI Takeoff] Selected categories:', selectedCategories);
       }
 
       // If file is larger than 3.5MB and not already uploaded (not a PDF that was converted), upload to S3 directly
@@ -1988,8 +1997,8 @@ export default function TakeoffScreen() {
                   setShowModeSelection(false);
                   // Auto-select all categories for AI
                   setSelectedCategories([...priceListCategories]);
-                  // Start AI analysis immediately
-                  setTimeout(() => handleAITakeoff(), 100);
+                  // Start AI analysis immediately - analyze ALL pages for initial upload
+                  setTimeout(() => handleAITakeoff(true), 100);
                 }}
               >
                 <Sparkles size={32} color="#2563EB" />
@@ -2113,7 +2122,7 @@ export default function TakeoffScreen() {
               </View>
 
               <Text style={styles.categorySelectionSubtitle}>
-                Choose which categories you want the AI to analyze in the blueprint. Select all for a complete takeoff.
+                Choose which categories you want the AI to analyze on the current page. You can run this on each page separately.
               </Text>
 
               <View style={styles.categorySelectAllContainer}>
@@ -2188,9 +2197,11 @@ export default function TakeoffScreen() {
           <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
             <View style={styles.aiProcessingModal}>
               <ActivityIndicator size="large" color="#2563EB" />
-              <Text style={styles.aiProcessingTitle}>Analyzing Blueprint...</Text>
+              <Text style={styles.aiProcessingTitle}>
+                {aiAnalyzingAllPages ? 'Analyzing Entire Document...' : 'Analyzing Current Page...'}
+              </Text>
               <Text style={styles.aiProcessingText}>
-                The AI is analyzing your blueprint for {selectedCategories.length === priceListCategories.length ? 'all categories' : `${selectedCategories.length} categories`}
+                The AI is analyzing {aiAnalyzingAllPages ? 'all pages' : 'the current page'} for {selectedCategories.length === priceListCategories.length ? 'all categories' : `${selectedCategories.length} ${selectedCategories.length === 1 ? 'category' : 'categories'}`}
               </Text>
               {aiResults && (
                 <ScrollView style={styles.aiResultsPreview}>
