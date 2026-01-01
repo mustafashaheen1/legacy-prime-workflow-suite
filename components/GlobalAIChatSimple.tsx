@@ -143,6 +143,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const audioChunksRef = useRef<Blob[]>([]);
   const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const voicesLoadedRef = useRef<boolean>(false);
+  const previousMessageCountRef = useRef<number>(0);
   const pathname = usePathname();
   const isOnChatScreen = pathname === '/chat';
   const isOnAuthScreen = pathname?.includes('/login') || pathname?.includes('/subscription') || pathname?.includes('/signup');
@@ -168,7 +169,11 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
 
-      if (isConversationMode && conversationModeInitialized.current && !isSpeaking && !isRecording) {
+      // Only auto-speak if this is a NEW message (message count increased)
+      const hasNewMessage = messages.length > previousMessageCountRef.current;
+      previousMessageCountRef.current = messages.length;
+
+      if (isConversationMode && conversationModeInitialized.current && !isSpeaking && !isRecording && hasNewMessage) {
         const lastMessage = messages[messages.length - 1];
         if (lastMessage && lastMessage.role === 'assistant') {
           const textPart = lastMessage.parts.find(p => p.type === 'text');
@@ -372,9 +377,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         if (sendImmediately && isConversationMode) {
           console.log('[Conversation] Auto-sending message:', transcribedText);
           await sendMessage(transcribedText);
-        } else {
+        } else if (!isConversationMode) {
+          // Only set input if we're NOT in conversation mode
+          // (i.e., user explicitly used voice-to-text button)
           setInput(transcribedText);
         }
+        // If in conversation mode but sendImmediately is false, discard the transcription
       }
     } catch (error) {
       console.error('[STT] Transcription error:', error);
@@ -423,9 +431,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         if (sendImmediately && isConversationMode) {
           console.log('[Conversation] Auto-sending message:', transcribedText);
           await sendMessage(transcribedText);
-        } else {
+        } else if (!isConversationMode) {
+          // Only set input if we're NOT in conversation mode
+          // (i.e., user explicitly used voice-to-text button)
           setInput(transcribedText);
         }
+        // If in conversation mode but sendImmediately is false, discard the transcription
       }
     } catch (error) {
       console.error('[STT] Transcription error:', error);
