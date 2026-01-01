@@ -9,7 +9,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Audio } from 'expo-av';
 import { usePathname } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
-import { trpc, trpcClient } from '@/lib/trpc';
+// Removed tRPC dependency - using OpenAI API directly
 import { masterPriceList } from '@/mocks/priceList';
 import { mockPhotos } from '@/mocks/data';
 
@@ -346,20 +346,28 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const transcribeAudioBase64 = async (base64: string, sendImmediately = false) => {
     try {
       console.log('[STT] Transcribing audio via OpenAI Whisper...');
-      
-      const result = await trpcClient.openai.speechToText.mutate({
-        audioBase64: base64,
+
+      const response = await fetch('/api/speech-to-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audioBase64: base64 }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to transcribe audio');
+      }
+
+      const result = await response.json();
 
       if (!result.success || !result.text) {
         throw new Error(result.error || 'Transcription failed');
       }
 
       const transcribedText = result.text;
-      
+
       console.log('[STT] Transcription successful:', transcribedText);
       setIsTranscribing(false);
-      
+
       if (transcribedText && transcribedText.trim()) {
         if (sendImmediately && isConversationMode) {
           console.log('[Conversation] Auto-sending message:', transcribedText);
@@ -380,23 +388,31 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const transcribeAudio = async (audio: Blob, sendImmediately = false) => {
     try {
       console.log('[STT] Starting transcription...');
-      
+
       const arrayBuffer = await audio.arrayBuffer();
       const base64 = Buffer.from(arrayBuffer).toString('base64');
-      
-      const result = await trpcClient.openai.speechToText.mutate({
-        audioBase64: base64,
+
+      const response = await fetch('/api/speech-to-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audioBase64: base64 }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to transcribe audio');
+      }
+
+      const result = await response.json();
 
       if (!result.success || !result.text) {
         throw new Error(result.error || 'Transcription failed');
       }
 
       const transcribedText = result.text;
-      
+
       console.log('[STT] Transcription successful:', transcribedText);
       setIsTranscribing(false);
-      
+
       if (transcribedText && transcribedText.trim()) {
         if (sendImmediately && isConversationMode) {
           console.log('[Conversation] Auto-sending message:', transcribedText);
