@@ -158,7 +158,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     estimates
   } = useApp();
 
-  const { messages, sendMessage } = useOpenAIChat();
+  const { messages, sendMessage, isLoading } = useOpenAIChat();
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -402,12 +402,22 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
 
       console.log('[TTS] Generating speech:', text.substring(0, 50));
       setIsSpeaking(true);
-      
-      const result = await trpcClient.openai.textToSpeech.mutate({
-        text: text,
-        voice: 'nova',
-        model: 'tts-1',
+
+      const response = await fetch('/api/text-to-speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          voice: 'nova',
+          model: 'tts-1',
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate speech');
+      }
+
+      const result = await response.json();
 
       if (!result.success || !result.audioBase64) {
         throw new Error(result.error || 'TTS request failed');
@@ -894,6 +904,18 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               })}
             </View>
           ))}
+
+          {/* Loading indicator while AI is responding */}
+          {isLoading && (
+            <View style={styles.assistantMessageContainer}>
+              <View style={styles.assistantMessage}>
+                <ActivityIndicator size="small" color="#2563EB" />
+                <Text style={[styles.assistantMessageText, { marginLeft: 8, fontStyle: 'italic' }]}>
+                  AI is thinking...
+                </Text>
+              </View>
+            </View>
+          )}
         </ScrollView>
 
         <View style={styles.inputWrapper}>
@@ -1179,6 +1201,18 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   })}
                 </View>
               ))}
+
+              {/* Loading indicator while AI is responding */}
+              {isLoading && (
+                <View style={styles.assistantMessageContainer}>
+                  <View style={styles.assistantMessage}>
+                    <ActivityIndicator size="small" color="#2563EB" />
+                    <Text style={[styles.assistantMessageText, { marginLeft: 8, fontStyle: 'italic' }]}>
+                      AI is thinking...
+                    </Text>
+                  </View>
+                </View>
+              )}
             </ScrollView>
 
             <View style={styles.inputWrapper}>
