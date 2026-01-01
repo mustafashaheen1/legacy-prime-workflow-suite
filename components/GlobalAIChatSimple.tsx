@@ -5,12 +5,11 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useRorkAgent, createRorkTool } from '@rork-ai/toolkit-sdk';
+// Removed Rork AI dependency - using OpenAI directly
 import { Audio } from 'expo-av';
 import { usePathname } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { trpc, trpcClient } from '@/lib/trpc';
-import { z } from 'zod';
 import { masterPriceList } from '@/mocks/priceList';
 import { mockPhotos } from '@/mocks/data';
 
@@ -50,6 +49,73 @@ const getSanitizedMimeType = (initialMimeType: string | undefined, fileName: str
   }
   return 'application/octet-stream';
 };
+
+// Custom hook to replace Rork AI with direct OpenAI
+function useOpenAIChat() {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const sendMessage = async (userMessage: string | { text: string; files: any[] }) => {
+    const messageText = typeof userMessage === 'string' ? userMessage : userMessage.text;
+    const files = typeof userMessage === 'object' && 'files' in userMessage ? userMessage.files : [];
+
+    // Add user message
+    const userMsg = {
+      id: Date.now().toString(),
+      role: 'user',
+      text: messageText,
+      files,
+      parts: [{ type: 'text', text: messageText }],
+    };
+    setMessages(prev => [...prev, userMsg]);
+    setIsLoading(true);
+
+    try {
+      // Prepare messages for API
+      const apiMessages = [...messages, userMsg].map(msg => ({
+        role: msg.role,
+        text: msg.text,
+        files: msg.files,
+      }));
+
+      // Call OpenAI API
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from AI');
+      }
+
+      const data = await response.json();
+
+      // Add assistant message
+      const assistantMsg = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        text: data.content,
+        parts: [{ type: 'text', text: data.content }],
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+    } catch (error) {
+      console.error('[AI Chat] Error:', error);
+      // Add error message
+      const errorMsg = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        text: 'Sorry, I encountered an error. Please try again.',
+        parts: [{ type: 'text', text: 'Sorry, I encountered an error. Please try again.' }],
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return { messages, sendMessage, isLoading };
+}
 
 export default function GlobalAIChatSimple({ currentPageContext, inline = false }: GlobalAIChatProps) {
   const { width } = useWindowDimensions();
@@ -92,543 +158,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     estimates
   } = useApp();
 
-  const { messages, sendMessage } = useRorkAgent({
-    tools: {
-      getProjects: createRorkTool({
-        description: 'Get information about all projects or a specific project. Shows budget, expenses, progress, status, and hours worked.',
-        zodSchema: z.object({
-          projectId: z.string().optional().describe('Optional project ID to get specific project details'),
-        }),
-        async execute(input) {
-          if (input.projectId) {
-            const project = projects.find(p => p.id === input.projectId);
-            return JSON.stringify(project || { error: 'Project not found' }, null, 2);
-          }
-          return JSON.stringify(projects, null, 2);
-        },
-      }),
-      getProjectFinancials: createRorkTool({
-        description: 'Get detailed financial information for a specific project including budget, expenses, payments, and change orders.',
-        zodSchema: z.object({
-          projectId: z.string().describe('The ID of the project'),
-        }),
-        execute: (input) => {
-          const project = projects.find(p => p.id === input.projectId);
-          if (!project) return JSON.stringify({ error: 'Project not found' });
-          
-          const projectExpenses = expenses.filter(e => e.projectId === input.projectId);
-          const projectPayments = payments.filter(p => p.projectId === input.projectId);
-          const projectChangeOrders = changeOrders.filter(co => co.projectId === input.projectId);
-          const projectEstimates = estimates.filter(e => e.projectId === input.projectId);
-          
-          const totalExpenses = projectExpenses.reduce((sum, e) => sum + e.amount, 0);
-          const totalPayments = projectPayments.reduce((sum, p) => sum + p.amount, 0);
-          const approvedChangeOrders = projectChangeOrders
-            .filter(co => co.status === 'approved')
-            .reduce((sum, co) => sum + co.amount, 0);
-          
-          return JSON.stringify({
-            project: {
-              name: project.name,
-              budget: project.budget,
-              expenses: project.expenses,
-              progress: project.progress,
-              status: project.status,
-            },
-            expenses: {
-              total: totalExpenses,
-              count: projectExpenses.length,
-              byCategory: projectExpenses.reduce((acc, e) => {
-                acc[e.type] = (acc[e.type] || 0) + e.amount;
-                return acc;
-              }, {} as Record<string, number>),
-            },
-            payments: {
-              total: totalPayments,
-              count: projectPayments.length,
-              list: projectPayments,
-            },
-            changeOrders: {
-              total: approvedChangeOrders,
-              count: projectChangeOrders.length,
-              list: projectChangeOrders,
-            },
-            estimates: projectEstimates,
-            remaining: project.budget - project.expenses,
-          }, null, 2);
-        },
-      }),
-      getCompanyOverview: createRorkTool({
-        description: 'Get overall company information including all projects summary, total financials, and company details.',
-        zodSchema: z.object({}),
-        execute: () => {
-          const activeProjects = projects.filter(p => p.status === 'active');
-          const completedProjects = projects.filter(p => p.status === 'completed');
-          
-          const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0);
-          const totalExpenses = projects.reduce((sum, p) => sum + p.expenses, 0);
-          const totalHours = projects.reduce((sum, p) => sum + p.hoursWorked, 0);
-          
-          const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
-          const totalChangeOrders = changeOrders
-            .filter(co => co.status === 'approved')
-            .reduce((sum, co) => sum + co.amount, 0);
-          
-          return JSON.stringify({
-            company: {
-              name: company?.name,
-              subscriptionStatus: company?.subscriptionStatus,
-              subscriptionPlan: company?.subscriptionPlan,
-            },
-            projects: {
-              total: projects.length,
-              active: activeProjects.length,
-              completed: completedProjects.length,
-              archived: projects.filter(p => p.status === 'archived').length,
-            },
-            financials: {
-              totalBudget,
-              totalExpenses,
-              totalPayments,
-              totalChangeOrders,
-              remaining: totalBudget - totalExpenses,
-            },
-            time: {
-              totalHours,
-              totalClockEntries: clockEntries.length,
-            },
-            clients: {
-              total: clients.length,
-              leads: clients.filter(c => c.status === 'Lead').length,
-              active: clients.filter(c => c.status === 'Project').length,
-            },
-          }, null, 2);
-        },
-      }),
-      getExpenses: createRorkTool({
-        description: 'Get expenses information, optionally filtered by project.',
-        zodSchema: z.object({
-          projectId: z.string().optional().describe('Optional project ID to filter expenses'),
-        }),
-        async execute(input) {
-          try {
-            const result = await trpcClient.expenses.getExpensesDetailed.query({
-              projectId: input.projectId,
-            });
-            return JSON.stringify({
-              total: result.total,
-              count: result.count,
-              byCategory: result.byCategory,
-              recentExpenses: result.expenses.slice(0, 10),
-            }, null, 2);
-          } catch (error) {
-            console.error('[getExpenses Tool] Error:', error);
-            return JSON.stringify({ error: 'Failed to fetch expenses', count: 0, total: 0 }, null, 2);
-          }
-        },
-      }),
-      getTasks: createRorkTool({
-        description: 'Get tasks information, optionally filtered by project.',
-        zodSchema: z.object({
-          projectId: z.string().optional().describe('Optional project ID to filter tasks'),
-        }),
-        execute: (input) => {
-          const filteredTasks = input.projectId 
-            ? tasks.filter(t => t.projectId === input.projectId)
-            : tasks;
-          
-          return JSON.stringify({
-            total: filteredTasks.length,
-            completed: filteredTasks.filter(t => t.completed).length,
-            pending: filteredTasks.filter(t => !t.completed).length,
-            tasks: filteredTasks,
-          }, null, 2);
-        },
-      }),
-      getClients: createRorkTool({
-        description: 'Get information about clients/customers.',
-        zodSchema: z.object({}),
-        execute: () => {
-          return JSON.stringify({
-            total: clients.length,
-            leads: clients.filter(c => c.status === 'Lead').length,
-            active: clients.filter(c => c.status === 'Project').length,
-            completed: clients.filter(c => c.status === 'Completed').length,
-            clients: clients,
-          }, null, 2);
-        },
-      }),
-      analyzeDrawing: createRorkTool({
-        description: 'Analyze construction drawings, blueprints, and plans. Can read scale, perform quantity takeoffs, identify materials, and generate estimates based on drawings. Use this when user uploads plans or asks for takeoff analysis.',
-        zodSchema: z.object({
-          drawingAnalysis: z.string().describe('Detailed analysis of the drawing including scale, dimensions, and observations'),
-          scale: z.string().optional().describe('Drawing scale if detected (e.g., 1/4"=1\'-0", 1:100)'),
-          takeoffItems: z.array(z.object({
-            item: z.string().describe('Item name from price list'),
-            priceListId: z.string().optional().describe('Matching price list ID if found'),
-            category: z.string().describe('Category (e.g., Foundation, Framing, Electrical)'),
-            quantity: z.number().describe('Measured quantity from drawing'),
-            unit: z.string().describe('Unit of measurement (SF, LF, CY, EA)'),
-            notes: z.string().optional().describe('Additional notes about the measurement'),
-          })).describe('Takeoff items measured from the drawing'),
-          recommendations: z.array(z.string()).optional().describe('Construction recommendations based on the drawing'),
-        }),
-        execute: (input) => {
-          console.log('[Drawing Analysis] Processed takeoff with', input.takeoffItems.length, 'items');
-          console.log('[Drawing Analysis] Scale detected:', input.scale || 'Not specified');
-          
-          const takeoffSummary = {
-            scale: input.scale,
-            totalItems: input.takeoffItems.length,
-            byCategory: input.takeoffItems.reduce((acc, item) => {
-              acc[item.category] = (acc[item.category] || 0) + 1;
-              return acc;
-            }, {} as Record<string, number>),
-            items: input.takeoffItems,
-          };
-          
-          return JSON.stringify({
-            message: 'Drawing analysis completed successfully',
-            analysis: input.drawingAnalysis,
-            scale: input.scale,
-            takeoff: takeoffSummary,
-            recommendations: input.recommendations,
-          }, null, 2);
-        },
-      }),
-      createEstimateFromDrawing: createRorkTool({
-        description: 'Create a detailed cost estimate from drawing takeoff analysis using the price list. Use this after analyzing a drawing to generate costs.',
-        zodSchema: z.object({
-          projectName: z.string().describe('Project name for the estimate'),
-          drawingReference: z.string().optional().describe('Drawing reference or sheet number'),
-          items: z.array(z.object({
-            itemName: z.string().describe('Item description'),
-            priceListId: z.string().optional().describe('ID from price list if matched'),
-            quantity: z.number().describe('Quantity from takeoff'),
-            unit: z.string().describe('Unit of measurement'),
-            unitPrice: z.number().optional().describe('Unit price if known'),
-            notes: z.string().optional().describe('Notes about this item'),
-          })).describe('Line items for the estimate'),
-        }),
-        execute: (input) => {
-          const lineItems = input.items.map(item => {
-            let priceItem;
-            let unitPrice = item.unitPrice || 0;
-            
-            if (item.priceListId) {
-              priceItem = masterPriceList.find(p => p.id === item.priceListId);
-              if (priceItem) {
-                unitPrice = priceItem.unitPrice;
-              }
-            }
-            
-            if (!priceItem && !item.unitPrice) {
-              const searchResults = masterPriceList.filter(p => 
-                p.name.toLowerCase().includes(item.itemName.toLowerCase()) ||
-                p.description.toLowerCase().includes(item.itemName.toLowerCase())
-              );
-              
-              if (searchResults.length > 0) {
-                priceItem = searchResults[0];
-                unitPrice = priceItem.unitPrice;
-                console.log(`[Estimate] Auto-matched "${item.itemName}" to "${priceItem.name}"`);
-              }
-            }
-            
-            const lineTotal = unitPrice * item.quantity;
-            
-            return {
-              itemName: item.itemName,
-              priceListId: priceItem?.id || item.priceListId,
-              matchedItem: priceItem?.name,
-              category: priceItem?.category || 'Custom',
-              quantity: item.quantity,
-              unit: item.unit,
-              unitPrice,
-              lineTotal,
-              notes: item.notes,
-            };
-          });
-          
-          const subtotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
-          const tax = 0;
-          const total = subtotal + tax;
-          
-          const estimate = {
-            projectName: input.projectName,
-            drawingReference: input.drawingReference,
-            date: new Date().toISOString().split('T')[0],
-            lineItems,
-            summary: {
-              subtotal,
-              tax,
-              total,
-              totalItems: lineItems.length,
-            },
-          };
-          
-          return JSON.stringify(estimate, null, 2);
-        },
-      }),
-      getPriceList: createRorkTool({
-        description: 'Get pricing information from the master price list database. Search by category, item name, or get all prices. Use this to create estimates and quote prices.',
-        zodSchema: z.object({
-          category: z.string().optional().describe('Optional category to filter prices (e.g., "Pre-Construction", "Kitchen", "Plumbing")'),
-          searchTerm: z.string().optional().describe('Optional search term to find specific items by name'),
-        }),
-        execute: (input) => {
-          let filteredPrices = masterPriceList;
-          
-          if (input.category) {
-            filteredPrices = filteredPrices.filter(item => 
-              item.category.toLowerCase().includes(input.category!.toLowerCase())
-            );
-          }
-          
-          if (input.searchTerm) {
-            const term = input.searchTerm.toLowerCase();
-            filteredPrices = filteredPrices.filter(item => 
-              item.name.toLowerCase().includes(term) ||
-              item.description.toLowerCase().includes(term) ||
-              item.category.toLowerCase().includes(term)
-            );
-          }
-          
-          const result = {
-            totalItems: filteredPrices.length,
-            items: filteredPrices.map(item => ({
-              id: item.id,
-              category: item.category,
-              name: item.name,
-              description: item.description,
-              unit: item.unit,
-              unitPrice: item.unitPrice,
-              laborCost: item.laborCost,
-              materialCost: item.materialCost,
-            })),
-          };
-          
-          return JSON.stringify(result, null, 2);
-        },
-      }),
-      calculateEstimate: createRorkTool({
-        description: 'Calculate an estimate based on items from the price list and quantities. Returns a detailed breakdown with line items and totals.',
-        zodSchema: z.object({
-          items: z.array(z.object({
-            priceListId: z.string().describe('ID of the item from the price list'),
-            quantity: z.number().describe('Quantity of the item'),
-            notes: z.string().optional().describe('Optional notes for this line item'),
-          })).describe('Array of items to include in the estimate'),
-          projectName: z.string().optional().describe('Optional project name for the estimate'),
-        }),
-        execute: (input) => {
-          const lineItems = input.items.map(item => {
-            const priceItem = masterPriceList.find(p => p.id === item.priceListId);
-            if (!priceItem) {
-              return {
-                error: `Item ${item.priceListId} not found in price list`,
-                priceListId: item.priceListId,
-              };
-            }
-            
-            const lineTotal = priceItem.unitPrice * item.quantity;
-            return {
-              priceListId: item.priceListId,
-              category: priceItem.category,
-              name: priceItem.name,
-              description: priceItem.description,
-              quantity: item.quantity,
-              unit: priceItem.unit,
-              unitPrice: priceItem.unitPrice,
-              lineTotal,
-              notes: item.notes,
-            };
-          });
-          
-          const validLineItems = lineItems.filter(item => !('error' in item));
-          const subtotal = validLineItems.reduce((sum, item) => sum + (item as any).lineTotal, 0);
-          const tax = subtotal * 0.0;
-          const total = subtotal + tax;
-          
-          const estimate = {
-            projectName: input.projectName || 'Untitled Project',
-            date: new Date().toISOString().split('T')[0],
-            lineItems,
-            summary: {
-              subtotal,
-              tax,
-              total,
-              totalItems: validLineItems.length,
-            },
-          };
-          
-          return JSON.stringify(estimate, null, 2);
-        },
-      }),
-      getPhotosUploaded: createRorkTool({
-        description: 'Get photos uploaded to projects. Can filter by project, category, and date. Use this to answer questions about which photos were uploaded today, this week, or in a specific time period.',
-        zodSchema: z.object({
-          projectId: z.string().optional().describe('Optional project ID to filter photos'),
-          category: z.string().optional().describe('Optional category to filter photos (e.g., Foundation, Framing, Plumbing)'),
-          date: z.string().optional().describe('Optional specific date to filter photos (YYYY-MM-DD format)'),
-          startDate: z.string().optional().describe('Optional start date for date range filter (YYYY-MM-DD format)'),
-          endDate: z.string().optional().describe('Optional end date for date range filter (YYYY-MM-DD format)'),
-        }),
-        async execute(input) {
-          try {
-            const result = await trpcClient.photos.getPhotos.query({
-              projectId: input.projectId,
-              category: input.category,
-              date: input.date,
-              startDate: input.startDate,
-              endDate: input.endDate,
-            });
-
-            const byProject = result.photos.reduce((acc, p) => {
-              const proj = projects.find(pr => pr.id === p.projectId);
-              const projectName = proj?.name || 'Unknown Project';
-              if (!acc[projectName]) {
-                acc[projectName] = { count: 0, categories: {} };
-              }
-              acc[projectName].count++;
-              acc[projectName].categories[p.category] = (acc[projectName].categories[p.category] || 0) + 1;
-              return acc;
-            }, {} as Record<string, { count: number; categories: Record<string, number> }>);
-
-            const byCategory = result.photos.reduce((acc, p) => {
-              acc[p.category] = (acc[p.category] || 0) + 1;
-              return acc;
-            }, {} as Record<string, number>);
-
-            return JSON.stringify({
-              total: result.total,
-              photos: result.photos.map(p => ({
-                id: p.id,
-                projectId: p.projectId,
-                projectName: projects.find(pr => pr.id === p.projectId)?.name || 'Unknown',
-                category: p.category,
-                notes: p.notes,
-                date: p.date,
-              })),
-              byProject,
-              byCategory,
-            }, null, 2);
-          } catch (error) {
-            console.error('[getPhotosUploaded Tool] Error:', error);
-            return JSON.stringify({ error: 'Failed to fetch photos', total: 0, photos: [] }, null, 2);
-          }
-        },
-      }),
-      getExpensesDetailed: createRorkTool({
-        description: 'Get detailed expenses information with filtering and analysis. Can filter by project, category, date, and employee. Use this to answer questions about expenses today, this week, by category, or by project.',
-        zodSchema: z.object({
-          projectId: z.string().optional().describe('Optional project ID to filter expenses'),
-          type: z.string().optional().describe('Optional expense type/category to filter (e.g., Material, Labor, Equipment)'),
-          date: z.string().optional().describe('Optional specific date to filter expenses (YYYY-MM-DD format)'),
-          startDate: z.string().optional().describe('Optional start date for date range filter (YYYY-MM-DD format)'),
-          endDate: z.string().optional().describe('Optional end date for date range filter (YYYY-MM-DD format)'),
-        }),
-        async execute(input) {
-          try {
-            const result = await trpcClient.expenses.getExpensesDetailed.query({
-              projectId: input.projectId,
-              type: input.type,
-              date: input.date,
-              startDate: input.startDate,
-              endDate: input.endDate,
-            });
-
-            const byProject = result.expenses.reduce((acc, e) => {
-              const proj = projects.find(p => p.id === e.projectId);
-              const projectName = proj?.name || 'Unknown Project';
-              if (!acc[projectName]) {
-                acc[projectName] = { total: 0, count: 0, byCategory: {} };
-              }
-              acc[projectName].total += e.amount;
-              acc[projectName].count++;
-              acc[projectName].byCategory[e.type] = (acc[projectName].byCategory[e.type] || 0) + e.amount;
-              return acc;
-            }, {} as Record<string, { total: number; count: number; byCategory: Record<string, number> }>);
-
-            return JSON.stringify({
-              total: result.total,
-              count: result.count,
-              byCategory: result.byCategory,
-              byProject,
-              recentExpenses: result.expenses.slice(0, 20).map(e => ({
-                id: e.id,
-                projectId: e.projectId,
-                projectName: projects.find(p => p.id === e.projectId)?.name || 'Unknown',
-                type: e.type,
-                subcategory: e.subcategory,
-                amount: e.amount,
-                store: e.store,
-                date: e.date,
-              })),
-            }, null, 2);
-          } catch (error) {
-            console.error('[getExpensesDetailed Tool] Error:', error);
-            return JSON.stringify({ error: 'Failed to fetch expenses', total: 0, count: 0 }, null, 2);
-          }
-        },
-      }),
-      getTimeTracking: createRorkTool({
-        description: 'Get clock in/out entries and time tracking information. Can filter by project, employee, and date. Use this to answer questions about hours worked, who worked today, or time spent on projects.',
-        zodSchema: z.object({
-          projectId: z.string().optional().describe('Optional project ID to filter clock entries'),
-          employeeId: z.string().optional().describe('Optional employee ID to filter clock entries'),
-          date: z.string().optional().describe('Optional specific date to filter entries (YYYY-MM-DD format)'),
-          startDate: z.string().optional().describe('Optional start date for date range filter (YYYY-MM-DD format)'),
-          endDate: z.string().optional().describe('Optional end date for date range filter (YYYY-MM-DD format)'),
-        }),
-        async execute(input) {
-          try {
-            const result = await trpcClient.clock.getClockEntries.query({
-              projectId: input.projectId,
-              employeeId: input.employeeId,
-              date: input.date,
-              startDate: input.startDate,
-              endDate: input.endDate,
-            });
-
-            const byProject = result.entries.reduce((acc, e) => {
-              const proj = projects.find(p => p.id === e.projectId);
-              const projectName = proj?.name || 'Unknown Project';
-              if (!acc[projectName]) {
-                acc[projectName] = { count: 0, hours: 0 };
-              }
-              acc[projectName].count++;
-              if (e.clockOut) {
-                const hoursWorked = (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / (1000 * 60 * 60);
-                acc[projectName].hours += hoursWorked;
-              }
-              return acc;
-            }, {} as Record<string, { count: number; hours: number }>);
-
-            return JSON.stringify({
-              totalHours: result.totalHours.toFixed(2),
-              count: result.count,
-              byEmployee: result.byEmployee,
-              byProject,
-              recentEntries: result.entries.slice(0, 20).map(e => ({
-                id: e.id,
-                employeeId: e.employeeId,
-                projectId: e.projectId,
-                projectName: projects.find(p => p.id === e.projectId)?.name || 'Unknown',
-                clockIn: e.clockIn,
-                clockOut: e.clockOut,
-                category: e.category,
-                workPerformed: e.workPerformed,
-              })),
-            }, null, 2);
-          } catch (error) {
-            console.error('[getTimeTracking Tool] Error:', error);
-            return JSON.stringify({ error: 'Failed to fetch clock entries', totalHours: '0.00', count: 0 }, null, 2);
-          }
-        },
-      }),
-    },
-  });
+  const { messages, sendMessage } = useOpenAIChat();
 
   useEffect(() => {
     if (messages.length > 0) {
