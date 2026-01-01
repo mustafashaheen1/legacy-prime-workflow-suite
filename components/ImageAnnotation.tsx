@@ -274,7 +274,71 @@ export default function ImageAnnotation({
           </TouchableOpacity>
         </View>
 
-        <View style={styles.imageContainer} {...panResponder.panHandlers}>
+        <View
+          style={styles.imageContainer}
+          {...(Platform.OS !== 'web' ? panResponder.panHandlers : {})}
+          {...(Platform.OS === 'web' ? {
+            onMouseDown: (e: any) => {
+              console.log('[Annotation] Mouse down');
+              const containerRect = e.currentTarget.getBoundingClientRect();
+              const startX = e.clientX - containerRect.left;
+              const startY = e.clientY - containerRect.top;
+
+              if (selectedTool === 'text') {
+                setTextPosition({ x: startX, y: startY });
+                setShowTextInput(true);
+              } else if (selectedTool === 'pen') {
+                setCurrentPath([{ x: startX, y: startY }]);
+              } else {
+                setStartPoint({ x: startX, y: startY });
+              }
+
+              const handleGlobalMouseMove = (moveEvent: MouseEvent) => {
+                const moveX = moveEvent.clientX - containerRect.left;
+                const moveY = moveEvent.clientY - containerRect.top;
+
+                if (selectedTool === 'pen') {
+                  setCurrentPath((prev) => [...prev, { x: moveX, y: moveY }]);
+                }
+              };
+
+              const handleGlobalMouseUp = (upEvent: MouseEvent) => {
+                console.log('[Annotation] Mouse up');
+                const endX = upEvent.clientX - containerRect.left;
+                const endY = upEvent.clientY - containerRect.top;
+
+                if (selectedTool === 'pen' && currentPath.length > 0) {
+                  const newElement: DrawingElement = {
+                    type: 'pen',
+                    color: selectedColor,
+                    strokeWidth,
+                    points: [...currentPath, { x: endX, y: endY }],
+                    id: Date.now().toString(),
+                  };
+                  setElements((prev) => [...prev, newElement]);
+                  setCurrentPath([]);
+                } else if (selectedTool !== 'pen' && selectedTool !== 'text' && startPoint) {
+                  const newElement: DrawingElement = {
+                    type: selectedTool,
+                    color: selectedColor,
+                    strokeWidth,
+                    startPoint,
+                    endPoint: { x: endX, y: endY },
+                    id: Date.now().toString(),
+                  };
+                  setElements((prev) => [...prev, newElement]);
+                  setStartPoint(null);
+                }
+
+                window.removeEventListener('mousemove', handleGlobalMouseMove);
+                window.removeEventListener('mouseup', handleGlobalMouseUp);
+              };
+
+              window.addEventListener('mousemove', handleGlobalMouseMove);
+              window.addEventListener('mouseup', handleGlobalMouseUp);
+            }
+          } : {})}
+        >
           <Image
             source={{ uri: imageUri }}
             style={styles.image}
@@ -284,8 +348,8 @@ export default function ImageAnnotation({
               setImageSize({ width, height });
             }}
           />
-          
-          <Svg style={styles.svgOverlay}>
+
+          <Svg style={styles.svgOverlay} pointerEvents="none">
             {elements.map((element) => renderElement(element))}
             {selectedTool === 'pen' && currentPath.length > 0 && (
               <Path
