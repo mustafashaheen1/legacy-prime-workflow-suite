@@ -769,22 +769,31 @@ export default function TakeoffScreen() {
       onMoveShouldSetPanResponder: () => measurementMode !== null,
 
       onPanResponderGrant: (evt) => {
-        if (!measurementMode || !imageLayout) return;
+        console.log('[PanResponder] Grant - measurementMode:', measurementMode, 'selectedShapeType:', selectedShapeType, 'imageLayout:', imageLayout);
+
+        if (!measurementMode || !imageLayout) {
+          console.log('[PanResponder] Blocked - missing measurementMode or imageLayout');
+          return;
+        }
 
         const { locationX, locationY } = evt.nativeEvent;
         const relativeX = locationX / imageLayout.width;
         const relativeY = locationY / imageLayout.height;
         const newPoint = { x: relativeX, y: relativeY };
 
+        console.log('[PanResponder] Touch at:', locationX, locationY, '=> relative:', relativeX, relativeY);
+
         // Handle different shape types
         if (selectedShapeType === 'polygon' || measurementMode === 'count' || (!selectedShapeType && measurementMode === 'area')) {
           // Multi-click behavior for polygon, count, and legacy area mode
+          console.log('[PanResponder] Adding point for polygon/count/area');
           setCurrentPoints(prev => [...prev, newPoint]);
           if (measurementMode === 'count') {
             setShowItemPicker(true);
           }
         } else if (selectedShapeType === 'line' || selectedShapeType === 'rectangle' || selectedShapeType === 'circle' || (!selectedShapeType && measurementMode === 'length')) {
           // Start drag for line, rectangle, circle, and legacy length mode
+          console.log('[PanResponder] Starting drag for line/rectangle/circle');
           setDragStartPoint(newPoint);
           setDragCurrentPoint(newPoint);
           setIsDrawingShape(true);
@@ -1815,6 +1824,7 @@ export default function TakeoffScreen() {
                 <TouchableOpacity
                   style={styles.shapeOption}
                   onPress={() => {
+                    console.log('[Shape Selection] Line selected');
                     setSelectedShapeType('line');
                     setMeasurementMode('length');
                     setShowShapeSelector(false);
@@ -1828,6 +1838,7 @@ export default function TakeoffScreen() {
                 <TouchableOpacity
                   style={styles.shapeOption}
                   onPress={() => {
+                    console.log('[Shape Selection] Rectangle selected');
                     setSelectedShapeType('rectangle');
                     setMeasurementMode('area');
                     setShowShapeSelector(false);
@@ -1841,6 +1852,7 @@ export default function TakeoffScreen() {
                 <TouchableOpacity
                   style={styles.shapeOption}
                   onPress={() => {
+                    console.log('[Shape Selection] Circle selected');
                     setSelectedShapeType('circle');
                     setMeasurementMode('area');
                     setShowShapeSelector(false);
@@ -1854,6 +1866,7 @@ export default function TakeoffScreen() {
                 <TouchableOpacity
                   style={styles.shapeOption}
                   onPress={() => {
+                    console.log('[Shape Selection] Polygon selected');
                     setSelectedShapeType('polygon');
                     setMeasurementMode('area');
                     setShowShapeSelector(false);
