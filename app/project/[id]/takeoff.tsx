@@ -1513,8 +1513,85 @@ export default function TakeoffScreen() {
                 }}
               >
                 <View
-                  {...imagePanResponder.panHandlers}
+                  {...(Platform.OS !== 'web' ? imagePanResponder.panHandlers : {})}
                   style={styles.imageTouchable}
+                  {...(Platform.OS === 'web' ? {
+                    onMouseDown: (e: any) => {
+                      console.log('[Web] Mouse down event');
+                      if (!measurementMode || !imageLayout) {
+                        console.log('[Web] Blocked - no mode or layout');
+                        return;
+                      }
+
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const locationX = e.clientX - rect.left;
+                      const locationY = e.clientY - rect.top;
+                      const relativeX = locationX / imageLayout.width;
+                      const relativeY = locationY / imageLayout.height;
+                      const newPoint = { x: relativeX, y: relativeY };
+
+                      console.log('[Web] Click at:', locationX, locationY, '=> relative:', relativeX, relativeY);
+
+                      // Handle different shape types
+                      if (selectedShapeType === 'polygon' || measurementMode === 'count' || (!selectedShapeType && measurementMode === 'area')) {
+                        console.log('[Web] Adding point for polygon/count/area');
+                        setCurrentPoints(prev => [...prev, newPoint]);
+                        if (measurementMode === 'count') {
+                          setShowItemPicker(true);
+                        }
+                      } else if (selectedShapeType === 'line' || selectedShapeType === 'rectangle' || selectedShapeType === 'circle' || (!selectedShapeType && measurementMode === 'length')) {
+                        console.log('[Web] Starting drag for line/rectangle/circle');
+                        setDragStartPoint(newPoint);
+                        setDragCurrentPoint(newPoint);
+                        setIsDrawingShape(true);
+                      }
+                    },
+                    onMouseMove: (e: any) => {
+                      if (!isDrawingShape || !imageLayout) return;
+
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const locationX = e.clientX - rect.left;
+                      const locationY = e.clientY - rect.top;
+                      const relativeX = locationX / imageLayout.width;
+                      const relativeY = locationY / imageLayout.height;
+                      setDragCurrentPoint({ x: relativeX, y: relativeY });
+                    },
+                    onMouseUp: (e: any) => {
+                      if (!isDrawingShape || !dragStartPoint || !dragCurrentPoint) {
+                        setIsDrawingShape(false);
+                        return;
+                      }
+
+                      console.log('[Web] Mouse up - completing shape');
+
+                      // Complete the shape
+                      if (selectedShapeType === 'line' || (!selectedShapeType && measurementMode === 'length')) {
+                        setCurrentPoints([dragStartPoint, dragCurrentPoint]);
+                        setIsDrawingShape(false);
+                        setDragStartPoint(null);
+                        setDragCurrentPoint(null);
+                        setShowItemPicker(true);
+                      } else if (selectedShapeType === 'rectangle') {
+                        const points = [
+                          dragStartPoint,
+                          { x: dragCurrentPoint.x, y: dragStartPoint.y },
+                          dragCurrentPoint,
+                          { x: dragStartPoint.x, y: dragCurrentPoint.y },
+                        ];
+                        setCurrentPoints(points);
+                        setIsDrawingShape(false);
+                        setDragStartPoint(null);
+                        setDragCurrentPoint(null);
+                        setShowItemPicker(true);
+                      } else if (selectedShapeType === 'circle') {
+                        setCurrentPoints([dragStartPoint, dragCurrentPoint]);
+                        setIsDrawingShape(false);
+                        setDragStartPoint(null);
+                        setDragCurrentPoint(null);
+                        setShowItemPicker(true);
+                      }
+                    }
+                  } : {})}
                 >
                   <Image
                     source={{ uri: activePlan.uri }}
