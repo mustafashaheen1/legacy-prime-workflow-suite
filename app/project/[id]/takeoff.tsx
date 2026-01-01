@@ -12,6 +12,7 @@ import { masterPriceList, PriceListItem, priceListCategories } from '@/mocks/pri
 import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate } from '@/types';
 import Svg, { Circle, Polygon, Path, Line, Rect, Text as SvgText } from 'react-native-svg';
 import * as pdfjsLib from 'pdfjs-dist';
+import ImageAnnotation from '@/components/ImageAnnotation';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -81,6 +82,9 @@ export default function TakeoffScreen() {
   const [dragStartPoint, setDragStartPoint] = useState<{ x: number; y: number } | null>(null);
   const [isDrawingShape, setIsDrawingShape] = useState<boolean>(false);
   const [dragCurrentPoint, setDragCurrentPoint] = useState<{ x: number; y: number } | null>(null);
+
+  // Annotation state
+  const [showAnnotation, setShowAnnotation] = useState<boolean>(false);
 
   const project = projects.find(p => p.id === id);
 
@@ -1479,9 +1483,18 @@ export default function TakeoffScreen() {
                   <Text style={[styles.toolButtonText, takeoffMode === 'ai' && styles.activeToolButtonText]}>AI Takeoff</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.toolButton}>
+                <TouchableOpacity
+                  style={styles.toolButton}
+                  onPress={() => {
+                    if (activePlan) {
+                      setShowAnnotation(true);
+                    } else {
+                      Alert.alert('No Document', 'Please upload a document first');
+                    }
+                  }}
+                >
                   <Tag size={18} color="#2563EB" />
-                  <Text style={styles.toolButtonText}>Anotate</Text>
+                  <Text style={styles.toolButtonText}>Annotate</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.toolButton}>
@@ -2191,6 +2204,23 @@ export default function TakeoffScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* Image Annotation Component */}
+        {activePlan && (
+          <ImageAnnotation
+            visible={showAnnotation}
+            imageUri={activePlan.uri}
+            onSave={(uri) => {
+              console.log('Annotation saved:', uri);
+              setShowAnnotation(false);
+              // Optionally update the plan with the annotated image
+              // setPlans(prev => prev.map((plan, idx) =>
+              //   idx === activePlanIndex ? { ...plan, uri } : plan
+              // ));
+            }}
+            onCancel={() => setShowAnnotation(false)}
+          />
+        )}
       </View>
     </>
   );
