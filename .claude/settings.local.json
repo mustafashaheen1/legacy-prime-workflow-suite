@@ -66,7 +66,8 @@
       "Bash(git show:*)",
       "WebSearch",
       "Bash(npm ls:*)",
-      "Bash(npx rork start:*)"
+      "Bash(npx rork start:*)",
+      "Bash(PORT=3000 npm start)"
     ],
     "deny": [],
     "ask": []

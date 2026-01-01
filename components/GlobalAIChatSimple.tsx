@@ -400,47 +400,30 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         return;
       }
 
-      console.log('[TTS] Generating speech:', text.substring(0, 50));
+      console.log('[TTS] Speaking:', text.substring(0, 50));
       setIsSpeaking(true);
 
-      const response = await fetch('/api/text-to-speech', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: text,
-          voice: 'nova',
-          model: 'tts-1',
-        }),
-      });
+      // Use browser's built-in speech synthesis for instant playback
+      if (Platform.OS === 'web' && 'speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
 
-      if (!response.ok) {
-        throw new Error('Failed to generate speech');
-      }
+        // Try to get a good English voice
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(voice =>
+          voice.lang.startsWith('en') && (voice.name.includes('Google') || voice.name.includes('Microsoft'))
+        ) || voices.find(voice => voice.lang.startsWith('en'));
 
-      const result = await response.json();
+        if (preferredVoice) {
+          utterance.voice = preferredVoice;
+        }
 
-      if (!result.success || !result.audioBase64) {
-        throw new Error(result.error || 'TTS request failed');
-      }
-
-      const audioBase64 = result.audioBase64;
-      
-      console.log('[TTS] Audio generated, playing...');
-      
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: `data:audio/mpeg;base64,${audioBase64}` },
-        { shouldPlay: true }
-      );
-
-      setSoundInstance(sound);
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
+        utterance.onend = () => {
           console.log('[TTS] Finished speaking');
           setIsSpeaking(false);
-          sound.unloadAsync().catch(console.error);
-          setSoundInstance(null);
-          
+
           if (autoStartRecording && isConversationMode && conversationModeInitialized.current) {
             console.log('[Conversation] Starting recording after speech');
             setTimeout(() => {
@@ -449,8 +432,65 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               }
             }, 500);
           }
+        };
+
+        utterance.onerror = (event) => {
+          console.error('[TTS] Speech error:', event);
+          setIsSpeaking(false);
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } else {
+        // Fallback to OpenAI TTS for mobile or if browser doesn't support speech synthesis
+        const response = await fetch('/api/text-to-speech', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: text,
+            voice: 'nova',
+            model: 'tts-1',
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to generate speech');
         }
-      });
+
+        const result = await response.json();
+
+        if (!result.success || !result.audioBase64) {
+          throw new Error(result.error || 'TTS request failed');
+        }
+
+        const audioBase64 = result.audioBase64;
+
+        console.log('[TTS] Audio generated, playing...');
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: `data:audio/mpeg;base64,${audioBase64}` },
+          { shouldPlay: true }
+        );
+
+        setSoundInstance(sound);
+
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            console.log('[TTS] Finished speaking');
+            setIsSpeaking(false);
+            sound.unloadAsync().catch(console.error);
+            setSoundInstance(null);
+
+            if (autoStartRecording && isConversationMode && conversationModeInitialized.current) {
+              console.log('[Conversation] Starting recording after speech');
+              setTimeout(() => {
+                if (isConversationMode && conversationModeInitialized.current) {
+                  startRecording();
+                }
+              }, 500);
+            }
+          }
+        });
+      }
     } catch (error) {
       console.error('[TTS] Error:', error);
       setIsSpeaking(false);
