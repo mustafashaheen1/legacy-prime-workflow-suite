@@ -1544,51 +1544,58 @@ export default function TakeoffScreen() {
                         setDragStartPoint(newPoint);
                         setDragCurrentPoint(newPoint);
                         setIsDrawingShape(true);
-                      }
-                    },
-                    onMouseMove: (e: any) => {
-                      if (!isDrawingShape || !imageLayout) return;
 
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const locationX = e.clientX - rect.left;
-                      const locationY = e.clientY - rect.top;
-                      const relativeX = locationX / imageLayout.width;
-                      const relativeY = locationY / imageLayout.height;
-                      setDragCurrentPoint({ x: relativeX, y: relativeY });
-                    },
-                    onMouseUp: (e: any) => {
-                      if (!isDrawingShape || !dragStartPoint || !dragCurrentPoint) {
-                        setIsDrawingShape(false);
-                        return;
-                      }
+                        // Set up global mouse move and mouse up listeners for dragging
+                        const imageRect = e.currentTarget.getBoundingClientRect();
 
-                      console.log('[Web] Mouse up - completing shape');
+                        const handleGlobalMouseMove = (moveEvent: MouseEvent) => {
+                          const moveX = moveEvent.clientX - imageRect.left;
+                          const moveY = moveEvent.clientY - imageRect.top;
+                          const relX = moveX / imageLayout.width;
+                          const relY = moveY / imageLayout.height;
+                          console.log('[Web] Dragging to:', moveX, moveY, '=> relative:', relX, relY);
+                          setDragCurrentPoint({ x: relX, y: relY });
+                        };
 
-                      // Complete the shape
-                      if (selectedShapeType === 'line' || (!selectedShapeType && measurementMode === 'length')) {
-                        setCurrentPoints([dragStartPoint, dragCurrentPoint]);
-                        setIsDrawingShape(false);
-                        setDragStartPoint(null);
-                        setDragCurrentPoint(null);
-                        setShowItemPicker(true);
-                      } else if (selectedShapeType === 'rectangle') {
-                        const points = [
-                          dragStartPoint,
-                          { x: dragCurrentPoint.x, y: dragStartPoint.y },
-                          dragCurrentPoint,
-                          { x: dragStartPoint.x, y: dragCurrentPoint.y },
-                        ];
-                        setCurrentPoints(points);
-                        setIsDrawingShape(false);
-                        setDragStartPoint(null);
-                        setDragCurrentPoint(null);
-                        setShowItemPicker(true);
-                      } else if (selectedShapeType === 'circle') {
-                        setCurrentPoints([dragStartPoint, dragCurrentPoint]);
-                        setIsDrawingShape(false);
-                        setDragStartPoint(null);
-                        setDragCurrentPoint(null);
-                        setShowItemPicker(true);
+                        const handleGlobalMouseUp = (upEvent: MouseEvent) => {
+                          console.log('[Web] Global mouse up - completing shape');
+
+                          const upX = upEvent.clientX - imageRect.left;
+                          const upY = upEvent.clientY - imageRect.top;
+                          const relX = upX / imageLayout.width;
+                          const relY = upY / imageLayout.height;
+                          const endPoint = { x: relX, y: relY };
+
+                          // Complete the shape
+                          if (selectedShapeType === 'line' || (!selectedShapeType && measurementMode === 'length')) {
+                            setCurrentPoints([newPoint, endPoint]);
+                            setShowItemPicker(true);
+                          } else if (selectedShapeType === 'rectangle') {
+                            const points = [
+                              newPoint,
+                              { x: endPoint.x, y: newPoint.y },
+                              endPoint,
+                              { x: newPoint.x, y: endPoint.y },
+                            ];
+                            setCurrentPoints(points);
+                            setShowItemPicker(true);
+                          } else if (selectedShapeType === 'circle') {
+                            setCurrentPoints([newPoint, endPoint]);
+                            setShowItemPicker(true);
+                          }
+
+                          setIsDrawingShape(false);
+                          setDragStartPoint(null);
+                          setDragCurrentPoint(null);
+
+                          // Remove global listeners
+                          window.removeEventListener('mousemove', handleGlobalMouseMove);
+                          window.removeEventListener('mouseup', handleGlobalMouseUp);
+                        };
+
+                        // Add global listeners
+                        window.addEventListener('mousemove', handleGlobalMouseMove);
+                        window.addEventListener('mouseup', handleGlobalMouseUp);
                       }
                     }
                   } : {})}
