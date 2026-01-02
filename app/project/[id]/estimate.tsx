@@ -18,9 +18,9 @@ import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
 
 export default function EstimateScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, estimateId } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, addEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile, company } = useApp();
+  const { projects, addEstimate, estimates, updateEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile, company } = useApp();
   const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
   const isWeb = Platform.OS === 'web';
@@ -82,10 +82,26 @@ export default function EstimateScreen() {
   }, [id, project, estimateName]);
 
   useEffect(() => {
-    if (project && id) {
+    if (project && id && !estimateId) {
+      // Only load draft if not editing an existing estimate
       loadDraft();
     }
-  }, [project, id, loadDraft]);
+  }, [project, id, estimateId, loadDraft]);
+
+  // Load existing estimate when estimateId is provided
+  useEffect(() => {
+    if (estimateId && estimates) {
+      const existingEstimate = estimates.find(e => e.id === estimateId);
+      if (existingEstimate) {
+        console.log('[Estimate] Loading existing estimate for editing:', estimateId);
+        setEstimateName(existingEstimate.name);
+        setItems(existingEstimate.items || []);
+        setTaxPercent(((existingEstimate.taxRate || 0) * 100).toString());
+        setDraftId(existingEstimate.id);
+        setIsLoadingDraft(false);
+      }
+    }
+  }, [estimateId, estimates]);
 
   const saveDraft = useCallback(async () => {
     if (!id || items.length === 0) return;

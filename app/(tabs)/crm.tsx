@@ -1656,7 +1656,14 @@ export default function CRMScreen() {
                 return clientEstimates.map(estimate => (
                   <View key={estimate.id} style={styles.estimateCard}>
                     <View style={styles.estimateHeader}>
-                      <Text style={styles.estimateName}>{estimate.name}</Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setShowEstimateModal(false);
+                          router.push(`/project/${estimate.projectId}/estimate?estimateId=${estimate.id}`);
+                        }}
+                      >
+                        <Text style={[styles.estimateName, styles.estimateNameClickable]}>{estimate.name}</Text>
+                      </TouchableOpacity>
                       <View style={[
                         styles.estimateStatusBadge,
                         estimate.status === 'draft' && styles.draftBadge,
@@ -3372,6 +3379,10 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     flex: 1,
     marginRight: 12,
+  },
+  estimateNameClickable: {
+    color: '#2563EB',
+    textDecorationLine: 'underline' as const,
   },
   estimateStatusBadge: {
     paddingHorizontal: 8,
