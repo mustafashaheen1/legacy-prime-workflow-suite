@@ -48,16 +48,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Fetch estimate items
-    const { data: items, error: itemsError } = await supabase
-      .from('estimate_items')
-      .select('*')
-      .eq('estimate_id', estimateId)
-      .order('created_at', { ascending: true });
+    // Fetch estimate items - handle both storage formats
+    let estimateItems: any[] = [];
 
-    if (itemsError) {
-      console.error('[Get Estimate] Error fetching items:', itemsError);
-      // Don't fail if items can't be loaded, just return empty array
+    // Check if estimate has items stored as JSON column (from save-estimate.ts / takeoff)
+    if (estimate.items && Array.isArray(estimate.items)) {
+      console.log('[Get Estimate] Using items from JSON column (takeoff estimate)');
+      estimateItems = estimate.items;
+    } else {
+      // Otherwise, fetch from estimate_items table (from create-estimate.ts / regular estimates)
+      console.log('[Get Estimate] Fetching items from estimate_items table');
+      const { data: items, error: itemsError } = await supabase
+        .from('estimate_items')
+        .select('*')
+        .eq('estimate_id', estimateId)
+        .order('created_at', { ascending: true });
+
+      if (itemsError) {
+        console.error('[Get Estimate] Error fetching items:', itemsError);
+        // Don't fail if items can't be loaded, just return empty array
+      }
+
+      estimateItems = (items || []).map((item: any) => ({
+        id: item.id,
+        priceListItemId: item.price_list_item_id,
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+        customPrice: item.custom_price,
+        total: item.total,
+        budget: item.budget,
+        budgetUnitPrice: item.budget_unit_price,
+        notes: item.notes,
+        customName: item.custom_name,
+        customUnit: item.custom_unit,
+        customCategory: item.custom_category,
+        isSeparator: item.is_separator,
+        separatorLabel: item.separator_label,
+      }));
     }
 
     // Transform to match frontend format
@@ -73,22 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       createdDate: estimate.created_date,
       paidDate: estimate.paid_date,
       paymentId: estimate.payment_id,
-      items: (items || []).map((item: any) => ({
-        id: item.id,
-        priceListItemId: item.price_list_item_id,
-        quantity: item.quantity,
-        unitPrice: item.unit_price,
-        customPrice: item.custom_price,
-        total: item.total,
-        budget: item.budget,
-        budgetUnitPrice: item.budget_unit_price,
-        notes: item.notes,
-        customName: item.custom_name,
-        customUnit: item.custom_unit,
-        customCategory: item.custom_category,
-        isSeparator: item.is_separator,
-        separatorLabel: item.separator_label,
-      })),
+      items: estimateItems,
     };
 
     console.log('[Get Estimate] Successfully loaded estimate:', estimateId, 'with', transformedEstimate.items.length, 'items');
