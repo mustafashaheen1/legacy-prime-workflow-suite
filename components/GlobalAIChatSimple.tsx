@@ -720,9 +720,14 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       let silenceStart = Date.now();
       let hasSpoken = false;
       let lastLoggedLevel = 0;
-      const SILENCE_THRESHOLD = 35; // Increased to handle background noise better
-      const SILENCE_DURATION = 1200; // Reduced from 1500ms to 1.2s for faster response
-      const SPEECH_THRESHOLD = 45; // Increased to better detect actual speech
+      let peakLevel = 0; // Track the highest level when speaking
+      let baselineLevel = 0; // Track background noise level
+      let sampleCount = 0;
+
+      // More conservative thresholds
+      const SILENCE_DURATION = 1500; // 1.5 seconds of silence
+      const INITIAL_SPEECH_THRESHOLD = 50; // Initial threshold to detect speech start
+      const BASELINE_SAMPLES = 10; // Number of samples to calculate baseline
 
       const checkAudioLevel = () => {
         if (!isConversationMode || !isRecording) {
@@ -733,25 +738,50 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         analyser.getByteFrequencyData(dataArray);
         const average = dataArray.reduce((a, b) => a + b) / bufferLength;
 
+        // Calculate baseline noise level from first few samples
+        if (sampleCount < BASELINE_SAMPLES && !hasSpoken) {
+          baselineLevel = ((baselineLevel * sampleCount) + average) / (sampleCount + 1);
+          sampleCount++;
+          console.log('[Silence Detection] Calculating baseline:', Math.round(baselineLevel), 'current:', Math.round(average));
+        }
+
+        // Adaptive threshold: baseline + 20
+        const adaptiveSpeechThreshold = Math.max(baselineLevel + 20, INITIAL_SPEECH_THRESHOLD);
+        const adaptiveSilenceThreshold = baselineLevel + 10;
+
         // Only log when there's a significant change in audio level
         if (Math.abs(average - lastLoggedLevel) > 10) {
-          console.log('[Silence Detection] Audio level:', Math.round(average));
+          console.log('[Silence Detection] Audio:', Math.round(average), 'Peak:', Math.round(peakLevel), 'Baseline:', Math.round(baselineLevel), 'Thresholds:', Math.round(adaptiveSpeechThreshold), '/', Math.round(adaptiveSilenceThreshold));
           lastLoggedLevel = average;
         }
 
-        if (average > SPEECH_THRESHOLD) {
+        // Detect speech start
+        if (average > adaptiveSpeechThreshold) {
           if (!hasSpoken) {
-            console.log('[Silence Detection] Speech detected, user started speaking');
+            console.log('[Silence Detection] Speech detected! Level:', Math.round(average), 'Threshold:', Math.round(adaptiveSpeechThreshold));
           }
           hasSpoken = true;
+          peakLevel = Math.max(peakLevel, average);
           silenceStart = Date.now();
-        } else if (hasSpoken && average < SILENCE_THRESHOLD) {
+        }
+        // Detect silence after speech
+        else if (hasSpoken && average < adaptiveSilenceThreshold) {
           const silenceDuration = Date.now() - silenceStart;
+
+          // Log silence progress every 500ms
+          if (silenceDuration % 500 < 100) {
+            console.log('[Silence Detection] Silent for', Math.round(silenceDuration), 'ms (need', SILENCE_DURATION, 'ms)');
+          }
+
           if (silenceDuration > SILENCE_DURATION) {
-            console.log('[Silence Detection] Silence detected for', silenceDuration, 'ms - auto-stopping');
+            console.log('[Silence Detection] Auto-stopping - silence for', silenceDuration, 'ms');
             stopRecording(true);
             return;
           }
+        }
+        // Still speaking (above silence threshold but below speech threshold)
+        else if (hasSpoken) {
+          silenceStart = Date.now(); // Reset silence timer
         }
 
         silenceTimerRef.current = setTimeout(checkAudioLevel, 100) as any;
