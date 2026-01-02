@@ -178,6 +178,16 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       const recorder = mediaRecorderRef.current;
       console.log('[Cleanup] MediaRecorder state:', recorder.state);
 
+      // Get stream from MediaRecorder and stop its tracks
+      if (recorder.stream) {
+        console.log('[Cleanup] Stopping tracks from MediaRecorder stream');
+        recorder.stream.getTracks().forEach(track => {
+          console.log('[Cleanup] MediaRecorder track:', track.kind, track.label, track.readyState);
+          track.stop();
+          console.log('[Cleanup] MediaRecorder track after stop:', track.readyState);
+        });
+      }
+
       recorder.ondataavailable = null;
       recorder.onstop = null;
       recorder.onerror = null;
