@@ -90,18 +90,42 @@ export default function EstimateScreen() {
 
   // Load existing estimate when estimateId is provided
   useEffect(() => {
-    if (estimateId && estimates) {
-      const existingEstimate = estimates.find(e => e.id === estimateId);
-      if (existingEstimate) {
-        console.log('[Estimate] Loading existing estimate for editing:', estimateId);
-        setEstimateName(existingEstimate.name);
-        setItems(existingEstimate.items || []);
-        setTaxPercent(((existingEstimate.taxRate || 0) * 100).toString());
-        setDraftId(existingEstimate.id);
+    const loadExistingEstimate = async () => {
+      if (!estimateId) return;
+
+      try {
+        console.log('[Estimate] Fetching existing estimate from database:', estimateId);
+        setIsLoadingDraft(true);
+
+        // Fetch estimate from database
+        const response = await fetch(`/api/get-estimate?estimateId=${estimateId}`);
+        const result = await response.json();
+
+        if (!result.success || !result.estimate) {
+          console.error('[Estimate] Failed to load estimate:', result.error);
+          Alert.alert('Error', 'Failed to load estimate');
+          setIsLoadingDraft(false);
+          return;
+        }
+
+        const estimate = result.estimate;
+        console.log('[Estimate] Loaded estimate:', estimate.name, 'with', estimate.items?.length || 0, 'items');
+
+        setEstimateName(estimate.name);
+        setItems(estimate.items || []);
+        setTaxPercent(((estimate.taxRate || 0) * 100).toString());
+        setMarkupPercent('0'); // Reset markup for editing
+        setDraftId(estimate.id);
+        setIsLoadingDraft(false);
+      } catch (error: any) {
+        console.error('[Estimate] Error loading estimate:', error);
+        Alert.alert('Error', 'Failed to load estimate: ' + error.message);
         setIsLoadingDraft(false);
       }
-    }
-  }, [estimateId, estimates]);
+    };
+
+    loadExistingEstimate();
+  }, [estimateId]);
 
   const saveDraft = useCallback(async () => {
     if (!id || items.length === 0) return;
