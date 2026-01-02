@@ -113,7 +113,7 @@ export default function EstimateScreen() {
 
         setEstimateName(estimate.name);
         setItems(estimate.items || []);
-        setTaxPercent(((estimate.taxRate || 0) * 100).toString());
+        setTaxPercent((estimate.taxRate || 0).toString());
         setMarkupPercent('0'); // Reset markup for editing
         setDraftId(estimate.id);
         setIsLoadingDraft(false);
