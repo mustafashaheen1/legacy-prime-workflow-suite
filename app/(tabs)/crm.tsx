@@ -946,7 +946,7 @@ export default function CRMScreen() {
           setTimeout(() => {
             console.log('[CRM] Opening email client...');
             const mailtoUrl = `mailto:${client.email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
-            window.open(mailtoUrl, '_blank');
+            window.location.href = mailtoUrl;
           }, 1000);
 
           // Show success message
