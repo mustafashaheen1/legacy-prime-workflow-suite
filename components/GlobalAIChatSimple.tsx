@@ -163,6 +163,68 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
 
   const { messages, sendMessage, isLoading } = useOpenAIChat();
 
+  // Complete cleanup function for conversation mode
+  const cleanupConversationMode = useCallback(() => {
+    console.log('[Conversation] Complete cleanup starting');
+
+    // Clear conversation mode flags
+    conversationModeInitialized.current = false;
+    setIsConversationMode(false);
+    setIsRecording(false);
+    setIsTranscribing(false);
+
+    // Stop and clear MediaRecorder
+    if (Platform.OS === 'web' && mediaRecorderRef.current) {
+      const recorder = mediaRecorderRef.current;
+      console.log('[Cleanup] MediaRecorder state:', recorder.state);
+
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      recorder.onerror = null;
+
+      if (recorder.state !== 'inactive') {
+        recorder.stop();
+      }
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+    }
+
+    // Clear silence detection timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+      console.log('[Cleanup] Cleared silence timer');
+    }
+
+    // Stop all media stream tracks
+    if (streamRef.current) {
+      const stream = streamRef.current;
+      console.log('[Cleanup] Stopping', stream.getTracks().length, 'tracks');
+
+      stream.getTracks().forEach(track => {
+        console.log('[Cleanup] Track:', track.kind, 'label:', track.label, 'state:', track.readyState);
+        track.stop();
+        console.log('[Cleanup] After stop - state:', track.readyState);
+      });
+
+      streamRef.current = null;
+    }
+
+    // Close audio context
+    if (audioContextRef.current) {
+      console.log('[Cleanup] Closing audio context, state:', audioContextRef.current.state);
+      audioContextRef.current.close().catch(console.error);
+      audioContextRef.current = null;
+    }
+
+    // Clear analyser
+    if (analyserRef.current) {
+      analyserRef.current = null;
+    }
+
+    console.log('[Conversation] Complete cleanup finished');
+  }, []);
+
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
@@ -448,6 +510,15 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   };
 
   const stopSpeaking = useCallback(async () => {
+    console.log('[TTS] Stopping speech');
+
+    // Stop browser speech synthesis
+    if (Platform.OS === 'web' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      console.log('[TTS] Cancelled browser speech synthesis');
+    }
+
+    // Stop mobile audio
     if (soundInstance) {
       try {
         const status = await soundInstance.getStatusAsync();
@@ -461,6 +532,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         setSoundInstance(null);
       }
     }
+
     setIsSpeaking(false);
   }, [soundInstance]);
 
@@ -1156,52 +1228,11 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   style={[styles.conversationButton, isConversationMode && styles.conversationButtonActive]}
                   onPress={async () => {
                     if (isConversationMode) {
-                      console.log('[Conversation] Ending conversation mode');
-                      conversationModeInitialized.current = false;
-                      setIsConversationMode(false);
-
-                      // Stop microphone and recording immediately (without transcription)
-                      if (isRecording) {
-                        console.log('[Conversation] Stopping recording without transcription');
-                        setIsRecording(false);
-                        setIsTranscribing(false);
-
-                        // Stop MediaRecorder immediately
-                        if (Platform.OS === 'web' && mediaRecorderRef.current) {
-                          if (mediaRecorderRef.current.state !== 'inactive') {
-                            mediaRecorderRef.current.stop();
-                          }
-                          mediaRecorderRef.current = null;
-                          audioChunksRef.current = [];
-                        }
-                      }
-
-                      // Stop speaking
+                      console.log('[Conversation] Phone button - ending conversation mode');
                       if (isSpeaking) {
                         await stopSpeaking();
                       }
-
-                      // Clear silence timer
-                      if (silenceTimerRef.current) {
-                        clearTimeout(silenceTimerRef.current);
-                        silenceTimerRef.current = null;
-                      }
-
-                      // Stop media stream (turns off microphone)
-                      if (streamRef.current) {
-                        console.log('[Conversation] Stopping media stream');
-                        streamRef.current.getTracks().forEach(track => {
-                          track.stop();
-                          console.log('[Conversation] Stopped track:', track.kind);
-                        });
-                        streamRef.current = null;
-                      }
-
-                      // Close audio context
-                      if (audioContextRef.current) {
-                        audioContextRef.current.close().catch(console.error);
-                        audioContextRef.current = null;
-                      }
+                      cleanupConversationMode();
                     } else {
                       console.log('[Conversation] Starting conversation mode');
                       setIsConversationMode(true);
@@ -1223,42 +1254,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   onPress={() => {
                     setIsOpen(false);
                     if (isConversationMode) {
-                      console.log('[Conversation] Closing modal - ending conversation mode');
-                      conversationModeInitialized.current = false;
-                      setIsConversationMode(false);
-
-                      // Stop recording and microphone immediately
-                      if (isRecording) {
-                        setIsRecording(false);
-                        setIsTranscribing(false);
-
-                        if (Platform.OS === 'web' && mediaRecorderRef.current) {
-                          if (mediaRecorderRef.current.state !== 'inactive') {
-                            mediaRecorderRef.current.stop();
-                          }
-                          mediaRecorderRef.current = null;
-                          audioChunksRef.current = [];
-                        }
-                      }
-
+                      console.log('[Conversation] Close button - ending conversation mode');
                       if (isSpeaking) stopSpeaking();
-
-                      // Stop media stream
-                      if (streamRef.current) {
-                        streamRef.current.getTracks().forEach(track => track.stop());
-                        streamRef.current = null;
-                      }
-
-                      // Clean up audio context
-                      if (audioContextRef.current) {
-                        audioContextRef.current.close().catch(console.error);
-                        audioContextRef.current = null;
-                      }
-
-                      if (silenceTimerRef.current) {
-                        clearTimeout(silenceTimerRef.current);
-                        silenceTimerRef.current = null;
-                      }
+                      cleanupConversationMode();
                     }
                   }}
                 >
