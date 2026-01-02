@@ -485,27 +485,51 @@ export default function CRMScreen() {
     setShowEstimateModal(true);
   };
 
-  const sendEstimate = (estimateId: string) => {
+  const sendEstimate = async (estimateId: string) => {
     const estimate = estimates.find(e => e.id === estimateId);
     if (!estimate) return;
 
-    updateEstimate(estimateId, { status: 'sent' });
     const client = clients.find(c => c.id === selectedClientForEstimate);
     if (!client) return;
 
-    const emailBody = `Hi ${client.name.split(' ')[0]},\n\nPlease find attached your estimate for ${estimate.name}.\n\nEstimate Total: ${estimate.total.toFixed(2)}\n\nPlease review and let us know if you have any questions.\n\nBest regards,\nLegacy Prime Construction`;
-    const emailUrl = `mailto:${client.email}?subject=${encodeURIComponent(`Estimate: ${estimate.name}`)}&body=${encodeURIComponent(emailBody)}`;
-    
-    if (Platform.OS === 'web') {
-      window.open(emailUrl, '_blank');
-    } else {
-      Linking.openURL(emailUrl).catch(() => {
-        Alert.alert('Error', 'Unable to open email client');
+    try {
+      // Update estimate status in database
+      console.log('[CRM] Updating estimate status to sent:', estimateId);
+      const response = await fetch('/api/update-estimate-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estimateId: estimateId,
+          status: 'sent',
+        }),
       });
-    }
 
-    Alert.alert('Success', 'Estimate email prepared. Status updated to "Sent".');
-    setShowEstimateModal(false);
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update estimate status');
+      }
+
+      console.log('[CRM] Estimate status updated successfully');
+
+      // Update local state
+      updateEstimate(estimateId, { status: 'sent' });
+
+      // Open email client
+      const emailBody = `Hi ${client.name.split(' ')[0]},\n\nPlease find attached your estimate for ${estimate.name}.\n\nEstimate Total: $${estimate.total.toFixed(2)}\n\nPlease review and let us know if you have any questions.\n\nBest regards,\n${company?.name || 'Legacy Prime Construction'}`;
+      const emailUrl = `mailto:${client.email}?subject=${encodeURIComponent(`Estimate: ${estimate.name}`)}&body=${encodeURIComponent(emailBody)}`;
+
+      if (Platform.OS === 'web') {
+        window.open(emailUrl, '_blank');
+      } else {
+        await Linking.openURL(emailUrl);
+      }
+
+      Alert.alert('Success', 'Estimate status updated to "Sent" and email prepared!');
+    } catch (error: any) {
+      console.error('[CRM] Error sending estimate:', error);
+      Alert.alert('Error', error.message || 'Failed to send estimate. Please try again.');
+    }
   };
 
   const requestSignature = (estimateId: string) => {
@@ -1655,13 +1679,12 @@ export default function CRMScreen() {
                     <View style={styles.estimateWorkflow}>
                       <Text style={styles.workflowTitle}>Workflow</Text>
                       
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={[
                           styles.workflowButton,
                           estimate.status === 'sent' && styles.workflowButtonCompleted,
                         ]}
                         onPress={() => sendEstimate(estimate.id)}
-                        disabled={estimate.status !== 'draft'}
                       >
                         {estimate.status === 'sent' || estimate.status === 'approved' ? (
                           <CheckCircle size={18} color="#10B981" />
