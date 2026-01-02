@@ -344,25 +344,34 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     try {
       console.log('[Voice] Starting recording...');
       if (Platform.OS === 'web') {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streamRef.current = stream;
+        // Reuse existing stream in conversation mode, or get a new one
+        let stream = streamRef.current;
+        if (!stream || stream.getTracks().length === 0 || stream.getTracks()[0].readyState !== 'live') {
+          console.log('[Voice] Getting new media stream');
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          streamRef.current = stream;
+        } else {
+          console.log('[Voice] Reusing existing media stream');
+        }
+
         audioChunksRef.current = [];
-        
+
         const mediaRecorder = new MediaRecorder(stream, {
           mimeType: 'audio/webm',
         });
-        
+
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
             audioChunksRef.current.push(event.data);
           }
         };
-        
+
         mediaRecorder.start();
         mediaRecorderRef.current = mediaRecorder;
         setIsRecording(true);
 
         if (isConversationMode) {
+          console.log('[Voice] Starting silence detection for conversation mode');
           startSilenceDetection(stream);
         }
       } else {
@@ -414,9 +423,38 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       setIsRecording(false);
       setIsTranscribing(true);
 
+      // Clear silence detection timer
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
+      }
+
+      // Clean up audio analysis (but not the stream if in conversation mode)
+      if (microphoneSourceRef.current) {
+        try {
+          microphoneSourceRef.current.disconnect();
+          microphoneSourceRef.current = null;
+        } catch (e) {
+          console.error('[Recording] Error disconnecting microphone source:', e);
+        }
+      }
+
+      if (analyserRef.current) {
+        try {
+          analyserRef.current.disconnect();
+          analyserRef.current = null;
+        } catch (e) {
+          console.error('[Recording] Error disconnecting analyser:', e);
+        }
+      }
+
+      if (audioContextRef.current) {
+        try {
+          await audioContextRef.current.close();
+          audioContextRef.current = null;
+        } catch (e) {
+          console.error('[Recording] Error closing audio context:', e);
+        }
       }
 
       if (Platform.OS === 'web') {
@@ -730,8 +768,14 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       const BASELINE_SAMPLES = 10; // Number of samples to calculate baseline
 
       const checkAudioLevel = () => {
-        if (!isConversationMode || !isRecording) {
-          console.log('[Silence Detection] Stopped: conversation mode or recording inactive');
+        // Check actual recording state instead of React state to avoid closure issues
+        if (!conversationModeInitialized.current) {
+          console.log('[Silence Detection] Stopped: conversation mode not initialized');
+          return;
+        }
+
+        if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
+          console.log('[Silence Detection] Stopped: MediaRecorder not recording, state:', mediaRecorderRef.current?.state);
           return;
         }
 
