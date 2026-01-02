@@ -2619,10 +2619,8 @@ export default function CRMScreen() {
               const client = clients.find(c => c.id === selectedClientForPayment);
               if (!client) return null;
 
-              const clientEstimates = estimates.filter(e =>
-                e.projectId.includes(client.id) ||
-                e.name.toLowerCase().includes(client.name.toLowerCase())
-              );
+              // Show all estimates (matching existing estimate modal behavior)
+              const clientEstimates = estimates;
 
               return (
                 <ScrollView style={styles.estimateListScroll} showsVerticalScrollIndicator={false}>
