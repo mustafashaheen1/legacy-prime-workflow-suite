@@ -134,6 +134,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const microphoneSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const conversationModeInitialized = useRef<boolean>(false);
   const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
@@ -220,16 +221,33 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       streamRef.current = null;
     }
 
+    // Disconnect microphone source from audio context
+    if (microphoneSourceRef.current) {
+      console.log('[Cleanup] Disconnecting microphone source node');
+      try {
+        microphoneSourceRef.current.disconnect();
+        microphoneSourceRef.current = null;
+        console.log('[Cleanup] Microphone source disconnected');
+      } catch (error) {
+        console.error('[Cleanup] Error disconnecting microphone:', error);
+      }
+    }
+
+    // Clear analyser
+    if (analyserRef.current) {
+      console.log('[Cleanup] Clearing analyser node');
+      try {
+        analyserRef.current.disconnect();
+      } catch (e) {}
+      analyserRef.current = null;
+    }
+
     // Close audio context
     if (audioContextRef.current) {
       console.log('[Cleanup] Closing audio context, state:', audioContextRef.current.state);
       audioContextRef.current.close().catch(console.error);
       audioContextRef.current = null;
-    }
-
-    // Clear analyser
-    if (analyserRef.current) {
-      analyserRef.current = null;
+      console.log('[Cleanup] Audio context closed');
     }
 
     console.log('[Conversation] Complete cleanup finished');
@@ -671,9 +689,10 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       const microphone = audioContext.createMediaStreamSource(stream);
       microphone.connect(analyser);
       analyser.fftSize = 512;
-      
+
       audioContextRef.current = audioContext;
       analyserRef.current = analyser;
+      microphoneSourceRef.current = microphone;
 
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
