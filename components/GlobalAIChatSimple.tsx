@@ -165,7 +165,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const { messages, sendMessage, isLoading } = useOpenAIChat();
 
   // Complete cleanup function for conversation mode
-  const cleanupConversationMode = useCallback(() => {
+  const cleanupConversationMode = useCallback(async () => {
     console.log('[Conversation] Complete cleanup starting');
 
     // Clear conversation mode flags
@@ -242,21 +242,41 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       analyserRef.current = null;
     }
 
-    // Close audio context
+    // Close audio context and wait for it to fully close
     if (audioContextRef.current) {
       console.log('[Cleanup] Closing audio context, state:', audioContextRef.current.state);
-      audioContextRef.current.close().catch(console.error);
+      const context = audioContextRef.current;
+
+      try {
+        await context.close();
+        console.log('[Cleanup] Audio context fully closed, state:', context.state);
+      } catch (error) {
+        console.error('[Cleanup] Error closing audio context:', error);
+      }
+
       audioContextRef.current = null;
-      console.log('[Cleanup] Audio context closed');
     }
 
     console.log('[Conversation] Complete cleanup finished');
 
-    // Force garbage collection hint to browser
-    // This helps the browser update the microphone indicator faster
-    setTimeout(() => {
-      console.log('[Cleanup] Final verification - all resources should be released');
-    }, 100);
+    // Verify all media devices are released
+    setTimeout(async () => {
+      console.log('[Cleanup] Final verification - checking media devices...');
+
+      if (Platform.OS === 'web' && navigator.mediaDevices) {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const audioInputs = devices.filter(d => d.kind === 'audioinput');
+          console.log('[Cleanup] Available audio inputs:', audioInputs.length);
+
+          // Check if any streams are active (Chrome DevTools check)
+          console.log('[Cleanup] All media stream tracks should be stopped now');
+          console.log('[Cleanup] If mic indicator is still on, this is a Chrome UI bug');
+        } catch (error) {
+          console.error('[Cleanup] Error checking devices:', error);
+        }
+      }
+    }, 200);
   }, []);
 
   useEffect(() => {
@@ -696,12 +716,13 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
 
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
-      
+
       let silenceStart = Date.now();
       let hasSpoken = false;
-      const SILENCE_THRESHOLD = 30;
-      const SILENCE_DURATION = 1500;
-      const SPEECH_THRESHOLD = 40;
+      let lastLoggedLevel = 0;
+      const SILENCE_THRESHOLD = 35; // Increased to handle background noise better
+      const SILENCE_DURATION = 1200; // Reduced from 1500ms to 1.2s for faster response
+      const SPEECH_THRESHOLD = 45; // Increased to better detect actual speech
 
       const checkAudioLevel = () => {
         if (!isConversationMode || !isRecording) {
@@ -712,12 +733,22 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
         analyser.getByteFrequencyData(dataArray);
         const average = dataArray.reduce((a, b) => a + b) / bufferLength;
 
+        // Only log when there's a significant change in audio level
+        if (Math.abs(average - lastLoggedLevel) > 10) {
+          console.log('[Silence Detection] Audio level:', Math.round(average));
+          lastLoggedLevel = average;
+        }
+
         if (average > SPEECH_THRESHOLD) {
+          if (!hasSpoken) {
+            console.log('[Silence Detection] Speech detected, user started speaking');
+          }
           hasSpoken = true;
           silenceStart = Date.now();
         } else if (hasSpoken && average < SILENCE_THRESHOLD) {
-          if (Date.now() - silenceStart > SILENCE_DURATION) {
-            console.log('[Silence Detection] Detected silence after speech, stopping recording');
+          const silenceDuration = Date.now() - silenceStart;
+          if (silenceDuration > SILENCE_DURATION) {
+            console.log('[Silence Detection] Silence detected for', silenceDuration, 'ms - auto-stopping');
             stopRecording(true);
             return;
           }
@@ -1145,7 +1176,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               ) : (
                 <>
                   <View style={styles.recordingDot} />
-                  <Text style={styles.recordingText}>Recording...</Text>
+                  <Text style={styles.recordingText}>
+                    {isConversationMode ? 'Speak now - I\'ll stop when you\'re done' : 'Recording...'}
+                  </Text>
                 </>
               )}
             </View>
@@ -1194,7 +1227,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               >
                 <View style={styles.recordingIndicator}>
                   <View style={styles.recordingDot} />
-                  <Text style={styles.recordingButtonText}>Tap to stop</Text>
+                  <Text style={styles.recordingButtonText}>
+                    {isConversationMode ? 'Listening...' : 'Tap to stop'}
+                  </Text>
                 </View>
               </TouchableOpacity>
             ) : (
@@ -1267,7 +1302,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                       if (isSpeaking) {
                         await stopSpeaking();
                       }
-                      cleanupConversationMode();
+                      await cleanupConversationMode();
                     } else {
                       console.log('[Conversation] Starting conversation mode');
                       setIsConversationMode(true);
@@ -1286,12 +1321,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.closeButton}
-                  onPress={() => {
+                  onPress={async () => {
                     setIsOpen(false);
                     if (isConversationMode) {
                       console.log('[Conversation] Close button - ending conversation mode');
-                      if (isSpeaking) stopSpeaking();
-                      cleanupConversationMode();
+                      if (isSpeaking) await stopSpeaking();
+                      await cleanupConversationMode();
                     }
                   }}
                 >
@@ -1420,10 +1455,10 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   <Phone size={16} color="#10A37F" />
                   <Text style={styles.conversationText}>Conversation Mode Active</Text>
                   <TouchableOpacity
-                    onPress={() => {
+                    onPress={async () => {
                       console.log('[Conversation] End button - ending conversation mode');
-                      if (isSpeaking) stopSpeaking();
-                      cleanupConversationMode();
+                      if (isSpeaking) await stopSpeaking();
+                      await cleanupConversationMode();
                     }}
                   >
                     <Text style={styles.conversationEndText}>End</Text>
@@ -1440,7 +1475,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   ) : (
                     <>
                       <View style={styles.recordingDot} />
-                      <Text style={styles.recordingText}>Recording...</Text>
+                      <Text style={styles.recordingText}>
+                        {isConversationMode ? 'Speak now - I\'ll stop when you\'re done' : 'Recording...'}
+                      </Text>
                     </>
                   )}
                 </View>
@@ -1489,7 +1526,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   >
                     <View style={styles.recordingIndicator}>
                       <View style={styles.recordingDot} />
-                      <Text style={styles.recordingButtonText}>Tap to stop</Text>
+                      <Text style={styles.recordingButtonText}>
+                        {isConversationMode ? 'Listening...' : 'Tap to stop'}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 ) : (

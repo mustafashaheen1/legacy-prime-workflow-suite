@@ -1,13 +1,33 @@
-import { Tabs } from "expo-router";
+import { Tabs, useRouter, useSegments } from "expo-router";
 import { LayoutDashboard, Users, Clock, DollarSign, Camera, Calendar, MessageSquare, Settings, HardHat } from "lucide-react-native";
-import React from "react";
+import React, { useEffect } from "react";
 import { useTranslation } from 'react-i18next';
 import UserAvatar from '@/components/UserAvatar';
+import { useApp } from '@/contexts/AppContext';
 
 
 export default function TabLayout() {
   const { t } = useTranslation();
-  
+  const { user } = useApp();
+  const router = useRouter();
+  const segments = useSegments();
+
+  // Protect all tab routes - redirect to login if not authenticated
+  useEffect(() => {
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!user && !inAuthGroup) {
+      // User is not signed in and trying to access protected route
+      console.log('[Auth] No user found, redirecting to login');
+      router.replace('/login');
+    }
+  }, [user, segments]);
+
+  // Don't render tabs if not authenticated
+  if (!user) {
+    return null;
+  }
+
   return (
     <Tabs
       screenOptions={{

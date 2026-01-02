@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { AppProvider } from "@/contexts/AppContext";
+import { AppProvider, useApp } from "@/contexts/AppContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import GlobalAIChat from "@/components/GlobalAIChatSimple";
 import FloatingChatButton from "@/components/FloatingChatButton";
@@ -26,7 +26,51 @@ if (Platform.OS === 'web') {
 
 const queryClient = new QueryClient();
 
+// Public routes that don't require authentication
+const PUBLIC_ROUTES = [
+  '/',
+  '/login',
+  '/signup',
+  '/subscription',
+  '/inspection',
+  '/subcontractor-register',
+];
+
 function RootLayoutNav() {
+  const { user } = useApp();
+  const router = useRouter();
+  const pathname = usePathname();
+  const segments = useSegments();
+
+  // Protect routes - redirect to login if not authenticated
+  useEffect(() => {
+    // Don't do anything while loading
+    if (user === undefined) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+    const isPublicRoute = PUBLIC_ROUTES.some(route => {
+      if (route === '/') return pathname === '/';
+      return pathname?.startsWith(route);
+    });
+
+    // Check if it's an inspection or subcontractor-register token route
+    const isTokenRoute = pathname?.startsWith('/inspection/') || pathname?.startsWith('/subcontractor-register/');
+
+    console.log('[Auth Check]', {
+      pathname,
+      user: user ? 'logged in' : 'not logged in',
+      inAuthGroup,
+      isPublicRoute,
+      isTokenRoute,
+    });
+
+    if (!user && !inAuthGroup && !isPublicRoute && !isTokenRoute) {
+      // User is not signed in and trying to access protected route
+      console.log('[Auth] Redirecting to login');
+      router.replace('/login');
+    }
+  }, [user, segments, pathname]);
+
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
