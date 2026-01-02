@@ -258,7 +258,9 @@ export interface Estimate {
   taxAmount: number;
   total: number;
   createdDate: string;
-  status: 'draft' | 'sent' | 'approved' | 'rejected';
+  status: 'draft' | 'sent' | 'approved' | 'rejected' | 'paid';
+  paidDate?: string;
+  paymentId?: string;
 }
 
 export interface TakeoffMeasurement {

@@ -76,11 +76,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.log('[Create Estimate] Found existing project:', existingProject.id);
           dbProjectId = existingProject.id;
         } else {
-          // Create new project in database with upsert to handle race conditions
+          // Create new project in database
           console.log('[Create Estimate] Creating new project in database...');
           const { data: newProject, error: projectError } = await supabase
             .from('projects')
-            .upsert({
+            .insert({
               company_id: companyId,
               name: projectName || 'Unnamed Project',
               budget: 0,
@@ -88,10 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               progress: 0,
               status: 'active',
               hours_worked: 0,
-            } as any, {
-              onConflict: 'company_id,name',
-              ignoreDuplicates: false
-            })
+            } as any)
             .select('id')
             .single();
 

@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { amount, description, clientName, estimateId } = req.body;
+    const { amount, description, clientName, estimateId, companyName } = req.body;
 
     if (!amount || !description) {
       return res.status(400).json({ error: 'Amount and description are required' });
@@ -38,6 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         metadata: {
           clientName: clientName || '',
           estimateId: estimateId || '',
+          companyName: companyName || '',
         },
       },
     });
@@ -54,6 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         clientName: clientName || '',
         estimateId: estimateId || '',
         description: description,
+        companyName: companyName || '',
       },
       after_completion: {
         type: 'hosted_confirmation',

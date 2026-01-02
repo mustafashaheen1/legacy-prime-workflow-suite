@@ -770,6 +770,7 @@ export default function CRMScreen() {
           description: `${estimate.name} - ${client.name}`,
           clientName: client.name,
           estimateId: estimate.id,
+          companyName: company?.name || 'Legacy Prime Construction',
         }),
       });
 
@@ -1638,9 +1639,10 @@ export default function CRMScreen() {
                         estimate.status === 'sent' && styles.sentBadge,
                         estimate.status === 'approved' && styles.approvedBadge,
                         estimate.status === 'rejected' && styles.rejectedBadge,
+                        estimate.status === 'paid' && styles.paidBadge,
                       ]}>
                         <Text style={styles.estimateStatusText}>
-                          {estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1)}
+                          {estimate.status === 'paid' ? '✓ Paid' : estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1)}
                         </Text>
                       </View>
                     </View>
@@ -1691,25 +1693,35 @@ export default function CRMScreen() {
                         ]}>Request Signature</Text>
                       </TouchableOpacity>
 
-                      <View style={styles.workflowSplit}>
-                        <TouchableOpacity 
-                          style={styles.workflowButtonHalf}
+                      {estimate.status === 'paid' ? (
+                        <TouchableOpacity
+                          style={styles.workflowButton}
                           onPress={() => convertToProject(estimate.id)}
-                          disabled={estimate.status !== 'sent' && estimate.status !== 'approved'}
                         >
                           <CheckCircle size={18} color="#10B981" />
-                          <Text style={styles.workflowButtonTextSmall}>Convert to Project</Text>
+                          <Text style={styles.workflowButtonText}>Convert to Project</Text>
                         </TouchableOpacity>
+                      ) : (
+                        <View style={styles.workflowSplit}>
+                          <TouchableOpacity
+                            style={styles.workflowButtonHalf}
+                            onPress={() => convertToProject(estimate.id)}
+                            disabled={estimate.status !== 'sent' && estimate.status !== 'approved'}
+                          >
+                            <CheckCircle size={18} color="#10B981" />
+                            <Text style={styles.workflowButtonTextSmall}>Convert to Project</Text>
+                          </TouchableOpacity>
 
-                        <TouchableOpacity 
-                          style={styles.workflowButtonHalf}
-                          onPress={() => requestPayment(estimate.id)}
-                          disabled={estimate.status !== 'sent' && estimate.status !== 'approved'}
-                        >
-                          <DollarSign size={18} color="#F59E0B" />
-                          <Text style={styles.workflowButtonTextSmall}>Request Payment</Text>
-                        </TouchableOpacity>
-                      </View>
+                          <TouchableOpacity
+                            style={styles.workflowButtonHalf}
+                            onPress={() => requestPayment(estimate.id)}
+                            disabled={estimate.status !== 'sent' && estimate.status !== 'approved'}
+                          >
+                            <DollarSign size={18} color="#F59E0B" />
+                            <Text style={styles.workflowButtonTextSmall}>Request Payment</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   </View>
                 ));
@@ -2651,9 +2663,12 @@ export default function CRMScreen() {
                       {clientEstimates.map((estimate) => (
                         <TouchableOpacity
                           key={estimate.id}
-                          style={styles.estimateCard}
-                          onPress={() => createPaymentLinkAndEmail(estimate.id)}
-                          disabled={isCreatingPaymentLink}
+                          style={[
+                            styles.estimateCard,
+                            estimate.status === 'paid' && styles.estimateCardDisabled,
+                          ]}
+                          onPress={() => estimate.status !== 'paid' && createPaymentLinkAndEmail(estimate.id)}
+                          disabled={isCreatingPaymentLink || estimate.status === 'paid'}
                         >
                           <View style={styles.estimateCardHeader}>
                             <Text style={styles.estimateCardName}>{estimate.name}</Text>
@@ -2663,9 +2678,10 @@ export default function CRMScreen() {
                               estimate.status === 'sent' && styles.estimateStatusSent,
                               estimate.status === 'draft' && styles.estimateStatusDraft,
                               estimate.status === 'rejected' && styles.estimateStatusRejected,
+                              estimate.status === 'paid' && styles.estimateStatusPaid,
                             ]}>
                               <Text style={styles.estimateStatusText}>
-                                {estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1)}
+                                {estimate.status === 'paid' ? '✓ Paid' : estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1)}
                               </Text>
                             </View>
                           </View>
@@ -2684,8 +2700,17 @@ export default function CRMScreen() {
                             </View>
                           </View>
                           <View style={styles.estimateCardActions}>
-                            <DollarSign size={16} color="#10B981" />
-                            <Text style={styles.estimateCardActionText}>Create Payment Link</Text>
+                            {estimate.status === 'paid' ? (
+                              <>
+                                <CheckCircle size={16} color="#10B981" />
+                                <Text style={[styles.estimateCardActionText, { color: '#6B7280' }]}>Already Paid</Text>
+                              </>
+                            ) : (
+                              <>
+                                <DollarSign size={16} color="#10B981" />
+                                <Text style={styles.estimateCardActionText}>Create Payment Link</Text>
+                              </>
+                            )}
                           </View>
                         </TouchableOpacity>
                       ))}
@@ -3341,6 +3366,9 @@ const styles = StyleSheet.create({
   },
   rejectedBadge: {
     backgroundColor: '#FEE2E2',
+  },
+  paidBadge: {
+    backgroundColor: '#D1FAE5',
   },
   estimateStatusText: {
     fontSize: 11,
@@ -4498,6 +4526,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
+  estimateCardDisabled: {
+    opacity: 0.6,
+    backgroundColor: '#F3F4F6',
+  },
   estimateCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -4527,6 +4559,9 @@ const styles = StyleSheet.create({
   },
   estimateStatusRejected: {
     backgroundColor: '#FEE2E2',
+  },
+  estimateStatusPaid: {
+    backgroundColor: '#D1FAE5',
   },
   estimateStatusText: {
     fontSize: 12,
