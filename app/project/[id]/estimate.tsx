@@ -187,7 +187,8 @@ export default function EstimateScreen() {
     }
   };
 
-  if (!project) {
+  // Only require project for new estimates, allow editing existing estimates without project
+  if (!project && !estimateId) {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>Project not found</Text>
@@ -926,7 +927,7 @@ export default function EstimateScreen() {
     }
     totalsText += `\nTax (${taxPercentNum}%): ${taxAmount.toFixed(2)}\nTOTAL: ${total.toFixed(2)}`;
 
-    const emailBody = `Hi,\n\nWe're ready to move forward with your project!\n\nPROJECT: ${project.name}\nESTIMATE: ${estimateName}\n\n--- LINE ITEMS ---\n${itemsText}\n\n${totalsText}\n\nPlease review and sign this estimate to approve the project. Once approved, we'll convert this to an active project and begin work.\n\nClick here to review and sign: [Digital Signature Link]\n\nBest regards,\nLegacy Prime Construction`;
+    const emailBody = `Hi,\n\nWe're ready to move forward with your project!\n\nPROJECT: ${project?.name || 'Your Project'}\nESTIMATE: ${estimateName}\n\n--- LINE ITEMS ---\n${itemsText}\n\n${totalsText}\n\nPlease review and sign this estimate to approve the project. Once approved, we'll convert this to an active project and begin work.\n\nClick here to review and sign: [Digital Signature Link]\n\nBest regards,\nLegacy Prime Construction`;
     
     const emailUrl = `mailto:?subject=${encodeURIComponent(`Signature Required: ${estimateName}`)}&body=${encodeURIComponent(emailBody)}`;
     
@@ -1664,7 +1665,7 @@ export default function EstimateScreen() {
             setItems(prev => [...prev, ...generatedItems]);
             setShowAIGenerateModal(false);
           }}
-          projectName={project.name}
+          projectName={project?.name || 'Unnamed Project'}
         />
       )}
 
@@ -1714,7 +1715,7 @@ export default function EstimateScreen() {
 
                 <View style={styles.previewDivider} />
 
-                <Text style={styles.previewProjectName}>PROJECT: {project.name}</Text>
+                <Text style={styles.previewProjectName}>PROJECT: {project?.name || 'Unnamed Project'}</Text>
                 <Text style={styles.previewEstimateName}>ESTIMATE: {estimateName}</Text>
                 <Text style={styles.previewDate}>Date: {new Date().toLocaleDateString()}</Text>
 
