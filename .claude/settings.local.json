@@ -67,7 +67,8 @@
       "WebSearch",
       "Bash(npm ls:*)",
       "Bash(npx rork start:*)",
-      "Bash(PORT=3000 npm start)"
+      "Bash(PORT=3000 npm start)",
+      "Bash(tail:*)"
     ],
     "deny": [],
     "ask": []

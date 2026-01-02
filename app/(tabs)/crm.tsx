@@ -101,6 +101,9 @@ export default function CRMScreen() {
   const [selectedFollowUpDate, setSelectedFollowUpDate] = useState<string>('');
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [showMetricsWidget, setShowMetricsWidget] = useState<boolean>(false);
+  const [showPaymentRequestModal, setShowPaymentRequestModal] = useState<boolean>(false);
+  const [selectedClientForPayment, setSelectedClientForPayment] = useState<string | null>(null);
+  const [isCreatingPaymentLink, setIsCreatingPaymentLink] = useState<boolean>(false);
   const [callAssistantConfig, setCallAssistantConfig] = useState({
     enabled: true,
     businessName: 'Legacy Prime Construction',
@@ -728,37 +731,93 @@ export default function CRMScreen() {
     );
   };
 
-  const requestPayment = (estimateId?: string) => {
-    const client = clients.find(c => c.id === selectedClientForEstimate);
-    if (!client) return;
+  const requestPayment = (clientId?: string) => {
+    // If called from client card, set the client and show modal
+    if (clientId) {
+      setSelectedClientForPayment(clientId);
+      setShowPaymentRequestModal(true);
+    } else if (selectedClientForEstimate) {
+      // If called from estimate modal
+      setSelectedClientForPayment(selectedClientForEstimate);
+      setShowPaymentRequestModal(true);
+    }
+  };
 
-    let emailBody = '';
-    let emailSubject = '';
-
-    if (estimateId) {
-      const estimate = estimates.find(e => e.id === estimateId);
-      if (!estimate) return;
-
-      emailSubject = `Payment Required: ${estimate.name}`;
-      emailBody = `Hi ${client.name.split(' ')[0]},\n\nThank you for approving the estimate!\n\nProject: ${estimate.name}\nTotal Amount: ${estimate.total.toFixed(2)}\n\nTo begin work, we require payment. You can pay via:\n- Check\n- Wire Transfer\n- Credit Card\n\nPlease contact us to arrange payment.\n\nBest regards,\nLegacy Prime Construction\nPhone: (555) 123-4567`;
-    } else {
-      emailSubject = `Payment Request from Legacy Prime Construction`;
-      emailBody = `Hi ${client.name.split(' ')[0]},\n\nWe are requesting payment for your project with Legacy Prime Construction.\n\nYou can pay via:\n- Check\n- Wire Transfer\n- Credit Card\n\nPlease contact us at (555) 123-4567 to arrange payment or if you have any questions.\n\nBest regards,\nLegacy Prime Construction`;
+  const createPaymentLinkAndEmail = async (estimateId: string) => {
+    const client = clients.find(c => c.id === selectedClientForPayment);
+    if (!client) {
+      Alert.alert('Error', 'Client not found');
+      return;
     }
 
-    const emailUrl = `mailto:${client.email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
-    
-    if (Platform.OS === 'web') {
-      window.open(emailUrl, '_blank');
-    } else {
-      Linking.openURL(emailUrl).catch(() => {
-        Alert.alert('Error', 'Unable to open email client');
+    const estimate = estimates.find(e => e.id === estimateId);
+    if (!estimate) {
+      Alert.alert('Error', 'Estimate not found');
+      return;
+    }
+
+    setIsCreatingPaymentLink(true);
+
+    try {
+      console.log('[Payment] Creating payment link for estimate:', estimate.name);
+
+      // Call API to create Stripe payment link
+      const response = await fetch('/api/create-payment-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: estimate.total,
+          description: `${estimate.name} - ${client.name}`,
+          clientName: client.name,
+          estimateId: estimate.id,
+        }),
       });
-    }
 
-    Alert.alert('Success', 'Payment request sent!');
-    if (estimateId) {
-      setShowEstimateModal(false);
+      const result = await response.json();
+
+      if (!result.success || !result.paymentLink) {
+        throw new Error(result.error || 'Failed to create payment link');
+      }
+
+      console.log('[Payment] Payment link created:', result.paymentLink);
+
+      // Prepare email
+      const emailSubject = encodeURIComponent(`Payment Request: ${estimate.name}`);
+      const emailBody = encodeURIComponent(
+        `Hi ${client.name.split(' ')[0]},\n\n` +
+        `Thank you for your business! We're ready to begin work on your project.\n\n` +
+        `Project: ${estimate.name}\n` +
+        `Total Amount: $${estimate.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n` +
+        `Please click the secure payment link below to complete your payment:\n\n` +
+        `${result.paymentLink}\n\n` +
+        `This link will take you to our secure Stripe payment portal. You can pay via credit card, debit card, or other available payment methods.\n\n` +
+        `Once payment is received, we will begin work immediately.\n\n` +
+        `If you have any questions, please don't hesitate to contact us.\n\n` +
+        `Best regards,\n` +
+        `${company?.name || 'Legacy Prime Construction'}\n` +
+        `${company?.phone || '(555) 123-4567'}`
+      );
+
+      const mailtoUrl = `mailto:${client.email}?subject=${emailSubject}&body=${emailBody}`;
+
+      // Open email client
+      if (Platform.OS === 'web') {
+        window.open(mailtoUrl, '_self');
+      } else {
+        await Linking.openURL(mailtoUrl);
+      }
+
+      setShowPaymentRequestModal(false);
+      setIsCreatingPaymentLink(false);
+
+      Alert.alert(
+        'Success',
+        'Payment link created! Your email client should open with the payment link ready to send.'
+      );
+    } catch (error: any) {
+      console.error('[Payment] Error creating payment link:', error);
+      setIsCreatingPaymentLink(false);
+      Alert.alert('Error', error.message || 'Failed to create payment link. Please try again.');
     }
   };
 
@@ -1201,12 +1260,9 @@ export default function CRMScreen() {
                   </>
                 )}
                 {(client.status === 'Lead' || client.status === 'Project') && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.paymentButton}
-                    onPress={() => {
-                      setSelectedClientForEstimate(client.id);
-                      requestPayment();
-                    }}
+                    onPress={() => requestPayment(client.id)}
                   >
                     <CreditCard size={16} color="#FFFFFF" />
                     <Text style={styles.paymentButtonText}>Request Payment</Text>
@@ -2534,6 +2590,126 @@ export default function CRMScreen() {
                 onPress={saveFollowUpDate}
               >
                 <Text style={styles.saveFollowUpButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Payment Request Modal */}
+      <Modal
+        visible={showPaymentRequestModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowPaymentRequestModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.paymentModalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.paymentModalTitleContainer}>
+                <CreditCard size={24} color="#2563EB" />
+                <Text style={styles.modalTitle}>Request Payment</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPaymentRequestModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {(() => {
+              const client = clients.find(c => c.id === selectedClientForPayment);
+              if (!client) return null;
+
+              const clientEstimates = estimates.filter(e =>
+                e.projectId.includes(client.id) ||
+                e.name.toLowerCase().includes(client.name.toLowerCase())
+              );
+
+              return (
+                <ScrollView style={styles.estimateListScroll} showsVerticalScrollIndicator={false}>
+                  {clientEstimates.length === 0 ? (
+                    <View style={styles.emptyEstimatesContainer}>
+                      <Calculator size={48} color="#D1D5DB" />
+                      <Text style={styles.emptyEstimatesTitle}>No Estimates Found</Text>
+                      <Text style={styles.emptyEstimatesText}>
+                        Create an estimate for {client.name} first before requesting payment.
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.createEstimateButton}
+                        onPress={() => {
+                          setShowPaymentRequestModal(false);
+                          setSelectedClientForEstimate(client.id);
+                          setShowEstimateTypeModal(true);
+                        }}
+                      >
+                        <Plus size={20} color="#FFFFFF" />
+                        <Text style={styles.createEstimateButtonText}>Create Estimate</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.selectEstimateText}>
+                        Select an estimate to create a payment link for {client.name}:
+                      </Text>
+                      {clientEstimates.map((estimate) => (
+                        <TouchableOpacity
+                          key={estimate.id}
+                          style={styles.estimateCard}
+                          onPress={() => createPaymentLinkAndEmail(estimate.id)}
+                          disabled={isCreatingPaymentLink}
+                        >
+                          <View style={styles.estimateCardHeader}>
+                            <Text style={styles.estimateCardName}>{estimate.name}</Text>
+                            <View style={[
+                              styles.estimateStatusBadge,
+                              estimate.status === 'approved' && styles.estimateStatusApproved,
+                              estimate.status === 'sent' && styles.estimateStatusSent,
+                              estimate.status === 'draft' && styles.estimateStatusDraft,
+                              estimate.status === 'rejected' && styles.estimateStatusRejected,
+                            ]}>
+                              <Text style={styles.estimateStatusText}>
+                                {estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1)}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.estimateCardDetails}>
+                            <View style={styles.estimateDetailRow}>
+                              <Text style={styles.estimateDetailLabel}>Total Amount:</Text>
+                              <Text style={styles.estimateDetailValue}>
+                                ${estimate.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </Text>
+                            </View>
+                            <View style={styles.estimateDetailRow}>
+                              <Text style={styles.estimateDetailLabel}>Created:</Text>
+                              <Text style={styles.estimateDetailValue}>
+                                {new Date(estimate.createdDate).toLocaleDateString()}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.estimateCardActions}>
+                            <DollarSign size={16} color="#10B981" />
+                            <Text style={styles.estimateCardActionText}>Create Payment Link</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+                </ScrollView>
+              );
+            })()}
+
+            {isCreatingPaymentLink && (
+              <View style={styles.loadingOverlay}>
+                <Text style={styles.loadingText}>Creating payment link...</Text>
+              </View>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowPaymentRequestModal(false)}
+                disabled={isCreatingPaymentLink}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -4293,6 +4469,148 @@ const styles = StyleSheet.create({
   inspectionButtonText: {
     color: '#FFFFFF',
     fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  paymentModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 600,
+    maxHeight: '80%',
+  },
+  paymentModalTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  estimateListScroll: {
+    marginVertical: 16,
+  },
+  selectEstimateText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+  },
+  estimateCard: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  estimateCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  estimateCardName: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    flex: 1,
+  },
+  estimateStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+  },
+  estimateStatusApproved: {
+    backgroundColor: '#D1FAE5',
+  },
+  estimateStatusSent: {
+    backgroundColor: '#DBEAFE',
+  },
+  estimateStatusDraft: {
+    backgroundColor: '#FEF3C7',
+  },
+  estimateStatusRejected: {
+    backgroundColor: '#FEE2E2',
+  },
+  estimateStatusText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#4B5563',
+  },
+  estimateCardDetails: {
+    marginBottom: 12,
+  },
+  estimateDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  estimateDetailLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  estimateDetailValue: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  estimateCardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  estimateCardActionText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#10B981',
+  },
+  emptyEstimatesContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyEstimatesTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyEstimatesText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  createEstimateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#2563EB',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  createEstimateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  loadingOverlay: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#2563EB',
     fontWeight: '600' as const,
   },
 });
