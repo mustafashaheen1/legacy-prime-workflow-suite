@@ -1396,9 +1396,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                   <Text style={styles.conversationText}>Conversation Mode Active</Text>
                   <TouchableOpacity
                     onPress={() => {
-                      setIsConversationMode(false);
-                      if (isRecording) stopRecording(false);
+                      console.log('[Conversation] End button - ending conversation mode');
                       if (isSpeaking) stopSpeaking();
+                      cleanupConversationMode();
                     }}
                   >
                     <Text style={styles.conversationEndText}>End</Text>
