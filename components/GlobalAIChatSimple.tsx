@@ -460,14 +460,25 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       if (Platform.OS === 'web') {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
           mediaRecorderRef.current.stop();
-          
+
           await new Promise(resolve => setTimeout(resolve, 100));
-          
+
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           await transcribeAudio(audioBlob, sendImmediately);
-          
+
           mediaRecorderRef.current = null;
           audioChunksRef.current = [];
+        }
+
+        // Stop the stream if NOT in conversation mode (for one-time recordings)
+        if (!isConversationMode && streamRef.current) {
+          console.log('[Recording] Stopping stream for non-conversation recording');
+          streamRef.current.getTracks().forEach(track => {
+            console.log('[Recording] Stopping track:', track.kind, track.label, track.readyState);
+            track.stop();
+            console.log('[Recording] Track stopped, new state:', track.readyState);
+          });
+          streamRef.current = null;
         }
       } else {
         if (recordingInstance) {
