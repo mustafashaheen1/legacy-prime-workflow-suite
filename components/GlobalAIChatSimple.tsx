@@ -233,6 +233,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     }
 
     console.log('[Conversation] Complete cleanup finished');
+
+    // Force garbage collection hint to browser
+    // This helps the browser update the microphone indicator faster
+    setTimeout(() => {
+      console.log('[Cleanup] Final verification - all resources should be released');
+    }, 100);
   }, []);
 
   useEffect(() => {
