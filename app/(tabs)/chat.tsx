@@ -402,44 +402,68 @@ export default function ChatScreen() {
       const isTeamChat = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
 
       if (isTeamChat) {
-        // Team chat: Upload to S3 and send via API
+        // Team chat: Upload to S3 using presigned URL
         console.log('[Chat] Uploading image to S3...');
 
-        // Convert image to base64
-        let base64Image: string;
+        // Get file blob
+        let blob: Blob;
+        let fileExtension = 'jpg';
+        let contentType = 'image/jpeg';
+
         if (Platform.OS === 'web') {
           const response = await fetch(previewImage);
-          const blob = await response.blob();
-          base64Image = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
+          blob = await response.blob();
+          contentType = blob.type || 'image/jpeg';
+          fileExtension = contentType.split('/')[1] || 'jpg';
         } else {
+          // Mobile: Read file and create blob
           const base64 = await FileSystem.readAsStringAsync(previewImage, {
             encoding: FileSystem.EncodingType.Base64,
           });
-          const fileExtension = previewImage.split('.').pop() || 'jpg';
-          base64Image = `data:image/${fileExtension};base64,${base64}`;
+          fileExtension = previewImage.split('.').pop() || 'jpg';
+          contentType = `image/${fileExtension}`;
+
+          // Convert base64 to blob
+          const byteCharacters = atob(base64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          blob = new Blob([byteArray], { type: contentType });
         }
 
-        // Upload to S3 (reuse upload-audio endpoint which handles any file type)
-        const uploadResponse = await fetch('/api/upload-audio', {
+        // Get presigned URL
+        const urlResponse = await fetch('/api/get-upload-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            audioData: base64Image,
             userId: user?.id,
-            fileName: `image.${base64Image.match(/^data:image\/(\w+);/)?.[1] || 'jpg'}`,
+            fileName: `image.${fileExtension}`,
+            fileType: contentType,
           }),
         });
 
-        const uploadResult = await uploadResponse.json();
+        const urlResult = await urlResponse.json();
 
-        if (!uploadResult.success) {
-          throw new Error(uploadResult.error || 'Failed to upload image');
+        if (!urlResult.success) {
+          throw new Error(urlResult.error || 'Failed to get upload URL');
         }
+
+        // Upload directly to S3
+        const uploadResponse = await fetch(urlResult.uploadUrl, {
+          method: 'PUT',
+          body: blob,
+          headers: {
+            'Content-Type': contentType,
+          },
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload to S3');
+        }
+
+        console.log('[Chat] Image uploaded to S3:', urlResult.publicUrl);
 
         // Send message via API
         const messageResponse = await fetch('/api/team/send-message', {
@@ -449,7 +473,7 @@ export default function ChatScreen() {
             conversationId: selectedChat,
             senderId: user?.id,
             type: 'image',
-            content: uploadResult.url,
+            content: urlResult.publicUrl,
           }),
         });
 
@@ -460,7 +484,7 @@ export default function ChatScreen() {
             id: result.message.id,
             senderId: user?.id || '1',
             type: 'image',
-            content: uploadResult.url,
+            content: urlResult.publicUrl,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           };
           addMessageToConversation(selectedChat, newMessage);
@@ -502,44 +526,64 @@ export default function ChatScreen() {
         const isTeamChat = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
 
         if (isTeamChat) {
-          // Team chat: Upload to S3
+          // Team chat: Upload to S3 using presigned URL
           console.log('[Chat] Uploading document to S3...');
 
-          // Convert document to base64
-          let base64File: string;
+          // Get file blob
+          let blob: Blob;
+          const fileName = result.assets[0].name;
+          const mimeType = result.assets[0].mimeType || 'application/octet-stream';
+
           if (Platform.OS === 'web') {
             const response = await fetch(result.assets[0].uri);
-            const blob = await response.blob();
-            base64File = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
+            blob = await response.blob();
           } else {
+            // Mobile: Read file and create blob
             const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
               encoding: FileSystem.EncodingType.Base64,
             });
-            const mimeType = result.assets[0].mimeType || 'application/octet-stream';
-            base64File = `data:${mimeType};base64,${base64}`;
+
+            // Convert base64 to blob
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            blob = new Blob([byteArray], { type: mimeType });
           }
 
-          // Upload to S3
-          const uploadResponse = await fetch('/api/upload-audio', {
+          // Get presigned URL
+          const urlResponse = await fetch('/api/get-upload-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              audioData: base64File,
               userId: user?.id,
-              fileName: result.assets[0].name,
+              fileName: fileName,
+              fileType: mimeType,
             }),
           });
 
-          const uploadResult = await uploadResponse.json();
+          const urlResult = await urlResponse.json();
 
-          if (!uploadResult.success) {
-            throw new Error(uploadResult.error || 'Failed to upload document');
+          if (!urlResult.success) {
+            throw new Error(urlResult.error || 'Failed to get upload URL');
           }
+
+          // Upload directly to S3
+          const uploadResponse = await fetch(urlResult.uploadUrl, {
+            method: 'PUT',
+            body: blob,
+            headers: {
+              'Content-Type': mimeType,
+            },
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error('Failed to upload to S3');
+          }
+
+          console.log('[Chat] Document uploaded to S3:', urlResult.publicUrl);
 
           // Send message via API
           const messageResponse = await fetch('/api/team/send-message', {
@@ -549,8 +593,8 @@ export default function ChatScreen() {
               conversationId: selectedChat,
               senderId: user?.id,
               type: 'file',
-              content: uploadResult.url,
-              fileName: result.assets[0].name,
+              content: urlResult.publicUrl,
+              fileName: fileName,
             }),
           });
 
@@ -561,12 +605,12 @@ export default function ChatScreen() {
               id: messageResult.message.id,
               senderId: user?.id || '1',
               type: 'file',
-              fileName: result.assets[0].name,
-              content: uploadResult.url,
+              fileName: fileName,
+              content: urlResult.publicUrl,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             };
             addMessageToConversation(selectedChat, newMessage);
-            Alert.alert('Success', `${result.assets[0].name} sent`);
+            Alert.alert('Success', `${fileName} sent`);
           } else {
             Alert.alert('Error', 'Failed to send document');
           }
