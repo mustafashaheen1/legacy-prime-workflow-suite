@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -37,6 +37,10 @@ export default function ChatScreen() {
   const [isLoadingMembers, setIsLoadingMembers] = useState<boolean>(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState<boolean>(false);
 
+  // Refs for web audio recording
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
@@ -367,49 +371,102 @@ export default function ChatScreen() {
   };
 
   const startRecording = async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Not Available', 'Voice recording is not available on web');
-      return;
-    }
-
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Microphone permission is needed');
-        return;
+      console.log('[Voice] Starting recording...');
+      if (Platform.OS === 'web') {
+        // Web recording using MediaRecorder API
+        let stream = streamRef.current;
+        if (!stream || stream.getTracks().length === 0 || stream.getTracks()[0].readyState !== 'live') {
+          console.log('[Voice] Getting new media stream');
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          streamRef.current = stream;
+        } else {
+          console.log('[Voice] Reusing existing media stream');
+        }
+
+        audioChunksRef.current = [];
+
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm',
+        });
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.start();
+        mediaRecorderRef.current = mediaRecorder;
+        setIsRecording(true);
+      } else {
+        // Mobile recording using expo-av
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Microphone permission is needed');
+          return;
+        }
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        const { recording: newRecording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        setRecording(newRecording);
+        setIsRecording(true);
       }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(newRecording);
-      setIsRecording(true);
     } catch (error) {
       console.error('Failed to start recording:', error);
-      Alert.alert('Error', 'Failed to start recording');
+      Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
     }
   };
 
   const stopRecording = async () => {
-    if (!recording || !selectedChat) return;
+    if (!selectedChat) return;
+
+    // Check if recording on web or mobile
+    const isWebRecording = Platform.OS === 'web' && mediaRecorderRef.current;
+    const isMobileRecording = recording;
+
+    if (!isWebRecording && !isMobileRecording) return;
 
     try {
       setIsRecording(false);
-      await recording.stopAndUnloadAsync();
-      if (Platform.OS !== 'web') {
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-      }
-      const uri = recording.getURI();
+      let audioBlob: Blob | null = null;
+      let uri: string | null = null;
 
-      if (!uri) {
-        Alert.alert('Error', 'Failed to get recording');
+      // Handle web recording
+      if (Platform.OS === 'web' && mediaRecorderRef.current) {
+        const mediaRecorder = mediaRecorderRef.current;
+
+        // Stop the recorder and wait for final data
+        await new Promise<void>((resolve) => {
+          mediaRecorder.onstop = () => resolve();
+          mediaRecorder.stop();
+        });
+
+        // Create blob from recorded chunks
+        audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        console.log('[Voice] Web recording stopped, blob size:', audioBlob.size);
+
+        mediaRecorderRef.current = null;
+      }
+      // Handle mobile recording
+      else if (recording) {
+        await recording.stopAndUnloadAsync();
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+        uri = recording.getURI();
+
+        if (!uri) {
+          Alert.alert('Error', 'Failed to get recording');
+          setRecording(null);
+          return;
+        }
+
         setRecording(null);
-        return;
       }
 
       // Check if this is a team chat (not AI assistant)
@@ -421,19 +478,37 @@ export default function ChatScreen() {
         console.log('[Voice] Uploading voice message to S3...');
 
         try {
-          // Read audio file and convert to base64
-          const base64Audio = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
+          let base64Audio: string;
+
+          // Convert to base64
+          if (audioBlob) {
+            // Web: Convert blob to base64
+            base64Audio = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64 = (reader.result as string).split(',')[1];
+                resolve(base64);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(audioBlob);
+            });
+          } else if (uri) {
+            // Mobile: Read file as base64
+            base64Audio = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+          } else {
+            throw new Error('No audio data available');
+          }
 
           // Upload to S3
           const uploadResponse = await fetch('/api/upload-audio', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              audioData: `data:audio/m4a;base64,${base64Audio}`,
+              audioData: `data:audio/${audioBlob ? 'webm' : 'm4a'};base64,${base64Audio}`,
               userId: user?.id,
-              fileName: 'voice-message.m4a',
+              fileName: `voice-message.${audioBlob ? 'webm' : 'm4a'}`,
             }),
           });
 
@@ -465,6 +540,17 @@ export default function ChatScreen() {
           }
 
           console.log('[Voice] Voice message sent successfully');
+
+          // Add message to local state
+          const newMessage: ChatMessage = {
+            id: messageResult.message.id,
+            senderId: user?.id || '1',
+            type: 'voice',
+            content: uploadResult.url,
+            duration: 15,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          addMessageToConversation(selectedChat, newMessage);
         } catch (error: any) {
           console.error('[Voice] Error sending voice message:', error);
           Alert.alert('Error', 'Failed to send voice message: ' + error.message);
@@ -475,18 +561,17 @@ export default function ChatScreen() {
           id: Date.now().toString(),
           senderId: user?.id || '1',
           type: 'voice',
-          content: uri,
+          content: uri || URL.createObjectURL(audioBlob!),
           duration: 15,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         addMessageToConversation(selectedChat, newMessage);
       }
-
-      setRecording(null);
     } catch (error) {
       console.error('Failed to stop recording:', error);
       Alert.alert('Error', 'Failed to stop recording');
       setRecording(null);
+      mediaRecorderRef.current = null;
     }
   };
 
