@@ -50,6 +50,33 @@ export default function ChatScreen() {
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
 
+  // Helper function to get user initials
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Create a map of user IDs to user data for quick lookup
+  const userMap = useMemo(() => {
+    const map = new Map();
+
+    // Add current user
+    if (user) {
+      map.set(user.id, { name: user.name, avatar: user.avatar });
+    }
+
+    // Add team members
+    teamMembers.forEach(member => {
+      map.set(member.id, { name: member.name, avatar: member.avatar });
+    });
+
+    return map;
+  }, [user, teamMembers]);
+
   // Fetch team members from database
   useEffect(() => {
     const fetchTeamMembers = async () => {
@@ -139,7 +166,7 @@ export default function ChatScreen() {
     fetchConversations();
   }, [user?.id]);
 
-  // Fetch messages when a team conversation is selected
+  // Fetch messages when a team conversation is selected and poll for new messages
   useEffect(() => {
     const fetchMessages = async () => {
       if (!selectedChat || !user?.id || selectedChat === 'ai-assistant') {
@@ -149,11 +176,6 @@ export default function ChatScreen() {
       const conversation = conversations.find(c => c.id === selectedChat);
       if (!conversation || (conversation.type !== 'individual' && conversation.type !== 'group')) {
         return; // Not a team chat
-      }
-
-      // Only fetch if conversation has no messages (hasn't been loaded yet)
-      if (conversation.messages && conversation.messages.length > 0) {
-        return;
       }
 
       try {
@@ -168,21 +190,26 @@ export default function ChatScreen() {
         if (result.success) {
           console.log('[Chat] Fetched', result.messages.length, 'messages');
 
-          // Add messages to the conversation in context
-          result.messages.forEach((msg: any) => {
-            const chatMessage: ChatMessage = {
-              id: msg.id,
-              senderId: msg.senderId,
-              type: msg.type,
-              content: msg.content,
-              text: msg.text,
-              fileName: msg.fileName,
-              fileUrl: msg.fileUrl,
-              duration: msg.duration,
-              timestamp: msg.timestamp,
-            };
+          // Get existing message IDs to avoid duplicates
+          const existingMessageIds = new Set((conversation.messages || []).map(m => m.id));
 
-            addMessageToConversation(selectedChat, chatMessage);
+          // Only add new messages that don't exist yet
+          result.messages.forEach((msg: any) => {
+            if (!existingMessageIds.has(msg.id)) {
+              const chatMessage: ChatMessage = {
+                id: msg.id,
+                senderId: msg.senderId,
+                type: msg.type,
+                content: msg.content,
+                text: msg.text,
+                fileName: msg.fileName,
+                fileUrl: msg.fileUrl,
+                duration: msg.duration,
+                timestamp: msg.timestamp,
+              };
+
+              addMessageToConversation(selectedChat, chatMessage);
+            }
           });
         } else {
           console.error('[Chat] Failed to fetch messages:', result.error);
@@ -192,7 +219,18 @@ export default function ChatScreen() {
       }
     };
 
+    // Initial fetch
     fetchMessages();
+
+    // Poll for new messages every 3 seconds
+    const pollInterval = setInterval(() => {
+      fetchMessages();
+    }, 3000);
+
+    // Cleanup interval on unmount or when selectedChat changes
+    return () => {
+      clearInterval(pollInterval);
+    };
   }, [selectedChat, user?.id]);
 
   const allPeople = useMemo(() => {
@@ -1047,11 +1085,17 @@ export default function ChatScreen() {
     <View style={styles.container}>
       {!isSmallScreen && <View style={styles.header}>
         <View style={styles.userInfo}>
-          <Image 
-            source={{ uri: user?.avatar || 'https://i.pravatar.cc/150?img=12' }} 
-            style={styles.userAvatar}
-            contentFit="cover"
-          />
+          {user?.avatar ? (
+            <Image
+              source={{ uri: user.avatar }}
+              style={styles.userAvatar}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={styles.userAvatarPlaceholder}>
+              <Text style={styles.userAvatarInitials}>{user ? getInitials(user.name) : 'JD'}</Text>
+            </View>
+          )}
           <Text style={styles.userName}>{user?.name || 'John Doe'}</Text>
         </View>
         <View style={styles.teamInfo}>
@@ -1122,11 +1166,17 @@ export default function ChatScreen() {
                       style={[styles.contactItem, selectedChat === conv.id && styles.contactItemActive]}
                       onPress={() => setSelectedChat(conv.id)}
                     >
-                      <Image 
-                        source={{ uri: conv.avatar || 'https://i.pravatar.cc/150?img=1' }} 
-                        style={styles.contactAvatar} 
-                        contentFit="cover" 
-                      />
+                      {conv.avatar ? (
+                        <Image
+                          source={{ uri: conv.avatar }}
+                          style={styles.contactAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={styles.contactAvatarPlaceholder}>
+                          <Text style={styles.contactAvatarInitials}>{getInitials(conv.name)}</Text>
+                        </View>
+                      )}
                       <Text style={styles.contactName}>{conv.name}</Text>
                     </TouchableOpacity>
                   ))}
@@ -1184,39 +1234,57 @@ export default function ChatScreen() {
               </View>}
 
               <ScrollView style={styles.messagesContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {messages.map((message) => (
-                  <View
-                    key={message.id}
-                    style={[
-                      styles.messageRow,
-                      message.senderId === user?.id ? styles.messageRowRight : styles.messageRowLeft,
-                    ]}
-                  >
-                    {message.senderId !== user?.id && (
-                      <Image
-                        source={{ uri: selectedConversation?.avatar || 'https://i.pravatar.cc/150?img=45' }}
-                        style={styles.messageAvatar}
-                        contentFit="cover"
-                      />
-                    )}
+                {messages.map((message) => {
+                  const senderData = userMap.get(message.senderId);
+                  const senderName = message.senderId === user?.id ? user.name : (senderData?.name || selectedConversation?.name || 'User');
+                  const senderAvatar = message.senderId === user?.id ? user?.avatar : (senderData?.avatar || selectedConversation?.avatar);
+
+                  return (
                     <View
+                      key={message.id}
                       style={[
-                        styles.messageBubble,
-                        message.senderId === user?.id ? styles.messageBubbleRight : styles.messageBubbleLeft,
-                        message.id?.includes('daily-tip') && styles.dailyTipBubble,
+                        styles.messageRow,
+                        message.senderId === user?.id ? styles.messageRowRight : styles.messageRowLeft,
                       ]}
                     >
-                      {renderMessageContent(message)}
+                      {message.senderId !== user?.id && (
+                        senderAvatar ? (
+                          <Image
+                            source={{ uri: senderAvatar }}
+                            style={styles.messageAvatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.messageAvatarPlaceholder}>
+                            <Text style={styles.messageAvatarInitials}>{getInitials(senderName)}</Text>
+                          </View>
+                        )
+                      )}
+                      <View
+                        style={[
+                          styles.messageBubble,
+                          message.senderId === user?.id ? styles.messageBubbleRight : styles.messageBubbleLeft,
+                          message.id?.includes('daily-tip') && styles.dailyTipBubble,
+                        ]}
+                      >
+                        {renderMessageContent(message)}
+                      </View>
+                      {message.senderId === user?.id && (
+                        user?.avatar ? (
+                          <Image
+                            source={{ uri: user.avatar }}
+                            style={styles.messageAvatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.messageAvatarPlaceholder}>
+                            <Text style={styles.messageAvatarInitials}>{getInitials(user.name)}</Text>
+                          </View>
+                        )
+                      )}
                     </View>
-                    {message.senderId === user?.id && (
-                      <Image
-                        source={{ uri: user?.avatar || 'https://i.pravatar.cc/150?img=12' }}
-                        style={styles.messageAvatar}
-                        contentFit="cover"
-                      />
-                    )}
-                  </View>
-                ))}
+                  );
+                })}
               </ScrollView>
 
               {isRecording ? (
@@ -1337,11 +1405,17 @@ placeholder={t('common.search')}
                     onPress={() => handleToggleParticipant(item.id)}
                   >
                     <View style={styles.personInfo}>
-                      <Image
-                        source={{ uri: item.avatar || 'https://i.pravatar.cc/150?img=1' }}
-                        style={styles.personAvatar}
-                        contentFit="cover"
-                      />
+                      {item.avatar ? (
+                        <Image
+                          source={{ uri: item.avatar }}
+                          style={styles.personAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={styles.personAvatarPlaceholder}>
+                          <Text style={styles.personAvatarInitials}>{getInitials(item.name)}</Text>
+                        </View>
+                      )}
                       <View style={styles.personDetails}>
                         <Text style={styles.personName}>{item.name}</Text>
                         <Text style={styles.personType}>
@@ -1484,6 +1558,19 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
   },
+  userAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700' as const,
+  },
   userName: {
     fontSize: 16,
     fontWeight: '600' as const,
@@ -1566,6 +1653,19 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
   },
+  contactAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contactAvatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
   contactName: {
     fontSize: 14,
     color: '#1F2937',
@@ -1630,6 +1730,19 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
+  },
+  messageAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageAvatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700' as const,
   },
   messageBubble: {
     maxWidth: '70%',
@@ -1856,6 +1969,19 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
+  },
+  personAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personAvatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700' as const,
   },
   personDetails: {
     flex: 1,

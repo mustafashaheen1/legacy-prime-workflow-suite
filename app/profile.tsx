@@ -12,6 +12,7 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { useApp } from '@/contexts/AppContext';
 import { getRoleDisplayName } from '@/lib/permissions';
 import { Camera, Mail, Briefcase, Building2, LogOut } from 'lucide-react-native';
@@ -38,7 +39,7 @@ export default function ProfileScreen() {
   const handlePickImage = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (!permissionResult.granted) {
         Alert.alert(
           t('common.error'),
@@ -57,12 +58,61 @@ export default function ProfileScreen() {
       if (!result.canceled && result.assets && result.assets[0]) {
         setIsUploadingPhoto(true);
         const imageUri = result.assets[0].uri;
-        
-        const updatedUser = { ...user, avatar: imageUri };
-        await setUser(updatedUser);
 
-        Alert.alert(t('common.success'), t('profile.photoUpdated'));
-        setIsUploadingPhoto(false);
+        try {
+          console.log('[Profile] Uploading profile picture to S3...');
+
+          // Convert image to base64
+          let base64Image: string;
+          if (Platform.OS === 'web') {
+            // Web: Fetch and convert to base64
+            const response = await fetch(imageUri);
+            const blob = await response.blob();
+            base64Image = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+          } else {
+            // Mobile: Read file as base64
+            const base64 = await FileSystem.readAsStringAsync(imageUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            // Determine file extension
+            const fileExtension = imageUri.split('.').pop() || 'jpg';
+            base64Image = `data:image/${fileExtension};base64,${base64}`;
+          }
+
+          // Upload to S3 and update database
+          const uploadResponse = await fetch('/api/upload-profile-picture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageData: base64Image,
+              userId: user.id,
+            }),
+          });
+
+          const uploadResult = await uploadResponse.json();
+
+          if (!uploadResult.success) {
+            throw new Error(uploadResult.error || 'Failed to upload profile picture');
+          }
+
+          console.log('[Profile] Profile picture uploaded successfully:', uploadResult.url);
+
+          // Update local user state with S3 URL
+          const updatedUser = { ...user, avatar: uploadResult.url };
+          await setUser(updatedUser);
+
+          Alert.alert(t('common.success'), t('profile.photoUpdated'));
+        } catch (error: any) {
+          console.error('[Profile] Error uploading profile picture:', error);
+          Alert.alert(t('common.error'), error.message || t('profile.photoUploadError'));
+        } finally {
+          setIsUploadingPhoto(false);
+        }
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -74,7 +124,7 @@ export default function ProfileScreen() {
   const handleTakePhoto = async () => {
     try {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      
+
       if (!permissionResult.granted) {
         Alert.alert(
           t('common.error'),
@@ -92,12 +142,61 @@ export default function ProfileScreen() {
       if (!result.canceled && result.assets && result.assets[0]) {
         setIsUploadingPhoto(true);
         const imageUri = result.assets[0].uri;
-        
-        const updatedUser = { ...user, avatar: imageUri };
-        await setUser(updatedUser);
 
-        Alert.alert(t('common.success'), t('profile.photoUpdated'));
-        setIsUploadingPhoto(false);
+        try {
+          console.log('[Profile] Uploading profile picture to S3...');
+
+          // Convert image to base64
+          let base64Image: string;
+          if (Platform.OS === 'web') {
+            // Web: Fetch and convert to base64
+            const response = await fetch(imageUri);
+            const blob = await response.blob();
+            base64Image = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+          } else {
+            // Mobile: Read file as base64
+            const base64 = await FileSystem.readAsStringAsync(imageUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            // Determine file extension
+            const fileExtension = imageUri.split('.').pop() || 'jpg';
+            base64Image = `data:image/${fileExtension};base64,${base64}`;
+          }
+
+          // Upload to S3 and update database
+          const uploadResponse = await fetch('/api/upload-profile-picture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageData: base64Image,
+              userId: user.id,
+            }),
+          });
+
+          const uploadResult = await uploadResponse.json();
+
+          if (!uploadResult.success) {
+            throw new Error(uploadResult.error || 'Failed to upload profile picture');
+          }
+
+          console.log('[Profile] Profile picture uploaded successfully:', uploadResult.url);
+
+          // Update local user state with S3 URL
+          const updatedUser = { ...user, avatar: uploadResult.url };
+          await setUser(updatedUser);
+
+          Alert.alert(t('common.success'), t('profile.photoUpdated'));
+        } catch (error: any) {
+          console.error('[Profile] Error uploading profile picture:', error);
+          Alert.alert(t('common.error'), error.message || t('profile.photoTakeError'));
+        } finally {
+          setIsUploadingPhoto(false);
+        }
       }
     } catch (error) {
       console.error('Error taking photo:', error);
