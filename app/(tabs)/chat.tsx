@@ -576,15 +576,32 @@ export default function ChatScreen() {
   };
 
   const cancelRecording = async () => {
-    if (!recording) return;
+    console.log('[Voice] Canceling recording...');
 
     try {
       setIsRecording(false);
-      await recording.stopAndUnloadAsync();
-      if (Platform.OS !== 'web') {
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+
+      // Handle web recording cancellation
+      if (Platform.OS === 'web' && mediaRecorderRef.current) {
+        console.log('[Voice] Stopping web recording');
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
+        audioChunksRef.current = [];
+
+        // Stop media stream
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
+        }
       }
-      setRecording(null);
+      // Handle mobile recording cancellation
+      else if (recording) {
+        await recording.stopAndUnloadAsync();
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+        setRecording(null);
+      }
+
+      console.log('[Voice] Recording canceled');
     } catch (error) {
       console.error('Failed to cancel recording:', error);
     }
@@ -1040,14 +1057,26 @@ export default function ChatScreen() {
 
               {isRecording ? (
                 <View style={styles.recordingContainer}>
-                  <TouchableOpacity style={styles.cancelRecordButton} onPress={cancelRecording}>
+                  <TouchableOpacity
+                    style={styles.cancelRecordButton}
+                    onPress={() => {
+                      console.log('[Chat] Cancel button clicked');
+                      cancelRecording();
+                    }}
+                  >
                     <X size={24} color="#EF4444" />
                   </TouchableOpacity>
                   <View style={styles.recordingIndicator}>
                     <View style={styles.recordingDot} />
                     <Text style={styles.recordingText}>Recording...</Text>
                   </View>
-                  <TouchableOpacity style={styles.stopRecordButton} onPress={stopRecording}>
+                  <TouchableOpacity
+                    style={styles.stopRecordButton}
+                    onPress={() => {
+                      console.log('[Chat] Send/Stop recording button clicked');
+                      stopRecording();
+                    }}
+                  >
                     <Send size={24} color="#2563EB" />
                   </TouchableOpacity>
                 </View>
