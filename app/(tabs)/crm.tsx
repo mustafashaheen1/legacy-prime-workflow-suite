@@ -66,6 +66,7 @@ export default function CRMScreen() {
   const { initiateCall, isLoadingCall } = useTwilioCalls();
   const sendInspectionLinkMutation = trpc.crm.sendInspectionLink.useMutation();
   const createInspectionVideoLinkMutation = trpc.crm.createInspectionVideoLink.useMutation();
+  const addProjectMutation = trpc.projects.addProject.useMutation();
   const getInspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery(
     { companyId: company?.id || '' },
     { enabled: !!company?.id }
@@ -1192,7 +1193,7 @@ export default function CRMScreen() {
 
     try {
       // Call tRPC endpoint to create project in database
-      const result = await trpc.projects.addProject.mutate({
+      const result = await addProjectMutation.mutateAsync({
         companyId: company?.id || '',
         name: `${client.name} - ${estimate.name}`,
         budget: estimate.total,
