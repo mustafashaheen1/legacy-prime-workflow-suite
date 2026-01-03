@@ -37,15 +37,22 @@ const PUBLIC_ROUTES = [
 ];
 
 function RootLayoutNav() {
-  const { user } = useApp();
+  const { user, isLoading } = useApp();
   const router = useRouter();
   const pathname = usePathname();
   const segments = useSegments();
+  const [navigationReady, setNavigationReady] = React.useState(false);
+
+  // Mark navigation as ready after first render
+  useEffect(() => {
+    const timer = setTimeout(() => setNavigationReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Protect routes - redirect to login if not authenticated
   useEffect(() => {
-    // Don't do anything while loading
-    if (user === undefined) return;
+    // Don't do anything while loading or navigation not ready
+    if (!navigationReady || isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const isPublicRoute = PUBLIC_ROUTES.some(route => {
