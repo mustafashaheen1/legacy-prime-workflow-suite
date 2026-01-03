@@ -8,12 +8,22 @@ import { useApp } from '@/contexts/AppContext';
 
 export default function TabLayout() {
   const { t } = useTranslation();
-  const { user } = useApp();
+  const { user, isLoading } = useApp();
   const router = useRouter();
   const segments = useSegments();
+  const [navigationReady, setNavigationReady] = React.useState(false);
+
+  // Mark navigation as ready after first render
+  useEffect(() => {
+    const timer = setTimeout(() => setNavigationReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Protect all tab routes - redirect to login if not authenticated
   useEffect(() => {
+    // Don't do anything while loading or navigation not ready
+    if (!navigationReady || isLoading) return;
+
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!user && !inAuthGroup) {
@@ -21,7 +31,7 @@ export default function TabLayout() {
       console.log('[Auth] No user found, redirecting to login');
       router.replace('/login');
     }
-  }, [user, segments]);
+  }, [user, segments, navigationReady, isLoading]);
 
   // Don't render tabs if not authenticated
   if (!user) {
