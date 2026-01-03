@@ -733,9 +733,40 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, [company]);
 
-  const updateClient = useCallback((id: string, updates: Partial<Client>) => {
+  const updateClient = useCallback(async (id: string, updates: Partial<Client>) => {
+    // Update local state immediately for responsive UI
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-  }, []);
+
+    // Save to database
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(
+        `${baseUrl}/trpc/crm.updateClient`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId: id,
+            updates,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.error) {
+        console.error('[App] Error updating client:', data.error);
+        // Revert local state on error
+        await refreshClients();
+      } else {
+        console.log('[App] Client updated successfully');
+      }
+    } catch (error) {
+      console.error('[App] Error updating client:', error);
+      // Revert local state on error
+      await refreshClients();
+    }
+  }, [refreshClients]);
 
   const refreshClients = useCallback(async () => {
     if (!company?.id) {

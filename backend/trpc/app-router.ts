@@ -51,6 +51,7 @@ import { sendInspectionLinkProcedure } from "./routes/crm/send-inspection-link/r
 import { submitInspectionDataProcedure } from "./routes/crm/submit-inspection-data/route.js";
 import { addClientProcedure } from "./routes/crm/add-client/route.js";
 import { getClientsProcedure } from "./routes/crm/get-clients/route.js";
+import { updateClientProcedure } from "./routes/crm/update-client/route.js";
 import { createInspectionVideoLinkProcedure } from "./routes/crm/create-inspection-video-link/route.js";
 import { validateInspectionTokenProcedure } from "./routes/crm/validate-inspection-token/route.js";
 import { getVideoUploadUrlProcedure } from "./routes/crm/get-video-upload-url/route.js";
@@ -169,6 +170,7 @@ export const appRouter = createTRPCRouter({
   crm: createTRPCRouter({
     addClient: addClientProcedure,
     getClients: getClientsProcedure,
+    updateClient: updateClientProcedure,
     sendInspectionLink: sendInspectionLinkProcedure,
     submitInspectionData: submitInspectionDataProcedure,
     createInspectionVideoLink: createInspectionVideoLinkProcedure,

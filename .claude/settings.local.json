@@ -69,7 +69,8 @@
       "Bash(npx rork start:*)",
       "Bash(PORT=3000 npm start)",
       "Bash(tail:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(psql $EXPO_PUBLIC_SUPABASE_URL -c \"\\\\d projects\")"
     ],
     "deny": [],
     "ask": []

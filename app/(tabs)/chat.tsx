@@ -46,6 +46,7 @@ export default function ChatScreen() {
   const audioPlayerRef = useRef<Audio.Sound | null>(null);
   const webAudioRef = useRef<HTMLAudioElement | null>(null);
   const recordingStartTimeRef = useRef<number | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
@@ -76,6 +77,16 @@ export default function ChatScreen() {
 
     return map;
   }, [user, teamMembers]);
+
+  // Auto-scroll to bottom when messages change or chat is opened
+  useEffect(() => {
+    if (scrollViewRef.current && messages.length > 0) {
+      // Small delay to ensure messages are rendered
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages, selectedChat]);
 
   // Fetch team members from database
   useEffect(() => {
@@ -1374,7 +1385,12 @@ export default function ChatScreen() {
                 <Text style={styles.chatTitle}>{selectedConversation?.name}</Text>
               </View>}
 
-              <ScrollView style={styles.messagesContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <ScrollView
+                ref={scrollViewRef}
+                style={styles.messagesContainer}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
                 {messages.map((message) => {
                   const senderData = userMap.get(message.senderId);
                   const senderName = message.senderId === user?.id ? user.name : (senderData?.name || selectedConversation?.name || 'User');

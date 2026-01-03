@@ -102,6 +102,8 @@ export default function CRMScreen() {
   const [selectedClientForFollowUp, setSelectedClientForFollowUp] = useState<string | null>(null);
   const [selectedFollowUpDate, setSelectedFollowUpDate] = useState<string>('');
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const [showConvertToProjectModal, setShowConvertToProjectModal] = useState<boolean>(false);
+  const [selectedClientForConversion, setSelectedClientForConversion] = useState<string | null>(null);
   const [showMetricsWidget, setShowMetricsWidget] = useState<boolean>(false);
   const [showPaymentRequestModal, setShowPaymentRequestModal] = useState<boolean>(false);
   const [selectedClientForPayment, setSelectedClientForPayment] = useState<string | null>(null);
@@ -1176,41 +1178,58 @@ export default function CRMScreen() {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
 
-    Alert.alert(
-      'Convert to Project',
-      `Convert ${client.name} from Lead to Project?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Convert',
-          onPress: () => {
-            const newProject: Project = {
-              id: `project-${Date.now()}`,
-              name: client.name,
-              budget: 0,
-              expenses: 0,
-              progress: 0,
-              status: 'active',
-              image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-              hoursWorked: 0,
-              startDate: new Date().toISOString(),
-            };
+    // Show modal to select which estimate to use
+    setSelectedClientForConversion(clientId);
+    setShowConvertToProjectModal(true);
+  };
 
-            addProject(newProject);
-            updateClient(client.id, { status: 'Project' });
+  const handleConvertWithEstimate = async (estimateId: string) => {
+    const client = clients.find(c => c.id === selectedClientForConversion);
+    if (!client) return;
 
-            Alert.alert(
-              'Success',
-              `${client.name} has been converted to a project and added to your dashboard!`,
-              [
-                { text: 'View Projects', onPress: () => router.push('/dashboard') },
-                { text: 'OK' },
-              ]
-            );
-          },
-        },
-      ]
-    );
+    const estimate = estimates.find(e => e.id === estimateId);
+    if (!estimate) return;
+
+    try {
+      // Call tRPC endpoint to create project in database
+      const { trpc } = await import('@/lib/trpc');
+      const result = await trpc.projects.addProject.mutate({
+        companyId: company?.id || '',
+        name: `${client.name} - ${estimate.name}`,
+        budget: estimate.total,
+        expenses: 0,
+        progress: 0,
+        status: 'active',
+        image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+        hoursWorked: 0,
+        startDate: new Date().toISOString(),
+      });
+
+      if (result.success) {
+        // Update client status to 'Project'
+        await updateClient(client.id, { status: 'Project' });
+
+        // Close modal
+        setShowConvertToProjectModal(false);
+        setSelectedClientForConversion(null);
+
+        // Show success message
+        Alert.alert(
+          'Success',
+          `${client.name} has been converted to a project using estimate "${estimate.name}"!`,
+          [
+            { text: 'View Projects', onPress: () => router.push('/dashboard') },
+            { text: 'OK' },
+          ]
+        );
+
+        // Refresh clients to show updated status
+        await refreshClients();
+      }
+    } catch (error) {
+      console.error('[CRM] Error converting to project:', error);
+      Alert.alert('Error', 'Failed to convert client to project. Please try again.');
+    }
   };
 
   const requestPayment = (clientId?: string) => {
@@ -1574,12 +1593,20 @@ export default function CRMScreen() {
                   {client.createdAt && (
                     <Text style={styles.clientCreatedDate}>Created: {new Date(client.createdAt).toLocaleDateString()}</Text>
                   )}
-                  {client.nextFollowUpDate && (
-                    <View style={styles.nextFollowUpRow}>
-                      <Calendar size={14} color="#2563EB" />
-                      <Text style={styles.nextFollowUpText}>Next Follow-Up: {new Date(client.nextFollowUpDate + 'T00:00:00').toLocaleDateString()}</Text>
-                    </View>
-                  )}
+                  {client.nextFollowUpDate && client.nextFollowUpDate.trim() !== '' && (() => {
+                    try {
+                      const date = new Date(client.nextFollowUpDate + 'T00:00:00');
+                      if (isNaN(date.getTime())) return null;
+                      return (
+                        <View style={styles.nextFollowUpRow}>
+                          <Calendar size={14} color="#2563EB" />
+                          <Text style={styles.nextFollowUpText}>Next Follow-Up: {date.toLocaleDateString()}</Text>
+                        </View>
+                      );
+                    } catch (e) {
+                      return null;
+                    }
+                  })()}
                   
                   {(() => {
                     const suggestions = getAISuggestions(client);
@@ -3220,6 +3247,117 @@ export default function CRMScreen() {
                 style={styles.cancelButton}
                 onPress={() => setShowPaymentRequestModal(false)}
                 disabled={isCreatingPaymentLink}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Convert to Project Modal */}
+      <Modal
+        visible={showConvertToProjectModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowConvertToProjectModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.paymentModalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.paymentModalTitleContainer}>
+                <CheckCircle size={24} color="#10B981" />
+                <Text style={styles.modalTitle}>Convert to Project</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowConvertToProjectModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {(() => {
+              const client = clients.find(c => c.id === selectedClientForConversion);
+              if (!client) return null;
+
+              // Show all estimates for this client
+              const clientEstimates = estimates;
+
+              return (
+                <ScrollView style={styles.estimateListScroll} showsVerticalScrollIndicator={false}>
+                  {clientEstimates.length === 0 ? (
+                    <View style={styles.emptyEstimatesContainer}>
+                      <Calculator size={48} color="#D1D5DB" />
+                      <Text style={styles.emptyEstimatesTitle}>No Estimates Found</Text>
+                      <Text style={styles.emptyEstimatesText}>
+                        Create an estimate for {client.name} first before converting to a project.
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.createEstimateButton}
+                        onPress={() => {
+                          setShowConvertToProjectModal(false);
+                          setSelectedClientForEstimate(client.id);
+                          setShowEstimateTypeModal(true);
+                        }}
+                      >
+                        <Plus size={20} color="#FFFFFF" />
+                        <Text style={styles.createEstimateButtonText}>Create Estimate</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.selectEstimateText}>
+                        Select an estimate to use for converting {client.name} to a project:
+                      </Text>
+                      {clientEstimates.map((estimate) => (
+                        <TouchableOpacity
+                          key={estimate.id}
+                          style={styles.estimateCard}
+                          onPress={() => handleConvertWithEstimate(estimate.id)}
+                        >
+                          <View style={styles.estimateCardHeader}>
+                            <Text style={styles.estimateCardName}>{estimate.name}</Text>
+                            <View style={[
+                              styles.estimateStatusBadge,
+                              estimate.status === 'approved' && styles.estimateStatusApproved,
+                              estimate.status === 'sent' && styles.estimateStatusSent,
+                              estimate.status === 'draft' && styles.estimateStatusDraft,
+                              estimate.status === 'rejected' && styles.estimateStatusRejected,
+                              estimate.status === 'paid' && styles.estimateStatusPaid,
+                            ]}>
+                              <Text style={styles.estimateStatusText}>
+                                {estimate.status === 'paid' ? '✓ Paid' : estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1)}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.estimateCardDetails}>
+                            <View style={styles.estimateDetailRow}>
+                              <Text style={styles.estimateDetailLabel}>Total Amount:</Text>
+                              <Text style={styles.estimateDetailValue}>
+                                ${estimate.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </Text>
+                            </View>
+                            <View style={styles.estimateDetailRow}>
+                              <Text style={styles.estimateDetailLabel}>Created:</Text>
+                              <Text style={styles.estimateDetailValue}>
+                                {new Date(estimate.createdDate).toLocaleDateString()}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.estimateCardActions}>
+                            <CheckCircle size={16} color="#10B981" />
+                            <Text style={styles.estimateCardActionText}>Use This Estimate</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+                </ScrollView>
+              );
+            })()}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowConvertToProjectModal(false)}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
