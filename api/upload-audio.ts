@@ -67,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       Key: uniqueFileName,
       Body: buffer,
       ContentType: `audio/${fileExtension}`,
-      ACL: 'public-read', // Make file publicly accessible
+      // ACL removed - bucket should be configured with public access policy
     });
 
     await s3Client.send(uploadCommand);
