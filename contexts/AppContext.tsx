@@ -1062,19 +1062,31 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [conversations]);
 
   const addMessageToConversation = useCallback(async (conversationId: string, message: ChatMessage) => {
-    const updated = conversations.map(conv => {
-      if (conv.id === conversationId) {
-        return {
-          ...conv,
-          messages: [...conv.messages, message],
-          lastMessage: message,
-        };
-      }
-      return conv;
+    setConversations(prev => {
+      const updated = prev.map(conv => {
+        if (conv.id === conversationId) {
+          // Check if message already exists to prevent duplicates
+          const messageExists = conv.messages.some(m => m.id === message.id);
+          if (messageExists) {
+            return conv;
+          }
+          return {
+            ...conv,
+            messages: [...conv.messages, message],
+            lastMessage: message,
+          };
+        }
+        return conv;
+      });
+
+      // Save to AsyncStorage asynchronously without blocking state update
+      AsyncStorage.setItem('conversations', JSON.stringify(updated)).catch(err =>
+        console.error('[AppContext] Failed to save conversations:', err)
+      );
+
+      return updated;
     });
-    setConversations(updated);
-    await AsyncStorage.setItem('conversations', JSON.stringify(updated));
-  }, [conversations]);
+  }, []);
 
   const addReport = useCallback(async (report: Report) => {
     const updated = [report, ...reports];

@@ -222,10 +222,10 @@ export default function ChatScreen() {
     // Initial fetch
     fetchMessages();
 
-    // Poll for new messages every 3 seconds
+    // Poll for new messages every 5 seconds
     const pollInterval = setInterval(() => {
       fetchMessages();
-    }, 3000);
+    }, 5000);
 
     // Cleanup interval on unmount or when selectedChat changes
     return () => {
@@ -1268,6 +1268,14 @@ export default function ChatScreen() {
                         ]}
                       >
                         {renderMessageContent(message)}
+                        <Text
+                          style={[
+                            styles.messageTimestamp,
+                            message.senderId === user?.id && styles.messageTimestampOwn,
+                          ]}
+                        >
+                          {message.timestamp}
+                        </Text>
                       </View>
                       {message.senderId === user?.id && (
                         user?.avatar ? (
@@ -1755,6 +1763,15 @@ const styles = StyleSheet.create({
   },
   messageBubbleRight: {
     backgroundColor: '#E5E7EB',
+  },
+  messageTimestamp: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  messageTimestampOwn: {
+    color: '#9CA3AF',
   },
   messageText: {
     fontSize: 14,
