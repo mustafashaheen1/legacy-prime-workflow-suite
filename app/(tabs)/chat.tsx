@@ -37,6 +37,7 @@ export default function ChatScreen() {
   const [isLoadingMembers, setIsLoadingMembers] = useState<boolean>(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState<boolean>(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [audioProgress, setAudioProgress] = useState<{ [key: string]: number }>({});
 
   // Refs for web audio recording
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -44,6 +45,7 @@ export default function ChatScreen() {
   const streamRef = useRef<MediaStream | null>(null);
   const audioPlayerRef = useRef<Audio.Sound | null>(null);
   const webAudioRef = useRef<HTMLAudioElement | null>(null);
+  const recordingStartTimeRef = useRef<number | null>(null);
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
@@ -376,6 +378,8 @@ export default function ChatScreen() {
   const startRecording = async () => {
     try {
       console.log('[Voice] Starting recording...');
+      recordingStartTimeRef.current = Date.now(); // Record start time
+
       if (Platform.OS === 'web') {
         // Web recording using MediaRecorder API
         let stream = streamRef.current;
@@ -435,6 +439,12 @@ export default function ChatScreen() {
     const isMobileRecording = recording;
 
     if (!isWebRecording && !isMobileRecording) return;
+
+    // Calculate recording duration
+    const durationInSeconds = recordingStartTimeRef.current
+      ? Math.round((Date.now() - recordingStartTimeRef.current) / 1000)
+      : 0;
+    console.log('[Voice] Recording duration:', durationInSeconds, 'seconds');
 
     try {
       setIsRecording(false);
@@ -541,7 +551,7 @@ export default function ChatScreen() {
               senderId: user?.id,
               type: 'voice',
               content: uploadResult.url,
-              duration: 15, // TODO: Calculate actual duration
+              duration: durationInSeconds,
             }),
           });
 
@@ -559,7 +569,7 @@ export default function ChatScreen() {
             senderId: user?.id || '1',
             type: 'voice',
             content: uploadResult.url,
-            duration: 15,
+            duration: durationInSeconds,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           };
           addMessageToConversation(selectedChat, newMessage);
@@ -574,7 +584,7 @@ export default function ChatScreen() {
           senderId: user?.id || '1',
           type: 'voice',
           content: uri || URL.createObjectURL(audioBlob!),
-          duration: 15,
+          duration: durationInSeconds,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         addMessageToConversation(selectedChat, newMessage);
@@ -826,24 +836,20 @@ export default function ChatScreen() {
 
 
 
-  const playAudio = async (messageId: string, audioUrl: string) => {
+  const playAudio = async (messageId: string, audioUrl: string, duration: number) => {
     try {
-      // If already playing this audio, stop it
+      // If already playing this audio, pause it
       if (playingAudioId === messageId) {
-        console.log('[Audio] Stopping audio:', messageId);
+        console.log('[Audio] Pausing audio:', messageId);
 
-        // Stop web audio
+        // Pause web audio (don't reset position)
         if (webAudioRef.current) {
           webAudioRef.current.pause();
-          webAudioRef.current.currentTime = 0;
-          webAudioRef.current = null;
         }
 
-        // Stop mobile audio
+        // Pause mobile audio
         if (audioPlayerRef.current) {
-          await audioPlayerRef.current.stopAsync();
-          await audioPlayerRef.current.unloadAsync();
-          audioPlayerRef.current = null;
+          await audioPlayerRef.current.pauseAsync();
         }
 
         setPlayingAudioId(null);
@@ -851,51 +857,83 @@ export default function ChatScreen() {
       }
 
       // Stop any currently playing audio
-      if (webAudioRef.current) {
-        webAudioRef.current.pause();
-        webAudioRef.current.currentTime = 0;
-        webAudioRef.current = null;
-      }
+      if (playingAudioId && playingAudioId !== messageId) {
+        if (webAudioRef.current) {
+          webAudioRef.current.pause();
+          webAudioRef.current.currentTime = 0;
+          webAudioRef.current = null;
+        }
 
-      if (audioPlayerRef.current) {
-        await audioPlayerRef.current.stopAsync();
-        await audioPlayerRef.current.unloadAsync();
-        audioPlayerRef.current = null;
+        if (audioPlayerRef.current) {
+          await audioPlayerRef.current.stopAsync();
+          await audioPlayerRef.current.unloadAsync();
+          audioPlayerRef.current = null;
+        }
+        setAudioProgress(prev => ({ ...prev, [playingAudioId]: 0 }));
       }
 
       console.log('[Audio] Playing audio:', audioUrl);
 
       // For web, use HTML5 Audio
       if (Platform.OS === 'web') {
-        const audio = new window.Audio(audioUrl);
-        audio.onended = () => {
-          setPlayingAudioId(null);
-          webAudioRef.current = null;
-        };
-        audio.onerror = (error) => {
-          console.error('[Audio] Error playing audio:', error);
-          Alert.alert('Error', 'Failed to play audio');
-          setPlayingAudioId(null);
-          webAudioRef.current = null;
-        };
+        let audio = webAudioRef.current;
+
+        // Create new audio if doesn't exist or different audio
+        if (!audio || audio.src !== audioUrl) {
+          audio = new window.Audio(audioUrl);
+          webAudioRef.current = audio;
+
+          audio.onended = () => {
+            setPlayingAudioId(null);
+            setAudioProgress(prev => ({ ...prev, [messageId]: 0 }));
+          };
+
+          audio.onerror = (error) => {
+            console.error('[Audio] Error playing audio:', error);
+            Alert.alert('Error', 'Failed to play audio');
+            setPlayingAudioId(null);
+            webAudioRef.current = null;
+          };
+
+          // Update progress as audio plays
+          audio.ontimeupdate = () => {
+            if (audio && duration > 0) {
+              const progress = (audio.currentTime / duration) * 100;
+              setAudioProgress(prev => ({ ...prev, [messageId]: progress }));
+            }
+          };
+        }
+
         await audio.play();
-        webAudioRef.current = audio;
         setPlayingAudioId(messageId);
       } else {
         // For mobile, use expo-av
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: audioUrl },
-          { shouldPlay: true }
-        );
+        let sound = audioPlayerRef.current;
 
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.isLoaded && status.didJustFinish) {
-            setPlayingAudioId(null);
-            sound.unloadAsync();
-          }
-        });
+        if (!sound) {
+          const { sound: newSound } = await Audio.Sound.createAsync(
+            { uri: audioUrl },
+            { shouldPlay: true }
+          );
+          sound = newSound;
+          audioPlayerRef.current = sound;
 
-        audioPlayerRef.current = sound;
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded) {
+              if (status.didJustFinish) {
+                setPlayingAudioId(null);
+                setAudioProgress(prev => ({ ...prev, [messageId]: 0 }));
+                sound?.unloadAsync();
+              } else if (status.durationMillis) {
+                const progress = (status.positionMillis / status.durationMillis) * 100;
+                setAudioProgress(prev => ({ ...prev, [messageId]: progress }));
+              }
+            }
+          });
+        } else {
+          await sound.playAsync();
+        }
+
         setPlayingAudioId(messageId);
       }
     } catch (error) {
@@ -924,11 +962,24 @@ export default function ChatScreen() {
       
       case 'voice':
         const isPlaying = playingAudioId === message.id;
+        const duration = message.duration || 0;
+        const progress = audioProgress[message.id] || 0;
+        const currentTime = Math.floor((duration * progress) / 100);
+
+        const currentMinutes = Math.floor(currentTime / 60);
+        const currentSeconds = currentTime % 60;
+        const totalMinutes = Math.floor(duration / 60);
+        const totalSeconds = duration % 60;
+
+        const formattedCurrent = `${currentMinutes}:${currentSeconds.toString().padStart(2, '0')}`;
+        const formattedTotal = `${totalMinutes}:${totalSeconds.toString().padStart(2, '0')}`;
+        const displayTime = isPlaying || progress > 0 ? formattedCurrent : formattedTotal;
+
         return (
           <View style={styles.voiceMessage}>
             <TouchableOpacity
               style={styles.playButton}
-              onPress={() => playAudio(message.id, message.content || '')}
+              onPress={() => playAudio(message.id, message.content || '', duration)}
             >
               {isPlaying ? (
                 <View style={styles.pauseIcon}>
@@ -939,15 +990,26 @@ export default function ChatScreen() {
                 <Play size={16} color="#FFFFFF" fill="#FFFFFF" />
               )}
             </TouchableOpacity>
-            <View style={styles.voiceWaveform}>
-              <View style={styles.waveformBar} />
-              <View style={[styles.waveformBar, { height: 20 }]} />
-              <View style={[styles.waveformBar, { height: 14 }]} />
-              <View style={[styles.waveformBar, { height: 18 }]} />
-              <View style={styles.waveformBar} />
-              <View style={[styles.waveformBar, { height: 16 }]} />
+            <View style={styles.voiceWaveformContainer}>
+              <View style={styles.voiceWaveform}>
+                {[12, 20, 14, 18, 12, 16, 10, 18, 14, 20].map((height, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.waveformBar,
+                      { height },
+                      (index / 10) * 100 <= progress && styles.waveformBarActive,
+                    ]}
+                  />
+                ))}
+              </View>
+              {progress > 0 && (
+                <View style={[styles.progressOverlay, { width: `${progress}%` }]} />
+              )}
             </View>
-            <Text style={[styles.voiceDuration, message.senderId === user?.id && styles.voiceDurationOwn]}>0:{message.duration}s</Text>
+            <Text style={[styles.voiceDuration, message.senderId === user?.id && styles.voiceDurationOwn]}>
+              {displayTime}
+            </Text>
           </View>
         );
       
@@ -1618,8 +1680,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 1,
   },
-  voiceWaveform: {
+  voiceWaveformContainer: {
     flex: 1,
+    position: 'relative',
+  },
+  voiceWaveform: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
@@ -1628,8 +1693,18 @@ const styles = StyleSheet.create({
   waveformBar: {
     width: 3,
     height: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     borderRadius: 2,
+  },
+  waveformBarActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  progressOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: '100%',
+    backgroundColor: 'transparent',
   },
   voiceDuration: {
     fontSize: 12,
