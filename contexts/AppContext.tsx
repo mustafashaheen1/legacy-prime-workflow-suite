@@ -733,6 +733,36 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, [company]);
 
+  const refreshClients = useCallback(async () => {
+    if (!company?.id) {
+      console.log('[App] ❌ No company found, cannot refresh clients');
+      console.log('[App] Company state:', company);
+      return;
+    }
+
+    console.log('[App] 🔄 Refreshing clients for company:', company.id);
+    console.log('[App] Company name:', company.name);
+    try {
+      // Use direct HTTP fetch instead of tRPC dynamic import (which breaks in production)
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const clientsResponse = await fetch(
+        `${baseUrl}/trpc/crm.getClients?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+      );
+      const clientsData = await clientsResponse.json();
+      const clientsResult = clientsData.result.data.json;
+      console.log('[App] 📦 Query result:', clientsResult);
+      if (clientsResult.success && clientsResult.clients) {
+        setClients(clientsResult.clients);
+        console.log('[App] ✅ Refreshed', clientsResult.clients.length, 'clients');
+        console.log('[App] 📋 Client names:', clientsResult.clients.map(c => c.name).join(', '));
+      } else {
+        console.log('[App] ⚠️ Query succeeded but no clients returned');
+      }
+    } catch (error) {
+      console.error('[App] ❌ Error refreshing clients:', error);
+    }
+  }, [company]);
+
   const updateClient = useCallback(async (id: string, updates: Partial<Client>) => {
     // Update local state immediately for responsive UI
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
@@ -767,36 +797,6 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       await refreshClients();
     }
   }, [refreshClients]);
-
-  const refreshClients = useCallback(async () => {
-    if (!company?.id) {
-      console.log('[App] ❌ No company found, cannot refresh clients');
-      console.log('[App] Company state:', company);
-      return;
-    }
-
-    console.log('[App] 🔄 Refreshing clients for company:', company.id);
-    console.log('[App] Company name:', company.name);
-    try {
-      // Use direct HTTP fetch instead of tRPC dynamic import (which breaks in production)
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const clientsResponse = await fetch(
-        `${baseUrl}/trpc/crm.getClients?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-      );
-      const clientsData = await clientsResponse.json();
-      const clientsResult = clientsData.result.data.json;
-      console.log('[App] 📦 Query result:', clientsResult);
-      if (clientsResult.success && clientsResult.clients) {
-        setClients(clientsResult.clients);
-        console.log('[App] ✅ Refreshed', clientsResult.clients.length, 'clients');
-        console.log('[App] 📋 Client names:', clientsResult.clients.map(c => c.name).join(', '));
-      } else {
-        console.log('[App] ⚠️ Query succeeded but no clients returned');
-      }
-    } catch (error) {
-      console.error('[App] ❌ Error refreshing clients:', error);
-    }
-  }, [company]);
 
   const refreshEstimates = useCallback(async () => {
     console.log('[App] 🔄 Refreshing estimates...');
