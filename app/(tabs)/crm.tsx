@@ -1225,8 +1225,9 @@ export default function CRMScreen() {
     }
   };
 
-  const createPaymentLinkAndEmail = async (estimateId: string) => {
-    const client = clients.find(c => c.id === selectedClientForPayment);
+  const createPaymentLinkAndEmail = async (estimateId: string, clientIdOverride?: string) => {
+    const clientId = clientIdOverride || selectedClientForPayment;
+    const client = clients.find(c => c.id === clientId);
     if (!client) {
       Alert.alert('Error', 'Client not found');
       return;
@@ -2202,7 +2203,7 @@ export default function CRMScreen() {
 
                           <TouchableOpacity
                             style={styles.workflowButtonHalf}
-                            onPress={() => requestPayment(estimate.id)}
+                            onPress={() => createPaymentLinkAndEmail(estimate.id, selectedClientForEstimate || undefined)}
                             disabled={estimate.status !== 'sent' && estimate.status !== 'approved'}
                           >
                             <DollarSign size={18} color="#F59E0B" />
