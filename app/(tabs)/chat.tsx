@@ -7,6 +7,7 @@ import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
 import { useApp } from '@/contexts/AppContext';
 import { ChatMessage } from '@/types';
@@ -243,20 +244,87 @@ export default function ChatScreen() {
         await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
       }
       const uri = recording.getURI();
-      
-      const newMessage: ChatMessage = {
-        id: Date.now().toString(),
-        senderId: user?.id || '1',
-        type: 'voice',
-        content: uri || '',
-        duration: 15,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      addMessageToConversation(selectedChat, newMessage);
+
+      if (!uri) {
+        Alert.alert('Error', 'Failed to get recording');
+        setRecording(null);
+        return;
+      }
+
+      // Check if this is a team chat (not AI assistant or local conversation)
+      const isTeamChat = selectedChat !== 'ai-assistant' && !conversations.find(c => c.id === selectedChat);
+
+      if (isTeamChat) {
+        // Team chat: Upload to S3 and send via API
+        console.log('[Voice] Uploading voice message to S3...');
+
+        try {
+          // Read audio file and convert to base64
+          const base64Audio = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          // Upload to S3
+          const uploadResponse = await fetch('/api/upload-audio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              audioData: `data:audio/m4a;base64,${base64Audio}`,
+              userId: user?.id,
+              fileName: 'voice-message.m4a',
+            }),
+          });
+
+          const uploadResult = await uploadResponse.json();
+
+          if (!uploadResult.success) {
+            throw new Error(uploadResult.error || 'Failed to upload audio');
+          }
+
+          console.log('[Voice] Audio uploaded to S3:', uploadResult.url);
+
+          // Send message via API
+          const messageResponse = await fetch('/api/team/send-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversationId: selectedChat,
+              senderId: user?.id,
+              type: 'voice',
+              content: uploadResult.url,
+              duration: 15, // TODO: Calculate actual duration
+            }),
+          });
+
+          const messageResult = await messageResponse.json();
+
+          if (!messageResult.success) {
+            throw new Error(messageResult.error || 'Failed to send voice message');
+          }
+
+          console.log('[Voice] Voice message sent successfully');
+        } catch (error: any) {
+          console.error('[Voice] Error sending voice message:', error);
+          Alert.alert('Error', 'Failed to send voice message: ' + error.message);
+        }
+      } else {
+        // Local conversation (AI assistant or existing local chat)
+        const newMessage: ChatMessage = {
+          id: Date.now().toString(),
+          senderId: user?.id || '1',
+          type: 'voice',
+          content: uri,
+          duration: 15,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        addMessageToConversation(selectedChat, newMessage);
+      }
+
       setRecording(null);
     } catch (error) {
       console.error('Failed to stop recording:', error);
       Alert.alert('Error', 'Failed to stop recording');
+      setRecording(null);
     }
   };
 
