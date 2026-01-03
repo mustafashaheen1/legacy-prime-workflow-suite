@@ -12,7 +12,6 @@ import { Audio } from 'expo-av';
 import { useApp } from '@/contexts/AppContext';
 import { ChatMessage } from '@/types';
 import GlobalAIChat from '@/components/GlobalAIChatSimple';
-import ImageAnnotation from '@/components/ImageAnnotation';
 import { getTipOfTheDay } from '@/constants/construction-tips';
 
 export default function ChatScreen() {
@@ -31,7 +30,8 @@ export default function ChatScreen() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [newChatSearch, setNewChatSearch] = useState<string>('');
 
-  const [pendingAnnotation, setPendingAnnotation] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
   const [dailyTipSent, setDailyTipSent] = useState<boolean>(false);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState<boolean>(false);
@@ -354,8 +354,8 @@ export default function ChatScreen() {
         quality: 0.8,
       });
 
-      if (!result.canceled) {
-        setPendingAnnotation(result.assets[0].uri);
+      if (!result.canceled && result.assets[0]) {
+        setPreviewImage(result.assets[0].uri);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -377,8 +377,8 @@ export default function ChatScreen() {
         quality: 0.8,
       });
 
-      if (!result.canceled) {
-        setPendingAnnotation(result.assets[0].uri);
+      if (!result.canceled && result.assets[0]) {
+        setPreviewImage(result.assets[0].uri);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
@@ -387,28 +387,200 @@ export default function ChatScreen() {
     setShowAttachMenu(false);
   };
 
+  const handleSendImage = async () => {
+    if (!previewImage || !selectedChat) return;
+
+    setIsUploadingImage(true);
+    try {
+      const conversation = conversations.find(c => c.id === selectedChat);
+      const isTeamChat = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
+
+      if (isTeamChat) {
+        // Team chat: Upload to S3 and send via API
+        console.log('[Chat] Uploading image to S3...');
+
+        // Convert image to base64
+        let base64Image: string;
+        if (Platform.OS === 'web') {
+          const response = await fetch(previewImage);
+          const blob = await response.blob();
+          base64Image = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } else {
+          const base64 = await FileSystem.readAsStringAsync(previewImage, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const fileExtension = previewImage.split('.').pop() || 'jpg';
+          base64Image = `data:image/${fileExtension};base64,${base64}`;
+        }
+
+        // Upload to S3 (reuse upload-audio endpoint which handles any file type)
+        const uploadResponse = await fetch('/api/upload-audio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audioData: base64Image,
+            userId: user?.id,
+            fileName: `image.${base64Image.match(/^data:image\/(\w+);/)?.[1] || 'jpg'}`,
+          }),
+        });
+
+        const uploadResult = await uploadResponse.json();
+
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error || 'Failed to upload image');
+        }
+
+        // Send message via API
+        const messageResponse = await fetch('/api/team/send-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversationId: selectedChat,
+            senderId: user?.id,
+            type: 'image',
+            content: uploadResult.url,
+          }),
+        });
+
+        const result = await messageResponse.json();
+
+        if (result.success) {
+          const newMessage: ChatMessage = {
+            id: result.message.id,
+            senderId: user?.id || '1',
+            type: 'image',
+            content: uploadResult.url,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          addMessageToConversation(selectedChat, newMessage);
+        } else {
+          Alert.alert('Error', 'Failed to send image');
+        }
+      } else {
+        // AI assistant or local chat - use local URI
+        const newMessage: ChatMessage = {
+          id: Date.now().toString(),
+          senderId: user?.id || '1',
+          type: 'image',
+          content: previewImage,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        addMessageToConversation(selectedChat, newMessage);
+      }
+
+      setPreviewImage(null);
+    } catch (error: any) {
+      console.error('[Chat] Error sending image:', error);
+      Alert.alert('Error', 'Failed to send image: ' + error.message);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handlePickDocument = async () => {
+    if (!selectedChat) return;
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
         copyToCacheDirectory: true,
       });
 
-      if (!result.canceled && selectedChat) {
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          senderId: user?.id || '1',
-          type: 'file',
-          fileName: result.assets[0].name,
-          content: result.assets[0].uri,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-        addMessageToConversation(selectedChat, newMessage);
-        Alert.alert('Document Sent', `${result.assets[0].name} sent to chat`);
+      if (!result.canceled && result.assets[0]) {
+        const conversation = conversations.find(c => c.id === selectedChat);
+        const isTeamChat = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
+
+        if (isTeamChat) {
+          // Team chat: Upload to S3
+          console.log('[Chat] Uploading document to S3...');
+
+          // Convert document to base64
+          let base64File: string;
+          if (Platform.OS === 'web') {
+            const response = await fetch(result.assets[0].uri);
+            const blob = await response.blob();
+            base64File = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+          } else {
+            const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            const mimeType = result.assets[0].mimeType || 'application/octet-stream';
+            base64File = `data:${mimeType};base64,${base64}`;
+          }
+
+          // Upload to S3
+          const uploadResponse = await fetch('/api/upload-audio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              audioData: base64File,
+              userId: user?.id,
+              fileName: result.assets[0].name,
+            }),
+          });
+
+          const uploadResult = await uploadResponse.json();
+
+          if (!uploadResult.success) {
+            throw new Error(uploadResult.error || 'Failed to upload document');
+          }
+
+          // Send message via API
+          const messageResponse = await fetch('/api/team/send-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversationId: selectedChat,
+              senderId: user?.id,
+              type: 'file',
+              content: uploadResult.url,
+              fileName: result.assets[0].name,
+            }),
+          });
+
+          const messageResult = await messageResponse.json();
+
+          if (messageResult.success) {
+            const newMessage: ChatMessage = {
+              id: messageResult.message.id,
+              senderId: user?.id || '1',
+              type: 'file',
+              fileName: result.assets[0].name,
+              content: uploadResult.url,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            };
+            addMessageToConversation(selectedChat, newMessage);
+            Alert.alert('Success', `${result.assets[0].name} sent`);
+          } else {
+            Alert.alert('Error', 'Failed to send document');
+          }
+        } else {
+          // AI assistant or local chat
+          const newMessage: ChatMessage = {
+            id: Date.now().toString(),
+            senderId: user?.id || '1',
+            type: 'file',
+            fileName: result.assets[0].name,
+            content: result.assets[0].uri,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          addMessageToConversation(selectedChat, newMessage);
+          Alert.alert('Document Sent', `${result.assets[0].name} sent to chat`);
+        }
       }
-    } catch (error) {
-      console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to pick document');
+    } catch (error: any) {
+      console.error('Error with document:', error);
+      Alert.alert('Error', error.message || 'Failed to send document');
     }
     setShowAttachMenu(false);
   };
@@ -721,87 +893,6 @@ export default function ChatScreen() {
     }
   };
 
-  const handleSaveAnnotation = async (uri: string) => {
-    if (selectedChat) {
-      const conversation = conversations.find(c => c.id === selectedChat);
-      const isTeamChat = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
-
-      if (isTeamChat) {
-        // Team chat: Upload to S3 and send via API
-        try {
-          // Read image file and convert to base64
-          const base64Image = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-
-          // Determine file extension
-          const fileExtension = uri.split('.').pop() || 'jpg';
-
-          // Upload to S3 (reusing upload-audio endpoint for now, works for any file)
-          const uploadResponse = await fetch('/api/upload-audio', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              audioData: `data:image/${fileExtension};base64,${base64Image}`,
-              userId: user?.id,
-              fileName: `image.${fileExtension}`,
-            }),
-          });
-
-          const uploadResult = await uploadResponse.json();
-
-          if (!uploadResult.success) {
-            throw new Error(uploadResult.error || 'Failed to upload image');
-          }
-
-          // Send message via API
-          const messageResponse = await fetch('/api/team/send-message', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              conversationId: selectedChat,
-              senderId: user?.id,
-              type: 'image',
-              content: uploadResult.url,
-            }),
-          });
-
-          const result = await messageResponse.json();
-
-          if (result.success) {
-            const newMessage: ChatMessage = {
-              id: result.message.id,
-              senderId: user?.id || '1',
-              type: 'image',
-              content: uploadResult.url,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            };
-            addMessageToConversation(selectedChat, newMessage);
-          } else {
-            Alert.alert('Error', 'Failed to send image');
-          }
-        } catch (error: any) {
-          console.error('[Chat] Error sending image:', error);
-          Alert.alert('Error', 'Failed to send image: ' + error.message);
-        }
-      } else {
-        // AI assistant or local chat
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          senderId: user?.id || '1',
-          type: 'image',
-          content: uri,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-        addMessageToConversation(selectedChat, newMessage);
-      }
-    }
-    setPendingAnnotation(null);
-  };
-
-  const handleCancelAnnotation = () => {
-    setPendingAnnotation(null);
-  };
 
   useEffect(() => {
     const checkAndSendDailyTip = async () => {
@@ -1530,14 +1621,55 @@ placeholder={t('common.search')}
         </TouchableOpacity>
       </Modal>
 
-      {pendingAnnotation && (
-        <ImageAnnotation
-          visible={true}
-          imageUri={pendingAnnotation}
-          onSave={handleSaveAnnotation}
-          onCancel={handleCancelAnnotation}
-        />
-      )}
+      <Modal
+        visible={previewImage !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImage(null)}
+      >
+        <View style={styles.previewModalOverlay}>
+          <View style={styles.previewContainer}>
+            <View style={styles.previewHeader}>
+              <Text style={styles.previewTitle}>Send Image</Text>
+              <TouchableOpacity onPress={() => setPreviewImage(null)}>
+                <X size={24} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+
+            {previewImage && (
+              <Image
+                source={{ uri: previewImage }}
+                style={styles.previewImage}
+                contentFit="contain"
+              />
+            )}
+
+            <View style={styles.previewActions}>
+              <TouchableOpacity
+                style={styles.previewCancelButton}
+                onPress={() => setPreviewImage(null)}
+                disabled={isUploadingImage}
+              >
+                <Text style={styles.previewCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.previewSendButton}
+                onPress={handleSendImage}
+                disabled={isUploadingImage}
+              >
+                {isUploadingImage ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Send size={20} color="#FFFFFF" />
+                    <Text style={styles.previewSendText}>Send</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -2190,5 +2322,70 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  previewModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  previewContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  previewImage: {
+    width: '100%',
+    height: 400,
+    backgroundColor: '#F3F4F6',
+  },
+  previewActions: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 12,
+  },
+  previewCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  previewCancelText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  previewSendButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#2563EB',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  previewSendText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
 });
