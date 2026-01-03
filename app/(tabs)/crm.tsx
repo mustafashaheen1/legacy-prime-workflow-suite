@@ -66,7 +66,6 @@ export default function CRMScreen() {
   const { initiateCall, isLoadingCall } = useTwilioCalls();
   const sendInspectionLinkMutation = trpc.crm.sendInspectionLink.useMutation();
   const createInspectionVideoLinkMutation = trpc.crm.createInspectionVideoLink.useMutation();
-  const addProjectMutation = trpc.projects.addProject.useMutation();
   const getInspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery(
     { companyId: company?.id || '' },
     { enabled: !!company?.id }
@@ -1192,9 +1191,9 @@ export default function CRMScreen() {
     if (!estimate) return;
 
     try {
-      // Call tRPC endpoint to create project in database
-      const result = await addProjectMutation.mutateAsync({
-        companyId: company?.id || '',
+      // Create project using context function (which handles database save internally)
+      const newProject: Project = {
+        id: `project-${Date.now()}`,
         name: `${client.name} - ${estimate.name}`,
         budget: estimate.total,
         expenses: 0,
@@ -1203,29 +1202,29 @@ export default function CRMScreen() {
         image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
         hoursWorked: 0,
         startDate: new Date().toISOString(),
-      });
+      };
 
-      if (result.success) {
-        // Update client status to 'Project'
-        await updateClient(client.id, { status: 'Project' });
+      await addProject(newProject);
 
-        // Close modal
-        setShowConvertToProjectModal(false);
-        setSelectedClientForConversion(null);
+      // Update client status to 'Project'
+      await updateClient(client.id, { status: 'Project' });
 
-        // Show success message
-        Alert.alert(
-          'Success',
-          `${client.name} has been converted to a project using estimate "${estimate.name}"!`,
-          [
-            { text: 'View Projects', onPress: () => router.push('/dashboard') },
-            { text: 'OK' },
-          ]
-        );
+      // Close modal
+      setShowConvertToProjectModal(false);
+      setSelectedClientForConversion(null);
 
-        // Refresh clients to show updated status
-        await refreshClients();
-      }
+      // Show success message
+      Alert.alert(
+        'Success',
+        `${client.name} has been converted to a project using estimate "${estimate.name}"!`,
+        [
+          { text: 'View Projects', onPress: () => router.push('/dashboard') },
+          { text: 'OK' },
+        ]
+      );
+
+      // Refresh clients to show updated status
+      await refreshClients();
     } catch (error) {
       console.error('[CRM] Error converting to project:', error);
       Alert.alert('Error', 'Failed to convert client to project. Please try again.');
