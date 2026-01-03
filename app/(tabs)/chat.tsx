@@ -35,6 +35,7 @@ export default function ChatScreen() {
   const [dailyTipSent, setDailyTipSent] = useState<boolean>(false);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState<boolean>(false);
+  const [isLoadingConversations, setIsLoadingConversations] = useState<boolean>(false);
 
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
@@ -75,6 +76,115 @@ export default function ChatScreen() {
 
     fetchTeamMembers();
   }, [user?.id, user?.role]);
+
+  // Fetch conversations from database
+  useEffect(() => {
+    const fetchConversations = async () => {
+      if (!user?.id) {
+        console.log('[Chat] User not loaded yet, skipping conversation fetch');
+        return;
+      }
+
+      setIsLoadingConversations(true);
+      try {
+        console.log('[Chat] Fetching conversations for user:', user.id);
+
+        const response = await fetch(
+          `/api/team/get-conversations?userId=${user.id}`
+        );
+
+        const result = await response.json();
+
+        if (result.success) {
+          console.log('[Chat] Fetched', result.conversations.length, 'conversations');
+
+          // Transform and add each conversation to context
+          result.conversations.forEach((conv: any) => {
+            // Check if conversation already exists in local context
+            const existingConv = conversations.find(c => c.id === conv.id);
+
+            if (!existingConv) {
+              const localConversation = {
+                id: conv.id,
+                name: conv.name,
+                type: conv.type as 'individual' | 'group',
+                participants: conv.participants.map((p: any) => p.id),
+                messages: [], // Messages will be fetched when conversation is opened
+                createdAt: conv.createdAt,
+                avatar: conv.avatar,
+              };
+
+              addConversation(localConversation);
+            }
+          });
+        } else {
+          console.error('[Chat] Failed to fetch conversations:', result.error);
+        }
+      } catch (error: any) {
+        console.error('[Chat] Error fetching conversations:', error);
+      } finally {
+        setIsLoadingConversations(false);
+      }
+    };
+
+    fetchConversations();
+  }, [user?.id]);
+
+  // Fetch messages when a team conversation is selected
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!selectedChat || !user?.id || selectedChat === 'ai-assistant') {
+        return;
+      }
+
+      const conversation = conversations.find(c => c.id === selectedChat);
+      if (!conversation || (conversation.type !== 'individual' && conversation.type !== 'group')) {
+        return; // Not a team chat
+      }
+
+      // Only fetch if conversation has no messages (hasn't been loaded yet)
+      if (conversation.messages && conversation.messages.length > 0) {
+        return;
+      }
+
+      try {
+        console.log('[Chat] Fetching messages for conversation:', selectedChat);
+
+        const response = await fetch(
+          `/api/team/get-messages?conversationId=${selectedChat}&userId=${user.id}`
+        );
+
+        const result = await response.json();
+
+        if (result.success) {
+          console.log('[Chat] Fetched', result.messages.length, 'messages');
+
+          // Add messages to the conversation in context
+          result.messages.forEach((msg: any) => {
+            const chatMessage: ChatMessage = {
+              id: msg.id,
+              senderId: msg.senderId,
+              type: msg.type,
+              content: msg.content,
+              text: msg.text,
+              fileName: msg.fileName,
+              fileUrl: msg.fileUrl,
+              duration: msg.duration,
+              timestamp: msg.timestamp,
+            };
+
+            addMessageToConversation(selectedChat, chatMessage);
+          });
+        } else {
+          console.error('[Chat] Failed to fetch messages:', result.error);
+        }
+      } catch (error: any) {
+        console.error('[Chat] Error fetching messages:', error);
+      }
+    };
+
+    fetchMessages();
+  }, [selectedChat, user?.id]);
 
   const allPeople = useMemo(() => {
     return teamMembers.map(member => ({
@@ -395,30 +505,134 @@ export default function ChatScreen() {
     }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (messageText.trim() && selectedChat) {
-      const newMessage: ChatMessage = {
-        id: Date.now().toString(),
-        senderId: user?.id || '1',
-        text: messageText,
-        type: 'text',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      addMessageToConversation(selectedChat, newMessage);
-      setMessageText('');
+      const conversation = conversations.find(c => c.id === selectedChat);
+      const isTeamChat = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
+
+      if (isTeamChat) {
+        // Team chat: Send via API
+        try {
+          const response = await fetch('/api/team/send-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversationId: selectedChat,
+              senderId: user?.id,
+              type: 'text',
+              content: messageText,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            const newMessage: ChatMessage = {
+              id: result.message.id,
+              senderId: user?.id || '1',
+              text: messageText,
+              content: messageText,
+              type: 'text',
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            };
+            addMessageToConversation(selectedChat, newMessage);
+            setMessageText('');
+          } else {
+            Alert.alert('Error', 'Failed to send message');
+          }
+        } catch (error: any) {
+          console.error('[Chat] Error sending message:', error);
+          Alert.alert('Error', 'Failed to send message: ' + error.message);
+        }
+      } else {
+        // AI assistant or local chat
+        const newMessage: ChatMessage = {
+          id: Date.now().toString(),
+          senderId: user?.id || '1',
+          text: messageText,
+          type: 'text',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        addMessageToConversation(selectedChat, newMessage);
+        setMessageText('');
+      }
     }
   };
 
-  const handleSaveAnnotation = (uri: string) => {
+  const handleSaveAnnotation = async (uri: string) => {
     if (selectedChat) {
-      const newMessage: ChatMessage = {
-        id: Date.now().toString(),
-        senderId: user?.id || '1',
-        type: 'image',
-        content: uri,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      addMessageToConversation(selectedChat, newMessage);
+      const conversation = conversations.find(c => c.id === selectedChat);
+      const isTeamChat = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
+
+      if (isTeamChat) {
+        // Team chat: Upload to S3 and send via API
+        try {
+          // Read image file and convert to base64
+          const base64Image = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          // Determine file extension
+          const fileExtension = uri.split('.').pop() || 'jpg';
+
+          // Upload to S3 (reusing upload-audio endpoint for now, works for any file)
+          const uploadResponse = await fetch('/api/upload-audio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              audioData: `data:image/${fileExtension};base64,${base64Image}`,
+              userId: user?.id,
+              fileName: `image.${fileExtension}`,
+            }),
+          });
+
+          const uploadResult = await uploadResponse.json();
+
+          if (!uploadResult.success) {
+            throw new Error(uploadResult.error || 'Failed to upload image');
+          }
+
+          // Send message via API
+          const messageResponse = await fetch('/api/team/send-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversationId: selectedChat,
+              senderId: user?.id,
+              type: 'image',
+              content: uploadResult.url,
+            }),
+          });
+
+          const result = await messageResponse.json();
+
+          if (result.success) {
+            const newMessage: ChatMessage = {
+              id: result.message.id,
+              senderId: user?.id || '1',
+              type: 'image',
+              content: uploadResult.url,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            };
+            addMessageToConversation(selectedChat, newMessage);
+          } else {
+            Alert.alert('Error', 'Failed to send image');
+          }
+        } catch (error: any) {
+          console.error('[Chat] Error sending image:', error);
+          Alert.alert('Error', 'Failed to send image: ' + error.message);
+        }
+      } else {
+        // AI assistant or local chat
+        const newMessage: ChatMessage = {
+          id: Date.now().toString(),
+          senderId: user?.id || '1',
+          type: 'image',
+          content: uri,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        addMessageToConversation(selectedChat, newMessage);
+      }
     }
     setPendingAnnotation(null);
   };
