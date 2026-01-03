@@ -36,11 +36,13 @@ export default function ChatScreen() {
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState<boolean>(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState<boolean>(false);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
 
   // Refs for web audio recording
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioPlayerRef = useRef<Audio.Sound | null>(null);
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
@@ -814,6 +816,66 @@ export default function ChatScreen() {
 
 
 
+  const playAudio = async (messageId: string, audioUrl: string) => {
+    try {
+      // If already playing this audio, stop it
+      if (playingAudioId === messageId) {
+        console.log('[Audio] Stopping audio:', messageId);
+        if (audioPlayerRef.current) {
+          await audioPlayerRef.current.stopAsync();
+          await audioPlayerRef.current.unloadAsync();
+          audioPlayerRef.current = null;
+        }
+        setPlayingAudioId(null);
+        return;
+      }
+
+      // Stop any currently playing audio
+      if (audioPlayerRef.current) {
+        await audioPlayerRef.current.stopAsync();
+        await audioPlayerRef.current.unloadAsync();
+        audioPlayerRef.current = null;
+      }
+
+      console.log('[Audio] Playing audio:', audioUrl);
+
+      // For web, use HTML5 Audio
+      if (Platform.OS === 'web') {
+        const audio = new window.Audio(audioUrl);
+        audio.onended = () => {
+          setPlayingAudioId(null);
+        };
+        audio.onerror = (error) => {
+          console.error('[Audio] Error playing audio:', error);
+          Alert.alert('Error', 'Failed to play audio');
+          setPlayingAudioId(null);
+        };
+        await audio.play();
+        setPlayingAudioId(messageId);
+      } else {
+        // For mobile, use expo-av
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUrl },
+          { shouldPlay: true }
+        );
+
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            setPlayingAudioId(null);
+            sound.unloadAsync();
+          }
+        });
+
+        audioPlayerRef.current = sound;
+        setPlayingAudioId(messageId);
+      }
+    } catch (error) {
+      console.error('[Audio] Error playing audio:', error);
+      Alert.alert('Error', 'Failed to play audio message');
+      setPlayingAudioId(null);
+    }
+  };
+
   const renderMessageContent = (message: ChatMessage) => {
     switch (message.type) {
       case 'text':
@@ -832,10 +894,21 @@ export default function ChatScreen() {
         );
       
       case 'voice':
+        const isPlaying = playingAudioId === message.id;
         return (
           <View style={styles.voiceMessage}>
-            <TouchableOpacity style={styles.playButton}>
-              <Play size={16} color="#FFFFFF" fill="#FFFFFF" />
+            <TouchableOpacity
+              style={styles.playButton}
+              onPress={() => playAudio(message.id, message.content || '')}
+            >
+              {isPlaying ? (
+                <View style={styles.pauseIcon}>
+                  <View style={styles.pauseBar} />
+                  <View style={styles.pauseBar} />
+                </View>
+              ) : (
+                <Play size={16} color="#FFFFFF" fill="#FFFFFF" />
+              )}
             </TouchableOpacity>
             <View style={styles.voiceWaveform}>
               <View style={styles.waveformBar} />
@@ -1504,6 +1577,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  pauseIcon: {
+    flexDirection: 'row',
+    gap: 3,
+    alignItems: 'center',
+  },
+  pauseBar: {
+    width: 3,
+    height: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 1,
   },
   voiceWaveform: {
     flex: 1,
