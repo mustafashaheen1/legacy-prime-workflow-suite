@@ -37,10 +37,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Fetch conversations where user is a participant
     const { data: participations, error: participationsError } = await supabase
-      .from('team_conversation_participants')
+      .from('conversation_participants')
       .select(`
         conversation_id,
-        team_conversations (
+        conversations (
           id,
           name,
           type,
@@ -59,19 +59,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Extract conversations and fetch additional data
     const conversations = await Promise.all(
       (participations || []).map(async (p: any) => {
-        const conv = p.team_conversations;
+        const conv = p.conversations;
         if (!conv) return null;
 
         // Fetch all participants for this conversation
         const { data: participants } = await supabase
-          .from('team_conversation_participants')
+          .from('conversation_participants')
           .select(`
             user_id,
-            team_users (
+            users (
               id,
               name,
               email,
-              avatar_url,
+              avatar,
               role
             )
           `)
@@ -79,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Fetch last message
         const { data: lastMessage } = await supabase
-          .from('team_messages')
+          .from('messages')
           .select('content, type, created_at, sender_id')
           .eq('conversation_id', conv.id)
           .eq('is_deleted', false)
@@ -95,9 +95,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const otherParticipant = participants?.find(
             (p: any) => p.user_id !== userId
           );
-          if (otherParticipant?.team_users) {
-            conversationName = otherParticipant.team_users.name;
-            conversationAvatar = otherParticipant.team_users.avatar_url;
+          if (otherParticipant?.users) {
+            conversationName = otherParticipant.users.name;
+            conversationAvatar = otherParticipant.users.avatar;
           }
         }
 
@@ -106,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           name: conversationName,
           type: conv.type,
           avatar: conversationAvatar,
-          participants: participants?.map((p: any) => p.team_users).filter(Boolean) || [],
+          participants: participants?.map((p: any) => p.users).filter(Boolean) || [],
           lastMessage: lastMessage || null,
           lastMessageAt: conv.last_message_at,
           createdAt: conv.created_at,

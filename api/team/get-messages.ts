@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Verify user is participant in conversation
     const { data: participant, error: participantError } = await supabase
-      .from('team_conversation_participants')
+      .from('conversation_participants')
       .select('id')
       .eq('conversation_id', conversationId)
       .eq('user_id', userId)
@@ -55,13 +55,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Fetch messages
     const { data: messages, error: messagesError } = await supabase
-      .from('team_messages')
+      .from('messages')
       .select(`
         *,
-        team_users (
+        users (
           id,
           name,
-          avatar_url
+          avatar
         )
       `)
       .eq('conversation_id', conversationId)
@@ -88,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         minute: '2-digit'
       }),
       createdAt: msg.created_at,
-      sender: msg.team_users || { id: msg.sender_id, name: 'Unknown', avatar_url: null },
+      sender: msg.users || { id: msg.sender_id, name: 'Unknown', avatar: null },
     }));
 
     console.log('[Get Messages] Fetched', transformedMessages.length, 'messages for conversation:', conversationId);

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles } from 'lucide-react-native';
@@ -9,7 +9,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
 import { useApp } from '@/contexts/AppContext';
-import { mockUsers } from '@/mocks/data';
 import { ChatMessage } from '@/types';
 import GlobalAIChat from '@/components/GlobalAIChatSimple';
 import ImageAnnotation from '@/components/ImageAnnotation';
@@ -33,30 +32,59 @@ export default function ChatScreen() {
 
   const [pendingAnnotation, setPendingAnnotation] = useState<string | null>(null);
   const [dailyTipSent, setDailyTipSent] = useState<boolean>(false);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState<boolean>(false);
 
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
 
+  // Fetch team members from database
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (!user?.id || !user?.role) {
+        console.log('[Chat] User not loaded yet, skipping team member fetch');
+        return;
+      }
+
+      setIsLoadingMembers(true);
+      try {
+        console.log('[Chat] Fetching team members for user:', user.id, 'role:', user.role);
+
+        const response = await fetch(
+          `/api/team/get-members?userId=${user.id}&userRole=${user.role}`
+        );
+
+        const result = await response.json();
+
+        if (result.success) {
+          console.log('[Chat] Fetched', result.members.length, 'team members');
+          setTeamMembers(result.members);
+        } else {
+          console.error('[Chat] Failed to fetch team members:', result.error);
+          Alert.alert('Error', 'Failed to load team members');
+        }
+      } catch (error: any) {
+        console.error('[Chat] Error fetching team members:', error);
+        Alert.alert('Error', 'Failed to load team members: ' + error.message);
+      } finally {
+        setIsLoadingMembers(false);
+      }
+    };
+
+    fetchTeamMembers();
+  }, [user?.id, user?.role]);
+
   const allPeople = useMemo(() => {
-    const employees = mockUsers.filter(u => u.id !== user?.id).map(u => ({
-      id: u.id,
-      name: u.name,
-      avatar: u.avatar,
+    return teamMembers.map(member => ({
+      id: member.id,
+      name: member.name,
+      avatar: member.avatar,
       type: 'employee' as const,
-      email: u.email,
+      email: member.email,
+      role: member.role,
     }));
-
-    const clientList = clients.map(c => ({
-      id: c.id,
-      name: c.name,
-      avatar: undefined,
-      type: 'client' as const,
-      email: c.email,
-    }));
-
-    return [...employees, ...clientList];
-  }, [user, clients]);
+  }, [teamMembers]);
 
   const filteredPeople = useMemo(() => {
     if (!newChatSearch) return allPeople;
@@ -699,7 +727,7 @@ placeholder={t('common.search')}
                       <View style={styles.personDetails}>
                         <Text style={styles.personName}>{item.name}</Text>
                         <Text style={styles.personType}>
-                          {item.type === 'employee' ? 'Employee' : 'Client'}
+                          {item.role === 'admin' ? 'Admin' : 'Employee'}
                         </Text>
                       </View>
                     </View>
@@ -713,7 +741,18 @@ placeholder={t('common.search')}
               }}
               ListEmptyComponent={() => (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No results found</Text>
+                  {isLoadingMembers ? (
+                    <>
+                      <ActivityIndicator size="large" color="#2563EB" />
+                      <Text style={styles.emptyStateText}>Loading team members...</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.emptyStateText}>
+                      {teamMembers.length === 0
+                        ? 'No team members found. Please add team members to the database.'
+                        : 'No results found'}
+                    </Text>
+                  )}
                 </View>
               )}
             />

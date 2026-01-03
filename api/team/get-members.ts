@@ -43,8 +43,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Fetch team members based on role
     let query = supabase
-      .from('team_users')
-      .select('id, email, name, role, avatar_url, phone, is_active')
+      .from('users')
+      .select('id, email, name, role, avatar, phone, is_active, company_id')
       .eq('is_active', true)
       .neq('id', userId); // Exclude current user
 

@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Verify user is participant in conversation
     const { data: participant, error: participantError } = await supabase
-      .from('team_conversation_participants')
+      .from('conversation_participants')
       .select('id')
       .eq('conversation_id', conversationId)
       .eq('user_id', senderId)
@@ -69,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (duration) messageData.duration = duration;
 
     const { data: message, error: messageError } = await supabase
-      .from('team_messages')
+      .from('messages')
       .insert(messageData)
       .select('*')
       .single();
@@ -83,8 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Fetch sender info for response
     const { data: sender } = await supabase
-      .from('team_users')
-      .select('name, avatar_url')
+      .from('users')
+      .select('name, avatar')
       .eq('id', senderId)
       .single();
 
@@ -92,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       success: true,
       message: {
         ...message,
-        sender: sender || { name: 'Unknown', avatar_url: null },
+        sender: sender || { name: 'Unknown', avatar: null },
       },
     });
   } catch (error: any) {

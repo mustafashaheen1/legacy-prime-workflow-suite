@@ -46,18 +46,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Find existing individual conversation between these two users
       const { data: existingConversations } = await supabase
-        .from('team_conversations')
+        .from('conversations')
         .select(`
           id,
           name,
           type,
-          team_conversation_participants!inner (user_id)
+          conversation_participants!inner (user_id)
         `)
         .eq('type', 'individual');
 
       // Check if any existing conversation has exactly these two participants
       for (const conv of existingConversations || []) {
-        const participants = (conv as any).team_conversation_participants;
+        const participants = (conv as any).conversation_participants;
         const participantUserIds = participants.map((p: any) => p.user_id);
 
         if (
@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           // Fetch full conversation details
           const { data: fullConv } = await supabase
-            .from('team_conversations')
+            .from('conversations')
             .select('*')
             .eq('id', conv.id)
             .single();
@@ -86,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Create new conversation
     const { data: conversation, error: convError } = await supabase
-      .from('team_conversations')
+      .from('conversations')
       .insert({
         name: name || null,
         type: conversationType,
@@ -112,13 +112,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }));
 
     const { error: participantsError } = await supabase
-      .from('team_conversation_participants')
+      .from('conversation_participants')
       .insert(participantRecords);
 
     if (participantsError) {
       console.error('[Create Conversation] Error adding participants:', participantsError);
       // Rollback: delete conversation
-      await supabase.from('team_conversations').delete().eq('id', conversation.id);
+      await supabase.from('conversations').delete().eq('id', conversation.id);
       throw new Error(participantsError.message);
     }
 
