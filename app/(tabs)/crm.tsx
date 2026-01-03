@@ -1190,6 +1190,10 @@ export default function CRMScreen() {
     const estimate = estimates.find(e => e.id === estimateId);
     if (!estimate) return;
 
+    // Close modal immediately for better UX
+    setShowConvertToProjectModal(false);
+    setSelectedClientForConversion(null);
+
     try {
       // Create project using context function (which handles database save internally)
       const newProject: Project = {
@@ -1206,28 +1210,24 @@ export default function CRMScreen() {
 
       await addProject(newProject);
 
-      // Update client status to 'Project'
-      await updateClient(client.id, { status: 'Project' });
-
-      // Close modal
-      setShowConvertToProjectModal(false);
-      setSelectedClientForConversion(null);
+      // Remove the estimate from the list (mark as converted)
+      updateEstimate(estimateId, { status: 'approved' });
 
       // Show success message
       Alert.alert(
         'Success',
-        `${client.name} has been converted to a project using estimate "${estimate.name}"!`,
+        `Project created for ${client.name} using estimate "${estimate.name}"!`,
         [
           { text: 'View Projects', onPress: () => router.push('/dashboard') },
           { text: 'OK' },
         ]
       );
 
-      // Refresh clients to show updated status
-      await refreshClients();
+      // Refresh estimates to update the list
+      await refreshEstimates();
     } catch (error) {
       console.error('[CRM] Error converting to project:', error);
-      Alert.alert('Error', 'Failed to convert client to project. Please try again.');
+      Alert.alert('Error', 'Failed to create project. Please try again.');
     }
   };
 
@@ -3277,8 +3277,10 @@ export default function CRMScreen() {
               const client = clients.find(c => c.id === selectedClientForConversion);
               if (!client) return null;
 
-              // Show all estimates for this client
-              const clientEstimates = estimates;
+              // Show estimates that haven't been converted to projects yet (exclude approved/paid)
+              const clientEstimates = estimates.filter(e =>
+                e.status !== 'approved' && e.status !== 'paid'
+              );
 
               return (
                 <ScrollView style={styles.estimateListScroll} showsVerticalScrollIndicator={false}>
