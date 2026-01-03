@@ -351,7 +351,10 @@ export default function ChatScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.8,
+        quality: 0.6,
+        // Resize to max 1920x1080 to reduce file size
+        maxWidth: 1920,
+        maxHeight: 1920,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -374,7 +377,10 @@ export default function ChatScreen() {
 
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
-        quality: 0.8,
+        quality: 0.6,
+        // Resize to max 1920x1080 to reduce file size
+        maxWidth: 1920,
+        maxHeight: 1920,
       });
 
       if (!result.canceled && result.assets[0]) {
