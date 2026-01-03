@@ -1192,7 +1192,6 @@ export default function CRMScreen() {
 
     try {
       // Call tRPC endpoint to create project in database
-      const { trpc } = await import('@/lib/trpc');
       const result = await trpc.projects.addProject.mutate({
         companyId: company?.id || '',
         name: `${client.name} - ${estimate.name}`,
