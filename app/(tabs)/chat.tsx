@@ -1072,7 +1072,13 @@ export default function ChatScreen() {
                       <Send size={20} color="#FFFFFF" />
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity style={styles.voiceButton} onPress={startRecording}>
+                    <TouchableOpacity
+                      style={styles.voiceButton}
+                      onPress={() => {
+                        console.log('[Chat] Mic button clicked');
+                        startRecording();
+                      }}
+                    >
                       <Mic size={20} color="#2563EB" />
                     </TouchableOpacity>
                   )}
