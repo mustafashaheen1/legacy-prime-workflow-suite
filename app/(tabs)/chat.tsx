@@ -43,6 +43,7 @@ export default function ChatScreen() {
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioPlayerRef = useRef<Audio.Sound | null>(null);
+  const webAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
@@ -830,16 +831,32 @@ export default function ChatScreen() {
       // If already playing this audio, stop it
       if (playingAudioId === messageId) {
         console.log('[Audio] Stopping audio:', messageId);
+
+        // Stop web audio
+        if (webAudioRef.current) {
+          webAudioRef.current.pause();
+          webAudioRef.current.currentTime = 0;
+          webAudioRef.current = null;
+        }
+
+        // Stop mobile audio
         if (audioPlayerRef.current) {
           await audioPlayerRef.current.stopAsync();
           await audioPlayerRef.current.unloadAsync();
           audioPlayerRef.current = null;
         }
+
         setPlayingAudioId(null);
         return;
       }
 
       // Stop any currently playing audio
+      if (webAudioRef.current) {
+        webAudioRef.current.pause();
+        webAudioRef.current.currentTime = 0;
+        webAudioRef.current = null;
+      }
+
       if (audioPlayerRef.current) {
         await audioPlayerRef.current.stopAsync();
         await audioPlayerRef.current.unloadAsync();
@@ -853,13 +870,16 @@ export default function ChatScreen() {
         const audio = new window.Audio(audioUrl);
         audio.onended = () => {
           setPlayingAudioId(null);
+          webAudioRef.current = null;
         };
         audio.onerror = (error) => {
           console.error('[Audio] Error playing audio:', error);
           Alert.alert('Error', 'Failed to play audio');
           setPlayingAudioId(null);
+          webAudioRef.current = null;
         };
         await audio.play();
+        webAudioRef.current = audio;
         setPlayingAudioId(messageId);
       } else {
         // For mobile, use expo-av
