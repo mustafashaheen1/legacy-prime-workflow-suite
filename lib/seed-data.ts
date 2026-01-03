@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixtureData } from '@/mocks/fixtures';
 
 const SEED_VERSION_KEY = 'seed_version';
-const CURRENT_SEED_VERSION = '1.2.0';
+const CURRENT_SEED_VERSION = '1.3.0';
 
 export async function checkAndSeedData(): Promise<boolean> {
   try {
@@ -20,10 +20,11 @@ export async function checkAndSeedData(): Promise<boolean> {
     
     await AsyncStorage.setItem('expenses', JSON.stringify(fixtureData.expenses));
     console.log('[Seed] ✓ Seeded expenses:', fixtureData.expenses.length);
-    
-    await AsyncStorage.setItem('conversations', JSON.stringify(fixtureData.conversations));
-    console.log('[Seed] ✓ Seeded conversations:', fixtureData.conversations.length);
-    
+
+    // Don't seed conversations - they should come from the database
+    await AsyncStorage.setItem('conversations', JSON.stringify([]));
+    console.log('[Seed] ✓ Cleared seeded conversations');
+
     await AsyncStorage.setItem('dailyLogs', JSON.stringify(fixtureData.dailyLogs));
     console.log('[Seed] ✓ Seeded daily logs:', fixtureData.dailyLogs.length);
     

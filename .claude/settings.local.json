@@ -68,7 +68,8 @@
       "Bash(npm ls:*)",
       "Bash(npx rork start:*)",
       "Bash(PORT=3000 npm start)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []
