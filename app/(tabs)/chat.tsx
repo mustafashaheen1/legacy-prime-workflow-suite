@@ -105,37 +105,88 @@ export default function ChatScreen() {
     });
   };
 
-  const handleCreateChat = () => {
+  const handleCreateChat = async () => {
     if (selectedParticipants.length === 0) {
       Alert.alert('Error', 'Please select at least one person');
       return;
     }
 
-    const participantNames = allPeople
-      .filter(p => selectedParticipants.includes(p.id))
-      .map(p => p.name);
+    if (!user?.id) {
+      Alert.alert('Error', 'User not logged in');
+      return;
+    }
 
-    const chatName = selectedParticipants.length === 1 
-      ? participantNames[0]
-      : participantNames.join(', ');
+    try {
+      const participantNames = allPeople
+        .filter(p => selectedParticipants.includes(p.id))
+        .map(p => p.name);
 
-    const newConversation = {
-      id: Date.now().toString(),
-      name: chatName,
-      type: selectedParticipants.length === 1 ? 'individual' as const : 'group' as const,
-      participants: [user?.id || '1', ...selectedParticipants],
-      messages: [],
-      createdAt: new Date().toISOString(),
-      avatar: selectedParticipants.length === 1 
-        ? allPeople.find(p => p.id === selectedParticipants[0])?.avatar 
-        : undefined,
-    };
+      const chatName = selectedParticipants.length === 1
+        ? participantNames[0]
+        : participantNames.join(', ');
 
-    addConversation(newConversation);
-    setSelectedChat(newConversation.id);
-    setShowNewChatModal(false);
-    setSelectedParticipants([]);
-    setNewChatSearch('');
+      console.log('[Chat] Creating conversation with participants:', selectedParticipants);
+
+      // Call API to create or find existing conversation
+      const response = await fetch('/api/team/create-conversation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          createdBy: user.id,
+          participantIds: selectedParticipants,
+          name: selectedParticipants.length > 1 ? chatName : null, // Only set name for group chats
+          type: selectedParticipants.length === 1 ? 'individual' : 'group',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        console.error('[Chat] Failed to create conversation:', result.error);
+        Alert.alert('Error', 'Failed to create conversation');
+        return;
+      }
+
+      const dbConversation = result.conversation;
+
+      if (result.existed) {
+        console.log('[Chat] Found existing conversation:', dbConversation.id);
+      } else {
+        console.log('[Chat] Created new conversation:', dbConversation.id);
+      }
+
+      // Check if conversation already exists in local context
+      const existingLocalConv = conversations.find(c => c.id === dbConversation.id);
+
+      if (!existingLocalConv) {
+        // Add to local context if not already there
+        const localConversation = {
+          id: dbConversation.id,
+          name: chatName,
+          type: dbConversation.type as 'individual' | 'group',
+          participants: [user.id, ...selectedParticipants],
+          messages: [],
+          createdAt: dbConversation.created_at,
+          avatar: selectedParticipants.length === 1
+            ? allPeople.find(p => p.id === selectedParticipants[0])?.avatar
+            : undefined,
+        };
+
+        addConversation(localConversation);
+      }
+
+      // Select the conversation (existing or new)
+      setSelectedChat(dbConversation.id);
+      setShowNewChatModal(false);
+      setSelectedParticipants([]);
+      setNewChatSearch('');
+
+    } catch (error: any) {
+      console.error('[Chat] Error creating conversation:', error);
+      Alert.alert('Error', 'Failed to create conversation: ' + error.message);
+    }
   };
 
   const handlePickImage = async () => {
@@ -251,8 +302,9 @@ export default function ChatScreen() {
         return;
       }
 
-      // Check if this is a team chat (not AI assistant or local conversation)
-      const isTeamChat = selectedChat !== 'ai-assistant' && !conversations.find(c => c.id === selectedChat);
+      // Check if this is a team chat (not AI assistant)
+      const conversation = conversations.find(c => c.id === selectedChat);
+      const isTeamChat = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
 
       if (isTeamChat) {
         // Team chat: Upload to S3 and send via API
