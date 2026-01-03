@@ -454,6 +454,15 @@ export default function ChatScreen() {
         audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         console.log('[Voice] Web recording stopped, blob size:', audioBlob.size);
 
+        // Stop media stream to release microphone
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => {
+            console.log('[Voice] Stopping track:', track.kind);
+            track.stop();
+          });
+          streamRef.current = null;
+        }
+
         mediaRecorderRef.current = null;
       }
       // Handle mobile recording
