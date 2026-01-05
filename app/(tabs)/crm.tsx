@@ -1222,9 +1222,6 @@ export default function CRMScreen() {
           { text: 'OK' },
         ]
       );
-
-      // Refresh estimates to update the list
-      await refreshEstimates();
     } catch (error) {
       console.error('[CRM] Error converting to project:', error);
       Alert.alert('Error', 'Failed to create project. Please try again.');
