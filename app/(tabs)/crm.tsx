@@ -1028,28 +1028,32 @@ export default function CRMScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Yes, Convert',
-          onPress: () => {
-            const newProject: Project = {
-              id: `project-${Date.now()}`,
-              name: `${client.name} - ${estimate.name}`,
-              budget: estimate.total,
-              expenses: 0,
-              progress: 0,
-              status: 'active',
-              image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-              hoursWorked: 0,
-              startDate: new Date().toISOString(),
-            };
+          onPress: async () => {
+            try {
+              const newProject: Project = {
+                id: `project-${Date.now()}`,
+                name: `${client.name} - ${estimate.name}`,
+                budget: estimate.total,
+                expenses: 0,
+                progress: 0,
+                status: 'active',
+                image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+                hoursWorked: 0,
+                startDate: new Date().toISOString(),
+              };
 
-            addProject(newProject);
-            updateClient(client.id, { status: 'Project' });
-            updateEstimate(estimateId, { status: 'approved' });
+              await addProject(newProject);
+              updateEstimate(estimateId, { status: 'approved' });
 
-            Alert.alert(
-              'Success',
-              `${client.name} has been converted to a project and added to your dashboard!`,
-              [{ text: 'OK', onPress: () => setShowEstimateModal(false) }]
-            );
+              Alert.alert(
+                'Success',
+                `Project created for ${client.name} using estimate "${estimate.name}"!`,
+                [{ text: 'OK', onPress: () => setShowEstimateModal(false) }]
+              );
+            } catch (error) {
+              console.error('[CRM] Error converting to project:', error);
+              Alert.alert('Error', 'Failed to create project. Please try again.');
+            }
           },
         },
       ]
