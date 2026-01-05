@@ -1059,24 +1059,16 @@ export default function CRMScreen() {
     const handleConvert = async () => {
       console.log('[CRM] handleConvert called - starting project creation');
             try {
-              // Save project directly to database using tRPC
+              // Use direct API endpoint (bypassing tRPC due to timeout issue)
               const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-              console.log('[CRM] Making fetch request to:', `${baseUrl}/trpc/projects.addProject`);
-              const response = await fetch(`${baseUrl}/trpc/projects.addProject`, {
+              console.log('[CRM] Making fetch request to:', `${baseUrl}/api/test-insert-project`);
+              const response = await fetch(`${baseUrl}/api/test-insert-project`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  json: {
-                    companyId: company.id,
-                    name: `${client.name} - ${estimate.name}`,
-                    budget: estimate.total,
-                    expenses: 0,
-                    progress: 0,
-                    status: 'active',
-                    image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-                    hoursWorked: 0,
-                    startDate: new Date().toISOString(),
-                  },
+                  companyId: company.id,
+                  name: `${client.name} - ${estimate.name}`,
+                  budget: estimate.total,
                 }),
               });
 
@@ -1088,22 +1080,21 @@ export default function CRMScreen() {
 
               const data = await response.json();
               console.log('[CRM] Fetch response data:', data);
-              const result = data.result.data.json;
 
-              if (result.success && result.project) {
-                console.log('[CRM] Project created successfully:', result.project.id);
+              if (data.success && data.project) {
+                console.log('[CRM] Project created successfully:', data.project.id);
                 // Add to local state
                 const newProject: Project = {
-                  id: result.project.id,
-                  name: result.project.name,
-                  budget: result.project.budget,
-                  expenses: result.project.expenses,
-                  progress: result.project.progress,
-                  status: result.project.status,
-                  image: result.project.image,
-                  hoursWorked: result.project.hoursWorked,
-                  startDate: result.project.startDate,
-                  endDate: result.project.endDate,
+                  id: data.project.id,
+                  name: data.project.name,
+                  budget: Number(data.project.budget) || 0,
+                  expenses: Number(data.project.expenses) || 0,
+                  progress: data.project.progress || 0,
+                  status: data.project.status as 'active' | 'completed' | 'on-hold' | 'archived',
+                  image: data.project.image || 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+                  hoursWorked: Number(data.project.hours_worked) || 0,
+                  startDate: data.project.start_date,
+                  endDate: data.project.end_date || undefined,
                 };
 
                 addProject(newProject);
