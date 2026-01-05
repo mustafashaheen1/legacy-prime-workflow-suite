@@ -1015,16 +1015,33 @@ export default function CRMScreen() {
   };
 
   const convertToProject = (estimateId: string) => {
+    console.log('[CRM] convertToProject called with estimateId:', estimateId);
+    console.log('[CRM] Total estimates:', estimates.length);
+    console.log('[CRM] selectedClientForEstimate:', selectedClientForEstimate);
+
     const estimate = estimates.find(e => e.id === estimateId);
-    if (!estimate) return;
+    if (!estimate) {
+      console.error('[CRM] Estimate not found:', estimateId);
+      Alert.alert('Error', 'Estimate not found');
+      return;
+    }
+    console.log('[CRM] Found estimate:', estimate.name);
 
     const client = clients.find(c => c.id === selectedClientForEstimate);
-    if (!client) return;
+    if (!client) {
+      console.error('[CRM] Client not found. selectedClientForEstimate:', selectedClientForEstimate);
+      Alert.alert('Error', 'Client not found. Please try reopening the estimates modal.');
+      return;
+    }
+    console.log('[CRM] Found client:', client.name);
 
     if (!company?.id) {
+      console.error('[CRM] Company not found');
       Alert.alert('Error', 'Company not found. Please try again.');
       return;
     }
+    console.log('[CRM] Company found:', company.id);
+    console.log('[CRM] About to show confirmation alert');
 
     Alert.alert(
       'Convert to Project',
