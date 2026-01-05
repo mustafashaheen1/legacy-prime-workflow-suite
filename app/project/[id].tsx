@@ -736,35 +736,103 @@ export default function ProjectDetailScreen() {
         );
 
       case 'estimate':
+        const originalEstimate = project.estimateId ? estimates.find(e => e.id === project.estimateId) : null;
+
         return (
-          <View style={styles.tabPlaceholder}>
-            <FileText size={48} color="#9CA3AF" />
-            <Text style={styles.placeholderText}>Create estimates for additional work or new items</Text>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity 
-                style={styles.primaryButton}
-                onPress={() => router.push(`/project/${id}/estimate` as any)}
-              >
-                <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.primaryButtonText}>New Estimate</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.secondaryButton}
-                onPress={() => router.push(`/project/${id}/takeoff` as any)}
-              >
-                <Ruler size={20} color="#2563EB" />
-                <Text style={styles.secondaryButtonText}>Takeoff Tool</Text>
-              </TouchableOpacity>
+          <ScrollView style={styles.estimateTabContent}>
+            {originalEstimate && (
+              <View style={styles.originalEstimateSection}>
+                <View style={styles.originalEstimateHeader}>
+                  <FileText size={24} color="#2563EB" />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.originalEstimateTitle}>Original Estimate</Text>
+                    <Text style={styles.originalEstimateSubtitle}>{originalEstimate.name}</Text>
+                  </View>
+                  <View style={styles.estimateStatusBadge}>
+                    <Text style={styles.estimateStatusText}>{originalEstimate.status.toUpperCase()}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.estimateDetailsCard}>
+                  <View style={styles.estimateSummaryRow}>
+                    <Text style={styles.estimateLabel}>Created</Text>
+                    <Text style={styles.estimateValue}>
+                      {new Date(originalEstimate.createdDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </Text>
+                  </View>
+                  <View style={styles.estimateSummaryRow}>
+                    <Text style={styles.estimateLabel}>Items</Text>
+                    <Text style={styles.estimateValue}>{originalEstimate.items.length}</Text>
+                  </View>
+                  <View style={styles.estimateDivider} />
+                  <View style={styles.estimateSummaryRow}>
+                    <Text style={styles.estimateLabel}>Subtotal</Text>
+                    <Text style={styles.estimateValue}>${originalEstimate.subtotal.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.estimateSummaryRow}>
+                    <Text style={styles.estimateLabel}>Tax ({(originalEstimate.taxRate * 100).toFixed(1)}%)</Text>
+                    <Text style={styles.estimateValue}>${originalEstimate.taxAmount.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.estimateDivider} />
+                  <View style={styles.estimateSummaryRow}>
+                    <Text style={styles.estimateTotalLabel}>Total</Text>
+                    <Text style={styles.estimateTotalValue}>${originalEstimate.total.toLocaleString()}</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.viewFullEstimateButton}
+                  onPress={() => router.push(`/project/${id}/estimate?estimateId=${originalEstimate.id}` as any)}
+                >
+                  <FileText size={20} color="#2563EB" />
+                  <Text style={styles.viewFullEstimateButtonText}>View Full Estimate</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <View style={styles.newEstimateSection}>
+              <View style={styles.newEstimateDivider}>
+                <View style={styles.newEstimateDividerLine} />
+                <Text style={styles.newEstimateDividerText}>
+                  {originalEstimate ? 'Additional Work' : 'Get Started'}
+                </Text>
+                <View style={styles.newEstimateDividerLine} />
+              </View>
+
+              <Text style={styles.newEstimateTitle}>
+                {originalEstimate ? 'Create estimates for change orders or additional work' : 'Create your first estimate'}
+              </Text>
+
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={() => router.push(`/project/${id}/estimate` as any)}
+                >
+                  <Plus size={20} color="#FFFFFF" />
+                  <Text style={styles.primaryButtonText}>New Estimate</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() => router.push(`/project/${id}/takeoff` as any)}
+                >
+                  <Ruler size={20} color="#2563EB" />
+                  <Text style={styles.secondaryButtonText}>Takeoff Tool</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ width: '100%', marginTop: 32, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 16, textAlign: 'center' }}>Need a Subcontractor Estimate?</Text>
+                <RequestEstimateComponent
+                  projectId={project.id}
+                  projectName={project.name}
+                />
+              </View>
             </View>
-            
-            <View style={{ width: '100%', marginTop: 32, paddingTop: 24, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 16, textAlign: 'center' }}>Need a Subcontractor Estimate?</Text>
-              <RequestEstimateComponent 
-                projectId={project.id} 
-                projectName={project.name} 
-              />
-            </View>
-          </View>
+          </ScrollView>
         );
 
       case 'change-orders':
@@ -3260,5 +3328,119 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  // Estimate tab styles
+  estimateTabContent: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  originalEstimateSection: {
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  originalEstimateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  originalEstimateTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  originalEstimateSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  estimateStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#DBEAFE',
+    borderRadius: 12,
+  },
+  estimateStatusText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  estimateDetailsCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  estimateSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  estimateLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  estimateValue: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#1F2937',
+  },
+  estimateDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 8,
+  },
+  estimateTotalLabel: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  estimateTotalValue: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#2563EB',
+  },
+  viewFullEstimateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  viewFullEstimateButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  newEstimateSection: {
+    padding: 20,
+  },
+  newEstimateDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  newEstimateDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  newEstimateDividerText: {
+    paddingHorizontal: 16,
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  newEstimateTitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 20,
   },
 });

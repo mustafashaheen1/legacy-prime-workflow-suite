@@ -38,6 +38,7 @@ export default async function handler(req: any, res: any) {
       company_id: req.body.companyId || '3fd6f909-5c10-45eb-98af-83eb26879eec',
       name: req.body.name || 'Test Project ' + new Date().toISOString(),
       budget: req.body.budget || 10000,
+      estimate_id: req.body.estimateId || null,
       expenses: 0,
       progress: 0,
       status: 'active',

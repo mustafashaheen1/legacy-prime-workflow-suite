@@ -33,6 +33,7 @@ export interface Project {
   hoursWorked: number;
   startDate: string;
   endDate?: string;
+  estimateId?: string;
 }
 
 export interface Expense {

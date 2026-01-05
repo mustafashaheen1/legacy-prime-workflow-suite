@@ -1069,6 +1069,7 @@ export default function CRMScreen() {
                   companyId: company.id,
                   name: `${client.name} - ${estimate.name}`,
                   budget: estimate.total,
+                  estimateId: estimateId,
                 }),
               });
 
@@ -1095,6 +1096,7 @@ export default function CRMScreen() {
                   hoursWorked: Number(data.project.hours_worked) || 0,
                   startDate: data.project.start_date,
                   endDate: data.project.end_date || undefined,
+                  estimateId: data.project.estimate_id || undefined,
                 };
 
                 addProject(newProject);

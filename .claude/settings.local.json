@@ -72,7 +72,8 @@
       "mcp__ide__getDiagnostics",
       "Bash(psql $EXPO_PUBLIC_SUPABASE_URL -c \"\\\\d projects\")",
       "Bash(git checkout:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(psql:*)"
     ],
     "deny": [],
     "ask": []
