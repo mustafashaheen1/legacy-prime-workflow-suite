@@ -53,6 +53,7 @@ export const getProjectsProcedure = publicProcedure
         hoursWorked: Number(project.hours_worked) || 0,
         startDate: project.start_date,
         endDate: project.end_date || undefined,
+        estimateId: project.estimate_id || undefined,
       }));
 
       return {
