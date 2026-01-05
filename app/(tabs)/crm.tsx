@@ -1057,9 +1057,11 @@ export default function CRMScreen() {
 
     // Use web-compatible confirmation
     const handleConvert = async () => {
+      console.log('[CRM] handleConvert called - starting project creation');
             try {
               // Save project directly to database using tRPC
               const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+              console.log('[CRM] Making fetch request to:', `${baseUrl}/trpc/projects.addProject`);
               const response = await fetch(`${baseUrl}/trpc/projects.addProject`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1078,14 +1080,18 @@ export default function CRMScreen() {
                 }),
               });
 
+              console.log('[CRM] Fetch response status:', response.status);
+
               if (!response.ok) {
                 throw new Error(`Failed to create project: ${response.status}`);
               }
 
               const data = await response.json();
+              console.log('[CRM] Fetch response data:', data);
               const result = data.result.data.json;
 
               if (result.success && result.project) {
+                console.log('[CRM] Project created successfully:', result.project.id);
                 // Add to local state
                 const newProject: Project = {
                   id: result.project.id,
@@ -1128,9 +1134,13 @@ export default function CRMScreen() {
     };
 
     // Show confirmation dialog
+    console.log('[CRM] Platform:', Platform.OS);
     if (Platform.OS === 'web') {
+      console.log('[CRM] Showing web confirm dialog');
       const confirmed = confirm('Has the estimate been approved and signed?\n\nClick OK to convert to project, or Cancel to go back.');
+      console.log('[CRM] User confirmed:', confirmed);
       if (confirmed) {
+        console.log('[CRM] Calling handleConvert');
         handleConvert();
       }
     } else {
