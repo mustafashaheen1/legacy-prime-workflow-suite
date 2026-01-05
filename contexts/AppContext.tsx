@@ -267,6 +267,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setCustomPriceListItems([]);
           }
 
+          // Load estimates
+          try {
+            const estimatesResponse = await fetch(`${baseUrl}/api/get-estimates`);
+            if (estimatesResponse.ok) {
+              const estimatesData = await estimatesResponse.json();
+              if (estimatesData.success && estimatesData.estimates) {
+                setEstimates(estimatesData.estimates);
+                console.log('[App] ✅ Loaded', estimatesData.estimates.length, 'estimates');
+              } else {
+                setEstimates([]);
+              }
+            } else {
+              setEstimates([]);
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading estimates:', error?.message || error);
+            setEstimates([]);
+          }
+
           console.log('[App] ✅ Finished reloading data after company change');
         } catch (error: any) {
           console.error('[App] ❌ Fatal error reloading data after company change:', error?.message || error);
