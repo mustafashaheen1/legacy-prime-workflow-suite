@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, FlatList, Platform, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, FlatList, Platform, Dimensions, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
@@ -1184,11 +1184,25 @@ export default function ProjectDetailScreen() {
                       <TouchableOpacity
                         key={video.id}
                         style={styles.videoGalleryItem}
-                        onPress={() => {
-                          if (Platform.OS === 'web' && video.videoUrl) {
-                            window.open(video.videoUrl, '_blank');
-                          } else {
-                            Alert.alert('Info', 'Video viewing on mobile coming soon');
+                        onPress={async () => {
+                          try {
+                            console.log('[Videos] Getting video view URL for:', video.videoUrl);
+                            const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+                            const response = await fetch(`${apiUrl}/api/get-video-view-url?videoKey=${encodeURIComponent(video.videoUrl)}`);
+
+                            if (!response.ok) {
+                              throw new Error('Failed to get video URL');
+                            }
+
+                            const result = await response.json();
+                            console.log('[Videos] Got video view URL');
+
+                            if (result.viewUrl) {
+                              Linking.openURL(result.viewUrl);
+                            }
+                          } catch (error: any) {
+                            console.error('[Videos] Error loading video:', error);
+                            Alert.alert('Error', error.message || 'Failed to load video');
                           }
                         }}
                       >
