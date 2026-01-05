@@ -2298,8 +2298,11 @@ export default function CRMScreen() {
                         <View style={styles.workflowSplit}>
                           <TouchableOpacity
                             style={styles.workflowButtonHalf}
-                            onPress={() => convertToProject(estimate.id)}
-                            disabled={estimate.status !== 'sent'}
+                            onPress={() => {
+                              console.log('[CRM] Convert to Project clicked for estimate:', estimate.id, 'status:', estimate.status);
+                              convertToProject(estimate.id);
+                            }}
+                            disabled={estimate.status === 'draft'}
                           >
                             <CheckCircle size={18} color="#10B981" />
                             <Text style={styles.workflowButtonTextSmall}>Convert to Project</Text>
