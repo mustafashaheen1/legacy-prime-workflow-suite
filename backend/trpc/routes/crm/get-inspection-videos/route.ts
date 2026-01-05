@@ -7,6 +7,7 @@ export const getInspectionVideosProcedure = publicProcedure
     z.object({
       companyId: z.string().uuid(),
       clientId: z.string().uuid().optional(),
+      projectId: z.string().uuid().optional(),
       status: z.enum(['pending', 'completed', 'all']).default('all'),
     })
   )
@@ -31,6 +32,10 @@ export const getInspectionVideosProcedure = publicProcedure
 
       if (input.clientId) {
         query = query.eq('client_id', input.clientId);
+      }
+
+      if (input.projectId) {
+        query = query.eq('project_id', input.projectId);
       }
 
       if (input.status !== 'all') {

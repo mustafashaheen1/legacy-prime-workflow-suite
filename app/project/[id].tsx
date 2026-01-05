@@ -14,15 +14,22 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { ProjectFile, FileCategory } from '@/types';
 
-type TabType = 'overview' | 'estimate' | 'change-orders' | 'clock' | 'expenses' | 'photos' | 'files' | 'reports';
+type TabType = 'overview' | 'estimate' | 'change-orders' | 'clock' | 'expenses' | 'photos' | 'videos' | 'files' | 'reports';
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, archiveProject, user, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, dailyLogs = [] } = useApp();
-  
+  const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, dailyLogs = [] } = useApp();
+
   const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
   const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string });
+  const inspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery({
+    companyId: company?.id || '',
+    projectId: id as string,
+    status: 'all'
+  }, {
+    enabled: !!company?.id && !!id
+  });
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<FileCategory>('documentation');
@@ -1133,6 +1140,77 @@ export default function ProjectDetailScreen() {
           </View>
         );
 
+      case 'videos':
+        const inspectionVideos = inspectionVideosQuery.data?.inspections || [];
+        const projectVideos = inspectionVideos.filter(v => v.status === 'completed' && v.videoUrl);
+
+        return (
+          <View style={styles.tabContentContainer}>
+            <View style={styles.sectionHeader}>
+              <Camera size={24} color="#2563EB" />
+              <Text style={styles.sectionHeaderText}>Inspection Videos</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{projectVideos.length}</Text>
+              </View>
+            </View>
+
+            {inspectionVideosQuery.isLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading videos...</Text>
+              </View>
+            ) : projectVideos.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Camera size={48} color="#9CA3AF" />
+                <Text style={styles.emptyStateTitle}>No videos yet</Text>
+                <Text style={styles.emptyStateText}>
+                  Client inspection videos will appear here once uploaded
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.videoGrid}>
+                {projectVideos.map((video) => (
+                  <View key={video.id} style={styles.videoCard}>
+                    <View style={styles.videoThumbnail}>
+                      <Camera size={32} color="#FFFFFF" />
+                      <View style={styles.playButton}>
+                        <Text style={styles.playButtonText}>▶</Text>
+                      </View>
+                    </View>
+                    <View style={styles.videoDetails}>
+                      <Text style={styles.videoClientName}>{video.clientName}</Text>
+                      <Text style={styles.videoDate}>
+                        {new Date(video.completedAt || video.createdAt).toLocaleDateString()}
+                      </Text>
+                      {video.notes && (
+                        <Text style={styles.videoNotes} numberOfLines={2}>
+                          {video.notes}
+                        </Text>
+                      )}
+                      {video.videoSize && (
+                        <Text style={styles.videoSize}>
+                          {(video.videoSize / 1024 / 1024).toFixed(2)} MB
+                        </Text>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.viewVideoButton}
+                      onPress={() => {
+                        if (Platform.OS === 'web' && video.videoUrl) {
+                          window.open(video.videoUrl, '_blank');
+                        } else {
+                          Alert.alert('Info', 'Video viewing on mobile coming soon');
+                        }
+                      }}
+                    >
+                      <Text style={styles.viewVideoButtonText}>View Video</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        );
+
       case 'reports':
         const handleGenerateProjectReport = (type: 'administrative' | 'expenses' | 'time-tracking' | 'daily-logs') => {
           if (!project) return;
@@ -1501,6 +1579,14 @@ export default function ProjectDetailScreen() {
           >
             <Text style={[styles.tabText, activeTab === 'photos' && styles.activeTabText]}>
               Photos
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'videos' && styles.activeTab]}
+            onPress={() => setActiveTab('videos')}
+          >
+            <Text style={[styles.tabText, activeTab === 'videos' && styles.activeTabText]}>
+              Videos
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -3024,5 +3110,90 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     flex: 1,
     marginRight: 12,
+  },
+  videoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    padding: 20,
+  },
+  videoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+    maxWidth: 320,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  videoThumbnail: {
+    backgroundColor: '#2563EB',
+    borderRadius: 8,
+    height: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    position: 'relative',
+  },
+  playButton: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playButtonText: {
+    fontSize: 20,
+    color: '#2563EB',
+    marginLeft: 3,
+  },
+  videoDetails: {
+    gap: 6,
+    marginBottom: 12,
+  },
+  videoClientName: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  videoDate: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  videoNotes: {
+    fontSize: 13,
+    color: '#4B5563',
+    lineHeight: 18,
+  },
+  videoSize: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  viewVideoButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  viewVideoButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });
