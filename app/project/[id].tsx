@@ -170,8 +170,32 @@ export default function ProjectDetailScreen() {
       }
       byCategory[file.category].push(file);
     });
+
+    // Add inspection videos as a 'videos' category
+    const allInspectionVideos = inspectionVideosQuery.data?.inspections || [];
+    const projectClientName = project.name.split(' - ')[0].trim();
+    const clientVideos = allInspectionVideos.filter(v =>
+      v.clientName.toLowerCase() === projectClientName.toLowerCase() &&
+      v.status === 'completed' &&
+      v.videoUrl
+    );
+
+    if (clientVideos.length > 0) {
+      byCategory['videos'] = clientVideos.map(video => ({
+        id: video.id,
+        projectId: project.id,
+        name: `${video.clientName} - ${new Date(video.completedAt || video.createdAt).toLocaleDateString()}`,
+        category: 'videos' as FileCategory,
+        fileType: 'video',
+        fileSize: video.videoSize || 0,
+        uri: video.videoUrl,
+        uploadDate: video.completedAt || video.createdAt,
+        notes: video.notes || undefined,
+      }));
+    }
+
     return byCategory;
-  }, [currentProjectFiles]);
+  }, [currentProjectFiles, inspectionVideosQuery.data, project]);
 
   const handlePickDocument = async () => {
     try {
@@ -234,6 +258,7 @@ export default function ProjectDetailScreen() {
       case 'plans': return Ruler;
       case 'estimates': return FileText;
       case 'documentation': return File;
+      case 'videos': return Camera;
       default: return Folder;
     }
   };
@@ -246,6 +271,7 @@ export default function ProjectDetailScreen() {
       case 'plans': return '#F59E0B';
       case 'estimates': return '#EC4899';
       case 'documentation': return '#6B7280';
+      case 'videos': return '#EF4444';
       default: return '#9CA3AF';
     }
   };
@@ -981,7 +1007,7 @@ export default function ProjectDetailScreen() {
               <View style={styles.filesHeaderTop}>
                 <View>
                   <Text style={styles.filesTitle}>Project Files</Text>
-                  <Text style={styles.filesSubtitle}>{currentProjectFiles.length} files • {projectPhotos.length} photos • {projectReports.length} reports</Text>
+                  <Text style={styles.filesSubtitle}>{currentProjectFiles.length} files • {projectPhotos.length} photos • {filesByCategory['videos']?.length || 0} videos • {projectReports.length} reports</Text>
                 </View>
                 <View style={styles.filesHeaderButtons}>
                   <TouchableOpacity 
@@ -1019,7 +1045,7 @@ export default function ProjectDetailScreen() {
                 >
                   <Text style={[styles.categoryFilterText, categoryFilter === 'all' && styles.categoryFilterTextActive]}>All ({currentProjectFiles.length})</Text>
                 </TouchableOpacity>
-                {(['receipts', 'photos', 'reports', 'plans', 'estimates', 'documentation'] as FileCategory[]).map(cat => (
+                {(['receipts', 'photos', 'videos', 'reports', 'plans', 'estimates', 'documentation'] as FileCategory[]).map(cat => (
                   <TouchableOpacity
                     key={cat}
                     style={[styles.categoryFilterChip, categoryFilter === cat && styles.categoryFilterChipActive]}
@@ -1097,26 +1123,49 @@ export default function ProjectDetailScreen() {
                               </View>
                               <View style={styles.fileActions}>
                                 {Platform.OS === 'web' && (
-                                  <TouchableOpacity 
+                                  <TouchableOpacity
                                     style={styles.fileActionButton}
-                                    onPress={() => {
-                                      const link = document.createElement('a');
-                                      link.href = item.uri;
-                                      link.download = item.name;
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
+                                    onPress={async () => {
+                                      // Special handling for videos - fetch signed URL first
+                                      if (item.category === 'videos') {
+                                        try {
+                                          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+                                          const response = await fetch(`${apiUrl}/api/get-video-view-url?videoKey=${encodeURIComponent(item.uri)}`);
+
+                                          if (!response.ok) {
+                                            throw new Error('Failed to get video URL');
+                                          }
+
+                                          const result = await response.json();
+                                          if (result.viewUrl) {
+                                            Linking.openURL(result.viewUrl);
+                                          }
+                                        } catch (error: any) {
+                                          console.error('[Files] Error loading video:', error);
+                                          Alert.alert('Error', error.message || 'Failed to load video');
+                                        }
+                                      } else {
+                                        // Regular file download
+                                        const link = document.createElement('a');
+                                        link.href = item.uri;
+                                        link.download = item.name;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                      }
                                     }}
                                   >
                                     <Download size={18} color="#2563EB" />
                                   </TouchableOpacity>
                                 )}
-                                <TouchableOpacity 
-                                  style={styles.fileActionButton}
-                                  onPress={() => handleDeleteFile(item.id, item.name)}
-                                >
-                                  <Trash2 size={18} color="#EF4444" />
-                                </TouchableOpacity>
+                                {item.category !== 'videos' && (
+                                  <TouchableOpacity
+                                    style={styles.fileActionButton}
+                                    onPress={() => handleDeleteFile(item.id, item.name)}
+                                  >
+                                    <Trash2 size={18} color="#EF4444" />
+                                  </TouchableOpacity>
+                                )}
                               </View>
                             </View>
                           );
