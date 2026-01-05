@@ -8,8 +8,10 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { FileCategory, ProjectFile } from '@/types';
 import { useTranslation } from 'react-i18next';
+import { trpc } from '@/lib/trpc';
+import { Linking } from 'react-native';
 
-type FolderType = 'photos' | 'receipts' | 'permit-files' | 'inspections' | 'agreements';
+type FolderType = 'photos' | 'receipts' | 'permit-files' | 'inspections' | 'agreements' | 'videos';
 
 interface FolderConfig {
   type: FolderType;
@@ -55,6 +57,13 @@ const PREDEFINED_FOLDERS: FolderConfig[] = [
     color: '#EF4444',
     description: 'Contratos y acuerdos',
   },
+  {
+    type: 'videos',
+    name: 'Videos',
+    icon: Camera,
+    color: '#EC4899',
+    description: 'Inspection videos',
+  },
 ];
 
 interface FolderWithData extends FolderConfig {
@@ -66,7 +75,14 @@ export default function FilesNavigationScreen() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, projectFiles, photos, expenses, addProjectFile, addPhoto, addExpense, photoCategories } = useApp();
+  const { projects, projectFiles, photos, expenses, addProjectFile, addPhoto, addExpense, photoCategories, company } = useApp();
+
+  const inspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery({
+    companyId: company?.id || '',
+    status: 'all'
+  }, {
+    enabled: !!company?.id
+  });
   const [selectedFolder, setSelectedFolder] = useState<FolderType | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
@@ -126,6 +142,16 @@ export default function FilesNavigationScreen() {
         const files = currentProjectFiles.filter(f => f.category === 'documentation');
         count = files.length;
         categories = count > 0 ? ['Todos los Contratos'] : [];
+      } else if (folderConfig.type === 'videos') {
+        const allVideos = inspectionVideosQuery.data?.inspections || [];
+        const projectClientName = project?.name.split(' - ')[0].trim() || '';
+        const clientVideos = allVideos.filter(v =>
+          v.clientName.toLowerCase() === projectClientName.toLowerCase() &&
+          v.status === 'completed' &&
+          v.videoUrl
+        );
+        count = clientVideos.length;
+        categories = count > 0 ? ['Client Videos'] : [];
       }
 
       return {
@@ -134,7 +160,7 @@ export default function FilesNavigationScreen() {
         categories,
       };
     });
-  }, [projectPhotos, projectExpenses, currentProjectFiles, customFolders]);
+  }, [projectPhotos, projectExpenses, currentProjectFiles, customFolders, inspectionVideosQuery.data, project]);
 
   const getFilesForCategory = (folderType: FolderType, category: string) => {
     if (folderType === 'photos') {
@@ -150,6 +176,14 @@ export default function FilesNavigationScreen() {
       return currentProjectFiles.filter(f => f.category === 'documentation');
     } else if (folderType === 'agreements') {
       return currentProjectFiles.filter(f => f.category === 'documentation');
+    } else if (folderType === 'videos') {
+      const allVideos = inspectionVideosQuery.data?.inspections || [];
+      const projectClientName = project?.name.split(' - ')[0].trim() || '';
+      return allVideos.filter(v =>
+        v.clientName.toLowerCase() === projectClientName.toLowerCase() &&
+        v.status === 'completed' &&
+        v.videoUrl
+      );
     }
     return [];
   };
@@ -397,13 +431,15 @@ export default function FilesNavigationScreen() {
             <Text style={styles.filesTitle}>{selectedCategory}</Text>
             <Text style={styles.filesSubtitle}>{files.length} items</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => setUploadModalVisible(true)}
-          >
-            <Plus size={20} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>Agregar</Text>
-          </TouchableOpacity>
+          {folder.type !== 'videos' && (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setUploadModalVisible(true)}
+            >
+              <Plus size={20} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>Agregar</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <ScrollView style={styles.filesList} showsVerticalScrollIndicator={false}>
           {files.map((file: any) => {
@@ -434,6 +470,46 @@ export default function FilesNavigationScreen() {
                     {new Date(file.date).toLocaleDateString()}
                   </Text>
                 </View>
+              );
+            } else if (folder.type === 'videos') {
+              return (
+                <TouchableOpacity
+                  key={file.id}
+                  style={styles.documentCard}
+                  onPress={async () => {
+                    try {
+                      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+                      const response = await fetch(`${apiUrl}/api/get-video-view-url?videoKey=${encodeURIComponent(file.videoUrl)}`);
+
+                      if (!response.ok) {
+                        throw new Error('Failed to get video URL');
+                      }
+
+                      const result = await response.json();
+                      if (result.viewUrl) {
+                        Linking.openURL(result.viewUrl);
+                      }
+                    } catch (error: any) {
+                      console.error('[Videos] Error loading video:', error);
+                      Alert.alert('Error', error.message || 'Failed to load video');
+                    }
+                  }}
+                >
+                  <View style={[styles.documentIcon, { backgroundColor: `${folder.color}20` }]}>
+                    <Camera size={24} color={folder.color} />
+                  </View>
+                  <View style={styles.documentInfo}>
+                    <Text style={styles.documentName} numberOfLines={1}>{file.clientName}</Text>
+                    <Text style={styles.documentDate}>
+                      {new Date(file.completedAt || file.createdAt).toLocaleDateString()}
+                    </Text>
+                    {file.videoSize && (
+                      <Text style={styles.documentNotes}>
+                        {(file.videoSize / 1024 / 1024).toFixed(1)} MB
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
               );
             } else {
               return (
