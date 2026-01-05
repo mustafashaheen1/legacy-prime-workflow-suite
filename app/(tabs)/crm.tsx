@@ -1022,7 +1022,11 @@ export default function CRMScreen() {
     const estimate = estimates.find(e => e.id === estimateId);
     if (!estimate) {
       console.error('[CRM] Estimate not found:', estimateId);
-      Alert.alert('Error', 'Estimate not found');
+      if (Platform.OS === 'web') {
+        alert('Estimate not found');
+      } else {
+        Alert.alert('Error', 'Estimate not found');
+      }
       return;
     }
     console.log('[CRM] Found estimate:', estimate.name);
@@ -1030,27 +1034,29 @@ export default function CRMScreen() {
     const client = clients.find(c => c.id === selectedClientForEstimate);
     if (!client) {
       console.error('[CRM] Client not found. selectedClientForEstimate:', selectedClientForEstimate);
-      Alert.alert('Error', 'Client not found. Please try reopening the estimates modal.');
+      if (Platform.OS === 'web') {
+        alert('Client not found. Please try reopening the estimates modal.');
+      } else {
+        Alert.alert('Error', 'Client not found. Please try reopening the estimates modal.');
+      }
       return;
     }
     console.log('[CRM] Found client:', client.name);
 
     if (!company?.id) {
       console.error('[CRM] Company not found');
-      Alert.alert('Error', 'Company not found. Please try again.');
+      if (Platform.OS === 'web') {
+        alert('Company not found. Please try again.');
+      } else {
+        Alert.alert('Error', 'Company not found. Please try again.');
+      }
       return;
     }
     console.log('[CRM] Company found:', company.id);
     console.log('[CRM] About to show confirmation alert');
 
-    Alert.alert(
-      'Convert to Project',
-      'Has the estimate been approved and signed?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Yes, Convert',
-          onPress: async () => {
+    // Use web-compatible confirmation
+    const handleConvert = async () => {
             try {
               // Save project directly to database using tRPC
               const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -1097,22 +1103,46 @@ export default function CRMScreen() {
                 addProject(newProject);
                 updateEstimate(estimateId, { status: 'approved' });
 
-                Alert.alert(
-                  'Success',
-                  `Project created for ${client.name} using estimate "${estimate.name}"!`,
-                  [{ text: 'OK', onPress: () => setShowEstimateModal(false) }]
-                );
+                // Success message
+                if (Platform.OS === 'web') {
+                  alert(`Project created for ${client.name} using estimate "${estimate.name}"!`);
+                  setShowEstimateModal(false);
+                } else {
+                  Alert.alert(
+                    'Success',
+                    `Project created for ${client.name} using estimate "${estimate.name}"!`,
+                    [{ text: 'OK', onPress: () => setShowEstimateModal(false) }]
+                  );
+                }
               } else {
                 throw new Error('Failed to create project');
               }
             } catch (error) {
               console.error('[CRM] Error converting to project:', error);
-              Alert.alert('Error', 'Failed to create project. Please try again.');
+              if (Platform.OS === 'web') {
+                alert('Failed to create project. Please try again.');
+              } else {
+                Alert.alert('Error', 'Failed to create project. Please try again.');
+              }
             }
-          },
-        },
-      ]
-    );
+    };
+
+    // Show confirmation dialog
+    if (Platform.OS === 'web') {
+      const confirmed = confirm('Has the estimate been approved and signed?\n\nClick OK to convert to project, or Cancel to go back.');
+      if (confirmed) {
+        handleConvert();
+      }
+    } else {
+      Alert.alert(
+        'Convert to Project',
+        'Has the estimate been approved and signed?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Yes, Convert', onPress: handleConvert },
+        ]
+      );
+    }
   };
 
   const getFollowUpStatus = (client: Client): { status: 'followed-up' | 'pending' | 'overdue', color: string, label: string, emoji: string } => {
@@ -1250,7 +1280,11 @@ export default function CRMScreen() {
     if (!estimate) return;
 
     if (!company?.id) {
-      Alert.alert('Error', 'Company not found. Please try again.');
+      if (Platform.OS === 'web') {
+        alert('Company not found. Please try again.');
+      } else {
+        Alert.alert('Error', 'Company not found. Please try again.');
+      }
       return;
     }
 
@@ -1307,20 +1341,30 @@ export default function CRMScreen() {
         updateEstimate(estimateId, { status: 'approved' });
 
         // Show success message
-        Alert.alert(
-          'Success',
-          `Project created for ${client.name} using estimate "${estimate.name}"!`,
-          [
-            { text: 'View Projects', onPress: () => router.push('/dashboard') },
-            { text: 'OK' },
-          ]
-        );
+        if (Platform.OS === 'web') {
+          if (confirm(`Project created for ${client.name} using estimate "${estimate.name}"!\n\nWould you like to view your projects now?`)) {
+            router.push('/dashboard');
+          }
+        } else {
+          Alert.alert(
+            'Success',
+            `Project created for ${client.name} using estimate "${estimate.name}"!`,
+            [
+              { text: 'View Projects', onPress: () => router.push('/dashboard') },
+              { text: 'OK' },
+            ]
+          );
+        }
       } else {
         throw new Error('Failed to create project');
       }
     } catch (error) {
       console.error('[CRM] Error converting to project:', error);
-      Alert.alert('Error', 'Failed to create project. Please try again.');
+      if (Platform.OS === 'web') {
+        alert('Failed to create project. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to create project. Please try again.');
+      }
     }
   };
 
