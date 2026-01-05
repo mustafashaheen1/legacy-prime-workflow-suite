@@ -25,10 +25,9 @@ export default function ProjectDetailScreen() {
   const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string });
   const inspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery({
     companyId: company?.id || '',
-    projectId: id as string,
     status: 'all'
   }, {
-    enabled: !!company?.id && !!id
+    enabled: !!company?.id
   });
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
@@ -1141,73 +1140,106 @@ export default function ProjectDetailScreen() {
         );
 
       case 'videos':
-        const inspectionVideos = inspectionVideosQuery.data?.inspections || [];
-        const projectVideos = inspectionVideos.filter(v => v.status === 'completed' && v.videoUrl);
+        const allInspectionVideos = inspectionVideosQuery.data?.inspections || [];
+        const completedVideos = allInspectionVideos.filter(v => v.status === 'completed' && v.videoUrl);
+        const pendingVideos = allInspectionVideos.filter(v => v.status === 'pending');
 
         return (
-          <View style={styles.tabContentContainer}>
-            <View style={styles.sectionHeader}>
-              <Camera size={24} color="#2563EB" />
-              <Text style={styles.sectionHeaderText}>Inspection Videos</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{projectVideos.length}</Text>
+          <View style={styles.photosTabContent}>
+            <ScrollView style={styles.photosScrollView} showsVerticalScrollIndicator={false}>
+              <View style={styles.photosHeader}>
+                <View>
+                  <Text style={styles.photosTitle}>Inspection Videos</Text>
+                  <Text style={styles.filesSubtitle}>
+                    {completedVideos.length} completed • {pendingVideos.length} pending
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            {inspectionVideosQuery.isLoading ? (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading videos...</Text>
-              </View>
-            ) : projectVideos.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Camera size={48} color="#9CA3AF" />
-                <Text style={styles.emptyStateTitle}>No videos yet</Text>
-                <Text style={styles.emptyStateText}>
-                  Client inspection videos will appear here once uploaded
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.videoGrid}>
-                {projectVideos.map((video) => (
-                  <View key={video.id} style={styles.videoCard}>
-                    <View style={styles.videoThumbnail}>
-                      <Camera size={32} color="#FFFFFF" />
-                      <View style={styles.playButton}>
-                        <Text style={styles.playButtonText}>▶</Text>
-                      </View>
-                    </View>
-                    <View style={styles.videoDetails}>
-                      <Text style={styles.videoClientName}>{video.clientName}</Text>
-                      <Text style={styles.videoDate}>
-                        {new Date(video.completedAt || video.createdAt).toLocaleDateString()}
-                      </Text>
-                      {video.notes && (
-                        <Text style={styles.videoNotes} numberOfLines={2}>
-                          {video.notes}
-                        </Text>
-                      )}
-                      {video.videoSize && (
-                        <Text style={styles.videoSize}>
-                          {(video.videoSize / 1024 / 1024).toFixed(2)} MB
-                        </Text>
-                      )}
-                    </View>
-                    <TouchableOpacity
-                      style={styles.viewVideoButton}
-                      onPress={() => {
-                        if (Platform.OS === 'web' && video.videoUrl) {
-                          window.open(video.videoUrl, '_blank');
-                        } else {
-                          Alert.alert('Info', 'Video viewing on mobile coming soon');
-                        }
-                      }}
-                    >
-                      <Text style={styles.viewVideoButtonText}>View Video</Text>
-                    </TouchableOpacity>
+              {inspectionVideosQuery.isLoading ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.loadingText}>Loading videos...</Text>
+                </View>
+              ) : completedVideos.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Camera size={48} color="#9CA3AF" />
+                  <Text style={styles.emptyStateTitle}>No inspection videos yet</Text>
+                  <Text style={styles.emptyStateText}>
+                    Client inspection videos will appear here once uploaded
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.photosGallery}>
+                  <Text style={styles.photosGalleryTitle}>Completed Videos</Text>
+                  <View style={styles.videosGalleryGrid}>
+                    {completedVideos.map((video) => (
+                      <TouchableOpacity
+                        key={video.id}
+                        style={styles.videoGalleryItem}
+                        onPress={() => {
+                          if (Platform.OS === 'web' && video.videoUrl) {
+                            window.open(video.videoUrl, '_blank');
+                          } else {
+                            Alert.alert('Info', 'Video viewing on mobile coming soon');
+                          }
+                        }}
+                      >
+                        <View style={styles.videoGalleryThumbnail}>
+                          <Camera size={40} color="#FFFFFF" />
+                          <View style={styles.videoPlayOverlay}>
+                            <View style={styles.videoPlayButton}>
+                              <Text style={styles.videoPlayIcon}>▶</Text>
+                            </View>
+                          </View>
+                        </View>
+                        <View style={styles.videoGalleryInfo}>
+                          <Text style={styles.videoGalleryClient}>{video.clientName}</Text>
+                          <Text style={styles.videoGalleryDate}>
+                            {new Date(video.completedAt || video.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </Text>
+                          {video.videoSize && (
+                            <Text style={styles.videoGallerySize}>
+                              {(video.videoSize / 1024 / 1024).toFixed(1)} MB
+                            </Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
                   </View>
-                ))}
-              </View>
-            )}
+                </View>
+              )}
+
+              {pendingVideos.length > 0 && (
+                <View style={styles.photosGallery}>
+                  <Text style={styles.photosGalleryTitle}>Pending Videos</Text>
+                  <View style={styles.pendingVideosList}>
+                    {pendingVideos.map((video) => (
+                      <View key={video.id} style={styles.pendingVideoItem}>
+                        <View style={styles.pendingVideoIcon}>
+                          <Clock size={20} color="#F59E0B" />
+                        </View>
+                        <View style={styles.pendingVideoInfo}>
+                          <Text style={styles.pendingVideoClient}>{video.clientName}</Text>
+                          <Text style={styles.pendingVideoDate}>
+                            Requested {new Date(video.createdAt).toLocaleDateString()}
+                          </Text>
+                          <Text style={styles.pendingVideoExpiry}>
+                            Expires {new Date(video.expiresAt).toLocaleDateString()}
+                          </Text>
+                        </View>
+                        <View style={styles.pendingBadge}>
+                          <Text style={styles.pendingBadgeText}>Pending</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
           </View>
         );
 
@@ -3111,86 +3143,124 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
-  videoGrid: {
+  videosGalleryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
-    padding: 20,
   },
-  videoCard: {
+  videoGalleryItem: {
+    width: 180,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
-    width: '100%',
-    maxWidth: 320,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
-  videoThumbnail: {
+  videoGalleryThumbnail: {
+    width: '100%',
+    height: 140,
     backgroundColor: '#2563EB',
-    borderRadius: 8,
-    height: 180,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
     position: 'relative',
   },
-  playButton: {
+  videoPlayOverlay: {
     position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoPlayButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  playButtonText: {
+  videoPlayIcon: {
     fontSize: 20,
     color: '#2563EB',
     marginLeft: 3,
   },
-  videoDetails: {
-    gap: 6,
-    marginBottom: 12,
+  videoGalleryInfo: {
+    padding: 12,
+    gap: 4,
   },
-  videoClientName: {
-    fontSize: 16,
+  videoGalleryClient: {
+    fontSize: 14,
     fontWeight: '600' as const,
     color: '#1F2937',
   },
-  videoDate: {
-    fontSize: 13,
+  videoGalleryDate: {
+    fontSize: 12,
     color: '#6B7280',
   },
-  videoNotes: {
-    fontSize: 13,
-    color: '#4B5563',
-    lineHeight: 18,
-  },
-  videoSize: {
-    fontSize: 12,
+  videoGallerySize: {
+    fontSize: 11,
     color: '#9CA3AF',
   },
-  viewVideoButton: {
-    backgroundColor: '#2563EB',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+  pendingVideosList: {
+    gap: 12,
+  },
+  pendingVideoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 12,
+  },
+  pendingVideoIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  viewVideoButtonText: {
-    color: '#FFFFFF',
+  pendingVideoInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  pendingVideoClient: {
     fontSize: 14,
     fontWeight: '600' as const,
+    color: '#1F2937',
   },
-  loadingContainer: {
-    padding: 40,
-    alignItems: 'center',
+  pendingVideoDate: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  pendingVideoExpiry: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pendingBadgeText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: '#D97706',
   },
   loadingText: {
     fontSize: 14,
