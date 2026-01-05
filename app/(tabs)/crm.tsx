@@ -2209,20 +2209,22 @@ export default function CRMScreen() {
                         ]}>Request Signature</Text>
                       </TouchableOpacity>
 
-                      {estimate.status === 'paid' ? (
+                      {estimate.status === 'paid' || estimate.status === 'approved' ? (
                         <TouchableOpacity
-                          style={styles.workflowButton}
-                          onPress={() => convertToProject(estimate.id)}
+                          style={[styles.workflowButton, styles.workflowButtonDisabled]}
+                          disabled={true}
                         >
                           <CheckCircle size={18} color="#10B981" />
-                          <Text style={styles.workflowButtonText}>Convert to Project</Text>
+                          <Text style={styles.workflowButtonText}>
+                            {estimate.status === 'approved' ? 'Converted to Project' : 'Convert to Project'}
+                          </Text>
                         </TouchableOpacity>
                       ) : (
                         <View style={styles.workflowSplit}>
                           <TouchableOpacity
                             style={styles.workflowButtonHalf}
                             onPress={() => convertToProject(estimate.id)}
-                            disabled={estimate.status !== 'sent' && estimate.status !== 'approved'}
+                            disabled={estimate.status !== 'sent'}
                           >
                             <CheckCircle size={18} color="#10B981" />
                             <Text style={styles.workflowButtonTextSmall}>Convert to Project</Text>
@@ -4046,6 +4048,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  workflowButtonDisabled: {
+    opacity: 0.6,
+    backgroundColor: '#F3F4F6',
   },
   workflowButtonCompleted: {
     backgroundColor: '#F0FDF4',
