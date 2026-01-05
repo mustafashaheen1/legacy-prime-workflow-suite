@@ -1141,8 +1141,16 @@ export default function ProjectDetailScreen() {
 
       case 'videos':
         const allInspectionVideos = inspectionVideosQuery.data?.inspections || [];
-        const completedVideos = allInspectionVideos.filter(v => v.status === 'completed' && v.videoUrl);
-        const pendingVideos = allInspectionVideos.filter(v => v.status === 'pending');
+
+        // Extract client name from project name (format: "Client Name - Estimate Name")
+        const projectClientName = project.name.split(' - ')[0].trim();
+
+        // Filter videos to only show those belonging to this project's client
+        const clientVideos = allInspectionVideos.filter(v =>
+          v.clientName.toLowerCase() === projectClientName.toLowerCase() &&
+          v.status === 'completed' &&
+          v.videoUrl
+        );
 
         return (
           <View style={styles.photosTabContent}>
@@ -1151,7 +1159,7 @@ export default function ProjectDetailScreen() {
                 <View>
                   <Text style={styles.photosTitle}>Inspection Videos</Text>
                   <Text style={styles.filesSubtitle}>
-                    {completedVideos.length} completed • {pendingVideos.length} pending
+                    {clientVideos.length} {clientVideos.length === 1 ? 'video' : 'videos'} for {projectClientName}
                   </Text>
                 </View>
               </View>
@@ -1160,19 +1168,19 @@ export default function ProjectDetailScreen() {
                 <View style={styles.emptyState}>
                   <Text style={styles.loadingText}>Loading videos...</Text>
                 </View>
-              ) : completedVideos.length === 0 ? (
+              ) : clientVideos.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Camera size={48} color="#9CA3AF" />
                   <Text style={styles.emptyStateTitle}>No inspection videos yet</Text>
                   <Text style={styles.emptyStateText}>
-                    Client inspection videos will appear here once uploaded
+                    {projectClientName} hasn't uploaded any inspection videos yet
                   </Text>
                 </View>
               ) : (
                 <View style={styles.photosGallery}>
-                  <Text style={styles.photosGalleryTitle}>Completed Videos</Text>
+                  <Text style={styles.photosGalleryTitle}>Client Videos</Text>
                   <View style={styles.videosGalleryGrid}>
-                    {completedVideos.map((video) => (
+                    {clientVideos.map((video) => (
                       <TouchableOpacity
                         key={video.id}
                         style={styles.videoGalleryItem}
@@ -1208,33 +1216,6 @@ export default function ProjectDetailScreen() {
                           )}
                         </View>
                       </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {pendingVideos.length > 0 && (
-                <View style={styles.photosGallery}>
-                  <Text style={styles.photosGalleryTitle}>Pending Videos</Text>
-                  <View style={styles.pendingVideosList}>
-                    {pendingVideos.map((video) => (
-                      <View key={video.id} style={styles.pendingVideoItem}>
-                        <View style={styles.pendingVideoIcon}>
-                          <Clock size={20} color="#F59E0B" />
-                        </View>
-                        <View style={styles.pendingVideoInfo}>
-                          <Text style={styles.pendingVideoClient}>{video.clientName}</Text>
-                          <Text style={styles.pendingVideoDate}>
-                            Requested {new Date(video.createdAt).toLocaleDateString()}
-                          </Text>
-                          <Text style={styles.pendingVideoExpiry}>
-                            Expires {new Date(video.expiresAt).toLocaleDateString()}
-                          </Text>
-                        </View>
-                        <View style={styles.pendingBadge}>
-                          <Text style={styles.pendingBadgeText}>Pending</Text>
-                        </View>
-                      </View>
                     ))}
                   </View>
                 </View>
