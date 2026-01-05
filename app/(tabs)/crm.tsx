@@ -1021,6 +1021,11 @@ export default function CRMScreen() {
     const client = clients.find(c => c.id === selectedClientForEstimate);
     if (!client) return;
 
+    if (!company?.id) {
+      Alert.alert('Error', 'Company not found. Please try again.');
+      return;
+    }
+
     Alert.alert(
       'Convert to Project',
       'Has the estimate been approved and signed?',
@@ -1030,26 +1035,59 @@ export default function CRMScreen() {
           text: 'Yes, Convert',
           onPress: async () => {
             try {
-              const newProject: Project = {
-                id: `project-${Date.now()}`,
-                name: `${client.name} - ${estimate.name}`,
-                budget: estimate.total,
-                expenses: 0,
-                progress: 0,
-                status: 'active',
-                image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-                hoursWorked: 0,
-                startDate: new Date().toISOString(),
-              };
+              // Save project directly to database using tRPC
+              const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+              const response = await fetch(`${baseUrl}/trpc/projects.addProject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  json: {
+                    companyId: company.id,
+                    name: `${client.name} - ${estimate.name}`,
+                    budget: estimate.total,
+                    expenses: 0,
+                    progress: 0,
+                    status: 'active',
+                    image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+                    hoursWorked: 0,
+                    startDate: new Date().toISOString(),
+                  },
+                }),
+              });
 
-              await addProject(newProject);
-              updateEstimate(estimateId, { status: 'approved' });
+              if (!response.ok) {
+                throw new Error(`Failed to create project: ${response.status}`);
+              }
 
-              Alert.alert(
-                'Success',
-                `Project created for ${client.name} using estimate "${estimate.name}"!`,
-                [{ text: 'OK', onPress: () => setShowEstimateModal(false) }]
-              );
+              const data = await response.json();
+              const result = data.result.data.json;
+
+              if (result.success && result.project) {
+                // Add to local state
+                const newProject: Project = {
+                  id: result.project.id,
+                  name: result.project.name,
+                  budget: result.project.budget,
+                  expenses: result.project.expenses,
+                  progress: result.project.progress,
+                  status: result.project.status,
+                  image: result.project.image,
+                  hoursWorked: result.project.hoursWorked,
+                  startDate: result.project.startDate,
+                  endDate: result.project.endDate,
+                };
+
+                addProject(newProject);
+                updateEstimate(estimateId, { status: 'approved' });
+
+                Alert.alert(
+                  'Success',
+                  `Project created for ${client.name} using estimate "${estimate.name}"!`,
+                  [{ text: 'OK', onPress: () => setShowEstimateModal(false) }]
+                );
+              } else {
+                throw new Error('Failed to create project');
+              }
             } catch (error) {
               console.error('[CRM] Error converting to project:', error);
               Alert.alert('Error', 'Failed to create project. Please try again.');
@@ -1194,38 +1232,75 @@ export default function CRMScreen() {
     const estimate = estimates.find(e => e.id === estimateId);
     if (!estimate) return;
 
+    if (!company?.id) {
+      Alert.alert('Error', 'Company not found. Please try again.');
+      return;
+    }
+
     // Close modal immediately for better UX
     setShowConvertToProjectModal(false);
     setSelectedClientForConversion(null);
 
     try {
-      // Create project using context function (which handles database save internally)
-      const newProject: Project = {
-        id: `project-${Date.now()}`,
-        name: `${client.name} - ${estimate.name}`,
-        budget: estimate.total,
-        expenses: 0,
-        progress: 0,
-        status: 'active',
-        image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-        hoursWorked: 0,
-        startDate: new Date().toISOString(),
-      };
+      // Save project directly to database using tRPC
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/trpc/projects.addProject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          json: {
+            companyId: company.id,
+            name: `${client.name} - ${estimate.name}`,
+            budget: estimate.total,
+            expenses: 0,
+            progress: 0,
+            status: 'active',
+            image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+            hoursWorked: 0,
+            startDate: new Date().toISOString(),
+          },
+        }),
+      });
 
-      await addProject(newProject);
+      if (!response.ok) {
+        throw new Error(`Failed to create project: ${response.status}`);
+      }
 
-      // Remove the estimate from the list (mark as converted)
-      updateEstimate(estimateId, { status: 'approved' });
+      const data = await response.json();
+      const result = data.result.data.json;
 
-      // Show success message
-      Alert.alert(
-        'Success',
-        `Project created for ${client.name} using estimate "${estimate.name}"!`,
-        [
-          { text: 'View Projects', onPress: () => router.push('/dashboard') },
-          { text: 'OK' },
-        ]
-      );
+      if (result.success && result.project) {
+        // Add to local state
+        const newProject: Project = {
+          id: result.project.id,
+          name: result.project.name,
+          budget: result.project.budget,
+          expenses: result.project.expenses,
+          progress: result.project.progress,
+          status: result.project.status,
+          image: result.project.image,
+          hoursWorked: result.project.hoursWorked,
+          startDate: result.project.startDate,
+          endDate: result.project.endDate,
+        };
+
+        addProject(newProject);
+
+        // Remove the estimate from the list (mark as converted)
+        updateEstimate(estimateId, { status: 'approved' });
+
+        // Show success message
+        Alert.alert(
+          'Success',
+          `Project created for ${client.name} using estimate "${estimate.name}"!`,
+          [
+            { text: 'View Projects', onPress: () => router.push('/dashboard') },
+            { text: 'OK' },
+          ]
+        );
+      } else {
+        throw new Error('Failed to create project');
+      }
     } catch (error) {
       console.error('[CRM] Error converting to project:', error);
       Alert.alert('Error', 'Failed to create project. Please try again.');
