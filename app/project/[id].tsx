@@ -736,7 +736,14 @@ export default function ProjectDetailScreen() {
         );
 
       case 'estimate':
+        console.log('[Estimate Tab] Debug info:', {
+          projectId: project.id,
+          projectEstimateId: project.estimateId,
+          estimatesCount: estimates.length,
+          estimateIds: estimates.map(e => e.id),
+        });
         const originalEstimate = project.estimateId ? estimates.find(e => e.id === project.estimateId) : null;
+        console.log('[Estimate Tab] Found original estimate:', originalEstimate ? originalEstimate.name : 'NOT FOUND');
 
         return (
           <ScrollView style={styles.estimateTabContent}>
