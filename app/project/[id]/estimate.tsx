@@ -2095,7 +2095,7 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
       const documentFiles = attachedFiles.filter(file => !file.type.startsWith('image'));
       if (documentFiles.length > 0) {
         const docsList = documentFiles.map(f => f.name).join(', ');
-        imageAnalysisText += `\n\nAttached Documents: ${docsList}\nNote: User has attached ${documentFiles.length} document(s). Consider these may contain specifications, drawings, or additional project details.`;
+        imageAnalysisText += `\n\nAttached Documents: ${docsList}\n\nIMPORTANT: The user has attached project documents. Since you cannot read document contents, you MUST use the user's text description to understand what work needs to be done. If the user's description is vague (like "generate estimate" or "create proposal"), ask them to be more specific by returning this response:\n\n{"replaceExisting": true, "items": [], "needsMoreInfo": true, "message": "Please describe what type of work this is for (e.g., kitchen remodel, bathroom renovation, deck construction, etc.) so I can generate accurate line items."}\n\nONLY generate items if you have clear context about the type of work needed.`;
         console.log('[AI Estimate] Documents attached:', documentFiles.length);
       }
 
@@ -2253,6 +2253,13 @@ Use "custom" for items not in list.`;
           shouldReplace = parsed.replaceExisting !== false; // Default to true if not specified
           aiGeneratedItems = parsed.items || [];
           console.log('[AI Estimate] Parsed items:', aiGeneratedItems.length, 'shouldReplace:', shouldReplace);
+
+          // Check if AI is requesting more information
+          if (parsed.needsMoreInfo && parsed.message) {
+            console.log('[AI Estimate] AI requesting more context:', parsed.message);
+            Alert.alert('Need More Details', parsed.message);
+            return;
+          }
         } else {
           // Fallback to old array format for backward compatibility
           console.log('[AI Estimate] Looking for array format response');
@@ -2317,9 +2324,14 @@ Use "custom" for items not in list.`;
 
       if (generatedItems.length === 0) {
         console.warn('[AI Estimate] No items were generated from AI response');
+        const hasDocuments = attachedFiles.some(f => !f.type.startsWith('image'));
+        const suggestion = hasDocuments
+          ? 'Since you attached a document, please describe what type of work this is for.\n\nExample: "Kitchen remodel with the attached scope document" or "Bathroom renovation as outlined in the PDF"'
+          : 'Please provide more details about the scope of work.\n\nExample: "Replace kitchen cabinets, install granite countertops, paint walls"';
+
         Alert.alert(
-          'No Items Generated',
-          `AI returned ${aiGeneratedItems.length} items but none could be processed.\n\nPossible reasons:\n- Items don't match price list\n- Invalid item format\n- Not enough context provided\n\nTry being more specific about what work needs to be done.`
+          'Need More Details',
+          `The AI couldn't generate any items from your description.\n\n${suggestion}`
         );
         return;
       }
