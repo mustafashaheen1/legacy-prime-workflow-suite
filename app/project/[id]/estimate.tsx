@@ -2060,117 +2060,310 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
     try {
       console.log('[AI Estimate] Generating estimate from description:', textInput);
 
-      // Prepare attached files for Vision API (convert PDFs to images)
-      let attachedFilesData: any[] = [];
+      // Check if we have any PDFs - if so, use backend API (like takeoff)
+      const hasPDFs = attachedFiles.some(file =>
+        file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')
+      );
 
-      if (attachedFiles.length > 0) {
-        console.log('[AI Estimate] Processing', attachedFiles.length, 'attached files for Vision API');
+      // If we have PDFs, use the backend API for document analysis
+      if (hasPDFs && Platform.OS === 'web') {
+        console.log('[AI Estimate] PDF detected - using backend API (same as takeoff)');
 
-        for (const file of attachedFiles) {
-          try {
-            // Check if it's a PDF
-            const isPDF = file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
+        const pdfFile = attachedFiles.find(file =>
+          file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')
+        );
 
-            if (isPDF && Platform.OS === 'web') {
-              // Convert PDF to images on web
-              console.log('[AI Estimate] Converting PDF to images:', file.name);
-
-              try {
-                // Set up PDF.js worker
-                pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
-                // Load PDF
-                const response = await fetch(file.uri);
-                const arrayBuffer = await response.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-                console.log('[AI Estimate] PDF has', pdf.numPages, 'pages');
-
-                // Convert each page to image (limit to first 3 pages to avoid token limits)
-                const maxPages = Math.min(pdf.numPages, 3);
-                for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-                  const page = await pdf.getPage(pageNum);
-                  const viewport = page.getViewport({ scale: 1.5 }); // 1.5x scale for balance of quality and size
-
-                  // Create canvas
-                  const canvas = document.createElement('canvas');
-                  const context = canvas.getContext('2d');
-                  canvas.height = viewport.height;
-                  canvas.width = viewport.width;
-
-                  // Render PDF page to canvas
-                  await page.render({ canvasContext: context!, viewport }).promise;
-
-                  // Convert canvas to base64 (use lower quality JPEG to reduce size)
-                  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-
-                  attachedFilesData.push({
-                    type: 'image_url',
-                    image_url: {
-                      url: dataUrl,
-                      detail: 'high', // Request high detail analysis
-                    },
-                  });
-
-                  console.log('[AI Estimate] Converted PDF page', pageNum, 'to image (', Math.round(dataUrl.length / 1024), 'KB )');
-                }
-              } catch (pdfError) {
-                console.error('[AI Estimate] Failed to convert PDF:', pdfError);
-                Alert.alert('PDF Conversion Error', `Could not convert PDF "${file.name}" to images. Please try using image files instead.`);
-                continue;
-              }
-            } else {
-              // Handle regular images
-              let base64 = '';
-
-              // Handle web vs native differently
-              if (Platform.OS === 'web') {
-                // On web, use FileReader API
-                const response = await fetch(file.uri);
-                const blob = await response.blob();
-                base64 = await new Promise<string>((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    const result = reader.result as string;
-                    // Extract base64 part (remove data:...;base64, prefix if present)
-                    const base64Data = result.includes('base64,')
-                      ? result.split('base64,')[1]
-                      : result;
-                    resolve(base64Data);
-                  };
-                  reader.onerror = reject;
-                  reader.readAsDataURL(blob);
-                });
-              } else {
-                // On native, use FileSystem
-                base64 = await FileSystem.readAsStringAsync(file.uri, {
-                  encoding: FileSystem.EncodingType.Base64,
-                });
-              }
-
-              // Determine mime type
-              let mimeType = 'image/jpeg';
-              if (file.type.includes('png')) mimeType = 'image/png';
-              else if (file.type.includes('webp')) mimeType = 'image/webp';
-              else if (file.type.includes('gif')) mimeType = 'image/gif';
-
-              attachedFilesData.push({
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${base64}`,
-                },
-              });
-
-              console.log('[AI Estimate] Added image to vision API:', file.name, mimeType);
-            }
-          } catch (error) {
-            console.error('[AI Estimate] Failed to process file:', file.name, error);
-            Alert.alert('File Processing Error', `Could not process "${file.name}". Please try a different file.`);
-          }
+        if (!pdfFile) {
+          throw new Error('PDF file not found');
         }
 
-        console.log('[AI Estimate] Total images prepared for Vision API:', attachedFilesData.length);
+        try {
+          // Import pdf.js dynamically (same as takeoff)
+          const pdfjsLib = await import('pdfjs-dist');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+          console.log('[AI Estimate] Converting PDF to images...');
+
+          // Fetch PDF as blob
+          const response = await fetch(pdfFile.uri);
+          const blob = await response.blob();
+          const arrayBuffer = await blob.arrayBuffer();
+
+          // Load PDF
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          const maxPages = Math.min(pdf.numPages, 3); // Limit to 3 pages like takeoff
+
+          console.log(`[AI Estimate] PDF has ${pdf.numPages} pages, converting first ${maxPages}...`);
+
+          // Convert each page to PNG and upload to S3
+          const imageUrls: string[] = [];
+          const blobs: Blob[] = [];
+
+          for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 1.5 });
+
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            if (!context) throw new Error('Failed to get canvas context');
+
+            // Render PDF page to canvas
+            await page.render({
+              canvasContext: context,
+              viewport: viewport,
+            }).promise;
+
+            // Convert to PNG blob
+            const pageBlob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob(
+                (blob) => {
+                  if (blob) resolve(blob);
+                  else reject(new Error('Failed to convert page to blob'));
+                },
+                'image/png',
+                0.92 // Compression
+              );
+            });
+
+            blobs.push(pageBlob);
+            console.log(`[AI Estimate] Converted page ${pageNum} (${(pageBlob.size / 1024 / 1024).toFixed(2)} MB)`);
+          }
+
+          // Upload all pages to S3
+          console.log(`[AI Estimate] Uploading ${blobs.length} pages to S3...`);
+
+          for (let i = 0; i < blobs.length; i++) {
+            const pageNum = i + 1;
+
+            // Get pre-signed upload URL
+            const urlResponse = await fetch('/api/get-s3-upload-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: `${pdfFile.name}-page-${pageNum}.png`,
+                fileType: 'image/png',
+              }),
+            });
+
+            if (!urlResponse.ok) {
+              const error = await urlResponse.json();
+              throw new Error(error.error || 'Failed to get upload URL');
+            }
+
+            const { uploadUrl, fileUrl } = await urlResponse.json();
+
+            // Upload to S3
+            const uploadResponse = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: blobs[i],
+              headers: { 'Content-Type': 'image/png' },
+            });
+
+            if (!uploadResponse.ok) {
+              throw new Error(`Failed to upload page ${pageNum} to S3`);
+            }
+
+            imageUrls.push(fileUrl);
+            console.log(`[AI Estimate] Page ${pageNum} uploaded:`, fileUrl);
+          }
+
+          console.log(`[AI Estimate] All ${imageUrls.length} pages uploaded, calling backend API...`);
+
+          // Call backend API with image URLs
+          const apiResponse = await fetch('/api/analyze-document', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageUrls,
+              documentType: 'pdf',
+              priceListItems: masterPriceList,
+            }),
+          });
+
+          if (!apiResponse.ok) {
+            const error = await apiResponse.json();
+            console.error('[AI Estimate] Backend API error:', error);
+            throw new Error(error.message || error.error || 'Failed to analyze document');
+          }
+
+          const result = await apiResponse.json();
+          console.log('[AI Estimate] Backend API returned', result.items?.length || 0, 'items');
+
+          if (!result.success || !result.items || result.items.length === 0) {
+            Alert.alert(
+              'No Items Found',
+              'The AI could not extract any construction items from this PDF. The document may be unclear, low quality, or not in a standard construction format.',
+              [{ text: 'OK' }]
+            );
+            setIsGenerating(false);
+            return;
+          }
+
+          // Convert backend API items to estimate items
+          const generatedItems: EstimateItem[] = result.items.map((aiItem: any, index: number) => {
+            const priceListItem = masterPriceList.find(pl => pl.id === aiItem.priceListItemId);
+            if (!priceListItem) {
+              console.warn('[AI Estimate] Price list item not found:', aiItem.priceListItemId);
+              return null;
+            }
+
+            return {
+              id: `ai-generated-${Date.now()}-${index}`,
+              priceListItemId: priceListItem.id,
+              quantity: aiItem.quantity || 1,
+              unitPrice: priceListItem.unitPrice,
+              total: (aiItem.quantity || 1) * priceListItem.unitPrice,
+              notes: aiItem.notes || 'Generated from PDF by AI',
+            };
+          }).filter(Boolean) as EstimateItem[];
+
+          console.log('[AI Estimate] Generated', generatedItems.length, 'estimate items from PDF');
+
+          // Always replace when analyzing documents
+          onGenerate(generatedItems, true);
+          setTextInput('');
+          setAttachedFiles([]);
+          onClose();
+          setIsGenerating(false);
+          return;
+        } catch (error: any) {
+          console.error('[AI Estimate] PDF processing error:', error);
+          Alert.alert(
+            'PDF Processing Failed',
+            `Failed to process PDF: ${error.message}\n\nPlease try converting the PDF to images first, or use the Takeoff feature.`,
+            [{ text: 'OK' }]
+          );
+          setIsGenerating(false);
+          return;
+        }
+      } else if (hasPDFs && Platform.OS !== 'web') {
+        // PDFs on mobile not supported yet
+        Alert.alert(
+          'PDF Not Supported',
+          'PDF analysis is currently only available on web. Please use the Takeoff feature or convert your PDF to images.',
+          [{ text: 'OK' }]
+        );
+        setIsGenerating(false);
+        return;
       }
+
+      // If we have images attached, also use backend API for consistency with takeoff
+      if (attachedFiles.length > 0) {
+        console.log('[AI Estimate] Images detected - using backend API for consistency with takeoff');
+
+        try {
+          // Process all image files
+          const imageFile = attachedFiles[0]; // Use first image for now
+          let imageData = '';
+
+          // Convert image to base64
+          if (Platform.OS === 'web') {
+            const response = await fetch(imageFile.uri);
+            const blob = await response.blob();
+            const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const result = reader.result as string;
+                const base64Data = result.includes('base64,')
+                  ? result.split('base64,')[1]
+                  : result;
+                resolve(base64Data);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+
+            // Determine mime type
+            let mimeType = 'image/jpeg';
+            if (imageFile.type.includes('png')) mimeType = 'image/png';
+            else if (imageFile.type.includes('webp')) mimeType = 'image/webp';
+            else if (imageFile.type.includes('gif')) mimeType = 'image/gif';
+
+            imageData = `data:${mimeType};base64,${base64}`;
+          } else {
+            const base64 = await FileSystem.readAsStringAsync(imageFile.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            imageData = `data:image/jpeg;base64,${base64}`;
+          }
+
+          console.log('[AI Estimate] Calling backend API with image...');
+
+          // Call backend API
+          const apiResponse = await fetch('/api/analyze-document', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageData,
+              documentType: 'image',
+              priceListItems: masterPriceList,
+            }),
+          });
+
+          if (!apiResponse.ok) {
+            const error = await apiResponse.json();
+            console.error('[AI Estimate] Backend API error:', error);
+            throw new Error(error.message || error.error || 'Failed to analyze document');
+          }
+
+          const result = await apiResponse.json();
+          console.log('[AI Estimate] Backend API returned', result.items?.length || 0, 'items');
+
+          if (!result.success || !result.items || result.items.length === 0) {
+            Alert.alert(
+              'No Items Found',
+              'The AI could not extract any construction items from this image. The image may be unclear, low quality, or not contain construction information.',
+              [{ text: 'OK' }]
+            );
+            setIsGenerating(false);
+            return;
+          }
+
+          // Convert backend API items to estimate items
+          const generatedItems: EstimateItem[] = result.items.map((aiItem: any, index: number) => {
+            const priceListItem = masterPriceList.find(pl => pl.id === aiItem.priceListItemId);
+            if (!priceListItem) {
+              console.warn('[AI Estimate] Price list item not found:', aiItem.priceListItemId);
+              return null;
+            }
+
+            return {
+              id: `ai-generated-${Date.now()}-${index}`,
+              priceListItemId: priceListItem.id,
+              quantity: aiItem.quantity || 1,
+              unitPrice: priceListItem.unitPrice,
+              total: (aiItem.quantity || 1) * priceListItem.unitPrice,
+              notes: aiItem.notes || 'Generated from image by AI',
+            };
+          }).filter(Boolean) as EstimateItem[];
+
+          console.log('[AI Estimate] Generated', generatedItems.length, 'estimate items from image');
+
+          // Always replace when analyzing documents
+          onGenerate(generatedItems, true);
+          setTextInput('');
+          setAttachedFiles([]);
+          onClose();
+          setIsGenerating(false);
+          return;
+        } catch (error: any) {
+          console.error('[AI Estimate] Image processing error:', error);
+          Alert.alert(
+            'Image Processing Failed',
+            `Failed to process image: ${error.message}`,
+            [{ text: 'OK' }]
+          );
+          setIsGenerating(false);
+          return;
+        }
+      }
+
+      // Text-only generation (no files attached)
+      let attachedFilesData: any[] = [];
 
       // Limit to 50 items to stay within Vercel timeout limits
       // Prioritize common categories for construction estimates
