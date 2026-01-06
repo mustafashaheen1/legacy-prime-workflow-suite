@@ -2168,9 +2168,13 @@ Use "custom" for items not in list.`;
       }
 
       console.log('[AI Estimate] Calling OpenAI API directly...');
+      console.log('[AI Estimate] Text input:', textInput);
+      console.log('[AI Estimate] Image/doc analysis text length:', imageAnalysisText.length);
+      console.log('[AI Estimate] Attached files:', attachedFiles.length);
 
       // Build the current user message
       const currentUserMessage = `${textInput}${imageAnalysisText}`;
+      console.log('[AI Estimate] Current user message length:', currentUserMessage.length);
 
       // Build messages array with conversation history
       const messages = [
@@ -2226,7 +2230,8 @@ Use "custom" for items not in list.`;
         usage: data.usage,
       };
 
-      console.log('[AI Estimate] API Response:', result);
+      console.log('[AI Estimate] API Response length:', result.message.length);
+      console.log('[AI Estimate] API Response preview:', result.message.substring(0, 200));
 
       if (!result.success) {
         const errorMsg = 'error' in result ? result.error : 'Failed to generate estimate';
@@ -2238,26 +2243,34 @@ Use "custom" for items not in list.`;
 
       try {
         const content = result.message || '';
+        console.log('[AI Estimate] Parsing response content...');
 
         // Try to parse as object with replaceExisting flag first
         const objectMatch = content.match(/\{\s*"replaceExisting"[\s\S]*\}/);
         if (objectMatch) {
+          console.log('[AI Estimate] Found object format response');
           const parsed = JSON.parse(objectMatch[0]);
           shouldReplace = parsed.replaceExisting !== false; // Default to true if not specified
           aiGeneratedItems = parsed.items || [];
+          console.log('[AI Estimate] Parsed items:', aiGeneratedItems.length, 'shouldReplace:', shouldReplace);
         } else {
           // Fallback to old array format for backward compatibility
+          console.log('[AI Estimate] Looking for array format response');
           const arrayMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
           if (arrayMatch) {
+            console.log('[AI Estimate] Found array format response');
             aiGeneratedItems = JSON.parse(arrayMatch[0]);
             shouldReplace = existingItems.length === 0; // Only replace if no existing items
+            console.log('[AI Estimate] Parsed items:', aiGeneratedItems.length);
           } else {
+            console.error('[AI Estimate] No valid JSON found in response. Content:', content);
             throw new Error('No valid JSON found in response');
           }
         }
-      } catch (parseError) {
+      } catch (parseError: any) {
         console.error('[AI Estimate] Failed to parse AI response:', parseError);
-        Alert.alert('Error', 'Failed to parse AI response. Please try again.');
+        console.error('[AI Estimate] Parse error details:', parseError?.message);
+        Alert.alert('Error', `Failed to parse AI response: ${parseError?.message}\n\nThe AI may have returned an unexpected format.`);
         return;
       }
 
@@ -2299,8 +2312,15 @@ Use "custom" for items not in list.`;
         }
       }
 
+      console.log('[AI Estimate] Processing complete. Generated items count:', generatedItems.length);
+      console.log('[AI Estimate] AI returned items count:', aiGeneratedItems.length);
+
       if (generatedItems.length === 0) {
-        Alert.alert('No Items Generated', 'AI could not generate any line items from your description. Please try being more specific.');
+        console.warn('[AI Estimate] No items were generated from AI response');
+        Alert.alert(
+          'No Items Generated',
+          `AI returned ${aiGeneratedItems.length} items but none could be processed.\n\nPossible reasons:\n- Items don't match price list\n- Invalid item format\n- Not enough context provided\n\nTry being more specific about what work needs to be done.`
+        );
         return;
       }
 
@@ -2369,9 +2389,15 @@ Use "custom" for items not in list.`;
       setTextInput('');
       const action = shouldReplace ? 'Replaced estimate with' : 'Added';
       Alert.alert('Success', `${action} ${generatedItems.length} line items from your description.`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[AI Estimate] Generation error:', error);
-      Alert.alert('Error', 'Failed to generate estimate. Please try again.');
+      console.error('[AI Estimate] Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name
+      });
+      const errorMessage = error?.message || 'Unknown error occurred';
+      Alert.alert('Error', `Failed to generate estimate: ${errorMessage}\n\nPlease check the console for details.`);
     } finally {
       setIsGenerating(false);
     }
