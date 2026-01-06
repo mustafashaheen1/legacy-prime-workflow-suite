@@ -1895,20 +1895,27 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
         }
 
         // Transcribe with OpenAI Whisper
-        console.log('[AI Estimate] Transcribing audio...');
+        console.log('[AI Estimate] Transcribing audio, base64 length:', base64.length);
         const result = await vanillaClient.openai.speechToText.mutate({
           audioBase64: base64,
           language: 'en',
         });
 
+        console.log('[AI Estimate] Transcription result:', result);
         setRecording(null);
 
         if (result.success && result.text) {
           // Append transcribed text to the input
-          setTextInput(prev => prev ? `${prev} ${result.text}` : result.text);
-          console.log('[AI Estimate] Transcription:', result.text);
+          const newText = textInput ? `${textInput} ${result.text}` : result.text;
+          console.log('[AI Estimate] Setting text input to:', newText);
+          setTextInput(newText);
+          console.log('[AI Estimate] Transcription successful:', result.text);
+
+          // Show success feedback
+          Alert.alert('Success', `Transcribed: "${result.text}"`);
         } else {
-          Alert.alert('Error', 'Failed to transcribe audio');
+          console.error('[AI Estimate] Transcription failed:', result);
+          Alert.alert('Error', `Failed to transcribe audio. Result: ${JSON.stringify(result)}`);
         }
       } else {
         // Clean up any existing recording first
