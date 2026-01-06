@@ -1891,6 +1891,18 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
           Alert.alert('Error', 'Failed to transcribe audio');
         }
       } else {
+        // Clean up any existing recording first
+        if (recording) {
+          console.log('[AI Estimate] Cleaning up existing recording...');
+          try {
+            await recording.stopAndUnloadAsync();
+          } catch (cleanupError) {
+            console.warn('[AI Estimate] Error cleaning up existing recording:', cleanupError);
+          }
+          setRecording(null);
+          setIsRecording(false);
+        }
+
         // Start recording
         console.log('[AI Estimate] Requesting microphone permissions...');
         const permission = await Audio.requestPermissionsAsync();
@@ -1917,7 +1929,17 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
     } catch (error) {
       console.error('[AI Estimate] Microphone error:', error);
       setIsRecording(false);
+
+      // Properly clean up the recording on error
+      if (recording) {
+        try {
+          await recording.stopAndUnloadAsync();
+        } catch (cleanupError) {
+          console.warn('[AI Estimate] Error during cleanup:', cleanupError);
+        }
+      }
       setRecording(null);
+
       Alert.alert('Error', 'Failed to record audio');
     }
   };
