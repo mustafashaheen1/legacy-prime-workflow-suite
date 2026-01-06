@@ -2249,7 +2249,7 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
 
       // Build the current user message
       const userPromptText = attachedFilesData.length > 0
-        ? `${textInput || 'Analyze the attached documents and generate an estimate based on what you see.'}\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n1. LOOK AT THE ATTACHED IMAGES/DOCUMENTS - they contain the project scope\n2. Analyze if user wants to REPLACE existing items or ADD to them\n3. If budget is mentioned, final total MUST be within ±10% of that amount\n4. DO NOT exceed budget by 2x or more\n5. Set replaceExisting=true if user says "change budget", "increase to", "decrease to", or starting fresh\n6. Set replaceExisting=false if user says "add", "also include", "plus"\n\nRespond with JSON object containing replaceExisting flag and items array.`
+        ? `${textInput || 'Analyze the attached documents and generate an estimate based on what you see.'}\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n1. YOU HAVE ${attachedFilesData.length} IMAGE(S) ATTACHED - these are PDF pages containing the construction scope\n2. CAREFULLY READ the images to extract:\n   - What work needs to be done\n   - Quantities or measurements mentioned\n   - Any budget constraints\n3. Match the work you see to items in the price list\n4. Generate a complete estimate based on what you read in the images\n5. DO NOT ask for more information - the images contain the full scope\n6. If you cannot read the images clearly, generate a basic estimate for the type of project you can identify\n7. Set replaceExisting=true (this is a new estimate)\n\nYou MUST generate items based on the images. DO NOT return empty items array unless the images are completely unreadable.`
         : `${textInput}\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n1. Analyze if user wants to REPLACE existing items or ADD to them\n2. If budget is mentioned, final total MUST be within ±10% of that amount\n3. DO NOT exceed budget by 2x or more\n4. Set replaceExisting=true if user says "change budget", "increase to", "decrease to", or starting fresh\n5. Set replaceExisting=false if user says "add", "also include", "plus"\n\nRespond with JSON object containing replaceExisting flag and items array.`;
 
       const currentUserMessage = textInput; // Store just text for conversation history
@@ -2341,7 +2341,14 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
           // Check if AI is requesting more information
           if (parsed.needsMoreInfo && parsed.message) {
             console.log('[AI Estimate] AI requesting more context:', parsed.message);
-            Alert.alert('Need More Details', parsed.message);
+            console.log('[AI Estimate] Showing alert to user...');
+            setTimeout(() => {
+              Alert.alert(
+                'AI Needs More Details',
+                parsed.message + '\n\nNote: The AI should be reading the attached documents. If this keeps happening, the PDF quality might be poor or the AI cannot extract information from it.',
+                [{ text: 'OK', onPress: () => console.log('[AI Estimate] User dismissed alert') }]
+              );
+            }, 100);
             return;
           }
         } else {
