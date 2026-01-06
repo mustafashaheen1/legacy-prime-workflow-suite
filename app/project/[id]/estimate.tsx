@@ -1894,28 +1894,55 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
           });
         }
 
-        // Transcribe with OpenAI Whisper
+        // Transcribe with OpenAI Whisper (direct API call to avoid timeout)
         console.log('[AI Estimate] Transcribing audio, base64 length:', base64.length);
-        const result = await vanillaClient.openai.speechToText.mutate({
-          audioBase64: base64,
-          language: 'en',
+
+        const apiKey = Constants.expoConfig?.extra?.openaiApiKey || process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+        if (!apiKey) {
+          Alert.alert('Error', 'OpenAI API key not configured');
+          setRecording(null);
+          return;
+        }
+
+        // Convert base64 to blob
+        const audioBlob = await fetch(`data:audio/m4a;base64,${base64}`).then(r => r.blob());
+
+        // Create FormData for Whisper API
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'audio.m4a');
+        formData.append('model', 'whisper-1');
+        formData.append('language', 'en');
+
+        console.log('[AI Estimate] Calling OpenAI Whisper API directly...');
+        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: formData,
         });
 
-        console.log('[AI Estimate] Transcription result:', result);
         setRecording(null);
 
-        if (result.success && result.text) {
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[AI Estimate] Whisper API error:', errorText);
+          Alert.alert('Error', 'Failed to transcribe audio. Please try again.');
+          return;
+        }
+
+        const result = await response.json();
+        console.log('[AI Estimate] Transcription result:', result);
+
+        if (result.text) {
           // Append transcribed text to the input
           const newText = textInput ? `${textInput} ${result.text}` : result.text;
           console.log('[AI Estimate] Setting text input to:', newText);
           setTextInput(newText);
           console.log('[AI Estimate] Transcription successful:', result.text);
-
-          // Show success feedback
-          Alert.alert('Success', `Transcribed: "${result.text}"`);
         } else {
-          console.error('[AI Estimate] Transcription failed:', result);
-          Alert.alert('Error', `Failed to transcribe audio. Result: ${JSON.stringify(result)}`);
+          console.error('[AI Estimate] No text in transcription result:', result);
+          Alert.alert('Error', 'Failed to transcribe audio');
         }
       } else {
         // Clean up any existing recording first
