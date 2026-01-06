@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip, Search, X } from 'lucide-react-native';
+import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip, Search, X, Square } from 'lucide-react-native';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { masterPriceList, PriceListItem, priceListCategories, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { EstimateItem, Estimate, ProjectFile } from '@/types';
@@ -1870,9 +1870,29 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
         console.log('[AI Estimate] Recording saved to:', uri);
 
         // Convert to base64
-        const base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        let base64 = '';
+        if (Platform.OS === 'web') {
+          // On web, fetch the blob and convert to base64
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              const base64Data = result.includes('base64,')
+                ? result.split('base64,')[1]
+                : result;
+              resolve(base64Data);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } else {
+          // On native, use FileSystem
+          base64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        }
 
         // Transcribe with OpenAI Whisper
         console.log('[AI Estimate] Transcribing audio...');
@@ -2804,7 +2824,7 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
                 onPress={handleMicrophone}
               >
                 {isRecording ? (
-                  <ActivityIndicator size="small" color="#EF4444" />
+                  <Square size={24} color="#EF4444" fill="#EF4444" />
                 ) : (
                   <Mic size={24} color="#6B7280" />
                 )}
