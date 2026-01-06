@@ -2060,10 +2060,16 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: 
         `${item.id}|${item.name}|${item.unit}|$${item.unitPrice}`
       ).join('\n');
 
-      const systemPrompt = `Construction estimator. Match scope to price list items.
+      const systemPrompt = `Construction estimator. Match scope to price list items while STRICTLY respecting budget constraints.
 
 Items (ID|Name|Unit|Price):
 ${priceListContext}
+
+CRITICAL BUDGET RULES:
+- If user mentions a budget (e.g., "$5000", "budget of 5K"), the total estimate MUST be within ±10% of that amount
+- Adjust quantities and select appropriate items to fit the budget
+- Prioritize essential items if budget is tight
+- If scope cannot reasonably fit the budget, generate a realistic estimate but stay as close to budget as possible
 
 Respond ONLY with JSON array:
 [{"priceListItemId":"pl-1","quantity":10,"notes":"reason"}]
@@ -2098,7 +2104,7 @@ Use "custom" if no match.`;
             },
             {
               role: 'user',
-              content: `Scope: ${textInput}${imageAnalysisText}\n\nGenerate estimate items.`
+              content: `Project Scope and Requirements:\n${textInput}${imageAnalysisText}\n\nIMPORTANT: If a budget is mentioned above, the total estimate MUST match that budget (±10% maximum). Adjust quantities and item selection accordingly to fit within the specified budget.\n\nGenerate estimate items now.`
             }
           ],
           temperature: 0.7,
@@ -2793,14 +2799,14 @@ const styles = StyleSheet.create({
   },
   estimateItem: {
     backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 8,
+    borderRadius: 6,
+    padding: 6,
+    marginBottom: 6,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
   itemHeader: {
-    marginBottom: 8,
+    marginBottom: 4,
   },
   itemTitleRow: {
     flexDirection: 'row',
@@ -2808,14 +2814,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   itemName: {
-    fontSize: Platform.select({ web: 13, default: 14 }) as number,
+    fontSize: Platform.select({ web: 12, default: 13 }) as number,
     fontWeight: '600' as const,
     color: '#1F2937',
     flex: 1,
     marginRight: 8,
   },
   itemNameInput: {
-    fontSize: Platform.select({ web: 13, default: 14 }) as number,
+    fontSize: Platform.select({ web: 12, default: 13 }) as number,
     fontWeight: '600' as const,
     color: '#1F2937',
     flex: 1,
@@ -2826,23 +2832,23 @@ const styles = StyleSheet.create({
   },
   itemActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 4,
   },
   iconButton: {
-    padding: 4,
+    padding: 2,
   },
   itemMetaRow: {
-    marginBottom: 6,
+    marginBottom: 3,
   },
   itemCategory: {
-    fontSize: Platform.select({ web: 10, default: 11 }) as number,
+    fontSize: Platform.select({ web: 9, default: 10 }) as number,
     color: '#2563EB',
     fontWeight: '500' as const,
   },
   itemDetailsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 8,
+    gap: 8,
+    marginBottom: 4,
   },
   itemDetailsRowNarrow: {
     gap: 8,
@@ -2891,14 +2897,14 @@ const styles = StyleSheet.create({
     flex: 4,
   },
   itemLabel: {
-    fontSize: Platform.select({ web: 10, default: 11 }) as number,
+    fontSize: Platform.select({ web: 9, default: 10 }) as number,
     color: '#6B7280',
-    marginBottom: 5,
+    marginBottom: 3,
     fontWeight: '500' as const,
   },
   itemLabelNarrow: {
-    fontSize: Platform.select({ web: 8, default: 10 }) as number,
-    marginBottom: 3,
+    fontSize: Platform.select({ web: 8, default: 9 }) as number,
+    marginBottom: 2,
   },
   quantityInput: {
     flexDirection: 'row',
@@ -2906,24 +2912,24 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   quantityButton: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     backgroundColor: '#EFF6FF',
-    borderRadius: 6,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   quantityButtonNarrow: {
-    width: 22,
-    height: 22,
+    width: 20,
+    height: 20,
   },
   quantityButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600' as const,
     color: '#2563EB',
   },
   quantityButtonTextNarrow: {
-    fontSize: 14,
+    fontSize: 12,
   },
   quantityValue: {
     fontSize: 14,
