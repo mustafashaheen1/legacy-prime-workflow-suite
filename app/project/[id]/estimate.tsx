@@ -1139,32 +1139,33 @@ export default function EstimateScreen() {
           </View>
         </ScrollView>
 
-        <View style={[
-          styles.selectedItemsSection,
-          isWeb && !isNarrow && styles.selectedItemsSectionWeb,
-          isNarrow && styles.selectedItemsSectionNarrow
-        ]}>
-          <View style={styles.selectedItemsHeader}>
-            <Text style={styles.sectionLabel}>Selected Items ({items.filter(i => !i.isSeparator).length})</Text>
-            <View style={styles.headerButtonsContainer}>
-              <TouchableOpacity 
-                style={styles.aiGenerateButton}
-                onPress={() => setShowAIGenerateModal(true)}
-              >
-                <Sparkles size={16} color="#8B5CF6" />
-                <Text style={styles.aiGenerateButtonText}>Generate with AI</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.addBreakPointButton}
-                onPress={() => setShowAddSeparatorModal(true)}
-              >
-                <Plus size={16} color="#F59E0B" />
-                <Text style={styles.addBreakPointButtonText}>Break Point</Text>
-              </TouchableOpacity>
+        <View style={styles.selectedItemsContainer}>
+          <View style={[
+            styles.selectedItemsSection,
+            isWeb && !isNarrow && styles.selectedItemsSectionWeb,
+            isNarrow && styles.selectedItemsSectionNarrow
+          ]}>
+            <View style={styles.selectedItemsHeader}>
+              <Text style={styles.sectionLabel}>Selected Items ({items.filter(i => !i.isSeparator).length})</Text>
+              <View style={styles.headerButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.aiGenerateButton}
+                  onPress={() => setShowAIGenerateModal(true)}
+                >
+                  <Sparkles size={16} color="#8B5CF6" />
+                  <Text style={styles.aiGenerateButtonText}>Generate with AI</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.addBreakPointButton}
+                  onPress={() => setShowAddSeparatorModal(true)}
+                >
+                  <Plus size={16} color="#F59E0B" />
+                  <Text style={styles.addBreakPointButtonText}>Break Point</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
 
-          <ScrollView style={styles.itemsList} showsVerticalScrollIndicator={true}>
+            <ScrollView style={styles.itemsList} showsVerticalScrollIndicator={true}>
             {items.map((item) => {
               if (item.isSeparator) {
                 return (
@@ -1355,110 +1356,114 @@ export default function EstimateScreen() {
             })}
           </ScrollView>
         </View>
+
+          {items.length > 0 && (
+            <View style={styles.rightTotalsPanel}>
+              <View style={styles.rightPanelContent}>
+                <View style={styles.rightPanelTotalItem}>
+                  <Text style={styles.rightPanelLabel}>Subtotal</Text>
+                  <Text style={styles.rightPanelValue}>${subtotal.toFixed(2)}</Text>
+                </View>
+
+                {showBudget && totalBudget > 0 && (
+                  <View style={styles.rightPanelTotalItem}>
+                    <Text style={styles.rightPanelLabel}>Budget</Text>
+                    <Text style={styles.rightPanelBudgetValue}>${totalBudget.toFixed(2)}</Text>
+                  </View>
+                )}
+
+                <View style={styles.rightPanelEditableItem}>
+                  <Text style={styles.rightPanelLabel}>Markup</Text>
+                  <View style={styles.rightPanelEditRow}>
+                    <TextInput
+                      style={styles.rightPanelPercentInput}
+                      value={markupPercent}
+                      onChangeText={(text) => {
+                        if (text === '' || text === '.' || /^\d*\.?\d*$/.test(text)) {
+                          const val = parseFloat(text);
+                          if (text === '' || text === '.' || (val >= 0 && val <= 100)) {
+                            setMarkupPercent(text);
+                          }
+                        }
+                      }}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                    <Text style={styles.rightPanelPercentSign}>%</Text>
+                  </View>
+                  <Text style={styles.rightPanelCalculatedValue}>${markupAmount.toFixed(2)}</Text>
+                </View>
+
+                <View style={styles.rightPanelEditableItem}>
+                  <Text style={styles.rightPanelLabel}>Tax</Text>
+                  <View style={styles.rightPanelEditRow}>
+                    <TextInput
+                      style={styles.rightPanelPercentInput}
+                      value={taxPercent}
+                      onChangeText={(text) => {
+                        if (text === '' || text === '.' || /^\d*\.?\d*$/.test(text)) {
+                          const val = parseFloat(text);
+                          if (text === '' || text === '.' || (val >= 0 && val <= 100)) {
+                            setTaxPercent(text);
+                          }
+                        }
+                      }}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                    <Text style={styles.rightPanelPercentSign}>%</Text>
+                  </View>
+                  <Text style={styles.rightPanelCalculatedValue}>${taxAmount.toFixed(2)}</Text>
+                </View>
+
+                <View style={styles.rightPanelDivider} />
+
+                <View style={styles.rightPanelGrandTotal}>
+                  <Text style={styles.rightPanelGrandTotalLabel}>TOTAL</Text>
+                  <Text style={styles.rightPanelGrandTotalValue}>${total.toFixed(2)}</Text>
+                </View>
+
+                <View style={styles.rightPanelDivider} />
+
+                <View style={styles.rightPanelToggles}>
+                  <TouchableOpacity
+                    style={styles.rightPanelToggleButton}
+                    onPress={() => setShowUnitsQty(!showUnitsQty)}
+                  >
+                    {showUnitsQty ? (
+                      <Eye size={16} color="#2563EB" />
+                    ) : (
+                      <EyeOff size={16} color="#6B7280" />
+                    )}
+                    <Text style={styles.rightPanelToggleText}>
+                      {showUnitsQty ? 'Hide' : 'Show'} Units & Qty
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.rightPanelToggleButton}
+                    onPress={() => setShowBudget(!showBudget)}
+                  >
+                    {showBudget ? (
+                      <Eye size={16} color="#10B981" />
+                    ) : (
+                      <EyeOff size={16} color="#6B7280" />
+                    )}
+                    <Text style={styles.rightPanelToggleText}>
+                      {showBudget ? 'Hide' : 'Show'} Budget
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
       </View>
 
       {items.length > 0 && (
         <View style={styles.fixedBottomSection}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={true}
-            style={styles.totalsScrollContainer}
-            contentContainerStyle={styles.totalsScrollContent}
-          >
-            <View style={styles.compactTotalItem}>
-              <Text style={styles.compactTotalLabel}>Subtotal</Text>
-              <Text style={styles.compactTotalValue}>${subtotal.toFixed(2)}</Text>
-            </View>
-            
-            {showBudget && totalBudget > 0 && (
-              <View style={[styles.compactTotalItem, styles.budgetItem]}>
-                <Text style={styles.compactBudgetLabel}>Budget</Text>
-                <Text style={styles.compactBudgetValue}>${totalBudget.toFixed(2)}</Text>
-              </View>
-            )}
-            
-            <View style={styles.compactEditableItem}>
-              <Text style={styles.compactTotalLabel}>Markup</Text>
-              <View style={styles.compactEditRow}>
-                <TextInput
-                  style={styles.compactPercentInput}
-                  value={markupPercent}
-                  onChangeText={(text) => {
-                    if (text === '' || text === '.' || /^\d*\.?\d*$/.test(text)) {
-                      const val = parseFloat(text);
-                      if (text === '' || text === '.' || (val >= 0 && val <= 100)) {
-                        setMarkupPercent(text);
-                      }
-                    }
-                  }}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor="#9CA3AF"
-                />
-                <Text style={styles.compactPercentSign}>%</Text>
-              </View>
-              <Text style={styles.compactCalculatedValue}>${markupAmount.toFixed(2)}</Text>
-            </View>
-            
-            <View style={styles.compactEditableItem}>
-              <Text style={styles.compactTotalLabel}>Tax</Text>
-              <View style={styles.compactEditRow}>
-                <TextInput
-                  style={styles.compactPercentInput}
-                  value={taxPercent}
-                  onChangeText={(text) => {
-                    if (text === '' || text === '.' || /^\d*\.?\d*$/.test(text)) {
-                      const val = parseFloat(text);
-                      if (text === '' || text === '.' || (val >= 0 && val <= 100)) {
-                        setTaxPercent(text);
-                      }
-                    }
-                  }}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor="#9CA3AF"
-                />
-                <Text style={styles.compactPercentSign}>%</Text>
-              </View>
-              <Text style={styles.compactCalculatedValue}>${taxAmount.toFixed(2)}</Text>
-            </View>
-            
-            <View style={styles.compactGrandTotalItem}>
-              <Text style={styles.compactGrandTotalLabel}>TOTAL</Text>
-              <Text style={styles.compactGrandTotalValue}>${total.toFixed(2)}</Text>
-            </View>
-          </ScrollView>
-
-          <View style={styles.visibilityToggle}>
-            <TouchableOpacity 
-              style={styles.toggleButton}
-              onPress={() => setShowUnitsQty(!showUnitsQty)}
-            >
-              {showUnitsQty ? (
-                <Eye size={16} color="#2563EB" />
-              ) : (
-                <EyeOff size={16} color="#6B7280" />
-              )}
-              <Text style={styles.toggleButtonText}>
-                {showUnitsQty ? 'Hide' : 'Show'} Units & Qty
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.toggleButton}
-              onPress={() => setShowBudget(!showBudget)}
-            >
-              {showBudget ? (
-                <Eye size={16} color="#10B981" />
-              ) : (
-                <EyeOff size={16} color="#6B7280" />
-              )}
-              <Text style={styles.toggleButtonText}>
-                {showBudget ? 'Hide' : 'Show'} Budget
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.saveButton, isSaving && styles.buttonDisabled]}
@@ -2472,6 +2477,107 @@ const styles = StyleSheet.create({
     borderTopColor: '#E5E7EB',
     flex: 2,
   },
+  selectedItemsContainer: {
+    flexDirection: 'row',
+    flex: 1,
+  },
+  rightTotalsPanel: {
+    width: 220,
+    backgroundColor: '#F9FAFB',
+    borderLeftWidth: 1,
+    borderLeftColor: '#E5E7EB',
+    paddingVertical: 16,
+  },
+  rightPanelContent: {
+    paddingHorizontal: 16,
+  },
+  rightPanelTotalItem: {
+    marginBottom: 16,
+  },
+  rightPanelLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 4,
+    fontWeight: '500' as const,
+  },
+  rightPanelValue: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  rightPanelBudgetValue: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#10B981',
+  },
+  rightPanelEditableItem: {
+    marginBottom: 16,
+  },
+  rightPanelEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  rightPanelPercentInput: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  rightPanelPercentSign: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '600' as const,
+  },
+  rightPanelCalculatedValue: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  rightPanelDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 16,
+  },
+  rightPanelGrandTotal: {
+    marginBottom: 16,
+  },
+  rightPanelGrandTotalLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 6,
+    fontWeight: '600' as const,
+  },
+  rightPanelGrandTotalValue: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: '#2563EB',
+  },
+  rightPanelToggles: {
+    gap: 12,
+  },
+  rightPanelToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  rightPanelToggleText: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '500' as const,
+  },
   selectedItemsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2688,13 +2794,13 @@ const styles = StyleSheet.create({
   estimateItem: {
     backgroundColor: '#F9FAFB',
     borderRadius: 8,
-    padding: 12,
+    padding: 8,
     marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
   itemHeader: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   itemTitleRow: {
     flexDirection: 'row',
@@ -2726,7 +2832,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   itemMetaRow: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   itemCategory: {
     fontSize: Platform.select({ web: 10, default: 11 }) as number,
@@ -2736,7 +2842,7 @@ const styles = StyleSheet.create({
   itemDetailsRow: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   itemDetailsRowNarrow: {
     gap: 8,
