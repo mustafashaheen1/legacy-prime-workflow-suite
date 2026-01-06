@@ -2086,11 +2086,11 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
 
                 console.log('[AI Estimate] PDF has', pdf.numPages, 'pages');
 
-                // Convert each page to image (limit to first 5 pages to avoid token limits)
-                const maxPages = Math.min(pdf.numPages, 5);
+                // Convert each page to image (limit to first 3 pages to avoid token limits)
+                const maxPages = Math.min(pdf.numPages, 3);
                 for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
                   const page = await pdf.getPage(pageNum);
-                  const viewport = page.getViewport({ scale: 2.0 }); // 2x scale for better quality
+                  const viewport = page.getViewport({ scale: 1.5 }); // 1.5x scale for balance of quality and size
 
                   // Create canvas
                   const canvas = document.createElement('canvas');
@@ -2101,17 +2101,18 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
                   // Render PDF page to canvas
                   await page.render({ canvasContext: context!, viewport }).promise;
 
-                  // Convert canvas to base64
-                  const base64 = canvas.toDataURL('image/png').split('base64,')[1];
+                  // Convert canvas to base64 (use lower quality JPEG to reduce size)
+                  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
                   attachedFilesData.push({
                     type: 'image_url',
                     image_url: {
-                      url: `data:image/png;base64,${base64}`,
+                      url: dataUrl,
+                      detail: 'high', // Request high detail analysis
                     },
                   });
 
-                  console.log('[AI Estimate] Converted PDF page', pageNum, 'to image');
+                  console.log('[AI Estimate] Converted PDF page', pageNum, 'to image (', Math.round(dataUrl.length / 1024), 'KB )');
                 }
               } catch (pdfError) {
                 console.error('[AI Estimate] Failed to convert PDF:', pdfError);
@@ -2311,6 +2312,13 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
 
       console.log('[AI Estimate] Conversation history length:', conversationHistory.length);
       console.log('[AI Estimate] Message content items:', userMessageContent.length);
+      console.log('[AI Estimate] Sample message structure:', JSON.stringify({
+        role: messages[messages.length - 1].role,
+        contentType: typeof messages[messages.length - 1].content,
+        contentItems: Array.isArray(messages[messages.length - 1].content)
+          ? messages[messages.length - 1].content.length
+          : 'string',
+      }));
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
