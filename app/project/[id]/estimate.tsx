@@ -11,6 +11,7 @@ import { vanillaClient } from '@/lib/trpc';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import * as pdfjsLib from 'pdfjs-dist';
 import { Audio } from 'expo-av';
 import Constants from 'expo-constants';
 import * as Print from 'expo-print';
@@ -2059,83 +2060,115 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
     try {
       console.log('[AI Estimate] Generating estimate from description:', textInput);
 
-      // Prepare attached files for Vision API (images only)
+      // Prepare attached files for Vision API (convert PDFs to images)
       let attachedFilesData: any[] = [];
-      let nonImageFiles: string[] = [];
 
       if (attachedFiles.length > 0) {
         console.log('[AI Estimate] Processing', attachedFiles.length, 'attached files for Vision API');
 
         for (const file of attachedFiles) {
-          // Check if it's an image file
-          const isImage = file.type.startsWith('image/') ||
-                         file.type.includes('png') ||
-                         file.type.includes('jpg') ||
-                         file.type.includes('jpeg') ||
-                         file.type.includes('gif') ||
-                         file.type.includes('webp');
-
-          if (!isImage) {
-            // Track non-image files
-            nonImageFiles.push(file.name);
-            console.log('[AI Estimate] Skipping non-image file:', file.name, file.type);
-            continue;
-          }
-
           try {
-            let base64 = '';
+            // Check if it's a PDF
+            const isPDF = file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
 
-            // Handle web vs native differently
-            if (Platform.OS === 'web') {
-              // On web, use FileReader API
-              const response = await fetch(file.uri);
-              const blob = await response.blob();
-              base64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  const result = reader.result as string;
-                  // Extract base64 part (remove data:...;base64, prefix if present)
-                  const base64Data = result.includes('base64,')
-                    ? result.split('base64,')[1]
-                    : result;
-                  resolve(base64Data);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
+            if (isPDF && Platform.OS === 'web') {
+              // Convert PDF to images on web
+              console.log('[AI Estimate] Converting PDF to images:', file.name);
+
+              try {
+                // Set up PDF.js worker
+                pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+                // Load PDF
+                const response = await fetch(file.uri);
+                const arrayBuffer = await response.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                console.log('[AI Estimate] PDF has', pdf.numPages, 'pages');
+
+                // Convert each page to image (limit to first 5 pages to avoid token limits)
+                const maxPages = Math.min(pdf.numPages, 5);
+                for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+                  const page = await pdf.getPage(pageNum);
+                  const viewport = page.getViewport({ scale: 2.0 }); // 2x scale for better quality
+
+                  // Create canvas
+                  const canvas = document.createElement('canvas');
+                  const context = canvas.getContext('2d');
+                  canvas.height = viewport.height;
+                  canvas.width = viewport.width;
+
+                  // Render PDF page to canvas
+                  await page.render({ canvasContext: context!, viewport }).promise;
+
+                  // Convert canvas to base64
+                  const base64 = canvas.toDataURL('image/png').split('base64,')[1];
+
+                  attachedFilesData.push({
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:image/png;base64,${base64}`,
+                    },
+                  });
+
+                  console.log('[AI Estimate] Converted PDF page', pageNum, 'to image');
+                }
+              } catch (pdfError) {
+                console.error('[AI Estimate] Failed to convert PDF:', pdfError);
+                Alert.alert('PDF Conversion Error', `Could not convert PDF "${file.name}" to images. Please try using image files instead.`);
+                continue;
+              }
             } else {
-              // On native, use FileSystem
-              base64 = await FileSystem.readAsStringAsync(file.uri, {
-                encoding: FileSystem.EncodingType.Base64,
+              // Handle regular images
+              let base64 = '';
+
+              // Handle web vs native differently
+              if (Platform.OS === 'web') {
+                // On web, use FileReader API
+                const response = await fetch(file.uri);
+                const blob = await response.blob();
+                base64 = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const result = reader.result as string;
+                    // Extract base64 part (remove data:...;base64, prefix if present)
+                    const base64Data = result.includes('base64,')
+                      ? result.split('base64,')[1]
+                      : result;
+                    resolve(base64Data);
+                  };
+                  reader.onerror = reject;
+                  reader.readAsDataURL(blob);
+                });
+              } else {
+                // On native, use FileSystem
+                base64 = await FileSystem.readAsStringAsync(file.uri, {
+                  encoding: FileSystem.EncodingType.Base64,
+                });
+              }
+
+              // Determine mime type
+              let mimeType = 'image/jpeg';
+              if (file.type.includes('png')) mimeType = 'image/png';
+              else if (file.type.includes('webp')) mimeType = 'image/webp';
+              else if (file.type.includes('gif')) mimeType = 'image/gif';
+
+              attachedFilesData.push({
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64}`,
+                },
               });
+
+              console.log('[AI Estimate] Added image to vision API:', file.name, mimeType);
             }
-
-            // Determine mime type
-            let mimeType = 'image/jpeg';
-            if (file.type.includes('png')) mimeType = 'image/png';
-            else if (file.type.includes('webp')) mimeType = 'image/webp';
-            else if (file.type.includes('gif')) mimeType = 'image/gif';
-
-            attachedFilesData.push({
-              type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${base64}`,
-              },
-            });
-
-            console.log('[AI Estimate] Added image to vision API:', file.name, mimeType);
           } catch (error) {
             console.error('[AI Estimate] Failed to process file:', file.name, error);
+            Alert.alert('File Processing Error', `Could not process "${file.name}". Please try a different file.`);
           }
         }
 
-        // Alert user about non-image files
-        if (nonImageFiles.length > 0) {
-          Alert.alert(
-            'PDFs Not Supported',
-            `The AI cannot read PDF files directly. Only images (PNG, JPG, etc.) can be analyzed.\n\nSkipped files: ${nonImageFiles.join(', ')}\n\nTo analyze PDFs:\n1. Convert PDF pages to images first\n2. Or describe the PDF contents in your text input`
-          );
-        }
+        console.log('[AI Estimate] Total images prepared for Vision API:', attachedFilesData.length);
       }
 
       // Limit to 50 items to stay within Vercel timeout limits
