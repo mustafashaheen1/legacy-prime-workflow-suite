@@ -1666,11 +1666,16 @@ export default function EstimateScreen() {
         <AIEstimateGenerateModal
           visible={showAIGenerateModal}
           onClose={() => setShowAIGenerateModal(false)}
-          onGenerate={(generatedItems) => {
-            setItems(prev => [...prev, ...generatedItems]);
+          onGenerate={(generatedItems, shouldReplace) => {
+            if (shouldReplace) {
+              setItems(generatedItems);
+            } else {
+              setItems(prev => [...prev, ...generatedItems]);
+            }
             setShowAIGenerateModal(false);
           }}
           projectName={project?.name || 'Unnamed Project'}
+          existingItems={items}
         />
       )}
 
@@ -1825,16 +1830,25 @@ export default function EstimateScreen() {
 interface AIEstimateGenerateModalProps {
   visible: boolean;
   onClose: () => void;
-  onGenerate: (items: EstimateItem[]) => void;
+  onGenerate: (items: EstimateItem[], shouldReplace: boolean) => void;
   projectName: string;
+  existingItems: EstimateItem[];
 }
 
-function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: AIEstimateGenerateModalProps) {
+function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, existingItems }: AIEstimateGenerateModalProps) {
   const [textInput, setTextInput] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<Array<{uri: string; type: string; name: string}>>([]);
+  const [conversationHistory, setConversationHistory] = useState<Array<{role: 'user' | 'assistant'; content: string}>>([]);
+
+  const handleClearConversation = () => {
+    setConversationHistory([]);
+    setTextInput('');
+    setAttachedFiles([]);
+    Alert.alert('Conversation Cleared', 'Starting fresh! The AI will not remember previous requests.');
+  };
 
   const handleMicrophone = async () => {
     try {
@@ -2060,6 +2074,19 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: 
         `${item.id}|${item.name}|${item.unit}|$${item.unitPrice}`
       ).join('\n');
 
+      // Build existing items context
+      let existingItemsContext = '';
+      let existingTotal = 0;
+      if (existingItems.length > 0) {
+        existingTotal = existingItems.reduce((sum, item) => sum + item.total, 0);
+        const existingItemsList = existingItems.map(item => {
+          const priceListItem = masterPriceList.find(pl => pl.id === item.priceListItemId);
+          const itemName = item.customName || priceListItem?.name || 'Unknown';
+          return `- ${itemName}: ${item.quantity} × $${item.unitPrice} = $${item.total}`;
+        }).join('\n');
+        existingItemsContext = `\n\nCURRENT ESTIMATE (Total: $${existingTotal.toFixed(2)}):\n${existingItemsList}`;
+      }
+
       const systemPrompt = `You are a construction estimator. Your PRIMARY GOAL is to create estimates that FIT THE CUSTOMER'S BUDGET.
 
 Items (ID|Name|Unit|Price):
@@ -2079,10 +2106,16 @@ HOW TO FIT BUDGET:
 4. Calculate running total as you add items
 5. Stop adding items when approaching budget limit
 
+UNDERSTANDING USER INTENT:
+- "Create estimate for X" or "Generate estimate for X" → REPLACE existing items (replaceExisting: true)
+- "Increase budget to $X" or "Change budget to $X" → REPLACE with new budget (replaceExisting: true)
+- "Reduce budget to $X" or "Lower to $X" → REPLACE with new budget (replaceExisting: true)
+- "Add item X" or "Also include X" → ADD to existing items (replaceExisting: false)
+
 Example: "$5000 bathroom remodel" = Pick 3-5 essential items totaling $4500-$5500, NOT 15 items totaling $14000
 
-Respond ONLY with JSON array:
-[{"priceListItemId":"pl-1","quantity":2,"notes":"essential item"}]
+Respond with JSON object:
+{"replaceExisting": true, "items": [{"priceListItemId":"pl-1","quantity":2,"notes":"essential item"}]}
 
 Use "custom" for items not in list.`;
 
@@ -2099,6 +2132,33 @@ Use "custom" for items not in list.`;
 
       console.log('[AI Estimate] Calling OpenAI API directly...');
 
+      // Build the current user message
+      const currentUserMessage = `${textInput}${imageAnalysisText}`;
+
+      // Build messages array with conversation history
+      const messages = [
+        {
+          role: 'system' as const,
+          content: systemPrompt,
+        },
+        // Add existing items context only in the first message
+        ...(conversationHistory.length === 0 && existingItemsContext ? [{
+          role: 'system' as const,
+          content: existingItemsContext
+        }] : []),
+        // Add all previous conversation
+        ...conversationHistory,
+        // Add current user message
+        {
+          role: 'user' as const,
+          content: conversationHistory.length === 0
+            ? `${currentUserMessage}\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n1. Analyze if user wants to REPLACE existing items or ADD to them\n2. If budget is mentioned, final total MUST be within ±10% of that amount\n3. DO NOT exceed budget by 2x or more\n4. Set replaceExisting=true if user says "change budget", "increase to", "decrease to", or starting fresh\n5. Set replaceExisting=false if user says "add", "also include", "plus"\n\nRespond with JSON object containing replaceExisting flag and items array.`
+            : currentUserMessage
+        }
+      ];
+
+      console.log('[AI Estimate] Conversation history length:', conversationHistory.length);
+
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -2107,16 +2167,7 @@ Use "custom" for items not in list.`;
         },
         body: JSON.stringify({
           model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt,
-            },
-            {
-              role: 'user',
-              content: `${textInput}${imageAnalysisText}\n\n⚠️ CRITICAL INSTRUCTION ⚠️\nIf the above text mentions ANY budget amount (e.g., "$5000", "5K", "five thousand dollars"), you MUST create an estimate within ±10% of that amount. DO NOT exceed the budget by 2x or more. Select fewer items or reduce quantities to stay within budget.\n\nGenerate minimal essential items that fit the budget.`
-            }
-          ],
+          messages: messages,
           temperature: 0.3,
         }),
       });
@@ -2146,13 +2197,26 @@ Use "custom" for items not in list.`;
       }
       
       let aiGeneratedItems = [];
+      let shouldReplace = true; // Default to replace for backward compatibility
+
       try {
         const content = result.message || '';
-        const jsonMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (jsonMatch) {
-          aiGeneratedItems = JSON.parse(jsonMatch[0]);
+
+        // Try to parse as object with replaceExisting flag first
+        const objectMatch = content.match(/\{\s*"replaceExisting"[\s\S]*\}/);
+        if (objectMatch) {
+          const parsed = JSON.parse(objectMatch[0]);
+          shouldReplace = parsed.replaceExisting !== false; // Default to true if not specified
+          aiGeneratedItems = parsed.items || [];
         } else {
-          throw new Error('No valid JSON array found in response');
+          // Fallback to old array format for backward compatibility
+          const arrayMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (arrayMatch) {
+            aiGeneratedItems = JSON.parse(arrayMatch[0]);
+            shouldReplace = existingItems.length === 0; // Only replace if no existing items
+          } else {
+            throw new Error('No valid JSON found in response');
+          }
         }
       } catch (parseError) {
         console.error('[AI Estimate] Failed to parse AI response:', parseError);
@@ -2235,21 +2299,39 @@ Use "custom" for items not in list.`;
 
           if (budgetCompliantItems.length > 0) {
             console.log('[AI Estimate] Trimmed to', budgetCompliantItems.length, 'items to fit budget');
-            onGenerate(budgetCompliantItems);
+
+            // Update conversation history
+            setConversationHistory(prev => [
+              ...prev,
+              { role: 'user', content: currentUserMessage },
+              { role: 'assistant', content: result.message }
+            ]);
+
+            onGenerate(budgetCompliantItems, shouldReplace);
             setTextInput('');
+            const action = shouldReplace ? 'Replaced estimate with' : 'Added';
             Alert.alert(
               'Estimate Generated',
-              `Generated ${budgetCompliantItems.length} items (${generatedItems.length - budgetCompliantItems.length} items removed to fit $${budgetAmount.toLocaleString()} budget). Total: $${runningTotal.toFixed(2)}`
+              `${action} ${budgetCompliantItems.length} items (${generatedItems.length - budgetCompliantItems.length} items removed to fit $${budgetAmount.toLocaleString()} budget). Total: $${runningTotal.toFixed(2)}`
             );
             return;
           }
         }
       }
 
-      console.log('[AI Estimate] Generated', generatedItems.length, 'items');
-      onGenerate(generatedItems);
+      console.log('[AI Estimate] Generated', generatedItems.length, 'items, shouldReplace:', shouldReplace);
+
+      // Update conversation history
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: currentUserMessage },
+        { role: 'assistant', content: result.message }
+      ]);
+
+      onGenerate(generatedItems, shouldReplace);
       setTextInput('');
-      Alert.alert('Success', `Generated ${generatedItems.length} line items from your description.`);
+      const action = shouldReplace ? 'Replaced estimate with' : 'Added';
+      Alert.alert('Success', `${action} ${generatedItems.length} line items from your description.`);
     } catch (error) {
       console.error('[AI Estimate] Generation error:', error);
       Alert.alert('Error', 'Failed to generate estimate. Please try again.');
@@ -2267,8 +2349,24 @@ Use "custom" for items not in list.`;
     >
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, styles.aiModalContent]}>
-          <Text style={styles.modalTitle}>Generate Estimate with AI</Text>
-          <Text style={styles.modalSubtitle}>Describe the scope of work and AI will generate line items</Text>
+          <View style={styles.modalHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modalTitle}>Generate Estimate with AI</Text>
+              <Text style={styles.modalSubtitle}>
+                {conversationHistory.length > 0
+                  ? `Conversation active (${conversationHistory.length / 2} messages)`
+                  : 'Describe the scope of work and AI will generate line items'}
+              </Text>
+            </View>
+            {conversationHistory.length > 0 && (
+              <TouchableOpacity
+                style={styles.newChatButton}
+                onPress={handleClearConversation}
+              >
+                <Text style={styles.newChatButtonText}>New Chat</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           
           <Text style={styles.modalLabel}>Scope of Work *</Text>
           <View style={styles.inputContainer}>
@@ -3322,6 +3420,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 20,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 0,
+  },
+  newChatButton: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  newChatButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#2563EB',
   },
   modalLabel: {
     fontSize: 14,
