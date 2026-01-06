@@ -559,8 +559,8 @@ export default function EstimateScreen() {
         }
         const priceListItem = getPriceListItem(item.priceListItemId);
         const isCustom = item.priceListItemId === 'custom';
-        const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
-        const itemUnit = isCustom ? (item.customUnit || 'EA') : (priceListItem?.unit || '');
+        const itemName = item.customName || (isCustom ? 'Custom Item' : (priceListItem?.name || ''));
+        const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
         const displayPrice = item.customPrice ?? item.unitPrice;
         const notes = item.notes ? `<div style="color: #666; font-size: 12px; margin-top: 4px;">Note: ${item.notes}</div>` : '';
 
@@ -907,8 +907,8 @@ export default function EstimateScreen() {
       }
       const priceListItem = getPriceListItem(item.priceListItemId);
       const isCustom = item.priceListItemId === 'custom';
-      const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
-      const itemUnit = isCustom ? (item.customUnit || 'EA') : (priceListItem?.unit || '');
+      const itemName = item.customName || (isCustom ? 'Custom Item' : (priceListItem?.name || ''));
+      const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
       const displayPrice = item.customPrice ?? item.unitPrice;
       const notes = item.notes ? ` (${item.notes})` : '';
       
@@ -1193,15 +1193,15 @@ export default function EstimateScreen() {
               const isCustom = item.priceListItemId === 'custom';
               const isEditing = editingItemId === item.id;
               const displayPrice = item.customPrice ?? item.unitPrice;
-              const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
-              const itemUnit = isCustom ? (item.customUnit || 'EA') : (priceListItem?.unit || '');
+              const itemName = item.customName || (isCustom ? 'Custom Item' : (priceListItem?.name || ''));
+              const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
               const itemCategory = isCustom ? (item.customCategory || 'Custom') : (priceListItem?.category || '');
 
               return (
                 <View key={item.id} style={styles.estimateItem}>
                   <View style={styles.itemHeader}>
                     <View style={styles.itemTitleRow}>
-                      {isCustom && isEditing ? (
+                      {isEditing ? (
                         <TextInput
                           style={styles.itemNameInput}
                           value={itemName}
@@ -1269,7 +1269,7 @@ export default function EstimateScreen() {
 
                         <View style={[styles.unitControl, isNarrow && styles.unitControlNarrow]}>
                           <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Unit</Text>
-                          {isCustom && isEditing ? (
+                          {isEditing ? (
                             <TextInput
                               style={[styles.unitInput, isNarrow && styles.unitInputNarrow]}
                               value={itemUnit}
@@ -1735,8 +1735,8 @@ export default function EstimateScreen() {
                   }
                   const priceListItem = getPriceListItem(item.priceListItemId);
                   const isCustom = item.priceListItemId === 'custom';
-                  const itemName = isCustom ? (item.customName || 'Custom Item') : (priceListItem?.name || '');
-                  const itemUnit = isCustom ? (item.customUnit || 'EA') : (priceListItem?.unit || '');
+                  const itemName = item.customName || (isCustom ? 'Custom Item' : (priceListItem?.name || ''));
+                  const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
                   const displayPrice = item.customPrice ?? item.unitPrice;
 
                   return (
