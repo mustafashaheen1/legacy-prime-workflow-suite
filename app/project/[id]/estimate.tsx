@@ -2066,10 +2066,32 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
 
         for (const file of attachedFiles) {
           try {
-            // Read file and convert to base64
-            const base64 = await FileSystem.readAsStringAsync(file.uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
+            let base64 = '';
+
+            // Handle web vs native differently
+            if (Platform.OS === 'web') {
+              // On web, use FileReader API
+              const response = await fetch(file.uri);
+              const blob = await response.blob();
+              base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const result = reader.result as string;
+                  // Extract base64 part (remove data:...;base64, prefix if present)
+                  const base64Data = result.includes('base64,')
+                    ? result.split('base64,')[1]
+                    : result;
+                  resolve(base64Data);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            } else {
+              // On native, use FileSystem
+              base64 = await FileSystem.readAsStringAsync(file.uri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+            }
 
             // Determine mime type
             let mimeType = 'image/jpeg';
@@ -2144,10 +2166,14 @@ UNDERSTANDING USER INTENT:
 
 Example: "$5000 bathroom remodel" = Pick 3-5 essential items totaling $4500-$5500, NOT 15 items totaling $14000
 
-Respond with JSON object:
+CRITICAL - RESPONSE FORMAT:
+You MUST respond with ONLY a JSON object. NO explanations, NO questions, NO other text.
+Even if you need more info, respond with: {"replaceExisting": true, "items": [], "needsMoreInfo": true, "message": "your question"}
+
+Valid response format:
 {"replaceExisting": true, "items": [{"priceListItemId":"pl-1","quantity":2,"notes":"essential item"}]}
 
-Use "custom" for items not in list.`;
+NEVER respond with plain text. ALWAYS use JSON format above.`;
 
       // Call OpenAI directly from client to avoid Vercel timeout issues
       const apiKey = Constants.expoConfig?.extra?.openaiApiKey || process.env.EXPO_PUBLIC_OPENAI_API_KEY;
