@@ -2060,21 +2060,31 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName }: 
         `${item.id}|${item.name}|${item.unit}|$${item.unitPrice}`
       ).join('\n');
 
-      const systemPrompt = `Construction estimator. Match scope to price list items while STRICTLY respecting budget constraints.
+      const systemPrompt = `You are a construction estimator. Your PRIMARY GOAL is to create estimates that FIT THE CUSTOMER'S BUDGET.
 
 Items (ID|Name|Unit|Price):
 ${priceListContext}
 
-CRITICAL BUDGET RULES:
-- If user mentions a budget (e.g., "$5000", "budget of 5K"), the total estimate MUST be within ±10% of that amount
-- Adjust quantities and select appropriate items to fit the budget
-- Prioritize essential items if budget is tight
-- If scope cannot reasonably fit the budget, generate a realistic estimate but stay as close to budget as possible
+ABSOLUTE BUDGET CONSTRAINT (HIGHEST PRIORITY):
+- When a budget is specified, the final total MUST NOT exceed it by more than 10%
+- NEVER generate estimates that are 2x or 3x the stated budget
+- If budget is $5000, total must be $4500-$5500 MAX
+- If budget is $10000, total must be $9000-$11000 MAX
+- Budget compliance is MORE IMPORTANT than including every possible item
+
+HOW TO FIT BUDGET:
+1. Start with ESSENTIAL items only (critical work, materials, labor)
+2. Use MINIMUM viable quantities
+3. Skip nice-to-have items if they push over budget
+4. Calculate running total as you add items
+5. Stop adding items when approaching budget limit
+
+Example: "$5000 bathroom remodel" = Pick 3-5 essential items totaling $4500-$5500, NOT 15 items totaling $14000
 
 Respond ONLY with JSON array:
-[{"priceListItemId":"pl-1","quantity":10,"notes":"reason"}]
+[{"priceListItemId":"pl-1","quantity":2,"notes":"essential item"}]
 
-Use "custom" if no match.`;
+Use "custom" for items not in list.`;
 
       // Call OpenAI directly from client to avoid Vercel timeout issues
       const apiKey = Constants.expoConfig?.extra?.openaiApiKey || process.env.EXPO_PUBLIC_OPENAI_API_KEY;
@@ -2104,10 +2114,10 @@ Use "custom" if no match.`;
             },
             {
               role: 'user',
-              content: `Project Scope and Requirements:\n${textInput}${imageAnalysisText}\n\nIMPORTANT: If a budget is mentioned above, the total estimate MUST match that budget (±10% maximum). Adjust quantities and item selection accordingly to fit within the specified budget.\n\nGenerate estimate items now.`
+              content: `${textInput}${imageAnalysisText}\n\n⚠️ CRITICAL INSTRUCTION ⚠️\nIf the above text mentions ANY budget amount (e.g., "$5000", "5K", "five thousand dollars"), you MUST create an estimate within ±10% of that amount. DO NOT exceed the budget by 2x or more. Select fewer items or reduce quantities to stay within budget.\n\nGenerate minimal essential items that fit the budget.`
             }
           ],
-          temperature: 0.7,
+          temperature: 0.3,
         }),
       });
 
@@ -2191,6 +2201,49 @@ Use "custom" if no match.`;
       if (generatedItems.length === 0) {
         Alert.alert('No Items Generated', 'AI could not generate any line items from your description. Please try being more specific.');
         return;
+      }
+
+      // Budget validation: Check if estimate exceeds specified budget
+      const budgetMatch = textInput.match(/\$?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:k|thousand)?/i);
+      if (budgetMatch) {
+        let budgetAmount = parseFloat(budgetMatch[1].replace(/,/g, ''));
+
+        // Handle "5k" or "5K" format
+        if (/k|thousand/i.test(budgetMatch[0])) {
+          budgetAmount *= 1000;
+        }
+
+        const estimateTotal = generatedItems.reduce((sum, item) => sum + item.total, 0);
+        const maxAllowedTotal = budgetAmount * 1.1; // 10% over budget max
+
+        console.log('[AI Estimate] Budget:', budgetAmount, 'Generated total:', estimateTotal);
+
+        if (estimateTotal > maxAllowedTotal) {
+          // Estimate exceeds budget - remove items from end until it fits
+          console.log('[AI Estimate] Total exceeds budget, trimming items...');
+          let runningTotal = 0;
+          const budgetCompliantItems: EstimateItem[] = [];
+
+          for (const item of generatedItems) {
+            if (runningTotal + item.total <= maxAllowedTotal) {
+              budgetCompliantItems.push(item);
+              runningTotal += item.total;
+            } else {
+              break;
+            }
+          }
+
+          if (budgetCompliantItems.length > 0) {
+            console.log('[AI Estimate] Trimmed to', budgetCompliantItems.length, 'items to fit budget');
+            onGenerate(budgetCompliantItems);
+            setTextInput('');
+            Alert.alert(
+              'Estimate Generated',
+              `Generated ${budgetCompliantItems.length} items (${generatedItems.length - budgetCompliantItems.length} items removed to fit $${budgetAmount.toLocaleString()} budget). Total: $${runningTotal.toFixed(2)}`
+            );
+            return;
+          }
+        }
       }
 
       console.log('[AI Estimate] Generated', generatedItems.length, 'items');
