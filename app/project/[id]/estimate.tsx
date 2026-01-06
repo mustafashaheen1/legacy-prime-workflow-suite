@@ -2059,44 +2059,37 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
     try {
       console.log('[AI Estimate] Generating estimate from description:', textInput);
 
-      // Analyze attached images if any
-      let imageAnalysisText = '';
-      const imageFiles = attachedFiles.filter(file => file.type.startsWith('image'));
+      // Prepare attached files for Vision API
+      let attachedFilesData: any[] = [];
+      if (attachedFiles.length > 0) {
+        console.log('[AI Estimate] Processing', attachedFiles.length, 'attached files for Vision API');
 
-      if (imageFiles.length > 0) {
-        console.log('[AI Estimate] Analyzing', imageFiles.length, 'attached images');
-
-        for (const imageFile of imageFiles) {
+        for (const file of attachedFiles) {
           try {
             // Read file and convert to base64
-            const base64 = await FileSystem.readAsStringAsync(imageFile.uri, {
+            const base64 = await FileSystem.readAsStringAsync(file.uri, {
               encoding: FileSystem.EncodingType.Base64,
             });
 
-            // Analyze image with OpenAI Vision
-            const analysisResult = await vanillaClient.openai.imageAnalysis.mutate({
-              imageBase64: base64,
-              prompt: 'Analyze this construction/renovation image. Describe what work needs to be done, materials visible, measurements if any, and any other details relevant to creating a construction estimate.',
-              maxTokens: 500,
+            // Determine mime type
+            let mimeType = 'image/jpeg';
+            if (file.type.includes('png')) mimeType = 'image/png';
+            else if (file.type.includes('pdf')) mimeType = 'application/pdf';
+            else if (file.type.includes('webp')) mimeType = 'image/webp';
+            else if (file.type.includes('gif')) mimeType = 'image/gif';
+
+            attachedFilesData.push({
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${base64}`,
+              },
             });
 
-            if (analysisResult.success && analysisResult.analysis) {
-              imageAnalysisText += `\n\nImage Analysis (${imageFile.name}):\n${analysisResult.analysis}`;
-              console.log('[AI Estimate] Image analyzed:', imageFile.name);
-            }
+            console.log('[AI Estimate] Added file to vision API:', file.name, mimeType);
           } catch (error) {
-            console.error('[AI Estimate] Failed to analyze image:', imageFile.name, error);
-            // Continue with other images
+            console.error('[AI Estimate] Failed to process file:', file.name, error);
           }
         }
-      }
-
-      // Handle document attachments
-      const documentFiles = attachedFiles.filter(file => !file.type.startsWith('image'));
-      if (documentFiles.length > 0) {
-        const docsList = documentFiles.map(f => f.name).join(', ');
-        imageAnalysisText += `\n\nAttached Documents: ${docsList}\n\nIMPORTANT: The user has attached project documents. Since you cannot read document contents, you MUST use the user's text description to understand what work needs to be done. If the user's description is vague (like "generate estimate" or "create proposal"), ask them to be more specific by returning this response:\n\n{"replaceExisting": true, "items": [], "needsMoreInfo": true, "message": "Please describe what type of work this is for (e.g., kitchen remodel, bathroom renovation, deck construction, etc.) so I can generate accurate line items."}\n\nONLY generate items if you have clear context about the type of work needed.`;
-        console.log('[AI Estimate] Documents attached:', documentFiles.length);
       }
 
       // Limit to 50 items to stay within Vercel timeout limits
@@ -2167,14 +2160,22 @@ Use "custom" for items not in list.`;
         return;
       }
 
-      console.log('[AI Estimate] Calling OpenAI API directly...');
+      console.log('[AI Estimate] Calling OpenAI API with Vision...');
       console.log('[AI Estimate] Text input:', textInput);
-      console.log('[AI Estimate] Image/doc analysis text length:', imageAnalysisText.length);
-      console.log('[AI Estimate] Attached files:', attachedFiles.length);
+      console.log('[AI Estimate] Attached files for vision:', attachedFilesData.length);
 
       // Build the current user message
-      const currentUserMessage = `${textInput}${imageAnalysisText}`;
-      console.log('[AI Estimate] Current user message length:', currentUserMessage.length);
+      const userPromptText = attachedFilesData.length > 0
+        ? `${textInput || 'Analyze the attached documents and generate an estimate based on what you see.'}\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n1. LOOK AT THE ATTACHED IMAGES/DOCUMENTS - they contain the project scope\n2. Analyze if user wants to REPLACE existing items or ADD to them\n3. If budget is mentioned, final total MUST be within ±10% of that amount\n4. DO NOT exceed budget by 2x or more\n5. Set replaceExisting=true if user says "change budget", "increase to", "decrease to", or starting fresh\n6. Set replaceExisting=false if user says "add", "also include", "plus"\n\nRespond with JSON object containing replaceExisting flag and items array.`
+        : `${textInput}\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n1. Analyze if user wants to REPLACE existing items or ADD to them\n2. If budget is mentioned, final total MUST be within ±10% of that amount\n3. DO NOT exceed budget by 2x or more\n4. Set replaceExisting=true if user says "change budget", "increase to", "decrease to", or starting fresh\n5. Set replaceExisting=false if user says "add", "also include", "plus"\n\nRespond with JSON object containing replaceExisting flag and items array.`;
+
+      const currentUserMessage = textInput; // Store just text for conversation history
+
+      // Build message content with text and images
+      const userMessageContent: any[] = [
+        { type: 'text', text: userPromptText },
+        ...attachedFilesData,
+      ];
 
       // Build messages array with conversation history
       const messages = [
@@ -2189,16 +2190,15 @@ Use "custom" for items not in list.`;
         }] : []),
         // Add all previous conversation
         ...conversationHistory,
-        // Add current user message
+        // Add current user message with vision content
         {
           role: 'user' as const,
-          content: conversationHistory.length === 0
-            ? `${currentUserMessage}\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n1. Analyze if user wants to REPLACE existing items or ADD to them\n2. If budget is mentioned, final total MUST be within ±10% of that amount\n3. DO NOT exceed budget by 2x or more\n4. Set replaceExisting=true if user says "change budget", "increase to", "decrease to", or starting fresh\n5. Set replaceExisting=false if user says "add", "also include", "plus"\n\nRespond with JSON object containing replaceExisting flag and items array.`
-            : currentUserMessage
+          content: conversationHistory.length === 0 ? userMessageContent : currentUserMessage,
         }
       ];
 
       console.log('[AI Estimate] Conversation history length:', conversationHistory.length);
+      console.log('[AI Estimate] Message content items:', userMessageContent.length);
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -2207,8 +2207,9 @@ Use "custom" for items not in list.`;
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4o', // Use gpt-4o for vision capabilities
           messages: messages,
+          max_tokens: 4096,
           temperature: 0.3,
         }),
       });
