@@ -1922,6 +1922,35 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
   };
 
   const handleCameraOrFile = async () => {
+    console.log('[AI Estimate] Attachment button clicked');
+
+    // On web, use a different approach since Alert.alert with buttons doesn't work well
+    if (Platform.OS === 'web') {
+      // For web, directly open file picker
+      try {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: ['image/*', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+          multiple: true,
+          copyToCacheDirectory: true,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const newFiles = result.assets.map(asset => ({
+            uri: asset.uri,
+            type: asset.mimeType || 'document',
+            name: asset.name,
+          }));
+          setAttachedFiles(prev => [...prev, ...newFiles]);
+          console.log('[AI Estimate] Files attached:', newFiles.length);
+        }
+      } catch (error) {
+        console.error('[AI Estimate] File picker error:', error);
+        Alert.alert('Error', 'Failed to select files');
+      }
+      return;
+    }
+
+    // Native platforms
     Alert.alert(
       'Add Media',
       'Choose an option',
@@ -1938,7 +1967,7 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
               }
 
               const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ['images'],
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: false,
                 quality: 0.8,
               });
@@ -1969,7 +1998,7 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
               }
 
               const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ['images'],
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsMultipleSelection: true,
                 quality: 0.8,
               });
@@ -2060,6 +2089,14 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
             // Continue with other images
           }
         }
+      }
+
+      // Handle document attachments
+      const documentFiles = attachedFiles.filter(file => !file.type.startsWith('image'));
+      if (documentFiles.length > 0) {
+        const docsList = documentFiles.map(f => f.name).join(', ');
+        imageAnalysisText += `\n\nAttached Documents: ${docsList}\nNote: User has attached ${documentFiles.length} document(s). Consider these may contain specifications, drawings, or additional project details.`;
+        console.log('[AI Estimate] Documents attached:', documentFiles.length);
       }
 
       // Limit to 50 items to stay within Vercel timeout limits
