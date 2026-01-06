@@ -2196,7 +2196,36 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
         existingItemsContext = `\n\nCURRENT ESTIMATE (Total: $${existingTotal.toFixed(2)}):\n${existingItemsList}`;
       }
 
-      const systemPrompt = `You are a construction estimator. Your PRIMARY GOAL is to create estimates that FIT THE CUSTOMER'S BUDGET.
+      // Use different prompts for document analysis vs budget-based estimation
+      const systemPrompt = attachedFilesData.length > 0
+        ? `You are a construction estimator analyzing a construction document/blueprint IMAGE.
+
+YOUR TASK:
+1. Analyze the images to understand what construction work is proposed
+2. Select appropriate items from the PRICE LIST DATABASE below
+3. Estimate quantities based on what you see in the documents
+4. Return ONLY items that exist in the price list - NO custom items
+
+AVAILABLE PRICE LIST ITEMS:
+${priceListContext}
+
+CRITICAL INSTRUCTIONS:
+- Look at the images carefully to understand the scope of work
+- For each type of work you see, select the most appropriate item from the price list above
+- Use the item ID from the price list (shown in format: ID|Name|Unit|Price)
+- Estimate realistic quantities based on what you see in the documents
+- If you see measurements, use them to calculate quantities
+- ONLY use items from the price list above - do NOT invent new items
+- If no suitable item exists in the price list for some work, skip it
+
+RESPONSE FORMAT - CRITICAL:
+Respond with a JSON object containing replaceExisting flag and items array:
+
+{"replaceExisting": true, "items": [{"priceListItemId":"item-id","quantity":100,"notes":"From document"}]}
+
+Start your response with { and end with }.
+NO explanations, NO markdown, NO other text.`
+        : `You are a construction estimator. Your PRIMARY GOAL is to create estimates that FIT THE CUSTOMER'S BUDGET.
 
 Items (ID|Name|Unit|Price):
 ${priceListContext}
@@ -2249,7 +2278,7 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
 
       // Build the current user message
       const userPromptText = attachedFilesData.length > 0
-        ? `${textInput || 'Analyze the attached documents and generate an estimate based on what you see.'}\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n1. YOU HAVE ${attachedFilesData.length} IMAGE(S) ATTACHED - these are PDF pages containing the construction scope\n2. CAREFULLY READ the images to extract:\n   - What work needs to be done\n   - Quantities or measurements mentioned\n   - Any budget constraints\n3. Match the work you see to items in the price list\n4. Generate a complete estimate based on what you read in the images\n5. DO NOT ask for more information - the images contain the full scope\n6. If you cannot read the images clearly, generate a basic estimate for the type of project you can identify\n7. Set replaceExisting=true (this is a new estimate)\n\nYou MUST generate items based on the images. DO NOT return empty items array unless the images are completely unreadable.`
+        ? `${textInput || 'Analyze the attached construction documents and generate estimate items.'}\n\nGenerate estimate items based on the ${attachedFilesData.length} attached image(s).`
         : `${textInput}\n\n⚠️ CRITICAL INSTRUCTIONS ⚠️\n1. Analyze if user wants to REPLACE existing items or ADD to them\n2. If budget is mentioned, final total MUST be within ±10% of that amount\n3. DO NOT exceed budget by 2x or more\n4. Set replaceExisting=true if user says "change budget", "increase to", "decrease to", or starting fresh\n5. Set replaceExisting=false if user says "add", "also include", "plus"\n\nRespond with JSON object containing replaceExisting flag and items array.`;
 
       const currentUserMessage = textInput; // Store just text for conversation history
