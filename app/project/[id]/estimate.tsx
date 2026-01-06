@@ -2059,12 +2059,29 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
     try {
       console.log('[AI Estimate] Generating estimate from description:', textInput);
 
-      // Prepare attached files for Vision API
+      // Prepare attached files for Vision API (images only)
       let attachedFilesData: any[] = [];
+      let nonImageFiles: string[] = [];
+
       if (attachedFiles.length > 0) {
         console.log('[AI Estimate] Processing', attachedFiles.length, 'attached files for Vision API');
 
         for (const file of attachedFiles) {
+          // Check if it's an image file
+          const isImage = file.type.startsWith('image/') ||
+                         file.type.includes('png') ||
+                         file.type.includes('jpg') ||
+                         file.type.includes('jpeg') ||
+                         file.type.includes('gif') ||
+                         file.type.includes('webp');
+
+          if (!isImage) {
+            // Track non-image files
+            nonImageFiles.push(file.name);
+            console.log('[AI Estimate] Skipping non-image file:', file.name, file.type);
+            continue;
+          }
+
           try {
             let base64 = '';
 
@@ -2096,7 +2113,6 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
             // Determine mime type
             let mimeType = 'image/jpeg';
             if (file.type.includes('png')) mimeType = 'image/png';
-            else if (file.type.includes('pdf')) mimeType = 'application/pdf';
             else if (file.type.includes('webp')) mimeType = 'image/webp';
             else if (file.type.includes('gif')) mimeType = 'image/gif';
 
@@ -2107,10 +2123,18 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
               },
             });
 
-            console.log('[AI Estimate] Added file to vision API:', file.name, mimeType);
+            console.log('[AI Estimate] Added image to vision API:', file.name, mimeType);
           } catch (error) {
             console.error('[AI Estimate] Failed to process file:', file.name, error);
           }
+        }
+
+        // Alert user about non-image files
+        if (nonImageFiles.length > 0) {
+          Alert.alert(
+            'PDFs Not Supported',
+            `The AI cannot read PDF files directly. Only images (PNG, JPG, etc.) can be analyzed.\n\nSkipped files: ${nonImageFiles.join(', ')}\n\nTo analyze PDFs:\n1. Convert PDF pages to images first\n2. Or describe the PDF contents in your text input`
+          );
         }
       }
 
