@@ -146,10 +146,12 @@ export default function ProjectExpensesScreen() {
 
     const result = await response.json();
     console.log('[OpenAI] Analysis result:', result);
+    console.log('[OpenAI] Has error field:', !!result.error, 'Error value:', result.error);
 
     // Check if the API returned an error message (even with success: true)
     // This happens when OpenAI couldn't parse the image properly
     if (result.error) {
+      console.log('[OpenAI] Returning isValidReceipt: false due to error field');
       return {
         data: null,
         isValidReceipt: false,
@@ -481,11 +483,16 @@ export default function ProjectExpensesScreen() {
         setShowConfirmModal(true);
       } else {
         // Show user-friendly message explaining why analysis failed
-        Alert.alert(
-          'Not a Receipt',
-          result.message || 'Could not extract expense information from this image. Please upload a photo of a receipt or invoice.',
-          [{ text: 'OK' }]
-        );
+        console.log('[Receipt] Analysis failed, showing alert:', result.message);
+        if (Platform.OS === 'web') {
+          window.alert(result.message || 'Could not extract expense information from this image. Please upload a photo of a receipt or invoice.');
+        } else {
+          Alert.alert(
+            'Not a Receipt',
+            result.message || 'Could not extract expense information from this image. Please upload a photo of a receipt or invoice.',
+            [{ text: 'OK' }]
+          );
+        }
       }
     } catch (error: any) {
       console.error('[Receipt] Processing error:', error);
