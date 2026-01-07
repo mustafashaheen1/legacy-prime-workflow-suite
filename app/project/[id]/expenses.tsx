@@ -6,15 +6,24 @@ import { priceListCategories } from '@/mocks/priceList';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { generateObject } from '@rork-ai/toolkit-sdk';
-import { z } from 'zod';
 import { Image } from 'expo-image';
-import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File } from 'lucide-react-native';
+import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Check, Edit3 } from 'lucide-react-native';
+
+interface ExtractedExpense {
+  store: string;
+  amount: number;
+  date: string;
+  category: string;
+  items: string;
+  confidence: number;
+  imageUri: string;
+  imageBase64: string;
+}
 
 export default function ProjectExpensesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { expenses, addExpense, projects, user } = useApp();
+  const { expenses, addExpense, projects, user, company } = useApp();
   const [expenseType, setExpenseType] = useState<string>('Subcontractor');
   const [category, setCategory] = useState<string>(priceListCategories[0]);
   const [amount, setAmount] = useState<string>('');
@@ -23,24 +32,96 @@ export default function ProjectExpensesScreen() {
   const [receiptType, setReceiptType] = useState<'image' | 'file' | null>(null);
   const [receiptFileName, setReceiptFileName] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scanningMessage, setScanningMessage] = useState<string>('Processing...');
   const [showExpenseTypePicker, setShowExpenseTypePicker] = useState<boolean>(false);
   const [showSubcategoryPicker, setShowSubcategoryPicker] = useState<boolean>(false);
   const [customCategory, setCustomCategory] = useState<string>('');
 
-  const project = useMemo(() => 
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [extractedExpense, setExtractedExpense] = useState<ExtractedExpense | null>(null);
+  const [editingInModal, setEditingInModal] = useState<boolean>(false);
+  const [modalStore, setModalStore] = useState<string>('');
+  const [modalAmount, setModalAmount] = useState<string>('');
+  const [modalCategory, setModalCategory] = useState<string>('');
+  const [isSavingExpense, setIsSavingExpense] = useState<boolean>(false);
+
+  const project = useMemo(() =>
     projects.find(p => p.id === id),
     [projects, id]
   );
 
-  const filteredExpenses = useMemo(() => 
+  const filteredExpenses = useMemo(() =>
     expenses.filter(e => e.projectId === id),
     [expenses, id]
   );
 
-  const projectExpenseTotal = useMemo(() => 
+  const projectExpenseTotal = useMemo(() =>
     filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
     [filteredExpenses]
   );
+
+  // Upload image to S3
+  const uploadToS3 = async (base64Data: string, fileName: string, fileType: string): Promise<string> => {
+    console.log('[S3] Uploading receipt to S3...');
+
+    const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+                  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+
+    const response = await fetch(`${apiUrl}/api/upload-to-s3`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileData: base64Data,
+        fileName: `receipts/${Date.now()}-${fileName}`,
+        fileType,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to upload to S3');
+    }
+
+    const result = await response.json();
+    console.log('[S3] Upload successful:', result.url);
+    return result.url;
+  };
+
+  // Analyze receipt with OpenAI
+  const analyzeReceiptWithOpenAI = async (imageData: string): Promise<ExtractedExpense | null> => {
+    console.log('[OpenAI] Analyzing receipt...');
+
+    const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+                  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+
+    const response = await fetch(`${apiUrl}/api/analyze-receipt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageData,
+        categories: priceListCategories,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to analyze receipt');
+    }
+
+    const result = await response.json();
+    console.log('[OpenAI] Analysis result:', result);
+
+    if (result.success && result.data) {
+      return {
+        ...result.data,
+        imageUri: '',
+        imageBase64: imageData,
+      };
+    }
+
+    return null;
+  };
 
   const handleSave = async () => {
     if (!amount || !store) {
@@ -76,10 +157,166 @@ export default function ProjectExpensesScreen() {
     }
   };
 
+  // Save expense from confirmation modal
+  const handleSaveFromModal = async () => {
+    if (!extractedExpense || !modalAmount || !modalStore) {
+      Alert.alert('Missing Information', 'Please fill in all required fields.');
+      return;
+    }
+
+    setIsSavingExpense(true);
+
+    try {
+      // Upload receipt to S3
+      let receiptUrl: string | undefined;
+
+      if (extractedExpense.imageBase64) {
+        setScanningMessage('Uploading receipt...');
+        try {
+          receiptUrl = await uploadToS3(
+            extractedExpense.imageBase64,
+            `receipt-${Date.now()}.jpg`,
+            'image/jpeg'
+          );
+        } catch (uploadError) {
+          console.error('[Expenses] S3 upload failed, continuing without receipt URL:', uploadError);
+          // Continue without receipt URL if upload fails
+        }
+      }
+
+      // Save the expense
+      await addExpense({
+        id: Date.now().toString(),
+        projectId: id as string,
+        type: 'Subcontractor',
+        subcategory: modalCategory || priceListCategories[0],
+        amount: parseFloat(modalAmount),
+        store: modalStore,
+        date: extractedExpense.date || new Date().toISOString(),
+        receiptUrl,
+      });
+
+      console.log('[Expenses] Expense saved from modal successfully');
+
+      // Close modal and reset state
+      setShowConfirmModal(false);
+      setExtractedExpense(null);
+      setEditingInModal(false);
+      setModalStore('');
+      setModalAmount('');
+      setModalCategory('');
+
+      Alert.alert('Success', 'Expense saved successfully!');
+    } catch (error: any) {
+      console.error('[Expenses] Error saving expense from modal:', error);
+      Alert.alert('Error', `Failed to save expense: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsSavingExpense(false);
+    }
+  };
+
+  // Convert image URI to base64
+  const convertToBase64 = async (uri: string): Promise<string> => {
+    if (Platform.OS !== 'web' && uri.startsWith('file://')) {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: 'base64' as any,
+      });
+      const mimeType = uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      return `data:${mimeType};base64,${base64}`;
+    } else if (Platform.OS === 'web' && !uri.startsWith('data:')) {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      return base64;
+    }
+    return uri;
+  };
+
+  // Process receipt (image or PDF)
+  const processReceipt = async (uri: string, isPdf: boolean = false, fileName?: string) => {
+    try {
+      setIsScanning(true);
+      setScanningMessage('Processing image...');
+
+      console.log('[Receipt] Processing:', { uri: uri.substring(0, 50), isPdf, fileName });
+
+      // Convert to base64
+      setScanningMessage('Converting image...');
+      let imageData: string;
+
+      if (isPdf) {
+        // For PDFs, we need to handle differently
+        // OpenAI can analyze PDF images if we convert them
+        if (Platform.OS !== 'web' && uri.startsWith('file://')) {
+          const base64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: 'base64' as any,
+          });
+          imageData = `data:application/pdf;base64,${base64}`;
+        } else {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          imageData = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+      } else {
+        imageData = await convertToBase64(uri);
+      }
+
+      if (!imageData || imageData.length < 100) {
+        throw new Error('Invalid file data');
+      }
+
+      // Analyze with OpenAI
+      setScanningMessage('Analyzing with AI...');
+      const extracted = await analyzeReceiptWithOpenAI(imageData);
+
+      if (extracted) {
+        // Set up modal data
+        extracted.imageUri = uri;
+        extracted.imageBase64 = imageData;
+
+        setExtractedExpense(extracted);
+        setModalStore(extracted.store || '');
+        setModalAmount(extracted.amount ? extracted.amount.toFixed(2) : '');
+        setModalCategory(extracted.category || priceListCategories[0]);
+        setEditingInModal(false);
+        setShowConfirmModal(true);
+      } else {
+        Alert.alert(
+          'Analysis Failed',
+          'Could not extract expense information. Please enter details manually.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error: any) {
+      console.error('[Receipt] Processing error:', error);
+
+      let errorMessage = 'Failed to process receipt. Please try again or enter details manually.';
+      if (error.message?.includes('Network')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      }
+
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsScanning(false);
+      setScanningMessage('Processing...');
+    }
+  };
+
+  // Button 1: Scan Receipt (Camera)
   const handleScanReceipt = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Camera access is required to scan receipts.');
         return;
@@ -96,14 +333,20 @@ export default function ProjectExpensesScreen() {
       }
     } catch (error) {
       console.error('Error scanning receipt:', error);
-      Alert.alert('Error', 'Failed to scan receipt. Please try again.');
+      Alert.alert('Error', 'Failed to access camera. Please try again.');
     }
   };
 
+  // Button 2: Receipt (also camera, same as scan)
+  const handleReceiptButton = async () => {
+    await handleScanReceipt();
+  };
+
+  // Button 3: Upload Receipt (Photo Library)
   const handleUploadReceipt = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Photo library access is required to upload receipts.');
         return;
@@ -120,10 +363,11 @@ export default function ProjectExpensesScreen() {
       }
     } catch (error) {
       console.error('Error uploading receipt:', error);
-      Alert.alert('Error', 'Failed to upload receipt. Please try again.');
+      Alert.alert('Error', 'Failed to access photo library. Please try again.');
     }
   };
 
+  // Button 4: Upload File (PDF or Image)
   const handleUploadFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -136,19 +380,12 @@ export default function ProjectExpensesScreen() {
       }
 
       const file = result.assets[0];
-      console.log('[FILE] Selected file:', file);
+      console.log('[File] Selected:', { name: file.name, type: file.mimeType });
 
       if (file.mimeType?.startsWith('image/')) {
-        await processReceipt(file.uri);
+        await processReceipt(file.uri, false, file.name);
       } else if (file.mimeType === 'application/pdf') {
-        setReceiptImage(file.uri);
-        setReceiptType('file');
-        setReceiptFileName(file.name);
-        Alert.alert(
-          'PDF Uploaded',
-          'PDF file uploaded successfully. Please enter expense details manually.',
-          [{ text: 'OK' }]
-        );
+        await processReceipt(file.uri, true, file.name);
       } else {
         Alert.alert('Unsupported File', 'Please upload an image or PDF file.');
       }
@@ -158,140 +395,17 @@ export default function ProjectExpensesScreen() {
     }
   };
 
-  const processReceipt = async (uri: string) => {
-    try {
-      setIsScanning(true);
-      setReceiptImage(uri);
-      setReceiptType('image');
+  // Get confidence color
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 80) return '#10B981';
+    if (confidence >= 60) return '#F59E0B';
+    return '#EF4444';
+  };
 
-      console.log('[OCR] Processing receipt image...');
-      console.log('[OCR] Platform:', Platform.OS);
-      console.log('[OCR] Image URI:', uri);
-
-      let imageData = uri;
-
-      if (Platform.OS !== 'web' && uri.startsWith('file://')) {
-        console.log('[OCR] Reading local file as base64...');
-        try {
-          const base64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: 'base64' as any,
-          });
-          const mimeType = uri.endsWith('.png') ? 'image/png' : 'image/jpeg';
-          imageData = `data:${mimeType};base64,${base64}`;
-          console.log('[OCR] Image converted to base64');
-        } catch (conversionError) {
-          console.error('[OCR] Error converting image:', conversionError);
-          throw new Error('Failed to convert image to base64');
-        }
-      } else if (Platform.OS === 'web' && !uri.startsWith('data:')) {
-        console.log('[OCR] Converting web image to base64...');
-        try {
-          const response = await fetch(uri);
-          const blob = await response.blob();
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-          imageData = base64;
-          console.log('[OCR] Image converted to base64');
-        } catch (conversionError) {
-          console.error('[OCR] Error converting image:', conversionError);
-          throw new Error('Failed to convert image to base64');
-        }
-      }
-
-      console.log('[OCR] Sending request to AI...');
-      console.log('[OCR] Image data length:', imageData.length);
-      console.log('[OCR] Image data format:', imageData.substring(0, 50));
-
-      if (!imageData || imageData.length < 100) {
-        throw new Error('Invalid image data - image is too small or corrupted');
-      }
-
-      const ReceiptSchema = z.object({
-        store: z.string().describe('The name of the store or vendor from the receipt'),
-        amount: z.number().describe('The total amount from the receipt as a number'),
-        date: z.string().optional().describe('The date from the receipt in ISO format if available'),
-        category: z.string().describe(`The most appropriate construction expense category from: ${priceListCategories.join(', ')}`),
-        items: z.string().optional().describe('Brief description of items purchased if visible'),
-        confidence: z.number().min(0).max(100).describe('Confidence level in the extraction (0-100)')
-      });
-
-      const result = await generateObject({
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                image: imageData,
-              },
-              {
-                type: 'text',
-                text: `Analyze this receipt image and extract key information. Identify the store/vendor, total amount, date, and items if visible. Based on the items and store, intelligently categorize this expense into the most appropriate construction category. Consider:
-- Hardware stores (Home Depot, Lowe's, etc.) → categorize by what was purchased (lumber, electrical, plumbing, etc.)
-- Material suppliers → specific material categories
-- Service providers → appropriate service category
-- Office/general supplies → PRE-CONSTRUCTION
-
-Be intelligent about the categorization based on the actual items purchased, not just the store name.`,
-              },
-            ],
-          },
-        ],
-        schema: ReceiptSchema,
-      });
-
-      console.log('[OCR] AI Response:', result);
-
-      if (result.store) setStore(result.store);
-      if (result.amount) {
-        setAmount(result.amount.toFixed(2));
-      }
-      if (result.category && priceListCategories.includes(result.category)) {
-        setCategory(result.category);
-      } else if (result.category) {
-        console.log('[OCR] Category not found in list, using first category');
-      }
-
-      console.log('[OCR] Successfully extracted receipt data');
-      
-      const confidenceMsg = result.confidence >= 80 
-        ? 'High confidence extraction' 
-        : result.confidence >= 60 
-        ? 'Medium confidence extraction' 
-        : 'Low confidence extraction';
-      
-      Alert.alert(
-        '✓ Receipt Analyzed',
-        `${confidenceMsg}. Fields have been auto-filled. Please review and edit if needed, then tap Save.`,
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error('[OCR] Error processing receipt:', error);
-      
-      let errorMessage = 'Could not extract receipt information. Please enter details manually.';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('Network request failed')) {
-          errorMessage = 'Network error: Unable to connect to AI service. Please check your internet connection and try again.';
-        } else if (error.message.includes('base64')) {
-          errorMessage = 'Image processing error: Could not read the image file. Please try a different photo.';
-        } else {
-          errorMessage = `Error: ${error.message}`;
-        }
-      }
-      
-      Alert.alert(
-        'Processing Error',
-        errorMessage,
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setIsScanning(false);
-    }
+  const getConfidenceLabel = (confidence: number) => {
+    if (confidence >= 80) return 'High';
+    if (confidence >= 60) return 'Medium';
+    return 'Low';
   };
 
   if (!project) {
@@ -307,7 +421,7 @@ Be intelligent about the categorization based on the actual items purchased, not
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
@@ -318,25 +432,25 @@ Be intelligent about the categorization based on the actual items purchased, not
             <Text style={styles.headerSubtitle}>{project.name}</Text>
           </View>
           <View style={styles.headerButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.iconButton}
               onPress={handleScanReceipt}
             >
               <Scan size={20} color="#2563EB" />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.iconButton}
-              onPress={handleScanReceipt}
+              onPress={handleReceiptButton}
             >
               <Receipt size={20} color="#2563EB" />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.iconButton}
               onPress={handleUploadReceipt}
             >
               <Upload size={20} color="#2563EB" />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.iconButton}
               onPress={handleUploadFile}
             >
@@ -354,7 +468,7 @@ Be intelligent about the categorization based on the actual items purchased, not
                   style={styles.receiptImage}
                   contentFit="cover"
                 />
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.removeImageButton}
                   onPress={() => {
                     setReceiptImage(null);
@@ -376,7 +490,7 @@ Be intelligent about the categorization based on the actual items purchased, not
                     <Text style={styles.fileType}>PDF</Text>
                   </View>
                 </View>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.removeFileButton}
                   onPress={() => {
                     setReceiptImage(null);
@@ -390,7 +504,7 @@ Be intelligent about the categorization based on the actual items purchased, not
             )}
 
             <Text style={styles.label}>Expense Type</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.categoryPicker}
               onPress={() => setShowExpenseTypePicker(true)}
             >
@@ -401,7 +515,7 @@ Be intelligent about the categorization based on the actual items purchased, not
             {expenseType === 'Subcontractor' && (
               <>
                 <Text style={styles.label}>Category</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.categoryPicker}
                   onPress={() => setShowSubcategoryPicker(true)}
                 >
@@ -470,13 +584,14 @@ Be intelligent about the categorization based on the actual items purchased, not
           )}
         </ScrollView>
 
+        {/* Expense Type Picker Modal */}
         <Modal
           visible={showExpenseTypePicker}
           transparent
           animationType="slide"
           onRequestClose={() => setShowExpenseTypePicker(false)}
         >
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modalOverlay}
             activeOpacity={1}
             onPress={() => setShowExpenseTypePicker(false)}
@@ -516,13 +631,14 @@ Be intelligent about the categorization based on the actual items purchased, not
           </TouchableOpacity>
         </Modal>
 
+        {/* Subcategory Picker Modal */}
         <Modal
           visible={showSubcategoryPicker}
           transparent
           animationType="slide"
           onRequestClose={() => setShowSubcategoryPicker(false)}
         >
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modalOverlay}
             activeOpacity={1}
             onPress={() => setShowSubcategoryPicker(false)}
@@ -584,11 +700,145 @@ Be intelligent about the categorization based on the actual items purchased, not
           </TouchableOpacity>
         </Modal>
 
+        {/* Expense Confirmation Modal */}
+        <Modal
+          visible={showConfirmModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowConfirmModal(false)}
+        >
+          <View style={styles.confirmModalOverlay}>
+            <View style={styles.confirmModalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Confirm Expense</Text>
+                <TouchableOpacity onPress={() => setShowConfirmModal(false)}>
+                  <X size={24} color="#1F2937" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.confirmModalBody}>
+                {/* Receipt Preview */}
+                {extractedExpense?.imageUri && (
+                  <View style={styles.modalReceiptPreview}>
+                    <Image
+                      source={{ uri: extractedExpense.imageUri }}
+                      style={styles.modalReceiptImage}
+                      contentFit="cover"
+                    />
+                  </View>
+                )}
+
+                {/* Confidence Badge */}
+                {extractedExpense && (
+                  <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(extractedExpense.confidence) + '20' }]}>
+                    <View style={[styles.confidenceDot, { backgroundColor: getConfidenceColor(extractedExpense.confidence) }]} />
+                    <Text style={[styles.confidenceText, { color: getConfidenceColor(extractedExpense.confidence) }]}>
+                      {getConfidenceLabel(extractedExpense.confidence)} Confidence ({extractedExpense.confidence}%)
+                    </Text>
+                    <TouchableOpacity onPress={() => setEditingInModal(!editingInModal)}>
+                      <Edit3 size={16} color="#6B7280" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Items Description */}
+                {extractedExpense?.items && (
+                  <View style={styles.itemsBox}>
+                    <Text style={styles.itemsLabel}>Items Detected</Text>
+                    <Text style={styles.itemsText}>{extractedExpense.items}</Text>
+                  </View>
+                )}
+
+                {/* Form Fields */}
+                <View style={styles.modalFormGroup}>
+                  <Text style={styles.modalLabel}>Store/Vendor</Text>
+                  {editingInModal ? (
+                    <TextInput
+                      style={styles.modalInput}
+                      value={modalStore}
+                      onChangeText={setModalStore}
+                      placeholder="Enter store name"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  ) : (
+                    <Text style={styles.modalValue}>{modalStore || 'Not detected'}</Text>
+                  )}
+                </View>
+
+                <View style={styles.modalFormGroup}>
+                  <Text style={styles.modalLabel}>Amount</Text>
+                  {editingInModal ? (
+                    <TextInput
+                      style={styles.modalInput}
+                      value={modalAmount}
+                      onChangeText={setModalAmount}
+                      placeholder="0.00"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="numeric"
+                    />
+                  ) : (
+                    <Text style={styles.modalValueLarge}>${modalAmount || '0.00'}</Text>
+                  )}
+                </View>
+
+                <View style={styles.modalFormGroup}>
+                  <Text style={styles.modalLabel}>Category</Text>
+                  {editingInModal ? (
+                    <TextInput
+                      style={styles.modalInput}
+                      value={modalCategory}
+                      onChangeText={setModalCategory}
+                      placeholder="Select category"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  ) : (
+                    <Text style={styles.modalValue}>{modalCategory || 'Not detected'}</Text>
+                  )}
+                </View>
+
+                {extractedExpense?.date && (
+                  <View style={styles.modalFormGroup}>
+                    <Text style={styles.modalLabel}>Date</Text>
+                    <Text style={styles.modalValue}>
+                      {new Date(extractedExpense.date).toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              <View style={styles.confirmModalButtons}>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => setEditingInModal(!editingInModal)}
+                >
+                  <Edit3 size={18} color="#2563EB" />
+                  <Text style={styles.editButtonText}>{editingInModal ? 'Done Editing' : 'Edit'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmSaveButton, isSavingExpense && styles.buttonDisabled]}
+                  onPress={handleSaveFromModal}
+                  disabled={isSavingExpense}
+                >
+                  {isSavingExpense ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Check size={18} color="#FFFFFF" />
+                      <Text style={styles.confirmSaveButtonText}>Save Expense</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Loading Overlay */}
         {isScanning && (
           <View style={styles.loadingOverlay}>
             <View style={styles.loadingContent}>
               <ActivityIndicator size="large" color="#2563EB" />
-              <Text style={styles.loadingText}>Processing receipt...</Text>
+              <Text style={styles.loadingText}>{scanningMessage}</Text>
             </View>
           </View>
         )}
@@ -896,5 +1146,135 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     textAlign: 'center',
     marginTop: 40,
+  },
+  // Confirmation Modal Styles
+  confirmModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  confirmModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+  },
+  confirmModalBody: {
+    padding: 20,
+    maxHeight: 500,
+  },
+  modalReceiptPreview: {
+    width: '100%',
+    height: 150,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  modalReceiptImage: {
+    width: '100%',
+    height: '100%',
+  },
+  confidenceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+    gap: 8,
+  },
+  confidenceDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  confidenceText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  itemsBox: {
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  itemsLabel: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  itemsText: {
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  modalFormGroup: {
+    marginBottom: 16,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  modalValue: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+  },
+  modalValueLarge: {
+    fontSize: 24,
+    color: '#2563EB',
+    fontWeight: '700' as const,
+  },
+  modalInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  confirmModalButtons: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  editButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  editButtonText: {
+    color: '#2563EB',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  confirmSaveButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  confirmSaveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
