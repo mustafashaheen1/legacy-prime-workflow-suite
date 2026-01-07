@@ -166,6 +166,8 @@ export default function ProjectDetailScreen() {
   }, [reports, id]);
 
   const filesByCategory = useMemo(() => {
+    if (!project) return {};
+
     const byCategory: { [key: string]: ProjectFile[] } = {};
     currentProjectFiles.forEach(file => {
       if (!byCategory[file.category]) {
