@@ -73,7 +73,8 @@
       "Bash(psql $EXPO_PUBLIC_SUPABASE_URL -c \"\\\\d projects\")",
       "Bash(git checkout:*)",
       "Bash(git stash:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(timeout 10 npx tsc:*)"
     ],
     "deny": [],
     "ask": []

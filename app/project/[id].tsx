@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, FlatList, Platform, Dimensions, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, FlatList, Platform, Dimensions, Linking, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
@@ -13,6 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { ProjectFile, FileCategory } from '@/types';
+import { photoCategories } from '@/mocks/data';
 
 type TabType = 'overview' | 'estimate' | 'change-orders' | 'clock' | 'expenses' | 'photos' | 'videos' | 'files' | 'reports';
 
@@ -39,6 +40,7 @@ export default function ProjectDetailScreen() {
   const [photoNotes, setPhotoNotes] = useState<string>('');
   const [photoCategory, setPhotoCategory] = useState<string>('Foundation');
   const [showAIReportModal, setShowAIReportModal] = useState<boolean>(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
@@ -917,22 +919,77 @@ export default function ProjectDetailScreen() {
           }
         };
 
-        const handlePhotoSave = () => {
+        const handlePhotoSave = async () => {
           if (!selectedPhotoImage) return;
 
-          const newPhoto = {
-            id: Date.now().toString(),
-            projectId: id as string,
-            category: photoCategory,
-            notes: photoNotes,
-            url: selectedPhotoImage,
-            date: new Date().toISOString(),
-          };
-          addPhoto(newPhoto);
+          setIsUploadingPhoto(true);
+          try {
+            console.log('[Photos] Uploading photo to S3...');
 
-          setSelectedPhotoImage(null);
-          setPhotoNotes('');
-          Alert.alert('Success', 'Photo saved successfully!');
+            // Convert image to blob for upload
+            let blob: Blob;
+            if (Platform.OS === 'web') {
+              const response = await fetch(selectedPhotoImage);
+              blob = await response.blob();
+            } else {
+              // On mobile, we'll use base64
+              const base64 = await fetch(selectedPhotoImage).then(r => r.blob());
+              blob = base64;
+            }
+
+            // Get pre-signed upload URL
+            const fileName = `photo-${Date.now()}-${photoCategory.toLowerCase()}.jpg`;
+            const urlResponse = await fetch('/api/get-s3-upload-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName,
+                fileType: 'image/jpeg',
+              }),
+            });
+
+            if (!urlResponse.ok) {
+              const error = await urlResponse.json();
+              throw new Error(error.error || 'Failed to get upload URL');
+            }
+
+            const { uploadUrl, fileUrl } = await urlResponse.json();
+            console.log('[Photos] Got upload URL, uploading to S3...');
+
+            // Upload to S3
+            const uploadResponse = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: blob,
+              headers: { 'Content-Type': 'image/jpeg' },
+            });
+
+            if (!uploadResponse.ok) {
+              throw new Error('Failed to upload photo to S3');
+            }
+
+            console.log('[Photos] Photo uploaded successfully:', fileUrl);
+
+            // Save photo with S3 URL
+            const newPhoto = {
+              id: Date.now().toString(),
+              projectId: id as string,
+              category: photoCategory,
+              notes: photoNotes,
+              url: fileUrl,
+              date: new Date().toISOString(),
+            };
+            addPhoto(newPhoto);
+
+            setSelectedPhotoImage(null);
+            setPhotoNotes('');
+            setPhotoCategory('Foundation');
+            Alert.alert('Success', 'Photo uploaded and saved successfully!');
+          } catch (error) {
+            console.error('[Photos] Upload error:', error);
+            Alert.alert('Error', 'Failed to upload photo. Please try again.');
+          } finally {
+            setIsUploadingPhoto(false);
+          }
         };
 
         return (
@@ -954,9 +1011,30 @@ export default function ProjectDetailScreen() {
 
               <View style={styles.photosForm}>
                 <Text style={styles.photosLabel}>Category</Text>
-                <View style={styles.photosPicker}>
-                  <Text style={styles.photosPickerText}>{photoCategory}</Text>
-                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.photoCategoryScroll}
+                  contentContainerStyle={styles.photoCategoryContent}
+                >
+                  {photoCategories.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.photoCategoryOption,
+                        photoCategory === cat && styles.photoCategoryOptionSelected
+                      ]}
+                      onPress={() => setPhotoCategory(cat)}
+                    >
+                      <Text style={[
+                        styles.photoCategoryOptionText,
+                        photoCategory === cat && styles.photoCategoryOptionTextSelected
+                      ]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
 
                 <Text style={styles.photosLabel}>Notes</Text>
                 <TextInput
@@ -976,25 +1054,52 @@ export default function ProjectDetailScreen() {
                   </View>
                 )}
 
-                <TouchableOpacity 
-                  style={[styles.photosSaveButton, !selectedPhotoImage && styles.photosSaveButtonDisabled]} 
+                <TouchableOpacity
+                  style={[styles.photosSaveButton, (!selectedPhotoImage || isUploadingPhoto) && styles.photosSaveButtonDisabled]}
                   onPress={handlePhotoSave}
-                  disabled={!selectedPhotoImage}
+                  disabled={!selectedPhotoImage || isUploadingPhoto}
                 >
-                  <Text style={styles.photosSaveButtonText}>Save Photo</Text>
+                  {isUploadingPhoto ? (
+                    <>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text style={[styles.photosSaveButtonText, { marginLeft: 8 }]}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.photosSaveButtonText}>Save Photo</Text>
+                  )}
                 </TouchableOpacity>
               </View>
 
               <View style={styles.photosGallery}>
-                <Text style={styles.photosGalleryTitle}>Thumbnail Gallery</Text>
-                <View style={styles.photosGalleryGrid}>
-                  {projectPhotos.map((photo) => (
-                    <View key={photo.id} style={styles.photosGalleryItem}>
-                      <Image source={{ uri: photo.url }} style={styles.photosThumbnail} contentFit="cover" />
-                      <Text style={styles.photosThumbnailLabel}>{photo.category}</Text>
-                    </View>
-                  ))}
-                </View>
+                <Text style={styles.photosGalleryTitle}>Thumbnail Gallery ({projectPhotos.length})</Text>
+                {projectPhotos.length === 0 ? (
+                  <View style={styles.photosEmptyState}>
+                    <Camera size={48} color="#D1D5DB" />
+                    <Text style={styles.photosEmptyStateText}>No photos yet</Text>
+                    <Text style={styles.photosEmptyStateSubtext}>Upload or take a photo to get started</Text>
+                  </View>
+                ) : (
+                  <View style={styles.photosGalleryGrid}>
+                    {projectPhotos.map((photo) => (
+                      <View key={photo.id} style={styles.photosGalleryItem}>
+                        <Image source={{ uri: photo.url }} style={styles.photosThumbnail} contentFit="cover" />
+                        <View style={styles.photosThumbnailInfo}>
+                          <View style={styles.photosCategoryBadge}>
+                            <Text style={styles.photosCategoryBadgeText}>{photo.category}</Text>
+                          </View>
+                          {photo.notes && (
+                            <Text style={styles.photosThumbnailNotes} numberOfLines={2}>
+                              {photo.notes}
+                            </Text>
+                          )}
+                          <Text style={styles.photosThumbnailDate}>
+                            {new Date(photo.date).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             </ScrollView>
           </View>
@@ -3125,6 +3230,34 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 8,
   },
+  photoCategoryScroll: {
+    marginBottom: 16,
+  },
+  photoCategoryContent: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  photoCategoryOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  photoCategoryOptionSelected: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  photoCategoryOptionText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#6B7280',
+  },
+  photoCategoryOptionTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
+  },
   photosPicker: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
@@ -3166,6 +3299,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
   },
   photosSaveButtonDisabled: {
     backgroundColor: '#9CA3AF',
@@ -3194,18 +3329,64 @@ const styles = StyleSheet.create({
     width: '30%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   photosThumbnail: {
     width: '100%',
-    height: 120,
-    borderRadius: 8,
+    height: 150,
+    backgroundColor: '#F3F4F6',
+  },
+  photosThumbnailInfo: {
+    padding: 12,
+  },
+  photosCategoryBadge: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
     marginBottom: 8,
+  },
+  photosCategoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  photosThumbnailNotes: {
+    fontSize: 12,
+    color: '#6B7280',
+    lineHeight: 16,
+    marginBottom: 6,
+  },
+  photosThumbnailDate: {
+    fontSize: 11,
+    color: '#9CA3AF',
   },
   photosThumbnailLabel: {
     fontSize: 12,
     color: '#1F2937',
     textAlign: 'center',
+  },
+  photosEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  photosEmptyStateText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginTop: 16,
+  },
+  photosEmptyStateSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 4,
   },
   projectReportsList: {
     width: '100%',
