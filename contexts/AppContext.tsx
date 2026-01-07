@@ -962,18 +962,29 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Clock in on backend if company and user exist
     if (company?.id && user?.id) {
       try {
-        console.log('[App] Calling clock.clockIn API...');
-        const { vanillaClient } = await import('@/lib/trpc');
-        const result = await vanillaClient.clock.clockIn.mutate({
-          companyId: company.id,
-          employeeId: user.id,
-          projectId: entry.projectId,
-          location: entry.location,
-          workPerformed: entry.workPerformed,
-          category: entry.category,
+        console.log('[App] Calling /api/clock-in...');
+        const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+                      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+
+        const response = await fetch(`${apiUrl}/api/clock-in`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            employeeId: user.id,
+            projectId: entry.projectId,
+            location: entry.location,
+            workPerformed: entry.workPerformed,
+            category: entry.category,
+          }),
         });
 
-        console.log('[App] clock.clockIn result:', result);
+        const result = await response.json();
+        console.log('[App] clock-in result:', result);
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to clock in');
+        }
 
         // Update local entry with database ID so clock-out works correctly
         if (result.success && result.clockEntry) {
@@ -1005,8 +1016,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // If clocking out (clockOut is being set), call backend
     if (updates.clockOut) {
       try {
-        console.log('[App] Calling clock.clockOut API...');
-        const { vanillaClient } = await import('@/lib/trpc');
+        console.log('[App] Calling /api/clock-out...');
+        const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+                      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
 
         // Transform lunchBreaks to match backend schema (startTime/endTime -> start/end)
         const transformedLunchBreaks = updates.lunchBreaks?.map(lb => ({
@@ -1016,12 +1028,23 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
         console.log('[App] Clock out data:', { entryId: id, workPerformed: updates.workPerformed, lunchBreaks: transformedLunchBreaks });
 
-        const result = await vanillaClient.clock.clockOut.mutate({
-          entryId: id,
-          workPerformed: updates.workPerformed,
-          lunchBreaks: transformedLunchBreaks,
+        const response = await fetch(`${apiUrl}/api/clock-out`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entryId: id,
+            workPerformed: updates.workPerformed,
+            lunchBreaks: transformedLunchBreaks,
+            category: updates.category,
+          }),
         });
-        console.log('[App] Clocked out successfully, result:', result);
+
+        const result = await response.json();
+        console.log('[App] Clocked out result:', result);
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to clock out');
+        }
       } catch (error) {
         console.error('[App] Error clocking out:', error);
       }
