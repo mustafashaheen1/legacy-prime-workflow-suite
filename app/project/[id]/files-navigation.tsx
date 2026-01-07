@@ -27,7 +27,7 @@ const PREDEFINED_FOLDERS: FolderConfig[] = [
     name: 'Photos',
     icon: ImageIcon,
     color: '#3B82F6',
-    description: 'Fotografías del proyecto',
+    description: 'Project photographs',
   },
   {
     type: 'receipts',
@@ -207,7 +207,7 @@ export default function FilesNavigationScreen() {
       addPhoto(newPhoto);
       setFileNotes('');
       setUploadModalVisible(false);
-      Alert.alert('Éxito', '¡Foto agregada correctamente!');
+      Alert.alert('Success', 'Photo added successfully!');
     }
   };
 
@@ -240,7 +240,7 @@ export default function FilesNavigationScreen() {
       addPhoto(newPhoto);
       setFileNotes('');
       setUploadModalVisible(false);
-      Alert.alert('Éxito', '¡Foto agregada correctamente!');
+      Alert.alert('Success', 'Photo added successfully!');
     }
   };
 
@@ -274,17 +274,17 @@ export default function FilesNavigationScreen() {
         addProjectFile(file);
         setFileNotes('');
         setUploadModalVisible(false);
-        Alert.alert('Éxito', '¡Archivo subido correctamente!');
+        Alert.alert('Success', 'File uploaded successfully!');
       }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'No se pudo subir el archivo. Intenta de nuevo.');
+      Alert.alert('Error', 'Could not upload file. Please try again.');
     }
   };
 
   const handleCreateNewFolder = () => {
     if (!newFolderName.trim()) {
-      Alert.alert('Error', 'Por favor ingresa un nombre para el folder');
+      Alert.alert('Error', 'Please enter a folder name');
       return;
     }
 
@@ -293,19 +293,19 @@ export default function FilesNavigationScreen() {
       name: newFolderName.trim(),
       icon: Folder,
       color: '#6B7280',
-      description: 'Folder personalizado',
+      description: 'Custom folder',
     };
 
     setCustomFolders(prev => [...prev, newFolder]);
     setNewFolderName('');
     setNewFolderModalVisible(false);
-    Alert.alert('Éxito', '¡Folder creado correctamente!');
+    Alert.alert('Success', 'Folder created successfully!');
   };
 
   const handleDeleteFolder = (folderType: FolderType) => {
     Alert.alert(
       t('projects.files.deleteFolder'),
-      '¿Estás seguro que deseas eliminar este folder?',
+      'Are you sure you want to delete this folder?',
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -385,16 +385,16 @@ export default function FilesNavigationScreen() {
               onPress={() => setUploadModalVisible(true)}
             >
               <Plus size={20} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Agregar</Text>
+              <Text style={styles.addButtonText}>Add</Text>
             </TouchableOpacity>
           </View>
           
           {!hasCategories ? (
             <View style={styles.emptyFolderState}>
               <Folder size={64} color="#D1D5DB" />
-              <Text style={styles.emptyStateTitle}>Folder vacío</Text>
+              <Text style={styles.emptyStateTitle}>Empty Folder</Text>
               <Text style={styles.emptyStateText}>
-                Aún no hay archivos en este folder. Toca &quot;Agregar&quot; para comenzar.
+                No files in this folder yet. Tap &quot;Add&quot; to get started.
               </Text>
             </View>
           ) : (
@@ -437,7 +437,7 @@ export default function FilesNavigationScreen() {
               onPress={() => setUploadModalVisible(true)}
             >
               <Plus size={20} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Agregar</Text>
+              <Text style={styles.addButtonText}>Add</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -587,16 +587,16 @@ export default function FilesNavigationScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Agregar a {selectedCategory || folders.find(f => f.type === selectedFolder)?.name}</Text>
+                <Text style={styles.modalTitle}>Add to {selectedCategory || folders.find(f => f.type === selectedFolder)?.name}</Text>
                 <TouchableOpacity onPress={() => setUploadModalVisible(false)}>
                   <X size={24} color="#6B7280" />
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.modalLabel}>Notas (Opcional)</Text>
+              <Text style={styles.modalLabel}>Notes (Optional)</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="Agregar notas..."
+                placeholder="Add notes..."
                 placeholderTextColor="#9CA3AF"
                 multiline
                 numberOfLines={3}
@@ -613,14 +613,14 @@ export default function FilesNavigationScreen() {
                       onPress={handleTakePhoto}
                     >
                       <Camera size={20} color="#FFFFFF" />
-                      <Text style={styles.modalActionButtonText}>Tomar Foto</Text>
+                      <Text style={styles.modalActionButtonText}>Take Photo</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.modalActionButton}
                       onPress={handlePickPhoto}
                     >
                       <Upload size={20} color="#FFFFFF" />
-                      <Text style={styles.modalActionButtonText}>Subir Foto</Text>
+                      <Text style={styles.modalActionButtonText}>Upload Photo</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -629,7 +629,7 @@ export default function FilesNavigationScreen() {
                     onPress={handleUploadDocument}
                   >
                     <Upload size={20} color="#FFFFFF" />
-                    <Text style={styles.modalActionButtonText}>Subir Archivo</Text>
+                    <Text style={styles.modalActionButtonText}>Upload File</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -652,10 +652,10 @@ export default function FilesNavigationScreen() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.modalLabel}>Nombre del Folder</Text>
+              <Text style={styles.modalLabel}>Folder Name</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="Ej: Planos, Reportes Diarios, etc."
+                placeholder="Ex: Plans, Daily Reports, etc."
                 placeholderTextColor="#9CA3AF"
                 value={newFolderName}
                 onChangeText={setNewFolderName}

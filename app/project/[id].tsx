@@ -882,7 +882,82 @@ export default function ProjectDetailScreen() {
         );
 
       case 'expenses':
-        return null;
+        return (
+          <View style={styles.expensesTabContent}>
+            <View style={styles.expensesHeader}>
+              <Text style={styles.expensesTitle}>Add New Expense</Text>
+              <TouchableOpacity
+                style={styles.fullExpensesButton}
+                onPress={() => router.push(`/project/${id}/expenses` as any)}
+              >
+                <Upload size={18} color="#2563EB" />
+                <Text style={styles.fullExpensesButtonText}>Scan Receipt</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.expensesInfo}>
+              <Text style={styles.expensesInfoText}>
+                For AI receipt scanning and detailed expense entry, use the full expenses screen.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.openExpensesButton}
+              onPress={() => router.push(`/project/${id}/expenses` as any)}
+            >
+              <Text style={styles.openExpensesButtonText}>Open Full Expenses Screen</Text>
+            </TouchableOpacity>
+
+            <View style={styles.recentExpensesList}>
+              <Text style={styles.recentExpensesTitle}>
+                Recent Expenses ({projectExpenses.length})
+              </Text>
+              {projectExpenses.length === 0 ? (
+                <View style={styles.expensesEmptyState}>
+                  <DollarSign size={48} color="#D1D5DB" />
+                  <Text style={styles.expensesEmptyStateText}>No expenses yet</Text>
+                  <Text style={styles.expensesEmptyStateSubtext}>
+                    Add your first expense to track project costs
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView style={styles.recentExpensesScroll}>
+                  {projectExpenses.slice(0, 10).map((expense) => (
+                    <View key={expense.id} style={styles.recentExpenseCard}>
+                      <View style={styles.recentExpenseHeader}>
+                        <View style={styles.recentExpenseInfo}>
+                          <Text style={styles.recentExpenseType}>{expense.type}</Text>
+                          {expense.subcategory && expense.subcategory !== expense.type && (
+                            <Text style={styles.recentExpenseSubcategory}>
+                              {expense.subcategory}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={styles.recentExpenseAmount}>
+                          ${expense.amount.toLocaleString()}
+                        </Text>
+                      </View>
+                      <Text style={styles.recentExpenseStore}>{expense.store}</Text>
+                      <Text style={styles.recentExpenseDate}>
+                        {new Date(expense.date).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  ))}
+                  {projectExpenses.length > 10 && (
+                    <TouchableOpacity
+                      style={styles.viewAllExpensesButton}
+                      onPress={() => router.push(`/project/${id}/expenses` as any)}
+                    >
+                      <Text style={styles.viewAllExpensesButtonText}>
+                        View All {projectExpenses.length} Expenses
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        );
 
       case 'photos':
         const pickPhotoImage = async () => {
@@ -3679,5 +3754,152 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     marginBottom: 20,
+  },
+  expensesTabContent: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+  },
+  expensesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  expensesTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  fullExpensesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  fullExpensesButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  expensesInfo: {
+    backgroundColor: '#FEF3C7',
+    padding: 16,
+    margin: 16,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  expensesInfoText: {
+    fontSize: 14,
+    color: '#92400E',
+    lineHeight: 20,
+  },
+  openExpensesButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  openExpensesButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  recentExpensesList: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    margin: 16,
+    marginTop: 0,
+    borderRadius: 12,
+    padding: 16,
+  },
+  recentExpensesTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 16,
+  },
+  recentExpensesScroll: {
+    flex: 1,
+  },
+  recentExpenseCard: {
+    backgroundColor: '#F9FAFB',
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2563EB',
+  },
+  recentExpenseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  recentExpenseInfo: {
+    flex: 1,
+  },
+  recentExpenseType: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  recentExpenseSubcategory: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  recentExpenseAmount: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: '#2563EB',
+  },
+  recentExpenseStore: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  recentExpenseDate: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  expensesEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  expensesEmptyStateText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginTop: 16,
+  },
+  expensesEmptyStateSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  viewAllExpensesButton: {
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  viewAllExpensesButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#2563EB',
   },
 });
