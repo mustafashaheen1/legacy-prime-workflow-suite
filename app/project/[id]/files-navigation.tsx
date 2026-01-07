@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2 } from 'lucide-react-native';
 import { Image } from 'expo-image';
@@ -91,8 +91,38 @@ export default function FilesNavigationScreen() {
   const [newFolderModalVisible, setNewFolderModalVisible] = useState<boolean>(false);
   const [newFolderName, setNewFolderName] = useState<string>('');
   const [customFolders, setCustomFolders] = useState<FolderConfig[]>([]);
+  const [viewingFile, setViewingFile] = useState<{ uri: string; name: string; type: string } | null>(null);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [s3ProjectFiles, setS3ProjectFiles] = useState<ProjectFile[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(true);
 
   const project = projects.find(p => p.id === id);
+
+  // Load project files from S3/database
+  const loadProjectFiles = useCallback(async () => {
+    if (!company?.id || !id) return;
+
+    try {
+      setIsLoadingFiles(true);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/get-project-files?projectId=${id}&companyId=${company.id}`);
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.files) {
+          setS3ProjectFiles(result.files);
+        }
+      }
+    } catch (error) {
+      console.error('[Files] Error loading project files:', error);
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  }, [company?.id, id]);
+
+  useEffect(() => {
+    loadProjectFiles();
+  }, [loadProjectFiles]);
 
   const projectPhotos = useMemo(() => {
     return photos.filter(p => p.projectId === id);
@@ -102,9 +132,14 @@ export default function FilesNavigationScreen() {
     return expenses.filter(e => e.projectId === id);
   }, [expenses, id]);
 
+  // Combine local and S3 project files
   const currentProjectFiles = useMemo(() => {
-    return projectFiles.filter(f => f.projectId === id);
-  }, [projectFiles, id]);
+    const localFiles = projectFiles.filter(f => f.projectId === id);
+    // Merge, preferring S3 files (they have actual URLs)
+    const s3FileIds = new Set(s3ProjectFiles.map(f => f.id));
+    const uniqueLocalFiles = localFiles.filter(f => !s3FileIds.has(f.id));
+    return [...s3ProjectFiles, ...uniqueLocalFiles];
+  }, [projectFiles, s3ProjectFiles, id]);
 
   const folders = useMemo((): FolderWithData[] => {
     const allFolders = [...PREDEFINED_FOLDERS, ...customFolders];
@@ -245,6 +280,11 @@ export default function FilesNavigationScreen() {
   };
 
   const handleUploadDocument = async () => {
+    if (!company?.id) {
+      Alert.alert('Error', 'Company not found. Please sign in again.');
+      return;
+    }
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
@@ -253,32 +293,121 @@ export default function FilesNavigationScreen() {
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        
+
+        setIsUploading(true);
+        console.log('[Files] Starting file upload:', asset.name);
+
         let category: FileCategory = 'documentation';
         if (selectedFolder === 'permit-files') category = 'permits';
         else if (selectedFolder === 'inspections') category = 'inspections';
         else if (selectedFolder === 'agreements') category = 'agreements';
-        
-        const file: ProjectFile = {
-          id: Date.now().toString(),
-          projectId: id as string,
-          name: asset.name,
-          category,
-          fileType: asset.mimeType || 'unknown',
-          fileSize: asset.size || 0,
-          uri: asset.uri,
-          uploadDate: new Date().toISOString(),
-          notes: fileNotes,
-        };
 
-        addProjectFile(file);
-        setFileNotes('');
-        setUploadModalVisible(false);
-        Alert.alert('Success', 'File uploaded successfully!');
+        try {
+          // Step 1: Get pre-signed S3 upload URL
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
+          console.log('[Files] Getting S3 upload URL...');
+
+          const urlResponse = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: asset.name,
+              fileType: asset.mimeType || 'application/octet-stream',
+              projectId: id,
+              fileCategory: category,
+            }),
+          });
+
+          if (!urlResponse.ok) {
+            const error = await urlResponse.json();
+            throw new Error(error.error || 'Failed to get upload URL');
+          }
+
+          const { uploadUrl, fileUrl, key } = await urlResponse.json();
+          console.log('[Files] Got S3 upload URL, uploading file...');
+
+          // Step 2: Upload file to S3
+          if (Platform.OS === 'web') {
+            // On web, fetch the file and upload as blob
+            const fileResponse = await fetch(asset.uri);
+            const blob = await fileResponse.blob();
+
+            const uploadResponse = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: blob,
+              headers: {
+                'Content-Type': asset.mimeType || 'application/octet-stream',
+              },
+            });
+
+            if (!uploadResponse.ok) {
+              throw new Error('Failed to upload file to S3');
+            }
+          } else {
+            // On native, use fetch with the file URI
+            const fileData = await fetch(asset.uri);
+            const blob = await fileData.blob();
+
+            const uploadResponse = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: blob,
+              headers: {
+                'Content-Type': asset.mimeType || 'application/octet-stream',
+              },
+            });
+
+            if (!uploadResponse.ok) {
+              throw new Error('Failed to upload file to S3');
+            }
+          }
+
+          console.log('[Files] File uploaded to S3:', fileUrl);
+
+          // Step 3: Save file metadata to database
+          console.log('[Files] Saving file metadata to database...');
+
+          const saveResponse = await fetch(`${apiUrl}/api/save-project-file`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId: company.id,
+              projectId: id,
+              name: asset.name,
+              category,
+              fileType: asset.mimeType || 'unknown',
+              fileSize: asset.size || 0,
+              url: fileUrl,
+              s3Key: key,
+              notes: fileNotes,
+            }),
+          });
+
+          if (!saveResponse.ok) {
+            const error = await saveResponse.json();
+            throw new Error(error.error || 'Failed to save file metadata');
+          }
+
+          const saveResult = await saveResponse.json();
+          console.log('[Files] File saved successfully:', saveResult.file?.id);
+
+          // Add to local state
+          setS3ProjectFiles(prev => [saveResult.file, ...prev]);
+
+          setFileNotes('');
+          setUploadModalVisible(false);
+          Alert.alert('Success', 'File uploaded successfully!');
+
+        } catch (uploadError: any) {
+          console.error('[Files] Upload error:', uploadError);
+          Alert.alert('Upload Failed', uploadError.message || 'Could not upload file. Please try again.');
+        } finally {
+          setIsUploading(false);
+        }
       }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Could not upload file. Please try again.');
+      Alert.alert('Error', 'Could not select file. Please try again.');
+      setIsUploading(false);
     }
   };
 
@@ -313,7 +442,7 @@ export default function FilesNavigationScreen() {
           style: 'destructive',
           onPress: () => {
             setCustomFolders(prev => prev.filter(f => f.type !== folderType));
-            Alert.alert(t('common.success'), 'Folder eliminado');
+            Alert.alert(t('common.success'), 'Folder deleted');
           },
         },
       ]
@@ -445,7 +574,12 @@ export default function FilesNavigationScreen() {
           {files.map((file: any) => {
             if (folder.type === 'photos') {
               return (
-                <View key={file.id} style={styles.photoCard}>
+                <TouchableOpacity
+                  key={file.id}
+                  style={styles.photoCard}
+                  onPress={() => setViewingFile({ uri: file.url, name: file.category, type: 'image' })}
+                  activeOpacity={0.8}
+                >
                   <Image source={{ uri: file.url }} style={styles.photoThumbnail} contentFit="cover" />
                   <View style={styles.photoInfo}>
                     <Text style={styles.photoCategory}>{file.category}</Text>
@@ -456,7 +590,7 @@ export default function FilesNavigationScreen() {
                       <Text style={styles.photoNotes} numberOfLines={2}>{file.notes}</Text>
                     )}
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             } else if (folder.type === 'receipts') {
               return (
@@ -512,8 +646,29 @@ export default function FilesNavigationScreen() {
                 </TouchableOpacity>
               );
             } else {
+              const isImage = file.fileType?.startsWith('image/');
+              const isPdf = file.fileType === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
+              // S3 files have 'url' property, local files have 'uri'
+              const fileUrl = file.url || file.uri;
               return (
-                <View key={file.id} style={styles.documentCard}>
+                <TouchableOpacity
+                  key={file.id}
+                  style={styles.documentCard}
+                  onPress={() => {
+                    if (isImage) {
+                      setViewingFile({ uri: fileUrl, name: file.name, type: 'image' });
+                    } else if (isPdf && Platform.OS === 'web') {
+                      // On web, open PDF in new tab
+                      window.open(fileUrl, '_blank');
+                    } else {
+                      // Try to open the file with the system viewer
+                      Linking.openURL(fileUrl).catch(() => {
+                        Alert.alert('Cannot Open', 'Unable to open this file type on this device.');
+                      });
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
                   <View style={[styles.documentIcon, { backgroundColor: `${folder.color}20` }]}>
                     <FileIcon size={24} color={folder.color} />
                   </View>
@@ -526,7 +681,7 @@ export default function FilesNavigationScreen() {
                       <Text style={styles.documentNotes} numberOfLines={2}>{file.notes}</Text>
                     )}
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             }
           })}
@@ -625,11 +780,14 @@ export default function FilesNavigationScreen() {
                   </>
                 ) : (
                   <TouchableOpacity
-                    style={[styles.modalActionButton, { flex: 1 }]}
+                    style={[styles.modalActionButton, { flex: 1 }, isUploading && styles.modalActionButtonDisabled]}
                     onPress={handleUploadDocument}
+                    disabled={isUploading}
                   >
                     <Upload size={20} color="#FFFFFF" />
-                    <Text style={styles.modalActionButtonText}>Upload File</Text>
+                    <Text style={styles.modalActionButtonText}>
+                      {isUploading ? 'Uploading...' : 'Upload File'}
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -669,6 +827,42 @@ export default function FilesNavigationScreen() {
                 <Plus size={20} color="#FFFFFF" />
                 <Text style={styles.modalActionButtonText}>{t('projects.files.createFolder')}</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* File Viewer Modal */}
+        <Modal
+          visible={!!viewingFile}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setViewingFile(null)}
+        >
+          <View style={styles.fileViewerOverlay}>
+            <TouchableOpacity
+              style={styles.fileViewerCloseArea}
+              activeOpacity={1}
+              onPress={() => setViewingFile(null)}
+            />
+            <View style={styles.fileViewerContainer}>
+              <View style={styles.fileViewerHeader}>
+                <Text style={styles.fileViewerTitle} numberOfLines={1}>
+                  {viewingFile?.name}
+                </Text>
+                <TouchableOpacity
+                  style={styles.fileViewerCloseButton}
+                  onPress={() => setViewingFile(null)}
+                >
+                  <X size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              {viewingFile?.type === 'image' && (
+                <Image
+                  source={{ uri: viewingFile.uri }}
+                  style={styles.fileViewerImage}
+                  contentFit="contain"
+                />
+              )}
             </View>
           </View>
         </Modal>
@@ -1071,5 +1265,58 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600' as const,
+  },
+  modalActionButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+    opacity: 0.7,
+  },
+  // File Viewer Styles
+  fileViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fileViewerCloseArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  fileViewerContainer: {
+    width: '95%',
+    maxWidth: 900,
+    maxHeight: '90%',
+    backgroundColor: '#1F2937',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  fileViewerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#111827',
+  },
+  fileViewerTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+    marginRight: 16,
+  },
+  fileViewerCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fileViewerImage: {
+    width: '100%',
+    height: 500,
+    backgroundColor: '#000000',
   },
 });

@@ -29,7 +29,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Generate unique filename with appropriate folder
     const timestamp = Date.now();
-    const folder = fileName.startsWith('inspection-') ? 'inspection-videos' : 'takeoff-documents';
+    const { projectId, fileCategory } = req.body;
+
+    let folder = 'takeoff-documents';
+    if (fileName.startsWith('inspection-')) {
+      folder = 'inspection-videos';
+    } else if (projectId && fileCategory) {
+      // Project files go into project-specific folders
+      folder = `projects/${projectId}/${fileCategory}`;
+    }
+
     const uniqueFileName = `${folder}/${timestamp}-${fileName}`;
 
     // Create pre-signed URL for PUT operation
