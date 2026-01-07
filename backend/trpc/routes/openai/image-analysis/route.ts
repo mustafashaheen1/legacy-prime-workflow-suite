@@ -15,7 +15,7 @@ export const imageAnalysisProcedure = publicProcedure
     z.object({
       imageUrl: z.string().optional(),
       imageBase64: z.string().optional(),
-      prompt: z.string().default("¿Qué hay en esta imagen? Describe detalladamente."),
+      prompt: z.string().default("What is in this image? Describe in detail."),
       model: z.string().optional().default("gpt-4o"),
       maxTokens: z.number().optional().default(500),
     })
@@ -24,7 +24,7 @@ export const imageAnalysisProcedure = publicProcedure
     const startTime = Date.now();
     try {
       if (!input.imageUrl && !input.imageBase64) {
-        throw new Error("Debes proporcionar imageUrl o imageBase64");
+        throw new Error("You must provide imageUrl or imageBase64");
       }
 
       console.log("[OpenAI Vision] ========== START ==========");

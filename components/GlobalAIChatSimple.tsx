@@ -1101,7 +1101,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const handleSend = async (speakResponse = false) => {
     if (!input.trim() && attachedFiles.length === 0) return;
     
-    const userMessage = input.trim() || 'Por favor analiza las imágenes adjuntas';
+    const userMessage = input.trim() || 'Please analyze the attached images';
     const hasImages = attachedFiles.some(f => f.mimeType.startsWith('image/'));
     
     const isImageGenerationRequest = userMessage.toLowerCase().includes('genera') && 
@@ -1217,7 +1217,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                       <View key={`${message.id}-${i}`} style={styles.assistantMessageContainer}>
                         <View style={[styles.assistantMessage, styles.toolMessage]}>
                           <Loader2 size={16} color="#8B5CF6" />
-                          <Text style={styles.toolText}>Analizando {part.toolName}...</Text>
+                          <Text style={styles.toolText}>Analyzing {part.toolName}...</Text>
                         </View>
                       </View>
                     );
@@ -1226,7 +1226,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                     return (
                       <View key={`${message.id}-${i}`} style={styles.assistantMessageContainer}>
                         <View style={[styles.assistantMessage, styles.toolMessage]}>
-                          <Text style={styles.toolText}>✓ {part.toolName} completado</Text>
+                          <Text style={styles.toolText}>✓ {part.toolName} completed</Text>
                         </View>
                       </View>
                     );
@@ -1501,7 +1501,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                           <View key={`${message.id}-${i}`} style={styles.assistantMessageContainer}>
                             <View style={[styles.assistantMessage, styles.toolMessage]}>
                               <Loader2 size={16} color="#8B5CF6" />
-                              <Text style={styles.toolText}>Analizando {part.toolName}...</Text>
+                              <Text style={styles.toolText}>Analyzing {part.toolName}...</Text>
                             </View>
                           </View>
                         );
@@ -1510,7 +1510,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                         return (
                           <View key={`${message.id}-${i}`} style={styles.assistantMessageContainer}>
                             <View style={[styles.assistantMessage, styles.toolMessage]}>
-                              <Text style={styles.toolText}>✓ {part.toolName} completado</Text>
+                              <Text style={styles.toolText}>✓ {part.toolName} completed</Text>
                             </View>
                           </View>
                         );

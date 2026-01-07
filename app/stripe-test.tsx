@@ -22,20 +22,20 @@ export default function StripeTestScreen() {
 
   const plans = {
     basic: {
-      name: 'Plan Básico',
+      name: 'Basic Plan',
       price: 29.99,
-      features: ['Dashboard', 'CRM', 'Estimados', 'Fotos', 'Gastos'],
+      features: ['Dashboard', 'CRM', 'Estimates', 'Photos', 'Expenses'],
     },
     premium: {
-      name: 'Plan Premium',
+      name: 'Premium Plan',
       price: 49.99,
       features: [
-        'Todo lo del Plan Básico',
+        'Everything in Basic Plan',
         'Schedule',
         'Chat',
-        'Reportes',
+        'Reports',
         'Clock In/Out',
-        'Proyectos Ilimitados',
+        'Unlimited Projects',
       ],
     },
   };
@@ -43,13 +43,13 @@ export default function StripeTestScreen() {
   const handleTestPayment = async () => {
     try {
       setIsProcessing(true);
-      setTestResult('Iniciando prueba de pago...');
+      setTestResult('Starting payment test...');
 
       console.log('[Stripe Test] Starting payment test...');
       console.log('[Stripe Test] Selected plan:', selectedPlan);
       console.log('[Stripe Test] Amount:', plans[selectedPlan].price);
 
-      setTestResult('Creando Payment Intent en Stripe...');
+      setTestResult('Creating Payment Intent in Stripe...');
       const paymentIntent = await trpcClient.stripe.createPaymentIntent.mutate({
         amount: plans[selectedPlan].price,
         currency: 'usd',
@@ -59,16 +59,16 @@ export default function StripeTestScreen() {
       });
 
       console.log('[Stripe Test] Payment Intent created:', paymentIntent);
-      setTestResult(`✅ Payment Intent creado exitosamente!\n\nID: ${paymentIntent.paymentIntentId}\n\nClient Secret: ${paymentIntent.clientSecret?.substring(0, 30)}...`);
+      setTestResult(`✅ Payment Intent created successfully!\n\nID: ${paymentIntent.paymentIntentId}\n\nClient Secret: ${paymentIntent.clientSecret?.substring(0, 30)}...`);
 
       Alert.alert(
-        '✅ Prueba Exitosa',
-        `Payment Intent creado correctamente.\n\nID: ${paymentIntent.paymentIntentId}\n\nEsto significa que tu integración con Stripe está funcionando. En producción, aquí se abriría el Payment Sheet para que el usuario ingrese su tarjeta.`,
+        '✅ Test Successful',
+        `Payment Intent created successfully.\n\nID: ${paymentIntent.paymentIntentId}\n\nThis means your Stripe integration is working. In production, the Payment Sheet would open here for the user to enter their card.`,
         [{ text: 'OK' }]
       );
     } catch (error: any) {
       console.error('[Stripe Test] Error:', error);
-      const errorMessage = error?.message || 'Error desconocido';
+      const errorMessage = error?.message || 'Unknown error';
       setTestResult(`❌ Error: ${errorMessage}`);
       Alert.alert('Error', errorMessage);
     } finally {
@@ -78,28 +78,28 @@ export default function StripeTestScreen() {
 
   const handleVerifyPayment = async () => {
     if (Platform.OS === 'web') {
-      const paymentIntentId = prompt('Ingresa el Payment Intent ID (pi_...):');
+      const paymentIntentId = prompt('Enter the Payment Intent ID (pi_...):');
       if (!paymentIntentId) return;
 
       try {
         setIsProcessing(true);
-        setTestResult('Verificando pago...');
+        setTestResult('Verifying payment...');
         const result = await trpcClient.stripe.verifyPayment.query({
           paymentIntentId,
         });
 
         console.log('[Stripe Test] Payment verification:', result);
         setTestResult(
-          `✅ Pago verificado!\n\nEstado: ${result.status}\nMonto: $${result.amount}\nMoneda: ${result.currency.toUpperCase()}`
+          `✅ Payment verified!\n\nStatus: ${result.status}\nAmount: $${result.amount}\nCurrency: ${result.currency.toUpperCase()}`
         );
 
         Alert.alert(
-          'Pago Verificado',
-          `Estado: ${result.status}\nMonto: $${result.amount} ${result.currency.toUpperCase()}`,
+          'Payment Verified',
+          `Status: ${result.status}\nAmount: $${result.amount} ${result.currency.toUpperCase()}`,
           [{ text: 'OK' }]
         );
       } catch (err: any) {
-        const errMsg = err?.message || 'Error al verificar';
+        const errMsg = err?.message || 'Verification error';
         setTestResult(`❌ Error: ${errMsg}`);
         Alert.alert('Error', errMsg);
       } finally {
@@ -107,30 +107,30 @@ export default function StripeTestScreen() {
       }
     } else {
       Alert.prompt(
-        'Verificar Pago',
-        'Ingresa el Payment Intent ID (pi_...):',
+        'Verify Payment',
+        'Enter the Payment Intent ID (pi_...):',
         async (paymentIntentId) => {
           if (!paymentIntentId) return;
 
           try {
             setIsProcessing(true);
-            setTestResult('Verificando pago...');
+            setTestResult('Verifying payment...');
             const result = await trpcClient.stripe.verifyPayment.query({
               paymentIntentId,
             });
 
             console.log('[Stripe Test] Payment verification:', result);
             setTestResult(
-              `✅ Pago verificado!\n\nEstado: ${result.status}\nMonto: $${result.amount}\nMoneda: ${result.currency.toUpperCase()}`
+              `✅ Payment verified!\n\nStatus: ${result.status}\nAmount: $${result.amount}\nCurrency: ${result.currency.toUpperCase()}`
             );
 
             Alert.alert(
-              'Pago Verificado',
-              `Estado: ${result.status}\nMonto: $${result.amount} ${result.currency.toUpperCase()}`,
+              'Payment Verified',
+              `Status: ${result.status}\nAmount: $${result.amount} ${result.currency.toUpperCase()}`,
               [{ text: 'OK' }]
             );
           } catch (err: any) {
-            const errMsg = err?.message || 'Error al verificar';
+            const errMsg = err?.message || 'Verification error';
             setTestResult(`❌ Error: ${errMsg}`);
             Alert.alert('Error', errMsg);
           } finally {
@@ -143,15 +143,15 @@ export default function StripeTestScreen() {
 
   const handleTestSubscription = async () => {
     Alert.alert(
-      'Test de Suscripción',
-      'Para probar suscripciones, primero necesitas:\n\n1. Crear productos y precios en el Dashboard de Stripe\n2. Obtener el Price ID (price_...)\n3. Probar el flujo completo con una tarjeta de prueba\n\n¿Quieres continuar con un test básico?',
+      'Subscription Test',
+      'To test subscriptions, you first need to:\n\n1. Create products and prices in the Stripe Dashboard\n2. Get the Price ID (price_...)\n3. Test the complete flow with a test card\n\nDo you want to continue with a basic test?',
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Continuar',
+          text: 'Continue',
           onPress: () => {
             setTestResult(
-              'Para probar suscripciones:\n\n1. Ve a tu Dashboard de Stripe\n2. Crea un producto en Products\n3. Agrega un precio recurrente\n4. Usa el Price ID en la app'
+              'To test subscriptions:\n\n1. Go to your Stripe Dashboard\n2. Create a product in Products\n3. Add a recurring price\n4. Use the Price ID in the app'
             );
           },
         },
@@ -165,20 +165,20 @@ export default function StripeTestScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Prueba de Stripe</Text>
+        <Text style={styles.headerTitle}>Stripe Test</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         <View style={styles.infoCard}>
           <CreditCard size={48} color="#2563EB" />
-          <Text style={styles.infoTitle}>Modo Test Activo</Text>
+          <Text style={styles.infoTitle}>Test Mode Active</Text>
           <Text style={styles.infoText}>
-            Estás usando las API keys de Stripe en modo test. Todos los pagos son simulados.
+            You are using Stripe API keys in test mode. All payments are simulated.
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Selecciona un Plan</Text>
+        <Text style={styles.sectionTitle}>Select a Plan</Text>
 
         {(['basic', 'premium'] as const).map((plan) => (
           <TouchableOpacity
@@ -192,7 +192,7 @@ export default function StripeTestScreen() {
               </View>
             )}
             <Text style={styles.planName}>{plans[plan].name}</Text>
-            <Text style={styles.planPrice}>${plans[plan].price}/mes</Text>
+            <Text style={styles.planPrice}>${plans[plan].price}/month</Text>
             <View style={styles.featuresContainer}>
               {plans[plan].features.map((feature, index) => (
                 <Text key={index} style={styles.feature}>
@@ -203,7 +203,7 @@ export default function StripeTestScreen() {
           </TouchableOpacity>
         ))}
 
-        <Text style={styles.sectionTitle}>Acciones de Prueba</Text>
+        <Text style={styles.sectionTitle}>Test Actions</Text>
 
         <TouchableOpacity
           style={[styles.button, styles.primaryButton]}
@@ -215,7 +215,7 @@ export default function StripeTestScreen() {
           ) : (
             <>
               <CreditCard size={20} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Crear Payment Intent</Text>
+              <Text style={styles.buttonText}>Create Payment Intent</Text>
             </>
           )}
         </TouchableOpacity>
@@ -225,7 +225,7 @@ export default function StripeTestScreen() {
           onPress={handleVerifyPayment}
           disabled={isProcessing}
         >
-          <Text style={styles.secondaryButtonText}>Verificar Pago Existente</Text>
+          <Text style={styles.secondaryButtonText}>Verify Existing Payment</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -233,26 +233,26 @@ export default function StripeTestScreen() {
           onPress={handleTestSubscription}
           disabled={isProcessing}
         >
-          <Text style={styles.secondaryButtonText}>Test Suscripción</Text>
+          <Text style={styles.secondaryButtonText}>Test Subscription</Text>
         </TouchableOpacity>
 
         {testResult !== '' && (
           <View style={styles.resultCard}>
-            <Text style={styles.resultTitle}>Resultado:</Text>
+            <Text style={styles.resultTitle}>Result:</Text>
             <Text style={styles.resultText}>{testResult}</Text>
           </View>
         )}
 
         <View style={styles.tipsCard}>
-          <Text style={styles.tipsTitle}>💡 Tarjetas de Prueba</Text>
+          <Text style={styles.tipsTitle}>💡 Test Cards</Text>
           <Text style={styles.tipsText}>
-            <Text style={{ fontWeight: '700' }}>Pago Exitoso:</Text>
-            {'\n'}4242 4242 4242 4242{'\n'}Fecha: Cualquier futura{'\n'}CVC: Cualquier 3 dígitos
+            <Text style={{ fontWeight: '700' }}>Successful Payment:</Text>
+            {'\n'}4242 4242 4242 4242{'\n'}Exp: Any future date{'\n'}CVC: Any 3 digits
             {'\n\n'}
-            <Text style={{ fontWeight: '700' }}>Pago Rechazado:</Text>
+            <Text style={{ fontWeight: '700' }}>Declined Payment:</Text>
             {'\n'}4000 0000 0000 0002
             {'\n\n'}
-            <Text style={{ fontWeight: '700' }}>Requiere 3D Secure:</Text>
+            <Text style={{ fontWeight: '700' }}>Requires 3D Secure:</Text>
             {'\n'}4000 0025 0000 3155
           </Text>
         </View>
@@ -264,14 +264,14 @@ export default function StripeTestScreen() {
               window.open('https://dashboard.stripe.com/test/payments', '_blank');
             } else {
               Alert.alert(
-                'Dashboard de Stripe',
-                'Abre https://dashboard.stripe.com/test/payments en tu navegador para ver los pagos.'
+                'Stripe Dashboard',
+                'Open https://dashboard.stripe.com/test/payments in your browser to view payments.'
               );
             }
           }}
         >
           <Text style={styles.dashboardButtonText}>
-            Ver Dashboard de Stripe
+            View Stripe Dashboard
           </Text>
         </TouchableOpacity>
       </ScrollView>

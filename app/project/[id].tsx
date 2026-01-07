@@ -41,6 +41,7 @@ export default function ProjectDetailScreen() {
   const [photoCategory, setPhotoCategory] = useState<string>('Foundation');
   const [showAIReportModal, setShowAIReportModal] = useState<boolean>(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  const [viewingPhoto, setViewingPhoto] = useState<{ url: string; category: string; notes?: string; date: string } | null>(null);
   const insets = useSafeAreaInsets();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
@@ -1156,7 +1157,12 @@ export default function ProjectDetailScreen() {
                 ) : (
                   <View style={styles.photosGalleryGrid}>
                     {projectPhotos.map((photo) => (
-                      <View key={photo.id} style={styles.photosGalleryItem}>
+                      <TouchableOpacity
+                        key={photo.id}
+                        style={styles.photosGalleryItem}
+                        onPress={() => setViewingPhoto({ url: photo.url, category: photo.category, notes: photo.notes, date: photo.date })}
+                        activeOpacity={0.8}
+                      >
                         <Image source={{ uri: photo.url }} style={styles.photosThumbnail} contentFit="cover" />
                         <View style={styles.photosThumbnailInfo}>
                           <View style={styles.photosCategoryBadge}>
@@ -1171,7 +1177,7 @@ export default function ProjectDetailScreen() {
                             {new Date(photo.date).toLocaleDateString()}
                           </Text>
                         </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 )}
@@ -1961,6 +1967,57 @@ export default function ProjectDetailScreen() {
             currentPageContext={`Project: ${project.name}, Budget: ${project.budget.toLocaleString()}, Expenses: ${project.expenses.toLocaleString()}, Progress: ${project.progress}%`}
             inline={true}
           />
+        </View>
+      </Modal>
+
+      {/* Photo Viewer Modal */}
+      <Modal
+        visible={!!viewingPhoto}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setViewingPhoto(null)}
+      >
+        <View style={styles.photoViewerOverlay}>
+          <TouchableOpacity
+            style={styles.photoViewerCloseArea}
+            activeOpacity={1}
+            onPress={() => setViewingPhoto(null)}
+          />
+          <View style={styles.photoViewerContainer}>
+            <View style={styles.photoViewerHeader}>
+              <View style={styles.photoViewerHeaderInfo}>
+                <View style={styles.photosCategoryBadge}>
+                  <Text style={styles.photosCategoryBadgeText}>{viewingPhoto?.category}</Text>
+                </View>
+                <Text style={styles.photoViewerDate}>
+                  {viewingPhoto?.date ? new Date(viewingPhoto.date).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  }) : ''}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.photoViewerCloseButton}
+                onPress={() => setViewingPhoto(null)}
+              >
+                <X size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            {viewingPhoto && (
+              <Image
+                source={{ uri: viewingPhoto.url }}
+                style={styles.photoViewerImage}
+                contentFit="contain"
+              />
+            )}
+            {viewingPhoto?.notes && (
+              <View style={styles.photoViewerNotes}>
+                <Text style={styles.photoViewerNotesText}>{viewingPhoto.notes}</Text>
+              </View>
+            )}
+          </View>
         </View>
       </Modal>
     </>
@@ -3901,5 +3958,67 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#2563EB',
+  },
+  // Photo Viewer Modal Styles
+  photoViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoViewerCloseArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  photoViewerContainer: {
+    width: '95%',
+    maxWidth: 900,
+    maxHeight: '90%',
+    backgroundColor: '#1F2937',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  photoViewerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#111827',
+  },
+  photoViewerHeaderInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  photoViewerDate: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  photoViewerCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoViewerImage: {
+    width: '100%',
+    height: 500,
+    backgroundColor: '#000000',
+  },
+  photoViewerNotes: {
+    padding: 16,
+    backgroundColor: '#111827',
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  photoViewerNotesText: {
+    fontSize: 14,
+    color: '#D1D5DB',
+    lineHeight: 20,
   },
 });

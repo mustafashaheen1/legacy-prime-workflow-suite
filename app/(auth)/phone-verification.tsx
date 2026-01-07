@@ -32,8 +32,8 @@ export default function PhoneVerificationScreen() {
       setExpiresAt(data.expiresAt);
       setStep('code');
       Alert.alert(
-        'Código enviado',
-        `Hemos enviado un código de verificación al ${phoneNumber}`
+        'Code Sent',
+        `We have sent a verification code to ${phoneNumber}`
       );
     },
     onError: (error) => {
@@ -74,7 +74,7 @@ export default function PhoneVerificationScreen() {
 
   const handleSendCode = () => {
     if (!phoneNumber.trim() || phoneNumber.length < 10) {
-      Alert.alert('Error', 'Por favor ingresa un número de teléfono válido');
+      Alert.alert('Error', 'Please enter a valid phone number');
       return;
     }
 
@@ -84,7 +84,7 @@ export default function PhoneVerificationScreen() {
 
   const handleVerifyCode = () => {
     if (!verificationCode.trim() || verificationCode.length !== 6) {
-      Alert.alert('Error', 'Por favor ingresa el código de 6 dígitos');
+      Alert.alert('Error', 'Please enter the 6-digit code');
       return;
     }
 
@@ -153,19 +153,19 @@ export default function PhoneVerificationScreen() {
             <Shield size={48} color="#2563EB" strokeWidth={2} />
           )}
           <Text style={styles.title}>
-            {step === 'phone' ? 'Verificar teléfono' : 'Ingresa el código'}
+            {step === 'phone' ? 'Verify Phone' : 'Enter Code'}
           </Text>
           <Text style={styles.subtitle}>
             {step === 'phone'
-              ? 'Enviaremos un código de verificación a tu teléfono para mayor seguridad'
-              : `Ingresa el código de 6 dígitos que enviamos a ${phoneNumber}`}
+              ? 'We will send a verification code to your phone for added security'
+              : `Enter the 6-digit code we sent to ${phoneNumber}`}
           </Text>
         </View>
 
         <View style={styles.form}>
           {step === 'phone' ? (
             <>
-              <Text style={styles.label}>Número de teléfono</Text>
+              <Text style={styles.label}>Phone Number</Text>
               <TextInput
                 style={styles.input}
                 placeholder="+1 (555) 123-4567"
@@ -176,22 +176,22 @@ export default function PhoneVerificationScreen() {
                 autoFocus
               />
               <Text style={styles.hint}>
-                Incluye el código de país (ej: +1 para USA, +52 para México)
+                Include country code (e.g., +1 for USA, +52 for Mexico)
               </Text>
 
-              <TouchableOpacity 
-                style={[styles.primaryButton, sendCodeMutation.isPending && styles.buttonDisabled]} 
+              <TouchableOpacity
+                style={[styles.primaryButton, sendCodeMutation.isPending && styles.buttonDisabled]}
                 onPress={handleSendCode}
                 disabled={sendCodeMutation.isPending}
               >
                 <Text style={styles.primaryButtonText}>
-                  {sendCodeMutation.isPending ? 'Enviando...' : 'Enviar código'}
+                  {sendCodeMutation.isPending ? 'Sending...' : 'Send Code'}
                 </Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <Text style={styles.label}>Código de verificación</Text>
+              <Text style={styles.label}>Verification Code</Text>
               <TextInput
                 style={[styles.input, styles.codeInput]}
                 placeholder="000000"
@@ -202,24 +202,24 @@ export default function PhoneVerificationScreen() {
                 maxLength={6}
                 autoFocus
               />
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.resendButton}
                 onPress={handleResendCode}
                 disabled={sendCodeMutation.isPending}
               >
                 <Text style={styles.resendText}>
-                  {sendCodeMutation.isPending ? 'Reenviando...' : '¿No recibiste el código? Reenviar'}
+                  {sendCodeMutation.isPending ? 'Resending...' : "Didn't receive the code? Resend"}
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.primaryButton, verifyCodeMutation.isPending && styles.buttonDisabled]} 
+              <TouchableOpacity
+                style={[styles.primaryButton, verifyCodeMutation.isPending && styles.buttonDisabled]}
                 onPress={handleVerifyCode}
                 disabled={verifyCodeMutation.isPending}
               >
                 <Text style={styles.primaryButtonText}>
-                  {verifyCodeMutation.isPending ? 'Verificando...' : 'Verificar código'}
+                  {verifyCodeMutation.isPending ? 'Verifying...' : 'Verify Code'}
                 </Text>
               </TouchableOpacity>
             </>
@@ -229,7 +229,7 @@ export default function PhoneVerificationScreen() {
             style={styles.skipButton}
             onPress={handleSkip}
           >
-            <Text style={styles.skipText}>Omitir por ahora</Text>
+            <Text style={styles.skipText}>Skip for now</Text>
           </TouchableOpacity>
         </View>
         </View>

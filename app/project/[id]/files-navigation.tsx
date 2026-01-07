@@ -34,28 +34,28 @@ const PREDEFINED_FOLDERS: FolderConfig[] = [
     name: 'Receipts',
     icon: Receipt,
     color: '#10B981',
-    description: 'Recibos y gastos',
+    description: 'Receipts and expenses',
   },
   {
     type: 'permit-files',
     name: 'Permit Files',
     icon: FileCheck,
     color: '#F59E0B',
-    description: 'Documentos de permisos',
+    description: 'Permit documents',
   },
   {
     type: 'inspections',
     name: 'Inspections',
     icon: FileSignature,
     color: '#8B5CF6',
-    description: 'Reportes de inspección',
+    description: 'Inspection reports',
   },
   {
     type: 'agreements',
     name: 'Agreements',
     icon: FileText,
     color: '#EF4444',
-    description: 'Contratos y acuerdos',
+    description: 'Contracts and agreements',
   },
   {
     type: 'videos',
@@ -131,17 +131,17 @@ export default function FilesNavigationScreen() {
         }, {} as Record<string, number>);
         categories = Object.keys(expensesByCategory).sort();
       } else if (folderConfig.type === 'permit-files') {
-        const files = currentProjectFiles.filter(f => f.category === 'documentation');
+        const files = currentProjectFiles.filter(f => f.category === 'permits');
         count = files.length;
-        categories = count > 0 ? ['Todos los Permisos'] : [];
+        categories = count > 0 ? ['All Permits'] : [];
       } else if (folderConfig.type === 'inspections') {
-        const files = currentProjectFiles.filter(f => f.category === 'documentation');
+        const files = currentProjectFiles.filter(f => f.category === 'inspections');
         count = files.length;
-        categories = count > 0 ? ['Todas las Inspecciones'] : [];
+        categories = count > 0 ? ['All Inspections'] : [];
       } else if (folderConfig.type === 'agreements') {
-        const files = currentProjectFiles.filter(f => f.category === 'documentation');
+        const files = currentProjectFiles.filter(f => f.category === 'agreements');
         count = files.length;
-        categories = count > 0 ? ['Todos los Contratos'] : [];
+        categories = count > 0 ? ['All Agreements'] : [];
       } else if (folderConfig.type === 'videos') {
         const allVideos = inspectionVideosQuery.data?.inspections || [];
         const projectClientName = project?.name.split(' - ')[0].trim() || '';
@@ -171,11 +171,11 @@ export default function FilesNavigationScreen() {
         return expenseCategory === category;
       });
     } else if (folderType === 'permit-files') {
-      return currentProjectFiles.filter(f => f.category === 'documentation');
+      return currentProjectFiles.filter(f => f.category === 'permits');
     } else if (folderType === 'inspections') {
-      return currentProjectFiles.filter(f => f.category === 'documentation');
+      return currentProjectFiles.filter(f => f.category === 'inspections');
     } else if (folderType === 'agreements') {
-      return currentProjectFiles.filter(f => f.category === 'documentation');
+      return currentProjectFiles.filter(f => f.category === 'agreements');
     } else if (folderType === 'videos') {
       const allVideos = inspectionVideosQuery.data?.inspections || [];
       const projectClientName = project?.name.split(' - ')[0].trim() || '';
@@ -213,13 +213,13 @@ export default function FilesNavigationScreen() {
 
   const handleTakePhoto = async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('No Disponible', 'La cámara no está disponible en web');
+      Alert.alert('Not Available', 'Camera is not available on web');
       return;
     }
 
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permiso Denegado', 'Se requiere acceso a la cámara');
+      Alert.alert('Permission Denied', 'Camera access is required');
       return;
     }
 
@@ -255,9 +255,9 @@ export default function FilesNavigationScreen() {
         const asset = result.assets[0];
         
         let category: FileCategory = 'documentation';
-        if (selectedFolder === 'permit-files') category = 'documentation';
-        else if (selectedFolder === 'inspections') category = 'documentation';
-        else if (selectedFolder === 'agreements') category = 'documentation';
+        if (selectedFolder === 'permit-files') category = 'permits';
+        else if (selectedFolder === 'inspections') category = 'inspections';
+        else if (selectedFolder === 'agreements') category = 'agreements';
         
         const file: ProjectFile = {
           id: Date.now().toString(),

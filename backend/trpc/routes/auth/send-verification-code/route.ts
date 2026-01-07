@@ -25,7 +25,7 @@ export const sendVerificationCodeProcedure = publicProcedure
       if (!process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID || 
           !process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN || 
           !process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER) {
-        throw new Error('Twilio no está configurado. Por favor contacta al administrador.');
+        throw new Error('Twilio is not configured. Please contact the administrator.');
       }
       
       const code = generateVerificationCode();
@@ -43,7 +43,7 @@ export const sendVerificationCodeProcedure = publicProcedure
       console.log('[Auth] Attempting to send SMS via Twilio...');
       
       const message = await twilioClient.messages.create({
-        body: `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
+        body: `Your verification code is: ${code}. Valid for 10 minutes.`,
         from: process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER,
         to: input.phoneNumber,
       });
@@ -57,17 +57,17 @@ export const sendVerificationCodeProcedure = publicProcedure
       };
     } catch (error: any) {
       console.error("[Auth] Send verification code error:", error);
-      
+
       if (error.code === 21608) {
-        throw new Error('El número de teléfono no es válido o no puede recibir SMS.');
+        throw new Error('The phone number is invalid or cannot receive SMS.');
       }
       if (error.code === 21211) {
-        throw new Error('El número de teléfono no es válido.');
+        throw new Error('The phone number is invalid.');
       }
       if (error.code === 21614) {
-        throw new Error('El número de teléfono no es válido para tu país.');
+        throw new Error('The phone number is invalid for your country.');
       }
-      
-      throw new Error(error.message || "No se pudo enviar el código de verificación");
+
+      throw new Error(error.message || "Could not send verification code");
     }
   });

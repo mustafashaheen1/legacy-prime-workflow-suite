@@ -369,7 +369,7 @@ export interface Report {
   expensesByCategory?: { [category: string]: number };
 }
 
-export type FileCategory = 'receipts' | 'photos' | 'reports' | 'plans' | 'estimates' | 'documentation' | 'videos' | 'other';
+export type FileCategory = 'receipts' | 'photos' | 'reports' | 'plans' | 'estimates' | 'documentation' | 'videos' | 'other' | 'permits' | 'inspections' | 'agreements';
 
 export interface ProjectFile {
   id: string;
