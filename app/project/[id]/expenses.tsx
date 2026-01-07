@@ -89,7 +89,7 @@ export default function ProjectExpensesScreen() {
   };
 
   // Analyze receipt with OpenAI
-  const analyzeReceiptWithOpenAI = async (imageData: string): Promise<ExtractedExpense | null> => {
+  const analyzeReceiptWithOpenAI = async (imageData: string): Promise<{ data: ExtractedExpense | null; isValidReceipt: boolean; message?: string }> => {
     console.log('[OpenAI] Analyzing receipt...');
 
     const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
@@ -113,14 +113,45 @@ export default function ProjectExpensesScreen() {
     console.log('[OpenAI] Analysis result:', result);
 
     if (result.success && result.data) {
+      const { store, amount, confidence } = result.data;
+
+      // Check if this looks like a valid receipt
+      // If confidence is very low or no store/amount found, it's probably not a receipt
+      const hasStore = store && store.trim().length > 0;
+      const hasAmount = amount && amount > 0;
+      const hasGoodConfidence = confidence && confidence >= 20;
+
+      if (!hasStore && !hasAmount) {
+        return {
+          data: null,
+          isValidReceipt: false,
+          message: 'This image does not appear to be a receipt or invoice. Please upload a photo of a receipt with visible store name and total amount.',
+        };
+      }
+
+      if (!hasGoodConfidence && !hasAmount) {
+        return {
+          data: null,
+          isValidReceipt: false,
+          message: 'Could not identify this as a receipt. Please upload a clearer photo of a receipt or invoice.',
+        };
+      }
+
       return {
-        ...result.data,
-        imageUri: '',
-        imageBase64: imageData,
+        data: {
+          ...result.data,
+          imageUri: '',
+          imageBase64: imageData,
+        },
+        isValidReceipt: true,
       };
     }
 
-    return null;
+    return {
+      data: null,
+      isValidReceipt: false,
+      message: 'Failed to analyze the image. Please try again or enter details manually.',
+    };
   };
 
   const handleSave = async () => {
@@ -277,23 +308,24 @@ export default function ProjectExpensesScreen() {
 
       // Analyze with OpenAI
       setScanningMessage('Analyzing with AI...');
-      const extracted = await analyzeReceiptWithOpenAI(imageData);
+      const result = await analyzeReceiptWithOpenAI(imageData);
 
-      if (extracted) {
+      if (result.isValidReceipt && result.data) {
         // Set up modal data
-        extracted.imageUri = uri;
-        extracted.imageBase64 = imageData;
+        result.data.imageUri = uri;
+        result.data.imageBase64 = imageData;
 
-        setExtractedExpense(extracted);
-        setModalStore(extracted.store || '');
-        setModalAmount(extracted.amount ? extracted.amount.toFixed(2) : '');
-        setModalCategory(extracted.category || priceListCategories[0]);
+        setExtractedExpense(result.data);
+        setModalStore(result.data.store || '');
+        setModalAmount(result.data.amount ? result.data.amount.toFixed(2) : '');
+        setModalCategory(result.data.category || priceListCategories[0]);
         setEditingInModal(false);
         setShowConfirmModal(true);
       } else {
+        // Show user-friendly message explaining why analysis failed
         Alert.alert(
-          'Analysis Failed',
-          'Could not extract expense information. Please enter details manually.',
+          'Not a Receipt',
+          result.message || 'Could not extract expense information from this image. Please upload a photo of a receipt or invoice.',
           [{ text: 'OK' }]
         );
       }
@@ -386,21 +418,17 @@ export default function ProjectExpensesScreen() {
         await processReceipt(file.uri, false, file.name);
       } else if (file.mimeType === 'application/pdf') {
         // PDFs cannot be analyzed by OpenAI Vision API directly
-        // Show the file and let user enter details manually
+        // Set the PDF as receipt for manual entry immediately
+        console.log('[File] Setting PDF receipt:', file.uri);
+        setReceiptImage(file.uri);
+        setReceiptType('file');
+        setReceiptFileName(file.name || 'document.pdf');
+
+        // Show informational alert
         Alert.alert(
           'PDF Uploaded',
           'PDF files cannot be analyzed automatically by AI. Please enter the expense details manually using the form below.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Set the PDF as receipt for manual entry
-                setReceiptImage(file.uri);
-                setReceiptType('file');
-                setReceiptFileName(file.name);
-              },
-            },
-          ]
+          [{ text: 'OK' }]
         );
       } else {
         Alert.alert('Unsupported File', 'Please upload an image or PDF file.');
