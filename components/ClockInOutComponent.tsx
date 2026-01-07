@@ -131,23 +131,29 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
       workPerformed: clockInDescription,
     };
 
+    // Close modal and reset form immediately for responsive UI
+    setShowClockInModal(false);
+    const categoryForLog = clockInCategory;
+    const descriptionForLog = clockInDescription;
+    setClockInCategory('');
+    setClockInDescription('');
+
+    // Set the entry optimistically
+    setCurrentEntry(entry);
+
     try {
       // addClockEntry returns the entry with the database ID
       const savedEntry = await addClockEntry(entry);
+      // Update currentEntry with the database ID
       setCurrentEntry(savedEntry);
       console.log(`[Clock In] ${user.name} clocked in to ${projectName} at ${new Date().toLocaleTimeString()}`);
-      console.log(`[Clock In] Category: ${clockInCategory}`);
-      console.log(`[Clock In] Description: ${clockInDescription || 'N/A'}`);
+      console.log(`[Clock In] Category: ${categoryForLog}`);
+      console.log(`[Clock In] Description: ${descriptionForLog || 'N/A'}`);
       console.log(`[Clock In] Entry ID: ${savedEntry.id}`);
     } catch (error) {
       console.error('[Clock In] Error:', error);
-      // Still set the entry locally even if backend fails
-      setCurrentEntry(entry);
+      // Entry is already set locally, just log the error
     }
-
-    setShowClockInModal(false);
-    setClockInCategory('');
-    setClockInDescription('');
   };
 
   const handleClockOut = () => {
