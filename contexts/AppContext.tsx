@@ -175,17 +175,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setProjects([]);
           }
 
-          // Load expenses
+          // Load expenses (using direct API endpoint)
           try {
             const expensesResponse = await fetch(
-              `${baseUrl}/trpc/expenses.getExpenses?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+              `${baseUrl}/api/get-expenses?companyId=${company.id}`
             );
-            const expensesData = await expensesResponse.json();
-            const expensesResult = expensesData.result.data.json;
-            if (expensesResult.success && expensesResult.expenses) {
-              setExpenses(expensesResult.expenses);
-              console.log('[App] ✅ Loaded', expensesResult.expenses.length, 'expenses');
+            if (expensesResponse.ok) {
+              const expensesResult = await expensesResponse.json();
+              if (expensesResult.success && expensesResult.expenses) {
+                setExpenses(expensesResult.expenses);
+                console.log('[App] ✅ Loaded', expensesResult.expenses.length, 'expenses');
+              } else {
+                setExpenses([]);
+              }
             } else {
+              console.error('[App] Error loading expenses:', expensesResponse.status);
               setExpenses([]);
             }
           } catch (error: any) {
@@ -466,17 +470,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setProjects(mockProjects);
           }
 
-          // Load expenses
+          // Load expenses (using direct API endpoint)
           try {
             const expensesResponse = await fetch(
-              `${baseUrl}/trpc/expenses.getExpenses?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
+              `${baseUrl}/api/get-expenses?companyId=${parsedCompany.id}`
             );
-            const expensesData = await expensesResponse.json();
-            const expensesResult = expensesData.result.data.json;
-            if (expensesResult.success && expensesResult.expenses) {
-              setExpenses(expensesResult.expenses);
-              console.log('[App] Loaded', expensesResult.expenses.length, 'expenses');
+            if (expensesResponse.ok) {
+              const expensesResult = await expensesResponse.json();
+              if (expensesResult.success && expensesResult.expenses) {
+                setExpenses(expensesResult.expenses);
+                console.log('[App] Loaded', expensesResult.expenses.length, 'expenses');
+              } else {
+                setExpenses(mockExpenses);
+              }
             } else {
+              console.error('[App] Error loading expenses:', expensesResponse.status);
               setExpenses(mockExpenses);
             }
           } catch (error) {
@@ -848,18 +856,41 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend if company exists
     if (company?.id) {
       try {
-        const { vanillaClient } = await import('@/lib/trpc');
-        await vanillaClient.expenses.addExpense.mutate({
-          companyId: company.id,
-          projectId: expense.projectId,
-          type: expense.type,
-          subcategory: expense.subcategory,
-          amount: expense.amount,
-          store: expense.store,
-          date: expense.date,
-          receiptUrl: expense.receiptUrl,
+        // Use direct API endpoint (bypasses tRPC for reliability)
+        const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+                      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+
+        console.log('[App] Saving expense to:', `${apiUrl}/api/add-expense`);
+
+        const response = await fetch(`${apiUrl}/api/add-expense`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            projectId: expense.projectId,
+            type: expense.type,
+            subcategory: expense.subcategory,
+            amount: expense.amount,
+            store: expense.store,
+            date: expense.date,
+            receiptUrl: expense.receiptUrl,
+          }),
         });
-        console.log('[App] Expense saved to backend:', expense.amount);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('[App] Expense saved to backend:', result.expense?.id);
+
+        // Update the expense with the database ID
+        if (result.expense?.id) {
+          setExpenses(prev => prev.map(e =>
+            e.id === expense.id ? { ...e, id: result.expense.id } : e
+          ));
+        }
       } catch (error) {
         console.error('[App] Error saving expense to backend:', error);
         setExpenses(prev => prev.filter(e => e.id !== expense.id));

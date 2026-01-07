@@ -42,29 +42,38 @@ export default function ProjectExpensesScreen() {
     [filteredExpenses]
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!amount || !store) {
       Alert.alert('Missing Information', 'Please enter amount and store/invoice details.');
       return;
     }
-    
-    addExpense({
-      id: Date.now().toString(),
-      projectId: id as string,
-      type: expenseType,
-      subcategory: expenseType === 'Subcontractor' ? category : expenseType,
-      amount: parseFloat(amount),
-      store,
-      date: new Date().toISOString(),
-      receiptUrl: receiptImage || undefined,
-    });
-    
-    setAmount('');
-    setStore('');
-    setReceiptImage(null);
-    setReceiptType(null);
-    setReceiptFileName(null);
-    Alert.alert('Success', 'Expense added successfully!');
+
+    try {
+      console.log('[Expenses] Saving expense:', { amount, store, type: expenseType });
+
+      await addExpense({
+        id: Date.now().toString(),
+        projectId: id as string,
+        type: expenseType,
+        subcategory: expenseType === 'Subcontractor' ? category : expenseType,
+        amount: parseFloat(amount),
+        store,
+        date: new Date().toISOString(),
+        receiptUrl: receiptImage || undefined,
+      });
+
+      console.log('[Expenses] Expense saved successfully');
+
+      setAmount('');
+      setStore('');
+      setReceiptImage(null);
+      setReceiptType(null);
+      setReceiptFileName(null);
+      Alert.alert('Success', 'Expense added successfully!');
+    } catch (error: any) {
+      console.error('[Expenses] Error saving expense:', error);
+      Alert.alert('Error', `Failed to save expense: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const handleScanReceipt = async () => {
