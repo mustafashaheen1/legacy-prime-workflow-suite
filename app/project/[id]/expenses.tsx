@@ -154,14 +154,64 @@ export default function ProjectExpensesScreen() {
     };
   };
 
+  const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
+
   const handleSave = async () => {
     if (!amount || !store) {
       Alert.alert('Missing Information', 'Please enter amount and store/invoice details.');
       return;
     }
 
+    setIsSavingManual(true);
+
     try {
       console.log('[Expenses] Saving expense:', { amount, store, type: expenseType });
+
+      let receiptUrl: string | undefined;
+
+      // Upload receipt to S3 if present
+      if (receiptImage) {
+        try {
+          console.log('[Expenses] Uploading receipt to S3...');
+
+          // Determine file type
+          const isPdf = receiptType === 'file' || receiptImage.includes('.pdf') || receiptImage.includes('application/pdf');
+          const fileType = isPdf ? 'application/pdf' : 'image/jpeg';
+          const fileName = isPdf
+            ? (receiptFileName || `receipt-${Date.now()}.pdf`)
+            : `receipt-${Date.now()}.jpg`;
+
+          // Convert to base64
+          let base64Data: string;
+          if (isPdf) {
+            // For PDFs, read directly
+            if (Platform.OS !== 'web' && receiptImage.startsWith('file://')) {
+              const base64 = await FileSystem.readAsStringAsync(receiptImage, {
+                encoding: 'base64' as any,
+              });
+              base64Data = `data:application/pdf;base64,${base64}`;
+            } else {
+              const response = await fetch(receiptImage);
+              const blob = await response.blob();
+              base64Data = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            }
+          } else {
+            // For images, use existing compression function
+            base64Data = await convertToBase64(receiptImage);
+          }
+
+          receiptUrl = await uploadToS3(base64Data, fileName, fileType);
+          console.log('[Expenses] Receipt uploaded to S3:', receiptUrl);
+        } catch (uploadError) {
+          console.error('[Expenses] S3 upload failed, continuing without receipt URL:', uploadError);
+          // Continue without receipt URL if upload fails
+        }
+      }
 
       await addExpense({
         id: Date.now().toString(),
@@ -171,7 +221,7 @@ export default function ProjectExpensesScreen() {
         amount: parseFloat(amount),
         store,
         date: new Date().toISOString(),
-        receiptUrl: receiptImage || undefined,
+        receiptUrl,
       });
 
       console.log('[Expenses] Expense saved successfully');
@@ -185,6 +235,8 @@ export default function ProjectExpensesScreen() {
     } catch (error: any) {
       console.error('[Expenses] Error saving expense:', error);
       Alert.alert('Error', `Failed to save expense: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsSavingManual(false);
     }
   };
 
@@ -246,7 +298,46 @@ export default function ProjectExpensesScreen() {
     }
   };
 
-  // Convert image URI to base64
+  // Compress image on web using canvas
+  const compressImageOnWeb = async (uri: string, maxWidth: number = 1024, quality: number = 0.7): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        // Calculate new dimensions
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        // Create canvas and draw resized image
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to base64 with compression
+        const base64 = canvas.toDataURL('image/jpeg', quality);
+        console.log('[Image] Compressed from', img.width, 'x', img.height, 'to', width, 'x', height);
+        console.log('[Image] Base64 length:', base64.length);
+        resolve(base64);
+      };
+      img.onerror = () => reject(new Error('Failed to load image for compression'));
+      img.src = uri;
+    });
+  };
+
+  // Convert image URI to base64 with compression
   const convertToBase64 = async (uri: string): Promise<string> => {
     if (Platform.OS !== 'web' && uri.startsWith('file://')) {
       const base64 = await FileSystem.readAsStringAsync(uri, {
@@ -254,16 +345,38 @@ export default function ProjectExpensesScreen() {
       });
       const mimeType = uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
       return `data:${mimeType};base64,${base64}`;
-    } else if (Platform.OS === 'web' && !uri.startsWith('data:')) {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      return base64;
+    } else if (Platform.OS === 'web') {
+      // On web, compress the image to reduce size
+      try {
+        // If it's a blob URL, convert to object URL first
+        if (uri.startsWith('blob:')) {
+          const compressed = await compressImageOnWeb(uri, 1024, 0.7);
+          return compressed;
+        } else if (!uri.startsWith('data:')) {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          const compressed = await compressImageOnWeb(objectUrl, 1024, 0.7);
+          URL.revokeObjectURL(objectUrl);
+          return compressed;
+        } else {
+          // Already a data URL, try to compress it
+          const compressed = await compressImageOnWeb(uri, 1024, 0.7);
+          return compressed;
+        }
+      } catch (error) {
+        console.error('[Image] Compression failed, falling back to original:', error);
+        // Fall back to original method if compression fails
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        return base64;
+      }
     }
     return uri;
   };
@@ -588,8 +701,16 @@ export default function ProjectExpensesScreen() {
               onChangeText={setStore}
             />
 
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>Save</Text>
+            <TouchableOpacity
+              style={[styles.saveButton, isSavingManual && styles.buttonDisabled]}
+              onPress={handleSave}
+              disabled={isSavingManual}
+            >
+              {isSavingManual ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save</Text>
+              )}
             </TouchableOpacity>
           </View>
 
