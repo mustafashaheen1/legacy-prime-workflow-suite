@@ -61,31 +61,62 @@ export default function ProjectExpensesScreen() {
     [filteredExpenses]
   );
 
-  // Upload image to S3
-  const uploadToS3 = async (base64Data: string, fileName: string, fileType: string): Promise<string> => {
-    console.log('[S3] Uploading receipt to S3...');
+  // Upload file to S3 using presigned URL (handles large files like PDFs)
+  const uploadToS3 = async (fileData: string | Blob, fileName: string, fileType: string): Promise<string> => {
+    console.log('[S3] Uploading receipt to S3 using presigned URL...');
 
     const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
                   (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
 
-    const response = await fetch(`${apiUrl}/api/upload-to-s3`, {
+    // Step 1: Get presigned URL from API
+    const urlResponse = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        fileData: base64Data,
-        fileName: `receipts/${Date.now()}-${fileName}`,
+        fileName: `receipts/${fileName}`,
         fileType,
       }),
     });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to upload to S3');
+    if (!urlResponse.ok) {
+      const error = await urlResponse.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to get upload URL');
     }
 
-    const result = await response.json();
-    console.log('[S3] Upload successful:', result.url);
-    return result.url;
+    const { uploadUrl, fileUrl } = await urlResponse.json();
+    console.log('[S3] Got presigned URL, uploading directly to S3...');
+
+    // Step 2: Convert base64 to Blob if needed
+    let uploadData: Blob;
+    if (typeof fileData === 'string') {
+      // It's base64 data
+      const base64Content = fileData.replace(/^data:.+;base64,/, '');
+      const byteCharacters = atob(base64Content);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      uploadData = new Blob([byteArray], { type: fileType });
+    } else {
+      uploadData = fileData;
+    }
+
+    // Step 3: Upload directly to S3 using presigned URL
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: uploadData,
+      headers: {
+        'Content-Type': fileType,
+      },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error('Failed to upload to S3');
+    }
+
+    console.log('[S3] Upload successful:', fileUrl);
+    return fileUrl;
   };
 
   // Analyze receipt with OpenAI
