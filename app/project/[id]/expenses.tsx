@@ -46,6 +46,10 @@ export default function ProjectExpensesScreen() {
   const [modalCategory, setModalCategory] = useState<string>('');
   const [isSavingExpense, setIsSavingExpense] = useState<boolean>(false);
 
+  // Receipt viewer state
+  const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
+  const [showReceiptViewer, setShowReceiptViewer] = useState<boolean>(false);
+
   const project = useMemo(() =>
     projects.find(p => p.id === id),
     [projects, id]
@@ -142,6 +146,16 @@ export default function ProjectExpensesScreen() {
 
     const result = await response.json();
     console.log('[OpenAI] Analysis result:', result);
+
+    // Check if the API returned an error message (even with success: true)
+    // This happens when OpenAI couldn't parse the image properly
+    if (result.error) {
+      return {
+        data: null,
+        isValidReceipt: false,
+        message: result.error || 'Could not analyze this image. Please upload a photo of a receipt or invoice.',
+      };
+    }
 
     if (result.success && result.data) {
       const { store, amount, confidence } = result.data;
@@ -596,6 +610,20 @@ export default function ProjectExpensesScreen() {
     return 'Low';
   };
 
+  // View receipt handler
+  const handleViewReceipt = (receiptUrl: string) => {
+    const isPdf = receiptUrl.toLowerCase().includes('.pdf');
+
+    if (isPdf && Platform.OS === 'web') {
+      // Open PDF in new tab on web
+      window.open(receiptUrl, '_blank');
+    } else {
+      // Show image in modal
+      setViewingReceiptUrl(receiptUrl);
+      setShowReceiptViewer(true);
+    }
+  };
+
   if (!project) {
     return (
       <View style={styles.container}>
@@ -764,9 +792,12 @@ export default function ProjectExpensesScreen() {
                           )}
                         </View>
                         {expense.receiptUrl && (
-                          <View style={styles.receiptBadge}>
+                          <TouchableOpacity
+                            style={styles.receiptBadge}
+                            onPress={() => handleViewReceipt(expense.receiptUrl!)}
+                          >
                             <ImageIcon size={12} color="#10B981" />
-                          </View>
+                          </TouchableOpacity>
                         )}
                       </View>
                       <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
@@ -1025,6 +1056,53 @@ export default function ProjectExpensesScreen() {
                   )}
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Receipt Viewer Modal */}
+        <Modal
+          visible={showReceiptViewer}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowReceiptViewer(false)}
+        >
+          <View style={styles.receiptViewerOverlay}>
+            <View style={styles.receiptViewerContent}>
+              <View style={styles.receiptViewerHeader}>
+                <Text style={styles.receiptViewerTitle}>Receipt</Text>
+                <TouchableOpacity
+                  style={styles.receiptViewerClose}
+                  onPress={() => setShowReceiptViewer(false)}
+                >
+                  <X size={24} color="#1F2937" />
+                </TouchableOpacity>
+              </View>
+              {viewingReceiptUrl && (
+                viewingReceiptUrl.toLowerCase().includes('.pdf') ? (
+                  <View style={styles.pdfViewerContainer}>
+                    <File size={60} color="#2563EB" />
+                    <Text style={styles.pdfViewerText}>PDF Document</Text>
+                    <TouchableOpacity
+                      style={styles.openPdfButton}
+                      onPress={() => {
+                        if (Platform.OS === 'web') {
+                          window.open(viewingReceiptUrl, '_blank');
+                        }
+                        setShowReceiptViewer(false);
+                      }}
+                    >
+                      <Text style={styles.openPdfButtonText}>Open PDF</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: viewingReceiptUrl }}
+                    style={styles.receiptViewerImage}
+                    contentFit="contain"
+                  />
+                )
+              )}
             </View>
           </View>
         </Modal>
@@ -1472,5 +1550,62 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  // Receipt Viewer Styles
+  receiptViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  receiptViewerContent: {
+    width: '95%',
+    maxWidth: 600,
+    maxHeight: '90%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  receiptViewerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  receiptViewerTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  receiptViewerClose: {
+    padding: 4,
+  },
+  receiptViewerImage: {
+    width: '100%',
+    height: 500,
+  },
+  pdfViewerContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pdfViewerText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  openPdfButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  openPdfButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
   },
 });
