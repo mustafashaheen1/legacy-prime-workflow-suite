@@ -893,7 +893,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         }
       } catch (error) {
         console.error('[App] Error saving expense to backend:', error);
+        // Remove the expense from state since backend save failed
         setExpenses(prev => prev.filter(e => e.id !== expense.id));
+        // Re-throw so the UI can show an error to the user
         throw error;
       }
     } else {

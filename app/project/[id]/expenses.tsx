@@ -385,7 +385,23 @@ export default function ProjectExpensesScreen() {
       if (file.mimeType?.startsWith('image/')) {
         await processReceipt(file.uri, false, file.name);
       } else if (file.mimeType === 'application/pdf') {
-        await processReceipt(file.uri, true, file.name);
+        // PDFs cannot be analyzed by OpenAI Vision API directly
+        // Show the file and let user enter details manually
+        Alert.alert(
+          'PDF Uploaded',
+          'PDF files cannot be analyzed automatically by AI. Please enter the expense details manually using the form below.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Set the PDF as receipt for manual entry
+                setReceiptImage(file.uri);
+                setReceiptType('file');
+                setReceiptFileName(file.name);
+              },
+            },
+          ]
+        );
       } else {
         Alert.alert('Unsupported File', 'Please upload an image or PDF file.');
       }
