@@ -43,6 +43,7 @@ import { imageAnalysisProcedure } from "./routes/openai/image-analysis/route.js"
 import { agentChatProcedure, agentToolResultProcedure } from "./routes/openai/agent-chat/route.js";
 import { testConnectionProcedure } from "./routes/openai/test-connection/route.js";
 import { getPhotosProcedure } from "./routes/photos/get-photos/route.js";
+import { savePhotoMetadataProcedure } from "./routes/photos/save-photo-metadata/route.js";
 import { getExpensesDetailedProcedure } from "./routes/expenses/get-expenses-detailed/route.js";
 import { getClockEntriesProcedure } from "./routes/clock/get-clock-entries/route.js";
 import { getTimecardProcedure } from "./routes/clock/get-timecard/route.js";
@@ -150,6 +151,7 @@ export const appRouter = createTRPCRouter({
   photos: createTRPCRouter({
     addPhoto: addPhotoProcedure,
     getPhotos: getPhotosProcedure,
+    savePhotoMetadata: savePhotoMetadataProcedure,
   }),
   expenses: createTRPCRouter({
     addExpense: addExpenseProcedure,

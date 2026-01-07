@@ -880,7 +880,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (company?.id) {
       try {
         const { trpc } = await import('@/lib/trpc');
-        await trpc.photos.addPhoto.mutate({
+        // Use savePhotoMetadata since the file is already uploaded to S3
+        await trpc.photos.savePhotoMetadata.mutate({
           companyId: company.id,
           projectId: photo.projectId,
           category: photo.category,
