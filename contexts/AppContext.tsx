@@ -683,8 +683,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     // Save to backend
     try {
-      const { trpc } = await import('@/lib/trpc');
-      await trpc.projects.updateProject.mutate({ id, ...updates });
+      const { vanillaClient } = await import('@/lib/trpc');
+      await vanillaClient.projects.updateProject.mutate({ id, ...updates });
       console.log('[App] Project updated in backend:', id);
     } catch (error) {
       console.error('[App] Error updating project in backend:', error);
@@ -729,8 +729,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend if company exists
     if (company?.id) {
       try {
-        const { trpc } = await import('@/lib/trpc');
-        await trpc.crm.addClient.mutate({
+        const { vanillaClient } = await import('@/lib/trpc');
+        await vanillaClient.crm.addClient.mutate({
           companyId: company.id,
           name: client.name,
           address: client.address,
@@ -848,8 +848,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend if company exists
     if (company?.id) {
       try {
-        const { trpc } = await import('@/lib/trpc');
-        await trpc.expenses.addExpense.mutate({
+        const { vanillaClient } = await import('@/lib/trpc');
+        await vanillaClient.expenses.addExpense.mutate({
           companyId: company.id,
           projectId: expense.projectId,
           type: expense.type,
@@ -879,16 +879,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend if company exists
     if (company?.id) {
       try {
-        const { trpc } = await import('@/lib/trpc');
-        // Use savePhotoMetadata since the file is already uploaded to S3
-        await trpc.photos.savePhotoMetadata.mutate({
-          companyId: company.id,
-          projectId: photo.projectId,
-          category: photo.category,
-          notes: photo.notes,
-          url: photo.url,
-          date: photo.date,
+        // Use direct API endpoint (bypasses tRPC for reliability)
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
+        const response = await fetch(`${apiUrl}/api/save-photo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            projectId: photo.projectId,
+            category: photo.category,
+            notes: photo.notes,
+            url: photo.url,
+            date: photo.date,
+          }),
         });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to save photo');
+        }
+
         console.log('[App] Photo saved to backend');
       } catch (error) {
         console.error('[App] Error saving photo to backend:', error);
@@ -910,8 +920,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend if company exists
     if (company?.id) {
       try {
-        const { trpc } = await import('@/lib/trpc');
-        await trpc.tasks.addTask.mutate({
+        const { vanillaClient } = await import('@/lib/trpc');
+        await vanillaClient.tasks.addTask.mutate({
           companyId: company.id,
           projectId: task.projectId,
           name: task.name,
@@ -934,8 +944,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     // Save to backend
     try {
-      const { trpc } = await import('@/lib/trpc');
-      await trpc.tasks.updateTask.mutate({ id, ...updates });
+      const { vanillaClient } = await import('@/lib/trpc');
+      await vanillaClient.tasks.updateTask.mutate({ id, ...updates });
       console.log('[App] Task updated in backend:', id);
     } catch (error) {
       console.error('[App] Error updating task in backend:', error);
@@ -949,8 +959,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Clock in on backend if company and user exist
     if (company?.id && user?.id) {
       try {
-        const { trpc } = await import('@/lib/trpc');
-        await trpc.clock.clockIn.mutate({
+        const { vanillaClient } = await import('@/lib/trpc');
+        await vanillaClient.clock.clockIn.mutate({
           companyId: company.id,
           employeeId: user.id,
           projectId: entry.projectId,
@@ -974,8 +984,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // If clocking out (clockOut is being set), call backend
     if (updates.clockOut) {
       try {
-        const { trpc } = await import('@/lib/trpc');
-        await trpc.clock.clockOut.mutate({
+        const { vanillaClient } = await import('@/lib/trpc');
+        await vanillaClient.clock.clockOut.mutate({
           entryId: id,
           workPerformed: updates.workPerformed,
           lunchBreaks: updates.lunchBreaks,
@@ -1006,8 +1016,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend if company exists (non-blocking)
     if (company?.id) {
       try {
-        const { trpc } = await import('@/lib/trpc');
-        const result = await trpc.priceList.addPriceListItem.mutate({
+        const { vanillaClient } = await import('@/lib/trpc');
+        const result = await vanillaClient.priceList.addPriceListItem.mutate({
           companyId: company.id,
           category: item.category,
           name: item.name,
