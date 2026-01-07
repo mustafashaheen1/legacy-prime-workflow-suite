@@ -182,7 +182,8 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     updateClockEntry(currentEntry.id, {
       clockOut: clockOutTime,
       workPerformed,
-      category: selectedCategory || 'General Labor',
+      category: currentEntry.category || 'General Labor',
+      lunchBreaks: currentEntry.lunchBreaks,
     });
 
     updateProject(projectId, {
@@ -191,7 +192,7 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
 
     console.log(`[Clock Out] ${user?.name} clocked out from ${projectName}`);
     console.log(`[Clock Out] Hours worked (excluding lunch): ${hoursWorked.toFixed(2)}h`);
-    console.log(`[Clock Out] Category: ${selectedCategory || 'General Labor'}`);
+    console.log(`[Clock Out] Category: ${currentEntry.category || 'General Labor'}`);
     console.log(`[Clock Out] Work performed: ${workPerformed || 'N/A'}`);
 
     setCurrentEntry(null);
@@ -404,7 +405,7 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
   const todayEntries = clockEntries.filter((entry) => {
     const entryDate = new Date(entry.clockIn).toDateString();
     const today = new Date().toDateString();
-    return entryDate === today && entry.projectId === projectId;
+    return entryDate === today && entry.projectId === projectId && entry.employeeId === user?.id;
   });
 
   const totalHoursToday = todayEntries.reduce((sum, entry) => {
@@ -483,25 +484,15 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Clock Out Summary</Text>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Work Category *</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                  {WORK_CATEGORIES.map((category) => (
-                    <TouchableOpacity
-                      key={category}
-                      style={[styles.categoryChip, selectedCategory === category && styles.categoryChipActive]}
-                      onPress={() => setSelectedCategory(category)}
-                    >
-                      <Text style={[styles.categoryChipText, selectedCategory === category && styles.categoryChipTextActive]}>
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+              {currentEntry?.category && (
+                <View style={styles.categoryDisplayBox}>
+                  <Text style={styles.categoryDisplayLabel}>Work Category</Text>
+                  <Text style={styles.categoryDisplayValue}>{currentEntry.category}</Text>
+                </View>
+              )}
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>What work was performed?</Text>
+                <Text style={styles.formLabel}>What work was performed? (Optional)</Text>
                 <TextInput
                   style={styles.textArea}
                   value={workPerformed}
@@ -523,9 +514,8 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.confirmButton, !selectedCategory && styles.confirmButtonDisabled]}
+                  style={styles.confirmButton}
                   onPress={completeClockOut}
-                  disabled={!selectedCategory}
                 >
                   <Text style={styles.confirmButtonText}>Complete Clock Out</Text>
                 </TouchableOpacity>
@@ -768,25 +758,15 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Clock Out Summary</Text>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Work Category *</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                {WORK_CATEGORIES.map((category) => (
-                  <TouchableOpacity
-                    key={category}
-                    style={[styles.categoryChip, selectedCategory === category && styles.categoryChipActive]}
-                    onPress={() => setSelectedCategory(category)}
-                  >
-                    <Text style={[styles.categoryChipText, selectedCategory === category && styles.categoryChipTextActive]}>
-                      {category}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+            {currentEntry?.category && (
+              <View style={styles.categoryDisplayBox}>
+                <Text style={styles.categoryDisplayLabel}>Work Category</Text>
+                <Text style={styles.categoryDisplayValue}>{currentEntry.category}</Text>
+              </View>
+            )}
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>What work was performed?</Text>
+              <Text style={styles.formLabel}>What work was performed? (Optional)</Text>
               <TextInput
                 style={styles.textArea}
                 value={workPerformed}
@@ -816,9 +796,8 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmButton, !selectedCategory && styles.confirmButtonDisabled]}
+                style={styles.confirmButton}
                 onPress={completeClockOut}
-                disabled={!selectedCategory}
               >
                 <Text style={styles.confirmButtonText}>Complete Clock Out</Text>
               </TouchableOpacity>
@@ -1206,6 +1185,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 24,
+  },
+  categoryDisplayBox: {
+    backgroundColor: '#F0FDF4',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  categoryDisplayLabel: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  categoryDisplayValue: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#10B981',
   },
   summaryLabel: {
     fontSize: 16,
