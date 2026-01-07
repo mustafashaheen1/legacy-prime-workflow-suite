@@ -42,17 +42,30 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
 
   useEffect(() => {
     requestLocationPermission();
-    checkActiveEntry();
-  }, [projectId, clockEntries, user]);
+  }, []);
 
-  const checkActiveEntry = () => {
+  // Check for active entry whenever clockEntries changes or component mounts
+  useEffect(() => {
     const activeEntry = clockEntries.find(
       (entry) => entry.projectId === projectId && entry.employeeId === user?.id && !entry.clockOut
     );
     if (activeEntry) {
+      console.log('[Clock] Found active entry:', activeEntry.id);
       setCurrentEntry(activeEntry);
+    } else if (currentEntry && !activeEntry) {
+      // Only clear if we had a currentEntry but it's no longer in the list
+      // This happens when clock out completes
+      const stillExists = clockEntries.some(e => e.id === currentEntry.id);
+      if (stillExists) {
+        // Entry exists but has been clocked out, clear current entry
+        const updatedEntry = clockEntries.find(e => e.id === currentEntry.id);
+        if (updatedEntry?.clockOut) {
+          console.log('[Clock] Entry was clocked out, clearing current entry');
+          setCurrentEntry(null);
+        }
+      }
     }
-  };
+  }, [projectId, clockEntries, user?.id]);
 
   const requestLocationPermission = async () => {
     if (Platform.OS === 'web') {
@@ -105,7 +118,7 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     setShowClockInModal(true);
   };
 
-  const completeClockIn = () => {
+  const completeClockIn = async () => {
     if (!user || !clockInCategory) return;
 
     const entry: ClockEntry = {
@@ -118,12 +131,20 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
       workPerformed: clockInDescription,
     };
 
-    addClockEntry(entry);
-    setCurrentEntry(entry);
-    console.log(`[Clock In] ${user.name} clocked in to ${projectName} at ${new Date().toLocaleTimeString()}`);
-    console.log(`[Clock In] Category: ${clockInCategory}`);
-    console.log(`[Clock In] Description: ${clockInDescription || 'N/A'}`);
-    
+    try {
+      // addClockEntry returns the entry with the database ID
+      const savedEntry = await addClockEntry(entry);
+      setCurrentEntry(savedEntry);
+      console.log(`[Clock In] ${user.name} clocked in to ${projectName} at ${new Date().toLocaleTimeString()}`);
+      console.log(`[Clock In] Category: ${clockInCategory}`);
+      console.log(`[Clock In] Description: ${clockInDescription || 'N/A'}`);
+      console.log(`[Clock In] Entry ID: ${savedEntry.id}`);
+    } catch (error) {
+      console.error('[Clock In] Error:', error);
+      // Still set the entry locally even if backend fails
+      setCurrentEntry(entry);
+    }
+
     setShowClockInModal(false);
     setClockInCategory('');
     setClockInDescription('');

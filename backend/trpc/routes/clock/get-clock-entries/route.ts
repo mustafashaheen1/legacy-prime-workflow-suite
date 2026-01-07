@@ -62,16 +62,25 @@ export const getClockEntriesProcedure = publicProcedure
       }
 
       // Transform to frontend format
-      const filteredEntries = (dbEntries || []).map((entry: any) => ({
-        id: entry.id,
-        employeeId: entry.employee_id,
-        projectId: entry.project_id,
-        clockIn: entry.clock_in,
-        clockOut: entry.clock_out || undefined,
-        location: entry.location,
-        workPerformed: entry.work_performed || '',
-        lunchBreaks: entry.lunch_breaks || [],
-      }));
+      const filteredEntries = (dbEntries || []).map((entry: any) => {
+        // Transform lunch breaks from database format (start/end) to frontend format (startTime/endTime)
+        const lunchBreaks = (entry.lunch_breaks || []).map((lb: any) => ({
+          startTime: lb.start || lb.startTime,
+          endTime: lb.end || lb.endTime,
+        }));
+
+        return {
+          id: entry.id,
+          employeeId: entry.employee_id,
+          projectId: entry.project_id,
+          clockIn: entry.clock_in,
+          clockOut: entry.clock_out || undefined,
+          location: entry.location,
+          workPerformed: entry.work_performed || '',
+          category: entry.category || undefined,
+          lunchBreaks,
+        };
+      });
 
       // Calculate total hours
       const totalHours = filteredEntries.reduce((sum, e) => {

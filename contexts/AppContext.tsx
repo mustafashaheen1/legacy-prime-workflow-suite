@@ -952,15 +952,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, []);
 
-  const addClockEntry = useCallback(async (entry: ClockEntry) => {
-    // Optimistically update UI
+  const addClockEntry = useCallback(async (entry: ClockEntry): Promise<ClockEntry> => {
+    // Optimistically update UI with temporary entry
     setClockEntries(prev => [...prev, entry]);
 
     // Clock in on backend if company and user exist
     if (company?.id && user?.id) {
       try {
         const { vanillaClient } = await import('@/lib/trpc');
-        await vanillaClient.clock.clockIn.mutate({
+        const result = await vanillaClient.clock.clockIn.mutate({
           companyId: company.id,
           employeeId: user.id,
           projectId: entry.projectId,
@@ -968,13 +968,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           workPerformed: entry.workPerformed,
           category: entry.category,
         });
-        console.log('[App] Clocked in successfully');
+
+        // Update local entry with database ID so clock-out works correctly
+        if (result.success && result.clockEntry) {
+          const dbId = result.clockEntry.id;
+          console.log('[App] Clocked in successfully, updating ID:', entry.id, '->', dbId);
+          const updatedEntry = { ...entry, id: dbId };
+          setClockEntries(prev => prev.map(e =>
+            e.id === entry.id ? updatedEntry : e
+          ));
+          return updatedEntry;
+        }
       } catch (error) {
         console.error('[App] Error clocking in:', error);
         setClockEntries(prev => prev.filter(e => e.id !== entry.id));
         throw error;
       }
     }
+    return entry;
   }, [company, user]);
 
   const updateClockEntry = useCallback(async (id: string, updates: Partial<ClockEntry>) => {
@@ -985,10 +996,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (updates.clockOut) {
       try {
         const { vanillaClient } = await import('@/lib/trpc');
+
+        // Transform lunchBreaks to match backend schema (startTime/endTime -> start/end)
+        const transformedLunchBreaks = updates.lunchBreaks?.map(lb => ({
+          start: lb.startTime,
+          end: lb.endTime || '',
+        })).filter(lb => lb.start && lb.end);
+
         await vanillaClient.clock.clockOut.mutate({
           entryId: id,
           workPerformed: updates.workPerformed,
-          lunchBreaks: updates.lunchBreaks,
+          lunchBreaks: transformedLunchBreaks,
         });
         console.log('[App] Clocked out successfully');
       } catch (error) {
