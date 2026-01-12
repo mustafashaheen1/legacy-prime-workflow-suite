@@ -65,6 +65,16 @@ function useOpenAIChat(appData: {
   payments: any[];
   clockEntries: any[];
   company: any;
+  // Additional data for complete business intelligence
+  priceList: any[];
+  dailyLogs: any[];
+  tasks: any[];
+  photos: any[];
+  changeOrders: any[];
+  subcontractors: any[];
+  callLogs: any[];
+  users: any[];
+  proposals: any[];
   updateClient?: (clientId: string, updates: any) => Promise<void>;
 }) {
   const [messages, setMessages] = useState<any[]>([]);
@@ -96,7 +106,7 @@ function useOpenAIChat(appData: {
         files: msg.files,
       }));
 
-      // Call AI Assistant API with app data
+      // Call AI Assistant API with all business data
       const response = await fetch('/api/ai-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,6 +120,16 @@ function useOpenAIChat(appData: {
             payments: appData.payments,
             clockEntries: appData.clockEntries,
             company: appData.company,
+            // Additional data for complete business intelligence
+            priceList: appData.priceList,
+            dailyLogs: appData.dailyLogs,
+            tasks: appData.tasks,
+            photos: appData.photos,
+            changeOrders: appData.changeOrders,
+            subcontractors: appData.subcontractors,
+            callLogs: appData.callLogs,
+            users: appData.users,
+            proposals: appData.proposals,
           }
         }),
       });
@@ -195,10 +215,20 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     tasks,
     company,
     estimates,
-    updateClient
+    updateClient,
+    // Additional data for complete business intelligence
+    customPriceListItems,
+    dailyLogs,
+    photos,
+    subcontractors,
+    callLogs,
+    proposals,
   } = useApp();
 
-  // Pass app data to AI assistant for data-aware responses
+  // Combine master price list with custom items
+  const fullPriceList = [...masterPriceList, ...customPriceListItems];
+
+  // Pass all business data to AI assistant for complete data-aware responses
   const { messages, sendMessage, isLoading, pendingAction, clearPendingAction } = useOpenAIChat({
     projects,
     clients,
@@ -208,6 +238,16 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     clockEntries,
     company,
     updateClient,
+    // Additional data for complete business intelligence
+    priceList: fullPriceList,
+    dailyLogs,
+    tasks,
+    photos: photos.length > 0 ? photos : mockPhotos, // Use mock if no real photos
+    changeOrders,
+    subcontractors,
+    callLogs,
+    users: [], // TODO: Add users from AppContext when available
+    proposals,
   });
 
   // Handle pending actions from AI assistant

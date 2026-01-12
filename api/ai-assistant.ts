@@ -241,6 +241,287 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  // NEW TOOLS FOR COMPLETE BUSINESS INTELLIGENCE
+  {
+    type: 'function',
+    function: {
+      name: 'query_price_list',
+      description: 'Search the price list for items by name or category. Use for pricing questions like "what\'s the price on X".',
+      parameters: {
+        type: 'object',
+        properties: {
+          searchTerm: {
+            type: 'string',
+            description: 'Item name or keyword to search for',
+          },
+          category: {
+            type: 'string',
+            description: 'Optional category filter',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_clock_entries',
+      description: 'Query clock/time entries. Use for "who clocked today", "total hours worked", "hours by employee".',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: {
+            type: 'string',
+            description: 'Filter by date (YYYY-MM-DD). Use "today" for current date.',
+          },
+          employeeId: {
+            type: 'string',
+            description: 'Filter by employee ID',
+          },
+          employeeName: {
+            type: 'string',
+            description: 'Filter by employee name',
+          },
+          projectId: {
+            type: 'string',
+            description: 'Filter by project ID',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_payments',
+      description: 'Query payments/sales received. Use for "sales today", "payments this week", "revenue".',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: {
+            type: 'string',
+            description: 'Filter by specific date (YYYY-MM-DD)',
+          },
+          startDate: {
+            type: 'string',
+            description: 'Start of date range',
+          },
+          endDate: {
+            type: 'string',
+            description: 'End of date range',
+          },
+          projectId: {
+            type: 'string',
+            description: 'Filter by project ID',
+          },
+          clientName: {
+            type: 'string',
+            description: 'Filter by client name',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_daily_logs',
+      description: 'Query daily work logs for projects. Use for "what work was done today", "daily report".',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: {
+            type: 'string',
+            description: 'Filter by date (YYYY-MM-DD)',
+          },
+          projectId: {
+            type: 'string',
+            description: 'Filter by project ID',
+          },
+          projectName: {
+            type: 'string',
+            description: 'Filter by project name',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_tasks',
+      description: 'Query tasks. Use for "pending tasks", "completed tasks", "tasks for project".',
+      parameters: {
+        type: 'object',
+        properties: {
+          completed: {
+            type: 'boolean',
+            description: 'Filter by completion status',
+          },
+          projectId: {
+            type: 'string',
+            description: 'Filter by project ID',
+          },
+          projectName: {
+            type: 'string',
+            description: 'Filter by project name',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_photos',
+      description: 'Query photos for projects. Use for "how many photos", "photos by category".',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectId: {
+            type: 'string',
+            description: 'Filter by project ID',
+          },
+          projectName: {
+            type: 'string',
+            description: 'Filter by project name',
+          },
+          category: {
+            type: 'string',
+            description: 'Filter by photo category',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_change_orders',
+      description: 'Query change orders. Use for "pending change orders", "approved changes".',
+      parameters: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['pending', 'approved', 'rejected'],
+            description: 'Filter by status',
+          },
+          projectId: {
+            type: 'string',
+            description: 'Filter by project ID',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_subcontractors',
+      description: 'Query subcontractors. Use for "available subs", "plumbing subcontractors".',
+      parameters: {
+        type: 'object',
+        properties: {
+          trade: {
+            type: 'string',
+            description: 'Filter by trade/specialty',
+          },
+          availability: {
+            type: 'string',
+            enum: ['available', 'busy', 'unavailable'],
+            description: 'Filter by availability',
+          },
+          approved: {
+            type: 'boolean',
+            description: 'Filter by approval status',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_call_logs',
+      description: 'Query call logs. Use for "call history", "qualified leads from calls".',
+      parameters: {
+        type: 'object',
+        properties: {
+          isQualified: {
+            type: 'boolean',
+            description: 'Filter by qualified status',
+          },
+          date: {
+            type: 'string',
+            description: 'Filter by date',
+          },
+          status: {
+            type: 'string',
+            enum: ['answered', 'missed', 'voicemail'],
+            description: 'Filter by call status',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_team_members',
+      description: 'Query team members/employees. Use for "who are my employees", "employee list", "hourly rates".',
+      parameters: {
+        type: 'object',
+        properties: {
+          role: {
+            type: 'string',
+            enum: ['super-admin', 'admin', 'salesperson', 'field-employee', 'employee'],
+            description: 'Filter by role',
+          },
+          isActive: {
+            type: 'boolean',
+            description: 'Filter by active status',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_proposals',
+      description: 'Query subcontractor proposals. Use for "pending proposals", "accepted bids".',
+      parameters: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['submitted', 'accepted', 'rejected', 'negotiating'],
+            description: 'Filter by status',
+          },
+          projectId: {
+            type: 'string',
+            description: 'Filter by project ID',
+          },
+          subcontractorId: {
+            type: 'string',
+            description: 'Filter by subcontractor ID',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 // System prompt for dual-purpose assistant
@@ -729,6 +1010,441 @@ function executeToolCall(
         default:
           return { result: { error: 'Unknown summary type' } };
       }
+    }
+
+    // NEW TOOL EXECUTIONS FOR COMPLETE BUSINESS INTELLIGENCE
+    case 'query_price_list': {
+      const { priceList = [] } = appData;
+      let filtered = priceList;
+
+      if (args.searchTerm) {
+        const search = args.searchTerm.toLowerCase();
+        filtered = filtered.filter((item: any) =>
+          item.name?.toLowerCase().includes(search) ||
+          item.description?.toLowerCase().includes(search)
+        );
+      }
+      if (args.category) {
+        filtered = filtered.filter((item: any) =>
+          item.category?.toLowerCase().includes(args.category.toLowerCase())
+        );
+      }
+
+      return {
+        result: {
+          count: filtered.length,
+          items: filtered.slice(0, 20).map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            description: item.description,
+            unit: item.unit,
+            unitPrice: item.unitPrice,
+            laborCost: item.laborCost,
+            materialCost: item.materialCost,
+          })),
+          hasMore: filtered.length > 20,
+        },
+      };
+    }
+
+    case 'query_clock_entries': {
+      const { clockEntries = [], users = [] } = appData;
+      let filtered = clockEntries;
+      const today = new Date().toISOString().split('T')[0];
+
+      // Handle "today" filter
+      const filterDate = args.date === 'today' ? today : args.date;
+
+      if (filterDate) {
+        filtered = filtered.filter((entry: any) => {
+          const entryDate = entry.clockIn?.split('T')[0];
+          return entryDate === filterDate;
+        });
+      }
+      if (args.employeeId) {
+        filtered = filtered.filter((entry: any) => entry.employeeId === args.employeeId);
+      }
+      if (args.employeeName) {
+        const employee = users.find((u: any) =>
+          u.name?.toLowerCase().includes(args.employeeName.toLowerCase())
+        );
+        if (employee) {
+          filtered = filtered.filter((entry: any) => entry.employeeId === employee.id);
+        }
+      }
+      if (args.projectId) {
+        filtered = filtered.filter((entry: any) => entry.projectId === args.projectId);
+      }
+
+      // Calculate total hours
+      const totalHours = filtered.reduce((sum: number, entry: any) => {
+        if (entry.clockIn && entry.clockOut) {
+          const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 3600000;
+          return sum + hours;
+        }
+        return sum;
+      }, 0);
+
+      // Get unique employees who clocked in
+      const employeeIds = [...new Set(filtered.map((e: any) => e.employeeId))];
+      const employeesWhoClocked = employeeIds.map(id => {
+        const user = users.find((u: any) => u.id === id);
+        return user?.name || id;
+      });
+
+      return {
+        result: {
+          count: filtered.length,
+          totalHours: Math.round(totalHours * 100) / 100,
+          employeesWhoClocked,
+          entries: filtered.map((entry: any) => {
+            const user = users.find((u: any) => u.id === entry.employeeId);
+            return {
+              id: entry.id,
+              employeeName: user?.name || entry.employeeId,
+              projectId: entry.projectId,
+              clockIn: entry.clockIn,
+              clockOut: entry.clockOut,
+              workPerformed: entry.workPerformed,
+            };
+          }),
+        },
+      };
+    }
+
+    case 'query_payments': {
+      let filtered = payments;
+      const today = new Date().toISOString().split('T')[0];
+
+      // Handle "today" filter
+      const filterDate = args.date === 'today' ? today : args.date;
+
+      if (filterDate) {
+        filtered = filtered.filter((p: any) => p.date?.startsWith(filterDate));
+      }
+      if (args.startDate && args.endDate) {
+        filtered = filtered.filter((p: any) => {
+          const date = p.date?.split('T')[0];
+          return date >= args.startDate && date <= args.endDate;
+        });
+      }
+      if (args.projectId) {
+        filtered = filtered.filter((p: any) => p.projectId === args.projectId);
+      }
+      if (args.clientName) {
+        filtered = filtered.filter((p: any) =>
+          p.clientName?.toLowerCase().includes(args.clientName.toLowerCase())
+        );
+      }
+
+      const totalAmount = filtered.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+
+      return {
+        result: {
+          count: filtered.length,
+          totalAmount,
+          payments: filtered.map((p: any) => ({
+            id: p.id,
+            amount: p.amount,
+            date: p.date,
+            clientName: p.clientName,
+            projectId: p.projectId,
+            method: p.method,
+          })),
+        },
+      };
+    }
+
+    case 'query_daily_logs': {
+      const { dailyLogs = [] } = appData;
+      let filtered = dailyLogs;
+      const today = new Date().toISOString().split('T')[0];
+
+      const filterDate = args.date === 'today' ? today : args.date;
+
+      if (filterDate) {
+        filtered = filtered.filter((log: any) => log.logDate?.startsWith(filterDate));
+      }
+      if (args.projectId) {
+        filtered = filtered.filter((log: any) => log.projectId === args.projectId);
+      }
+      if (args.projectName) {
+        const project = projects.find((p: any) =>
+          p.name?.toLowerCase().includes(args.projectName.toLowerCase())
+        );
+        if (project) {
+          filtered = filtered.filter((log: any) => log.projectId === project.id);
+        }
+      }
+
+      return {
+        result: {
+          count: filtered.length,
+          logs: filtered.map((log: any) => ({
+            id: log.id,
+            projectId: log.projectId,
+            logDate: log.logDate,
+            workPerformed: log.workPerformed,
+            issues: log.issues,
+            generalNotes: log.generalNotes,
+            createdBy: log.createdBy,
+          })),
+        },
+      };
+    }
+
+    case 'query_tasks': {
+      const { tasks = [] } = appData;
+      let filtered = tasks;
+
+      if (args.completed !== undefined) {
+        filtered = filtered.filter((t: any) => t.completed === args.completed);
+      }
+      if (args.projectId) {
+        filtered = filtered.filter((t: any) => t.projectId === args.projectId);
+      }
+      if (args.projectName) {
+        const project = projects.find((p: any) =>
+          p.name?.toLowerCase().includes(args.projectName.toLowerCase())
+        );
+        if (project) {
+          filtered = filtered.filter((t: any) => t.projectId === project.id);
+        }
+      }
+
+      return {
+        result: {
+          count: filtered.length,
+          pending: filtered.filter((t: any) => !t.completed).length,
+          completed: filtered.filter((t: any) => t.completed).length,
+          tasks: filtered.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            projectId: t.projectId,
+            date: t.date,
+            completed: t.completed,
+          })),
+        },
+      };
+    }
+
+    case 'query_photos': {
+      const { photos = [] } = appData;
+      let filtered = photos;
+
+      if (args.projectId) {
+        filtered = filtered.filter((p: any) => p.projectId === args.projectId);
+      }
+      if (args.projectName) {
+        const project = projects.find((p: any) =>
+          p.name?.toLowerCase().includes(args.projectName.toLowerCase())
+        );
+        if (project) {
+          filtered = filtered.filter((p: any) => p.projectId === project.id);
+        }
+      }
+      if (args.category) {
+        filtered = filtered.filter((p: any) =>
+          p.category?.toLowerCase().includes(args.category.toLowerCase())
+        );
+      }
+
+      // Group by category
+      const byCategory: Record<string, number> = {};
+      filtered.forEach((p: any) => {
+        const cat = p.category || 'Other';
+        byCategory[cat] = (byCategory[cat] || 0) + 1;
+      });
+
+      return {
+        result: {
+          count: filtered.length,
+          byCategory,
+          photos: filtered.slice(0, 10).map((p: any) => ({
+            id: p.id,
+            projectId: p.projectId,
+            category: p.category,
+            notes: p.notes,
+            date: p.date,
+          })),
+        },
+      };
+    }
+
+    case 'query_change_orders': {
+      const { changeOrders = [] } = appData;
+      let filtered = changeOrders;
+
+      if (args.status) {
+        filtered = filtered.filter((co: any) => co.status === args.status);
+      }
+      if (args.projectId) {
+        filtered = filtered.filter((co: any) => co.projectId === args.projectId);
+      }
+
+      const totalAmount = filtered.reduce((sum: number, co: any) => sum + (co.amount || 0), 0);
+
+      return {
+        result: {
+          count: filtered.length,
+          totalAmount,
+          pending: changeOrders.filter((co: any) => co.status === 'pending').length,
+          approved: changeOrders.filter((co: any) => co.status === 'approved').length,
+          changeOrders: filtered.map((co: any) => ({
+            id: co.id,
+            description: co.description,
+            amount: co.amount,
+            status: co.status,
+            projectId: co.projectId,
+            date: co.date,
+          })),
+        },
+      };
+    }
+
+    case 'query_subcontractors': {
+      const { subcontractors = [] } = appData;
+      let filtered = subcontractors;
+
+      if (args.trade) {
+        filtered = filtered.filter((s: any) =>
+          s.trade?.toLowerCase().includes(args.trade.toLowerCase())
+        );
+      }
+      if (args.availability) {
+        filtered = filtered.filter((s: any) => s.availability === args.availability);
+      }
+      if (args.approved !== undefined) {
+        filtered = filtered.filter((s: any) => s.approved === args.approved);
+      }
+
+      return {
+        result: {
+          count: filtered.length,
+          available: subcontractors.filter((s: any) => s.availability === 'available').length,
+          subcontractors: filtered.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            companyName: s.companyName,
+            trade: s.trade,
+            phone: s.phone,
+            email: s.email,
+            hourlyRate: s.hourlyRate,
+            rating: s.rating,
+            availability: s.availability,
+            approved: s.approved,
+          })),
+        },
+      };
+    }
+
+    case 'query_call_logs': {
+      const { callLogs = [] } = appData;
+      let filtered = callLogs;
+      const today = new Date().toISOString().split('T')[0];
+
+      const filterDate = args.date === 'today' ? today : args.date;
+
+      if (filterDate) {
+        filtered = filtered.filter((log: any) => log.callDate?.startsWith(filterDate));
+      }
+      if (args.isQualified !== undefined) {
+        filtered = filtered.filter((log: any) => log.isQualified === args.isQualified);
+      }
+      if (args.status) {
+        filtered = filtered.filter((log: any) => log.status === args.status);
+      }
+
+      return {
+        result: {
+          count: filtered.length,
+          qualified: callLogs.filter((l: any) => l.isQualified).length,
+          answered: callLogs.filter((l: any) => l.status === 'answered').length,
+          missed: callLogs.filter((l: any) => l.status === 'missed').length,
+          callLogs: filtered.map((log: any) => ({
+            id: log.id,
+            callerName: log.callerName,
+            callerPhone: log.callerPhone,
+            callDate: log.callDate,
+            status: log.status,
+            isQualified: log.isQualified,
+            notes: log.notes,
+            addedToCRM: log.addedToCRM,
+          })),
+        },
+      };
+    }
+
+    case 'query_team_members': {
+      const { users = [] } = appData;
+      let filtered = users;
+
+      if (args.role) {
+        filtered = filtered.filter((u: any) => u.role === args.role);
+      }
+      if (args.isActive !== undefined) {
+        filtered = filtered.filter((u: any) => u.isActive === args.isActive);
+      }
+
+      return {
+        result: {
+          count: filtered.length,
+          byRole: {
+            admins: users.filter((u: any) => u.role === 'admin' || u.role === 'super-admin').length,
+            salespersons: users.filter((u: any) => u.role === 'salesperson').length,
+            fieldEmployees: users.filter((u: any) => u.role === 'field-employee').length,
+            employees: users.filter((u: any) => u.role === 'employee').length,
+          },
+          teamMembers: filtered.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            phone: u.phone,
+            hourlyRate: u.hourlyRate,
+            isActive: u.isActive,
+          })),
+        },
+      };
+    }
+
+    case 'query_proposals': {
+      const { proposals = [], subcontractors = [] } = appData;
+      let filtered = proposals;
+
+      if (args.status) {
+        filtered = filtered.filter((p: any) => p.status === args.status);
+      }
+      if (args.projectId) {
+        filtered = filtered.filter((p: any) => p.projectId === args.projectId);
+      }
+      if (args.subcontractorId) {
+        filtered = filtered.filter((p: any) => p.subcontractorId === args.subcontractorId);
+      }
+
+      const totalAmount = filtered.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+
+      return {
+        result: {
+          count: filtered.length,
+          totalAmount,
+          submitted: proposals.filter((p: any) => p.status === 'submitted').length,
+          accepted: proposals.filter((p: any) => p.status === 'accepted').length,
+          proposals: filtered.map((p: any) => {
+            const sub = subcontractors.find((s: any) => s.id === p.subcontractorId);
+            return {
+              id: p.id,
+              subcontractorName: sub?.name || p.subcontractorId,
+              amount: p.amount,
+              timeline: p.timeline,
+              status: p.status,
+              proposalDate: p.proposalDate,
+              projectId: p.projectId,
+            };
+          }),
+        },
+      };
     }
 
     default:
