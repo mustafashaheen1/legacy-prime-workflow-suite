@@ -50,10 +50,28 @@ const getSanitizedMimeType = (initialMimeType: string | undefined, fileName: str
   return 'application/octet-stream';
 };
 
-// Custom hook to replace Rork AI with direct OpenAI
-function useOpenAIChat() {
+// Pending action type from AI assistant
+interface PendingAction {
+  type: string;
+  data: any;
+}
+
+// Custom hook to replace Rork AI with direct OpenAI - now with app data awareness
+function useOpenAIChat(appData: {
+  projects: any[];
+  clients: any[];
+  expenses: any[];
+  estimates: any[];
+  payments: any[];
+  clockEntries: any[];
+  company: any;
+  updateClient?: (clientId: string, updates: any) => Promise<void>;
+}) {
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+
+  const clearPendingAction = () => setPendingAction(null);
 
   const sendMessage = async (userMessage: string | { text: string; files: any[] }) => {
     const messageText = typeof userMessage === 'string' ? userMessage : userMessage.text;
@@ -78,11 +96,22 @@ function useOpenAIChat() {
         files: msg.files,
       }));
 
-      // Call OpenAI API
-      const response = await fetch('/api/chat', {
+      // Call AI Assistant API with app data
+      const response = await fetch('/api/ai-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          appData: {
+            projects: appData.projects,
+            clients: appData.clients,
+            expenses: appData.expenses,
+            estimates: appData.estimates,
+            payments: appData.payments,
+            clockEntries: appData.clockEntries,
+            company: appData.company,
+          }
+        }),
       });
 
       if (!response.ok) {
@@ -99,6 +128,12 @@ function useOpenAIChat() {
         parts: [{ type: 'text', text: data.content }],
       };
       setMessages(prev => [...prev, assistantMsg]);
+
+      // Handle pending actions from AI
+      if (data.actionRequired && data.actionData) {
+        console.log('[AI Chat] Action required:', data.actionRequired, data.actionData);
+        setPendingAction({ type: data.actionRequired, data: data.actionData });
+      }
     } catch (error) {
       console.error('[AI Chat] Error:', error);
       // Add error message
@@ -114,7 +149,7 @@ function useOpenAIChat() {
     }
   };
 
-  return { messages, sendMessage, isLoading };
+  return { messages, sendMessage, isLoading, pendingAction, clearPendingAction };
 }
 
 export default function GlobalAIChatSimple({ currentPageContext, inline = false }: GlobalAIChatProps) {
@@ -150,19 +185,82 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const isOnAuthScreen = pathname?.includes('/login') || pathname?.includes('/subscription') || pathname?.includes('/signup');
   const { user } = useApp();
 
-  const { 
-    projects, 
-    expenses, 
-    clients, 
-    clockEntries, 
-    payments, 
-    changeOrders, 
+  const {
+    projects,
+    expenses,
+    clients,
+    clockEntries,
+    payments,
+    changeOrders,
     tasks,
     company,
-    estimates
+    estimates,
+    updateClient
   } = useApp();
 
-  const { messages, sendMessage, isLoading } = useOpenAIChat();
+  // Pass app data to AI assistant for data-aware responses
+  const { messages, sendMessage, isLoading, pendingAction, clearPendingAction } = useOpenAIChat({
+    projects,
+    clients,
+    expenses,
+    estimates,
+    payments,
+    clockEntries,
+    company,
+    updateClient,
+  });
+
+  // Handle pending actions from AI assistant
+  useEffect(() => {
+    const handlePendingAction = async () => {
+      if (!pendingAction) return;
+
+      console.log('[AI Action] Handling action:', pendingAction.type);
+
+      try {
+        switch (pendingAction.type) {
+          case 'set_followup':
+            // Update client with follow-up date
+            if (updateClient && pendingAction.data.clientId) {
+              await updateClient(pendingAction.data.clientId, {
+                nextFollowUpDate: pendingAction.data.date,
+              });
+              console.log('[AI Action] Follow-up set for client:', pendingAction.data.clientName);
+            }
+            break;
+
+          case 'send_inspection_link':
+            // TODO: Implement inspection link sending
+            console.log('[AI Action] Would send inspection link to:', pendingAction.data.clientEmail);
+            break;
+
+          case 'request_payment':
+            // TODO: Implement payment request - could navigate to payment screen
+            console.log('[AI Action] Would request payment:', pendingAction.data);
+            break;
+
+          case 'generate_estimate':
+            // TODO: Navigate to estimate creation with pre-filled data
+            console.log('[AI Action] Would generate estimate:', pendingAction.data);
+            break;
+
+          case 'save_report':
+            // TODO: Save report to reports list
+            console.log('[AI Action] Would save report:', pendingAction.data);
+            break;
+
+          default:
+            console.log('[AI Action] Unknown action type:', pendingAction.type);
+        }
+      } catch (error) {
+        console.error('[AI Action] Error handling action:', error);
+      } finally {
+        clearPendingAction();
+      }
+    };
+
+    handlePendingAction();
+  }, [pendingAction, updateClient, clearPendingAction]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {
