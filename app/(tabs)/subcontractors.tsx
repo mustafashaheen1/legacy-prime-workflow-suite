@@ -21,6 +21,8 @@ export default function SubcontractorsScreen() {
   const [selectedSubcontractors, setSelectedSubcontractors] = useState<Set<string>>(new Set());
   const [showStatsWidget, setShowStatsWidget] = useState<boolean>(false);
   const [customTrade, setCustomTrade] = useState<string>('');
+  const [formError, setFormError] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<{[key: string]: string}>({});
 
   const [formData, setFormData] = useState({
     name: '',
@@ -112,23 +114,44 @@ export default function SubcontractorsScreen() {
   };
 
   const handleAddSubcontractor = async () => {
+    // Clear previous errors
+    setFormError('');
+    const errors: {[key: string]: string} = {};
+
     // Check required fields
-    if (!formData.name || !formData.companyName || !formData.email || !formData.phone || !formData.trade) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    if (!formData.name) {
+      errors.name = 'Name is required';
+    }
+    if (!formData.companyName) {
+      errors.companyName = 'Company name is required';
+    }
+    if (!formData.email) {
+      errors.email = 'Email is required';
+    } else if (!isValidEmail(formData.email)) {
+      errors.email = 'Please enter a valid email (e.g., name@company.com)';
+    }
+    if (!formData.phone) {
+      errors.phone = 'Phone number is required';
+    } else if (!isValidUSPhone(formData.phone)) {
+      errors.phone = 'Please enter a valid US phone number (10 digits)';
+    }
+    if (!formData.trade) {
+      errors.trade = 'Trade is required';
+    }
+
+    // If there are any errors, set them and show alert for mobile
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const errorMessage = Object.values(errors).join('\n');
+      setFormError(errorMessage);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Validation Error', errorMessage);
+      }
       return;
     }
 
-    // Validate email format
-    if (!isValidEmail(formData.email)) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address (e.g., name@company.com)');
-      return;
-    }
-
-    // Validate phone format
-    if (!isValidUSPhone(formData.phone)) {
-      Alert.alert('Invalid Phone Number', 'Please enter a valid US phone number (10 digits)');
-      return;
-    }
+    // Clear field errors on successful validation
+    setFieldErrors({});
 
     const newSubcontractor: Subcontractor = {
       id: `sub_${Date.now()}`,
@@ -140,10 +163,20 @@ export default function SubcontractorsScreen() {
       businessFiles: [],
     };
 
-    await addSubcontractor(newSubcontractor);
-    setShowAddModal(false);
-    resetForm();
-    Alert.alert('Success', 'Subcontractor added successfully');
+    try {
+      await addSubcontractor(newSubcontractor);
+      setShowAddModal(false);
+      resetForm();
+      if (Platform.OS !== 'web') {
+        Alert.alert('Success', 'Subcontractor added successfully');
+      }
+    } catch (error) {
+      const errorMsg = 'Failed to save subcontractor. Please try again.';
+      setFormError(errorMsg);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Error', errorMsg);
+      }
+    }
   };
 
   const resetForm = () => {
@@ -159,6 +192,8 @@ export default function SubcontractorsScreen() {
       address: '',
       notes: '',
     });
+    setFormError('');
+    setFieldErrors({});
   };
 
   const handleImportFromContacts = async () => {
@@ -512,6 +547,13 @@ export default function SubcontractorsScreen() {
           </View>
 
           <ScrollView style={styles.modalContent}>
+            {/* Error Banner for Web */}
+            {formError && Platform.OS === 'web' && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>{formError}</Text>
+              </View>
+            )}
+
             {Platform.OS !== 'web' && (
               <TouchableOpacity style={styles.importButton} onPress={handleImportFromContacts}>
                 <UserPlus size={20} color="#2563EB" />
@@ -520,39 +562,55 @@ export default function SubcontractorsScreen() {
             )}
             <Text style={styles.label}>Name *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.name && styles.inputError]}
               value={formData.name}
-              onChangeText={(text) => setFormData({ ...formData, name: text })}
+              onChangeText={(text) => {
+                setFormData({ ...formData, name: text });
+                if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: '' }));
+              }}
               placeholder="John Doe"
             />
+            {fieldErrors.name && <Text style={styles.fieldError}>{fieldErrors.name}</Text>}
 
             <Text style={styles.label}>Company Name *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.companyName && styles.inputError]}
               value={formData.companyName}
-              onChangeText={(text) => setFormData({ ...formData, companyName: text })}
+              onChangeText={(text) => {
+                setFormData({ ...formData, companyName: text });
+                if (fieldErrors.companyName) setFieldErrors(prev => ({ ...prev, companyName: '' }));
+              }}
               placeholder="ABC Construction"
             />
+            {fieldErrors.companyName && <Text style={styles.fieldError}>{fieldErrors.companyName}</Text>}
 
             <Text style={styles.label}>Email *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.email && styles.inputError]}
               value={formData.email}
-              onChangeText={(text) => setFormData({ ...formData, email: text })}
+              onChangeText={(text) => {
+                setFormData({ ...formData, email: text });
+                if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }));
+              }}
               placeholder="john@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
             />
+            {fieldErrors.email && <Text style={styles.fieldError}>{fieldErrors.email}</Text>}
 
             <Text style={styles.label}>Phone *</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.phone && styles.inputError]}
               value={formData.phone}
-              onChangeText={handlePhoneChange}
+              onChangeText={(text) => {
+                handlePhoneChange(text);
+                if (fieldErrors.phone) setFieldErrors(prev => ({ ...prev, phone: '' }));
+              }}
               placeholder="(555) 123-4567"
               keyboardType="phone-pad"
               maxLength={14}
             />
+            {fieldErrors.phone && <Text style={styles.fieldError}>{fieldErrors.phone}</Text>}
 
             <Text style={styles.label}>License Number</Text>
             <TextInput
@@ -563,7 +621,8 @@ export default function SubcontractorsScreen() {
             />
 
             <Text style={styles.label}>Trade *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tradeSelector}>
+            {fieldErrors.trade && <Text style={styles.fieldError}>{fieldErrors.trade}</Text>}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tradeSelector, fieldErrors.trade && styles.tradeSelectorError]}>
               {trades.map((trade) => (
                 <TouchableOpacity
                   key={trade}
@@ -571,6 +630,7 @@ export default function SubcontractorsScreen() {
                   onPress={() => {
                     setFormData({ ...formData, trade });
                     setCustomTrade('');
+                    if (fieldErrors.trade) setFieldErrors(prev => ({ ...prev, trade: '' }));
                   }}
                 >
                   <Text style={[styles.tradeOptionText, formData.trade === trade && styles.tradeOptionTextActive]}>
@@ -1317,6 +1377,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1F2937',
   },
+  inputError: {
+    borderColor: '#DC2626',
+    borderWidth: 2,
+    backgroundColor: '#FEF2F2',
+  },
+  fieldError: {
+    color: '#DC2626',
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  errorBanner: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorBannerText: {
+    color: '#DC2626',
+    fontSize: 14,
+    lineHeight: 20,
+  },
   textArea: {
     height: 100,
     textAlignVertical: 'top' as const,
@@ -1324,6 +1408,12 @@ const styles = StyleSheet.create({
   tradeSelector: {
     marginBottom: 8,
     maxHeight: 50,
+  },
+  tradeSelectorError: {
+    borderWidth: 2,
+    borderColor: '#DC2626',
+    borderRadius: 8,
+    padding: 4,
   },
   tradeOption: {
     paddingHorizontal: 16,
