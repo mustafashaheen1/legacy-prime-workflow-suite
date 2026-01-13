@@ -56,7 +56,7 @@ interface PendingAction {
   data: any;
 }
 
-// Custom hook to replace Rork AI with direct OpenAI - now with app data awareness
+// Custom hook to replace Rork AI with direct OpenAI - now with app data awareness and persistent chat history
 function useOpenAIChat(appData: {
   projects: any[];
   clients: any[];
@@ -76,12 +76,68 @@ function useOpenAIChat(appData: {
   users: any[];
   proposals: any[];
   updateClient?: (clientId: string, updates: any) => Promise<void>;
+  userId?: string; // User ID for persistent chat history
 }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const historyLoadedRef = useRef(false);
 
   const clearPendingAction = () => setPendingAction(null);
+
+  // Load chat history from database on mount
+  useEffect(() => {
+    if (appData.userId && !historyLoadedRef.current) {
+      loadChatHistory();
+    } else if (!appData.userId) {
+      setIsLoadingHistory(false);
+    }
+  }, [appData.userId]);
+
+  const loadChatHistory = async () => {
+    if (!appData.userId || historyLoadedRef.current) return;
+
+    try {
+      setIsLoadingHistory(true);
+      console.log('[AI Chat] Loading chat history for user:', appData.userId);
+
+      const response = await fetch(`/api/get-chat-history?userId=${appData.userId}&limit=200`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.messages) {
+          setMessages(data.messages);
+          console.log('[AI Chat] Loaded', data.messages.length, 'messages from history');
+        }
+      }
+      historyLoadedRef.current = true;
+    } catch (error) {
+      console.error('[AI Chat] Error loading chat history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Save message to database
+  const saveMessageToDb = async (role: 'user' | 'assistant', content: string, files: any[] = []) => {
+    if (!appData.userId) return;
+
+    try {
+      await fetch('/api/save-chat-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: appData.userId,
+          role,
+          content,
+          files,
+        }),
+      });
+    } catch (error) {
+      console.error('[AI Chat] Error saving message to DB:', error);
+    }
+  };
 
   const sendMessage = async (userMessage: string | { text: string; files: any[] }) => {
     const messageText = typeof userMessage === 'string' ? userMessage : userMessage.text;
@@ -98,9 +154,14 @@ function useOpenAIChat(appData: {
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
+    // Save user message to database
+    saveMessageToDb('user', messageText, files);
+
     try {
-      // Prepare messages for API
-      const apiMessages = [...messages, userMsg].map(msg => ({
+      // Prepare messages for API - send last 50 messages for context (to avoid token limits)
+      const allMessages = [...messages, userMsg];
+      const recentMessages = allMessages.slice(-50);
+      const apiMessages = recentMessages.map(msg => ({
         role: msg.role,
         text: msg.text,
         files: msg.files,
@@ -149,6 +210,9 @@ function useOpenAIChat(appData: {
       };
       setMessages(prev => [...prev, assistantMsg]);
 
+      // Save assistant message to database
+      saveMessageToDb('assistant', data.content);
+
       // Handle pending actions from AI
       if (data.actionRequired && data.actionData) {
         console.log('[AI Chat] Action required:', data.actionRequired, data.actionData);
@@ -169,7 +233,7 @@ function useOpenAIChat(appData: {
     }
   };
 
-  return { messages, sendMessage, isLoading, pendingAction, clearPendingAction };
+  return { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction };
 }
 
 export default function GlobalAIChatSimple({ currentPageContext, inline = false }: GlobalAIChatProps) {
@@ -229,7 +293,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const fullPriceList = [...masterPriceList, ...customPriceListItems];
 
   // Pass all business data to AI assistant for complete data-aware responses
-  const { messages, sendMessage, isLoading, pendingAction, clearPendingAction } = useOpenAIChat({
+  const { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction } = useOpenAIChat({
     projects,
     clients,
     expenses,
@@ -248,6 +312,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     callLogs,
     users: [], // TODO: Add users from AppContext when available
     proposals,
+    userId: user?.id, // User ID for persistent chat history
   });
 
   // Handle pending actions from AI assistant
@@ -1299,7 +1364,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
         >
-          {messages.length === 0 && (
+          {isLoadingHistory ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color="#2563EB" />
+              <Text style={styles.emptyStateTitle}>Loading chat history...</Text>
+            </View>
+          ) : messages.length === 0 ? (
             <View style={styles.emptyState}>
               <Bot size={56} color="#D1D5DB" strokeWidth={2} />
               <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
@@ -1307,7 +1377,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 I can analyze images, do blueprint takeoffs, generate images, and answer your questions. Try me!
               </Text>
             </View>
-          )}
+          ) : null}
 
           {messages.map((message) => (
             <View key={message.id} style={styles.messageWrapper}>
@@ -1564,7 +1634,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               contentContainerStyle={styles.messagesContent}
               showsVerticalScrollIndicator={false}
             >
-              {messages.length === 0 && (
+              {isLoadingHistory ? (
+                <View style={styles.emptyState}>
+                  <ActivityIndicator size="large" color="#2563EB" />
+                  <Text style={styles.emptyStateTitle}>Loading chat history...</Text>
+                </View>
+              ) : messages.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Bot size={56} color="#D1D5DB" strokeWidth={2} />
                   <Text style={styles.emptyStateTitle}>Ask me anything!</Text>
@@ -1572,7 +1647,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                     I can analyze construction images, do blueprint takeoffs, and answer your questions. Try me!
                   </Text>
                 </View>
-              )}
+              ) : null}
 
               {isGeneratingImage && (
                 <View style={styles.assistantMessageContainer}>
