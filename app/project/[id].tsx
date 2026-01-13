@@ -20,7 +20,7 @@ type TabType = 'overview' | 'estimate' | 'change-orders' | 'clock' | 'expenses' 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, dailyLogs = [] } = useApp();
+  const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [] } = useApp();
 
   const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
   const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string });
@@ -73,7 +73,10 @@ export default function ProjectDetailScreen() {
       router.push(`/project/${id}/files-navigation` as any);
       setActiveTab('overview');
     }
-  }, [activeTab, id, router]);
+    if (activeTab === 'reports' && company?.id) {
+      refreshReports();
+    }
+  }, [activeTab, id, router, company?.id, refreshReports]);
 
   const budgetRemaining = useMemo(() => {
     if (!project) return 0;

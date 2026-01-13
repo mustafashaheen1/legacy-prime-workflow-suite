@@ -2,13 +2,20 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, Pla
 import { useApp } from '@/contexts/AppContext';
 import { FileText, Calendar, Trash2, X, BarChart, Folder, Download, FileSpreadsheet, ArrowLeft, Home } from 'lucide-react-native';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Report, DailyLog } from '@/types';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 export default function ReportsScreen() {
-  const { reports, deleteReport } = useApp();
+  const { reports, deleteReport, refreshReports, company } = useApp();
+
+  // Fetch reports from database on mount
+  useEffect(() => {
+    if (company?.id) {
+      refreshReports();
+    }
+  }, [company?.id]);
   const router = useRouter();
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);

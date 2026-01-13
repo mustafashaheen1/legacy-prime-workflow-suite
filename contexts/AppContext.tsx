@@ -64,8 +64,9 @@ interface AppState {
   setCallLogs: (logs: CallLog[]) => void;
   addConversation: (conversation: ChatConversation) => void;
   addMessageToConversation: (conversationId: string, message: ChatMessage) => void;
-  addReport: (report: Report) => void;
-  deleteReport: (id: string) => void;
+  addReport: (report: Report) => Promise<void>;
+  deleteReport: (id: string) => Promise<void>;
+  refreshReports: () => Promise<void>;
   addProjectFile: (file: ProjectFile) => void;
   updateProjectFile: (id: string, updates: Partial<ProjectFile>) => void;
   deleteProjectFile: (id: string) => void;
@@ -1294,18 +1295,101 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, []);
 
   const addReport = useCallback(async (report: Report) => {
+    // Save to database
+    if (company?.id) {
+      try {
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const response = await fetch(`${baseUrl}/api/save-report`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            name: report.name,
+            type: report.type,
+            projectIds: report.projectIds,
+            projectsCount: report.projectsCount,
+            totalBudget: report.totalBudget,
+            totalExpenses: report.totalExpenses,
+            totalHours: report.totalHours,
+            fileUrl: report.fileUrl,
+            notes: report.notes,
+            dateRange: report.dateRange,
+            employeeIds: report.employeeIds,
+            employeeData: report.employeeData,
+            expensesByCategory: report.expensesByCategory,
+            projects: report.projects,
+          }),
+        });
+
+        const data = await response.json();
+        if (data.success && data.report) {
+          // Use the returned report with database ID
+          const updated = [data.report, ...reports];
+          setReports(updated);
+          await AsyncStorage.setItem('reports', JSON.stringify(updated));
+          console.log('[Storage] Report saved to database successfully:', report.name);
+          return;
+        } else {
+          console.error('[Storage] Failed to save report to database:', data.error);
+        }
+      } catch (error) {
+        console.error('[Storage] Error saving report to database:', error);
+      }
+    }
+
+    // Fallback to local storage only
     const updated = [report, ...reports];
     setReports(updated);
     await AsyncStorage.setItem('reports', JSON.stringify(updated));
-    console.log('[Storage] Report saved successfully:', report.name);
-  }, [reports]);
+    console.log('[Storage] Report saved locally:', report.name);
+  }, [reports, company?.id]);
 
   const deleteReport = useCallback(async (id: string) => {
+    // Delete from database
+    if (company?.id) {
+      try {
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        await fetch(`${baseUrl}/api/delete-report`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reportId: id,
+            companyId: company.id,
+          }),
+        });
+        console.log('[Storage] Report deleted from database');
+      } catch (error) {
+        console.error('[Storage] Error deleting report from database:', error);
+      }
+    }
+
+    // Update local state
     const updated = reports.filter(r => r.id !== id);
     setReports(updated);
     await AsyncStorage.setItem('reports', JSON.stringify(updated));
     console.log('[Storage] Report deleted successfully');
-  }, [reports]);
+  }, [reports, company?.id]);
+
+  const refreshReports = useCallback(async () => {
+    if (!company?.id) {
+      console.log('[Storage] No company ID, skipping reports refresh');
+      return;
+    }
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/get-reports?companyId=${company.id}`);
+      const data = await response.json();
+
+      if (data.success && data.reports) {
+        setReports(data.reports);
+        await AsyncStorage.setItem('reports', JSON.stringify(data.reports));
+        console.log('[Storage] Reports refreshed from database:', data.reports.length);
+      }
+    } catch (error) {
+      console.error('[Storage] Error refreshing reports:', error);
+    }
+  }, [company?.id]);
 
   const addProjectFile = useCallback(async (file: ProjectFile) => {
     const updated = [file, ...projectFiles];
@@ -1618,6 +1702,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addMessageToConversation,
     addReport,
     deleteReport,
+    refreshReports,
     addProjectFile,
     updateProjectFile,
     deleteProjectFile,
@@ -1698,6 +1783,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addMessageToConversation,
     addReport,
     deleteReport,
+    refreshReports,
     addProjectFile,
     updateProjectFile,
     deleteProjectFile,
