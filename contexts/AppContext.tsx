@@ -290,6 +290,28 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setEstimates([]);
           }
 
+          // Load subcontractors
+          try {
+            const subcontractorsResponse = await fetch(
+              `${baseUrl}/api/get-subcontractors?companyId=${company.id}`
+            );
+            if (subcontractorsResponse.ok) {
+              const subcontractorsResult = await subcontractorsResponse.json();
+              if (subcontractorsResult.subcontractors) {
+                setSubcontractors(subcontractorsResult.subcontractors);
+                console.log('[App] ✅ Loaded', subcontractorsResult.subcontractors.length, 'subcontractors');
+              } else {
+                setSubcontractors([]);
+              }
+            } else {
+              console.error('[App] Error loading subcontractors:', subcontractorsResponse.status);
+              setSubcontractors([]);
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading subcontractors:', error?.message || error);
+            setSubcontractors([]);
+          }
+
           console.log('[App] ✅ Finished reloading data after company change');
         } catch (error: any) {
           console.error('[App] ❌ Fatal error reloading data after company change:', error?.message || error);
@@ -1409,6 +1431,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (company?.id) {
       try {
         console.log('[Subcontractor] Saving to database for company:', company.id);
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
         const response = await fetch(
           `${baseUrl}/api/create-subcontractor`,
           {
@@ -1457,7 +1480,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setSubcontractors(updated);
     await AsyncStorage.setItem('subcontractors', JSON.stringify(updated));
     console.log('[Storage] Subcontractor saved to local storage:', subcontractor.name);
-  }, [subcontractors, company, baseUrl]);
+  }, [subcontractors, company]);
 
   const updateSubcontractor = useCallback(async (id: string, updates: Partial<Subcontractor>) => {
     const updated = subcontractors.map(sub => {
