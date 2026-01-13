@@ -570,6 +570,40 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             }
           }
 
+          // Load subcontractors from database
+          try {
+            const subcontractorsResponse = await fetch(
+              `${baseUrl}/api/get-subcontractors?companyId=${parsedCompany.id}`
+            );
+            if (subcontractorsResponse.ok) {
+              const subcontractorsResult = await subcontractorsResponse.json();
+              if (subcontractorsResult.subcontractors) {
+                setSubcontractors(subcontractorsResult.subcontractors);
+                console.log('[App] Loaded', subcontractorsResult.subcontractors.length, 'subcontractors from database');
+              } else {
+                // Fallback to AsyncStorage data
+                const parsedSubcontractors = safeJsonParse<Subcontractor[]>(storedSubcontractors, 'subcontractors', []);
+                if (Array.isArray(parsedSubcontractors)) {
+                  setSubcontractors(parsedSubcontractors);
+                }
+              }
+            } else {
+              console.error('[App] Error loading subcontractors:', subcontractorsResponse.status);
+              // Fallback to AsyncStorage data
+              const parsedSubcontractors = safeJsonParse<Subcontractor[]>(storedSubcontractors, 'subcontractors', []);
+              if (Array.isArray(parsedSubcontractors)) {
+                setSubcontractors(parsedSubcontractors);
+              }
+            }
+          } catch (error) {
+            console.error('[App] Error loading subcontractors:', error);
+            // Fallback to AsyncStorage data
+            const parsedSubcontractors = safeJsonParse<Subcontractor[]>(storedSubcontractors, 'subcontractors', []);
+            if (Array.isArray(parsedSubcontractors)) {
+              setSubcontractors(parsedSubcontractors);
+            }
+          }
+
         } catch (error) {
           console.error('[App] Error loading data from backend:', error);
           // Set empty arrays on error
@@ -1371,11 +1405,59 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [changeOrders]);
 
   const addSubcontractor = useCallback(async (subcontractor: Subcontractor) => {
+    // Try to save to database first
+    if (company?.id) {
+      try {
+        console.log('[Subcontractor] Saving to database for company:', company.id);
+        const response = await fetch(
+          `${baseUrl}/api/create-subcontractor`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId: company.id,
+              name: subcontractor.name,
+              companyName: subcontractor.companyName,
+              email: subcontractor.email,
+              phone: subcontractor.phone,
+              trade: subcontractor.trade,
+              rating: subcontractor.rating,
+              hourlyRate: subcontractor.hourlyRate,
+              availability: subcontractor.availability,
+              certifications: subcontractor.certifications,
+              address: subcontractor.address,
+              insuranceExpiry: subcontractor.insuranceExpiry,
+              notes: subcontractor.notes,
+              avatar: subcontractor.avatar,
+            }),
+          }
+        );
+
+        const data = await response.json();
+
+        if (data.success && data.subcontractor) {
+          const savedSubcontractor = data.subcontractor;
+          console.log('[Subcontractor] Saved to database successfully:', savedSubcontractor.id);
+
+          // Update local state with the database version (which has the proper ID)
+          const updated = [savedSubcontractor, ...subcontractors];
+          setSubcontractors(updated);
+          await AsyncStorage.setItem('subcontractors', JSON.stringify(updated));
+          return;
+        } else {
+          console.error('[Subcontractor] Database save failed:', data.error || data);
+        }
+      } catch (error) {
+        console.error('[Subcontractor] Error saving to database:', error);
+      }
+    }
+
+    // Fallback to local storage only
     const updated = [subcontractor, ...subcontractors];
     setSubcontractors(updated);
     await AsyncStorage.setItem('subcontractors', JSON.stringify(updated));
-    console.log('[Storage] Subcontractor saved successfully:', subcontractor.name);
-  }, [subcontractors]);
+    console.log('[Storage] Subcontractor saved to local storage:', subcontractor.name);
+  }, [subcontractors, company, baseUrl]);
 
   const updateSubcontractor = useCallback(async (id: string, updates: Partial<Subcontractor>) => {
     const updated = subcontractors.map(sub => {

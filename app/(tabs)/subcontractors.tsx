@@ -76,9 +76,57 @@ export default function SubcontractorsScreen() {
     return matchesSearch && matchesTrade;
   });
 
+  // Email validation regex - requires proper format like user@domain.com
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Phone validation - US phone number (10 digits, allows formatting)
+  const isValidUSPhone = (phone: string): boolean => {
+    // Remove all non-digits
+    const digitsOnly = phone.replace(/\D/g, '');
+    // US phone numbers should have 10 digits (or 11 if starting with 1)
+    return digitsOnly.length === 10 || (digitsOnly.length === 11 && digitsOnly.startsWith('1'));
+  };
+
+  // Format phone number as user types
+  const formatPhoneNumber = (value: string): string => {
+    // Remove all non-digits
+    const digitsOnly = value.replace(/\D/g, '');
+
+    // Format as (XXX) XXX-XXXX
+    if (digitsOnly.length <= 3) {
+      return digitsOnly;
+    } else if (digitsOnly.length <= 6) {
+      return `(${digitsOnly.slice(0, 3)}) ${digitsOnly.slice(3)}`;
+    } else {
+      return `(${digitsOnly.slice(0, 3)}) ${digitsOnly.slice(3, 6)}-${digitsOnly.slice(6, 10)}`;
+    }
+  };
+
+  const handlePhoneChange = (value: string) => {
+    // Only allow digits and formatting characters
+    const formatted = formatPhoneNumber(value);
+    setFormData({ ...formData, phone: formatted });
+  };
+
   const handleAddSubcontractor = async () => {
+    // Check required fields
     if (!formData.name || !formData.companyName || !formData.email || !formData.phone || !formData.trade) {
       Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    // Validate email format
+    if (!isValidEmail(formData.email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address (e.g., name@company.com)');
+      return;
+    }
+
+    // Validate phone format
+    if (!isValidUSPhone(formData.phone)) {
+      Alert.alert('Invalid Phone Number', 'Please enter a valid US phone number (10 digits)');
       return;
     }
 
@@ -500,9 +548,10 @@ export default function SubcontractorsScreen() {
             <TextInput
               style={styles.input}
               value={formData.phone}
-              onChangeText={(text) => setFormData({ ...formData, phone: text })}
+              onChangeText={handlePhoneChange}
               placeholder="(555) 123-4567"
               keyboardType="phone-pad"
+              maxLength={14}
             />
 
             <Text style={styles.label}>License Number</Text>
