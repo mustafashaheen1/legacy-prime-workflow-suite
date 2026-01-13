@@ -49,15 +49,28 @@ export default function SubcontractorProfileScreen() {
 
         console.log('[Upload] Starting upload for:', asset.name);
 
-        // Step 1: Get presigned URL from backend
-        const uploadResponse = await uploadBusinessFileMutation.mutateAsync({
-          subcontractorId: subcontractor.id,
-          type,
-          name: asset.name,
-          fileType: asset.mimeType || 'application/octet-stream',
-          fileSize: asset.size || 0,
+        // Step 1: Get presigned URL from direct API endpoint (faster than tRPC)
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const response = await fetch(`${baseUrl}/api/upload-business-file`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            subcontractorId: subcontractor.id,
+            type,
+            name: asset.name,
+            fileType: asset.mimeType || 'application/octet-stream',
+            fileSize: asset.size || 0,
+          }),
         });
 
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
+
+        const uploadResponse = await response.json();
         console.log('[Upload] Got presigned URL, uploading to S3...');
 
         // Step 2: Upload file to S3 using presigned URL
