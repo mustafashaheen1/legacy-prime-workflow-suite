@@ -108,7 +108,90 @@ export default function CRMScreen() {
     setShowCallLogsModal(true);
     fetchCallLogs();
   };
+
+  // Handle adding a new client via direct API
+  const handleAddClient = async (fromModal: boolean = false) => {
+    if (!newClientName || !newClientEmail || !newClientPhone || !newClientSource) {
+      Alert.alert('Error', 'Please fill in all required fields (Name, Email, Phone, Source)');
+      return;
+    }
+
+    const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
+    if (!validSources.includes(newClientSource)) {
+      Alert.alert('Error', 'Source must be one of: Google, Referral, Ad, Phone Call');
+      return;
+    }
+
+    if (!company?.id) {
+      Alert.alert('Error', 'No company found. Please log in again.');
+      return;
+    }
+
+    setIsAddingClient(true);
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/add-client`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          name: newClientName,
+          address: newClientAddress || undefined,
+          email: newClientEmail,
+          phone: newClientPhone,
+          source: newClientSource,
+          status: 'lead',
+          lastContactDate: new Date().toISOString(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to add client');
+      }
+
+      console.log('[CRM] Client added successfully:', data.client);
+
+      // Refresh clients from database to get the new client with proper ID
+      await refreshClients();
+
+      // Clear form
+      setNewClientName('');
+      setNewClientAddress('');
+      setNewClientEmail('');
+      setNewClientPhone('');
+      setNewClientSource('');
+
+      if (fromModal) {
+        setShowAddClientModal(false);
+      } else {
+        setShowAddForm(false);
+      }
+
+      Alert.alert('Success', `${data.client.name} has been added to your client list!`);
+    } catch (error: any) {
+      console.error('[CRM] Error adding client:', error);
+      Alert.alert('Error', error.message || 'Failed to add client');
+    } finally {
+      setIsAddingClient(false);
+    }
+  };
+
+  // Open Add Client modal and reset form
+  const openAddClientModal = () => {
+    setNewClientName('');
+    setNewClientAddress('');
+    setNewClientEmail('');
+    setNewClientPhone('');
+    setNewClientSource('');
+    setShowAddClientModal(true);
+  };
+
   const [showAddForm, setShowAddForm] = useState<boolean>(true);
+  const [showAddClientModal, setShowAddClientModal] = useState<boolean>(false);
+  const [isAddingClient, setIsAddingClient] = useState<boolean>(false);
   const [newClientName, setNewClientName] = useState<string>('');
   const [newClientAddress, setNewClientAddress] = useState<string>('');
   const [newClientEmail, setNewClientEmail] = useState<string>('');
@@ -1632,9 +1715,9 @@ export default function CRMScreen() {
               <Text style={styles.callAssistantButtonText}>Call Assistant</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.addButton}
-              onPress={() => setShowAddForm(!showAddForm)}
+              onPress={openAddClientModal}
             >
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Client</Text>
@@ -2095,49 +2178,120 @@ export default function CRMScreen() {
                 value={newClientSource}
                 onChangeText={setNewClientSource}
               />
-              <TouchableOpacity 
-                style={styles.submitButton}
-                onPress={() => {
-                  if (!newClientName || !newClientEmail || !newClientPhone || !newClientSource) {
-                    Alert.alert('Error', 'Please fill in all required fields');
-                    return;
-                  }
-
-                  const sourceValue = newClientSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call';
-                  if (!['Google', 'Referral', 'Ad', 'Phone Call'].includes(sourceValue)) {
-                    Alert.alert('Error', 'Source must be one of: Google, Referral, Ad, Phone Call');
-                    return;
-                  }
-
-                  const newClient: Client = {
-                    id: `client-${Date.now()}`,
-                    name: newClientName,
-                    address: newClientAddress || undefined,
-                    email: newClientEmail,
-                    phone: newClientPhone,
-                    source: sourceValue,
-                    status: 'Lead',
-                    lastContacted: new Date().toLocaleDateString(),
-                    lastContactDate: new Date().toISOString(),
-                    createdAt: new Date().toISOString(),
-                  };
-
-                  addClient(newClient);
-                  setNewClientName('');
-                  setNewClientAddress('');
-                  setNewClientEmail('');
-                  setNewClientPhone('');
-                  setNewClientSource('');
-                  setShowAddForm(false);
-                  Alert.alert('Success', 'Client added successfully!');
-                }}
+              <TouchableOpacity
+                style={[styles.submitButton, isAddingClient && styles.submitButtonDisabled]}
+                onPress={() => handleAddClient(false)}
+                disabled={isAddingClient}
               >
-                <Text style={styles.submitButtonText}>Add Client</Text>
+                {isAddingClient ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Add Client</Text>
+                )}
               </TouchableOpacity>
             </View>
           )}
         </View>
       </ScrollView>
+
+      {/* Add Client Modal */}
+      <Modal
+        visible={showAddClientModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddClientModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Client</Text>
+              <TouchableOpacity onPress={() => setShowAddClientModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Name *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Client name"
+                placeholderTextColor="#9CA3AF"
+                value={newClientName}
+                onChangeText={setNewClientName}
+              />
+
+              <Text style={styles.inputLabel}>Email *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="client@email.com"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={newClientEmail}
+                onChangeText={setNewClientEmail}
+              />
+
+              <Text style={styles.inputLabel}>Phone *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="(555) 123-4567"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="phone-pad"
+                value={newClientPhone}
+                onChangeText={setNewClientPhone}
+              />
+
+              <Text style={styles.inputLabel}>Address</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="123 Main St, City, State"
+                placeholderTextColor="#9CA3AF"
+                value={newClientAddress}
+                onChangeText={setNewClientAddress}
+              />
+
+              <Text style={styles.inputLabel}>Source *</Text>
+              <View style={styles.sourceButtonsContainer}>
+                {['Google', 'Referral', 'Ad', 'Phone Call'].map((source) => (
+                  <TouchableOpacity
+                    key={source}
+                    style={[
+                      styles.sourceButton,
+                      newClientSource === source && styles.sourceButtonActive
+                    ]}
+                    onPress={() => setNewClientSource(source)}
+                  >
+                    <Text style={[
+                      styles.sourceButtonText,
+                      newClientSource === source && styles.sourceButtonTextActive
+                    ]}>{source}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowAddClientModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitButton, isAddingClient && styles.submitButtonDisabled]}
+                onPress={() => handleAddClient(true)}
+                disabled={isAddingClient}
+              >
+                {isAddingClient ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Add Client</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showMessageModal}
@@ -5483,5 +5637,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2563EB',
     fontWeight: '600' as const,
+  },
+  modalBody: {
+    maxHeight: 400,
+    paddingBottom: 16,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+    marginBottom: 16,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  sourceButtonsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  sourceButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  sourceButtonActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  sourceButtonText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+  },
+  sourceButtonTextActive: {
+    color: '#2563EB',
   },
 });
