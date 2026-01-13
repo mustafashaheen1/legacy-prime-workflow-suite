@@ -9,6 +9,7 @@ import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function SettingsScreen() {
   const { user: currentUser, company, setCompany, logout } = useApp();
@@ -31,6 +32,7 @@ export default function SettingsScreen() {
     slogan: company?.slogan || '',
     estimateTemplate: company?.estimateTemplate || '',
   });
+  const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
 
   const usersQuery = trpc.users.getUsers.useQuery(
     { companyId: company?.id },
@@ -174,24 +176,93 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleLogoUpload = () => {
-    Alert.prompt(
-      'Logo URL',
-      'Enter image URL for company logo (or paste base64 data)',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'OK',
-          onPress: (url?: string) => {
-            if (url) {
-              setCompanyForm({ ...companyForm, logo: url });
-            }
-          },
-        },
-      ],
-      'plain-text',
-      companyForm.logo
-    );
+  const handleLogoUpload = async () => {
+    try {
+      // Request permission
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        if (Platform.OS === 'web') {
+          alert('Permission to access photos is required');
+        } else {
+          Alert.alert('Permission Required', 'Permission to access photos is required');
+        }
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const selectedImage = result.assets[0];
+      setIsUploadingLogo(true);
+
+      // Get presigned URL from API
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/upload-company-logo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company?.id,
+          fileType: selectedImage.mimeType || 'image/jpeg',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get upload URL');
+      }
+
+      const { uploadUrl, logoUrl } = await response.json();
+
+      // Upload image to S3
+      if (Platform.OS === 'web') {
+        const imageResponse = await fetch(selectedImage.uri);
+        const blob = await imageResponse.blob();
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: blob,
+          headers: { 'Content-Type': selectedImage.mimeType || 'image/jpeg' },
+        });
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload image to S3');
+        }
+      } else {
+        // For native, use FileSystem
+        const FileSystem = require('expo-file-system');
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, selectedImage.uri, {
+          httpMethod: 'PUT',
+          headers: { 'Content-Type': selectedImage.mimeType || 'image/jpeg' },
+        });
+        if (uploadResult.status !== 200) {
+          throw new Error('Failed to upload image to S3');
+        }
+      }
+
+      // Update form with new logo URL
+      setCompanyForm({ ...companyForm, logo: logoUrl });
+
+      if (Platform.OS === 'web') {
+        alert('Logo uploaded successfully!');
+      } else {
+        Alert.alert('Success', 'Logo uploaded successfully!');
+      }
+    } catch (error: any) {
+      console.error('[Logo Upload] Error:', error);
+      if (Platform.OS === 'web') {
+        alert(error.message || 'Failed to upload logo');
+      } else {
+        Alert.alert('Error', error.message || 'Failed to upload logo');
+      }
+    } finally {
+      setIsUploadingLogo(false);
+    }
   };
 
   const handleSaveCompanyProfile = async () => {
@@ -531,9 +602,22 @@ export default function SettingsScreen() {
                     <Building2 size={48} color="#9CA3AF" />
                   </View>
                 )}
-                <TouchableOpacity style={styles.uploadButton} onPress={handleLogoUpload}>
-                  <Upload size={16} color="#2563EB" />
-                  <Text style={styles.uploadButtonText}>Upload Logo</Text>
+                <TouchableOpacity
+                  style={[styles.uploadButton, isUploadingLogo && styles.uploadButtonDisabled]}
+                  onPress={handleLogoUpload}
+                  disabled={isUploadingLogo}
+                >
+                  {isUploadingLogo ? (
+                    <>
+                      <ActivityIndicator size="small" color="#2563EB" />
+                      <Text style={styles.uploadButtonText}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} color="#2563EB" />
+                      <Text style={styles.uploadButtonText}>Upload Logo</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
 
@@ -1194,6 +1278,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
+  },
+  uploadButtonDisabled: {
+    opacity: 0.7,
   },
   uploadButtonText: {
     fontSize: 14,

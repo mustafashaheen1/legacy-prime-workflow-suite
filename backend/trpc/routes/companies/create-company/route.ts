@@ -1,5 +1,16 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
+import { createClient } from '@supabase/supabase-js';
+
+// Generate a unique company code
+function generateCompanyCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
 
 export const createCompanyProcedure = publicProcedure
   .input(
@@ -36,28 +47,74 @@ export const createCompanyProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Companies] Creating new company:', input.name);
 
-    const newCompany = {
-      id: `company-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: input.name,
-      logo: input.logo,
-      brandColor: input.brandColor,
-      licenseNumber: input.licenseNumber,
-      officePhone: input.officePhone,
-      cellPhone: input.cellPhone,
-      address: input.address,
-      email: input.email,
-      website: input.website,
-      slogan: input.slogan,
-      subscriptionStatus: input.subscriptionStatus,
-      subscriptionPlan: input.subscriptionPlan,
-      subscriptionStartDate: new Date().toISOString(),
-      subscriptionEndDate: input.subscriptionStatus === 'trial' ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined,
-      settings: input.settings,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    // Create Supabase client
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Database not configured');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const subscriptionStartDate = new Date().toISOString();
+    const subscriptionEndDate = input.subscriptionStatus === 'trial'
+      ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    // Insert company into database
+    const { data, error } = await supabase
+      .from('companies')
+      .insert({
+        name: input.name,
+        logo: input.logo || null,
+        brand_color: input.brandColor,
+        license_number: input.licenseNumber || null,
+        office_phone: input.officePhone || null,
+        cell_phone: input.cellPhone || null,
+        address: input.address || null,
+        email: input.email || null,
+        website: input.website || null,
+        slogan: input.slogan || null,
+        subscription_status: input.subscriptionStatus,
+        subscription_plan: input.subscriptionPlan,
+        subscription_start_date: subscriptionStartDate,
+        subscription_end_date: subscriptionEndDate,
+        company_code: generateCompanyCode(),
+        settings: input.settings,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[Companies] Database error:', error);
+      throw new Error(`Failed to create company: ${error.message}`);
+    }
+
+    console.log('[Companies] Company created successfully in database:', data.id);
+
+    // Convert snake_case to camelCase for response
+    const company = {
+      id: data.id,
+      name: data.name,
+      logo: data.logo || undefined,
+      brandColor: data.brand_color,
+      licenseNumber: data.license_number || undefined,
+      officePhone: data.office_phone || undefined,
+      cellPhone: data.cell_phone || undefined,
+      address: data.address || undefined,
+      email: data.email || undefined,
+      website: data.website || undefined,
+      slogan: data.slogan || undefined,
+      subscriptionStatus: data.subscription_status,
+      subscriptionPlan: data.subscription_plan,
+      subscriptionStartDate: data.subscription_start_date,
+      subscriptionEndDate: data.subscription_end_date || undefined,
+      companyCode: data.company_code || undefined,
+      settings: data.settings,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
     };
 
-    console.log('[Companies] Company created successfully:', newCompany.id);
-
-    return { company: newCompany };
+    return { company };
   });
