@@ -680,16 +680,36 @@ export default function ReportsScreen() {
 `;
 
       if (Platform.OS === 'web') {
-        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `${report.name.replace(/[^a-z0-9]/gi, '_')}.html`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        Alert.alert('Success', 'Report exported as HTML successfully! You can open it in a browser and print to PDF.');
+        // Open HTML in a new window and trigger print dialog for PDF
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(htmlContent);
+          printWindow.document.close();
+
+          // Wait for content to load, then trigger print
+          printWindow.onload = () => {
+            setTimeout(() => {
+              printWindow.print();
+            }, 250);
+          };
+
+          // Fallback if onload doesn't fire
+          setTimeout(() => {
+            printWindow.print();
+          }, 500);
+        } else {
+          // Fallback: download as HTML if popup blocked
+          const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+          const link = document.createElement('a');
+          const url = URL.createObjectURL(blob);
+          link.setAttribute('href', url);
+          link.setAttribute('download', `${report.name.replace(/[^a-z0-9]/gi, '_')}.html`);
+          link.style.visibility = 'hidden';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          alert('Popup blocked. HTML file downloaded - open in browser and use Print > Save as PDF.');
+        }
       } else {
         const fileName = `${report.name.replace(/[^a-z0-9]/gi, '_')}.html`;
         const file = new File(Paths.cache, fileName);
