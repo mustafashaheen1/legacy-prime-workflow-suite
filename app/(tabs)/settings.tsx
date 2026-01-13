@@ -33,6 +33,7 @@ export default function SettingsScreen() {
     estimateTemplate: company?.estimateTemplate || '',
   });
   const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
+  const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
 
   const usersQuery = trpc.users.getUsers.useQuery(
     { companyId: company?.id },
@@ -116,17 +117,6 @@ export default function SettingsScreen() {
     },
     onSettled: (data, error) => {
       console.log('[Settings] deleteUser onSettled called with data:', data, 'error:', error);
-    },
-  });
-
-  const updateCompanyMutation = trpc.companies.updateCompany.useMutation({
-    onSuccess: async (data) => {
-      await setCompany(data.company);
-      Alert.alert('Success', 'Company profile updated successfully!');
-      setShowCompanyProfileModal(false);
-    },
-    onError: (error) => {
-      Alert.alert('Error', error.message || 'Failed to update company profile');
     },
   });
 
@@ -274,10 +264,45 @@ export default function SettingsScreen() {
       email: currentUser?.email || companyForm.email,
     };
 
-    updateCompanyMutation.mutate({
-      companyId: company.id,
-      updates: updatesWithAdminEmail,
-    });
+    setIsSavingProfile(true);
+
+    try {
+      // Use direct API endpoint to avoid tRPC timeout
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/update-company`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          updates: updatesWithAdminEmail,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update company profile');
+      }
+
+      // Update local state with the returned company data
+      await setCompany(data.company);
+
+      if (Platform.OS === 'web') {
+        alert('Company profile updated successfully!');
+      } else {
+        Alert.alert('Success', 'Company profile updated successfully!');
+      }
+      setShowCompanyProfileModal(false);
+    } catch (error: any) {
+      console.error('[Settings] Error updating company:', error);
+      if (Platform.OS === 'web') {
+        alert(error.message || 'Failed to update company profile');
+      } else {
+        Alert.alert('Error', error.message || 'Failed to update company profile');
+      }
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const openCompanyProfileModal = () => {
@@ -725,12 +750,12 @@ export default function SettingsScreen() {
                   <Text style={styles.formCancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.formSaveButton, updateCompanyMutation.isPending && styles.formSaveButtonDisabled]}
+                  style={[styles.formSaveButton, isSavingProfile && styles.formSaveButtonDisabled]}
                   onPress={handleSaveCompanyProfile}
-                  disabled={updateCompanyMutation.isPending}
+                  disabled={isSavingProfile}
                 >
                   <Text style={styles.formSaveButtonText}>
-                    {updateCompanyMutation.isPending ? 'Saving...' : 'Save Profile'}
+                    {isSavingProfile ? 'Saving...' : 'Save Profile'}
                   </Text>
                 </TouchableOpacity>
               </View>
