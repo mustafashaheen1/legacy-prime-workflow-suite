@@ -11,7 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Add Client] Starting request...');
 
   try {
-    const { companyId, name, address, email, phone, source, status, lastContacted, lastContactDate, nextFollowUpDate, projectType, budget, propertyType, timeline, notes } = req.body;
+    const { companyId, name, address, email, phone, source, status, lastContacted, lastContactDate, nextFollowUpDate } = req.body;
 
     // Validate required fields
     if (!companyId) {
@@ -58,15 +58,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email: email,
         phone: phone,
         source: source,
-        status: status || 'lead',
+        status: status || 'Lead',
         last_contacted: lastContacted || null,
         last_contact_date: lastContactDate || new Date().toISOString(),
         next_follow_up_date: nextFollowUpDate || null,
-        project_type: projectType || null,
-        budget: budget || null,
-        property_type: propertyType || null,
-        timeline: timeline || null,
-        notes: notes || null,
       })
       .select()
       .single();
@@ -92,13 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       lastContacted: data.last_contacted || undefined,
       lastContactDate: data.last_contact_date || undefined,
       nextFollowUpDate: data.next_follow_up_date || undefined,
-      projectType: data.project_type || undefined,
-      budget: data.budget || undefined,
-      propertyType: data.property_type || undefined,
-      timeline: data.timeline || undefined,
-      notes: data.notes || undefined,
       createdAt: data.created_at,
-      updatedAt: data.updated_at,
     };
 
     return res.status(200).json({

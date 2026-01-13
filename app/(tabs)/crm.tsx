@@ -36,6 +36,14 @@ const filterPhoneInput = (text: string): string => {
   return text.replace(/\D/g, '').slice(0, 10);
 };
 
+// Email validation helper
+const isValidEmail = (email: string): boolean => {
+  if (!email || email.trim() === '') return false;
+  // Standard email regex pattern
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
+};
+
 type MessageType = 'email' | 'sms';
 type MessageTemplate = {
   id: string;
@@ -146,6 +154,12 @@ export default function CRMScreen() {
       return;
     }
 
+    // Validate email address
+    if (!isValidEmail(newClientEmail)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
     const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
     if (!validSources.includes(newClientSource)) {
       Alert.alert('Error', 'Source must be one of: Google, Referral, Ad, Phone Call');
@@ -174,7 +188,7 @@ export default function CRMScreen() {
           email: newClientEmail,
           phone: formattedPhone,
           source: newClientSource,
-          status: 'lead',
+          status: 'Lead',
           lastContactDate: new Date().toISOString(),
         }),
       });

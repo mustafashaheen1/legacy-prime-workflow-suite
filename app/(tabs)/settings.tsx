@@ -44,6 +44,11 @@ const formatUSPhone = (phone: string): string => {
   return `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${normalized.slice(6)}`;
 };
 
+// Filter phone input to only allow digits, max 10 characters
+const filterPhoneInput = (text: string): string => {
+  return text.replace(/\D/g, '').slice(0, 10);
+};
+
 export default function SettingsScreen() {
   const { user: currentUser, company, setCompany, logout } = useApp();
   const { isAdmin, isSuperAdmin } = usePermissions();
@@ -751,37 +756,39 @@ export default function SettingsScreen() {
                 placeholderTextColor="#9CA3AF"
               />
 
-              <Text style={styles.formLabel}>Office Phone</Text>
+              <Text style={styles.formLabel}>Office Phone (10 digits only)</Text>
               <TextInput
                 style={[styles.formInput, validationErrors.officePhone && styles.formInputError]}
                 value={companyForm.officePhone}
                 onChangeText={(text) => {
-                  setCompanyForm({ ...companyForm, officePhone: text });
+                  setCompanyForm({ ...companyForm, officePhone: filterPhoneInput(text) });
                   if (validationErrors.officePhone) {
                     setValidationErrors({ ...validationErrors, officePhone: undefined });
                   }
                 }}
-                placeholder="(555) 555-5555"
+                placeholder="5555555555"
                 placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
+                maxLength={10}
               />
               {validationErrors.officePhone && (
                 <Text style={styles.formErrorText}>{validationErrors.officePhone}</Text>
               )}
 
-              <Text style={styles.formLabel}>Cell Phone</Text>
+              <Text style={styles.formLabel}>Cell Phone (10 digits only)</Text>
               <TextInput
                 style={[styles.formInput, validationErrors.cellPhone && styles.formInputError]}
                 value={companyForm.cellPhone}
                 onChangeText={(text) => {
-                  setCompanyForm({ ...companyForm, cellPhone: text });
+                  setCompanyForm({ ...companyForm, cellPhone: filterPhoneInput(text) });
                   if (validationErrors.cellPhone) {
                     setValidationErrors({ ...validationErrors, cellPhone: undefined });
                   }
                 }}
-                placeholder="(555) 555-5555"
+                placeholder="5555555555"
                 placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
+                maxLength={10}
               />
               {validationErrors.cellPhone && (
                 <Text style={styles.formErrorText}>{validationErrors.cellPhone}</Text>
