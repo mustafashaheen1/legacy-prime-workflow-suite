@@ -61,6 +61,7 @@ interface AppState {
   addCallLog: (log: CallLog) => void;
   updateCallLog: (id: string, updates: Partial<CallLog>) => void;
   deleteCallLog: (id: string) => void;
+  setCallLogs: (logs: CallLog[]) => void;
   addConversation: (conversation: ChatConversation) => void;
   addMessageToConversation: (conversationId: string, message: ChatMessage) => void;
   addReport: (report: Report) => void;
@@ -1612,6 +1613,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addCallLog,
     updateCallLog,
     deleteCallLog,
+    setCallLogs,
     addConversation,
     addMessageToConversation,
     addReport,
@@ -1691,6 +1693,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addCallLog,
     updateCallLog,
     deleteCallLog,
+    setCallLogs,
     addConversation,
     addMessageToConversation,
     addReport,

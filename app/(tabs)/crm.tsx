@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform, RefreshControl, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon, Camera } from 'lucide-react-native';
@@ -60,7 +60,7 @@ const promotionTemplates: MessageTemplate[] = [
 ];
 
 export default function CRMScreen() {
-  const { clients, addClient, addProject, updateClient, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog, company, refreshClients, refreshEstimates, projects, customPriceListItems } = useApp();
+  const { clients, addClient, addProject, updateClient, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog, setCallLogs, company, refreshClients, refreshEstimates, projects, customPriceListItems } = useApp();
   const router = useRouter();
   const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
   const { initiateCall, isLoadingCall } = useTwilioCalls();
@@ -77,6 +77,37 @@ export default function CRMScreen() {
     console.log('[CRM] Loading estimates from database...');
     refreshEstimates();
   }, [refreshEstimates]);
+
+  // Fetch call logs from database
+  const fetchCallLogs = async () => {
+    if (!company?.id) return;
+
+    setIsLoadingCallLogs(true);
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/get-call-logs?companyId=${company.id}`);
+      const data = await response.json();
+
+      if (data.success && data.callLogs) {
+        // Merge with local call logs, avoiding duplicates
+        const dbLogIds = new Set(data.callLogs.map((l: any) => l.id));
+        const localOnly = callLogs.filter(l => !l.id.startsWith('call-') || !dbLogIds.has(l.id));
+        const mergedLogs = [...data.callLogs, ...localOnly.filter(l => l.id.startsWith('call-'))];
+        setCallLogs(mergedLogs);
+        console.log('[CRM] Loaded', data.callLogs.length, 'call logs from database');
+      }
+    } catch (error) {
+      console.error('[CRM] Failed to fetch call logs:', error);
+    } finally {
+      setIsLoadingCallLogs(false);
+    }
+  };
+
+  // Handle opening call logs modal
+  const handleOpenCallLogs = () => {
+    setShowCallLogsModal(true);
+    fetchCallLogs();
+  };
   const [showAddForm, setShowAddForm] = useState<boolean>(true);
   const [newClientName, setNewClientName] = useState<string>('');
   const [newClientAddress, setNewClientAddress] = useState<string>('');
@@ -98,6 +129,7 @@ export default function CRMScreen() {
   const [showCallAssistantModal, setShowCallAssistantModal] = useState<boolean>(false);
   const [showCallLogsModal, setShowCallLogsModal] = useState<boolean>(false);
   const [selectedCallLog, setSelectedCallLog] = useState<CallLog | null>(null);
+  const [isLoadingCallLogs, setIsLoadingCallLogs] = useState<boolean>(false);
   const [showFollowUpModal, setShowFollowUpModal] = useState<boolean>(false);
   const [selectedClientForFollowUp, setSelectedClientForFollowUp] = useState<string | null>(null);
   const [selectedFollowUpDate, setSelectedFollowUpDate] = useState<string>('');
@@ -1585,9 +1617,9 @@ export default function CRMScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Legacy Prime CRM</Text>
           <View style={styles.headerActions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.callLogsButton}
-              onPress={() => setShowCallLogsModal(true)}
+              onPress={handleOpenCallLogs}
             >
               <PhoneIncoming size={20} color="#FFFFFF" />
               <Text style={styles.callLogsButtonText}>Call Logs ({callLogs.length})</Text>
@@ -2800,9 +2832,9 @@ export default function CRMScreen() {
                 onPress={() => {
                   const newCallLog: CallLog = {
                     id: `call-${Date.now()}`,
-                    callerName: 'Test Caller',
-                    callerPhone: '+1234567890',
-                    callerEmail: 'test@example.com',
+                    callerName: 'John Smith',
+                    callerPhone: '+1 (555) 123-4567',
+                    callerEmail: 'john.smith@email.com',
                     callDate: new Date().toISOString(),
                     callDuration: '5:30',
                     callType: 'incoming',
@@ -2810,6 +2842,23 @@ export default function CRMScreen() {
                     isQualified: true,
                     qualificationScore: 85,
                     notes: 'Customer interested in kitchen remodel. Budget: $50,000. Wants to start in 2 months. Very serious about the project.',
+                    transcript: `AI: Thank you for calling Legacy Prime Construction. How can I help you today?
+
+Caller: Hi, I'm looking to get my kitchen remodeled.
+
+AI: That sounds exciting! I'd love to help you with that. And who am I speaking with?
+
+Caller: This is John Smith.
+
+AI: Great to meet you, John! What kind of budget are you working with for this kitchen remodel?
+
+Caller: I'm thinking around $50,000.
+
+AI: Perfect! And when were you hoping to get started on this project?
+
+Caller: Probably in about 2 months.
+
+AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our project managers will give you a call within 24 hours to discuss the details. Thanks so much for calling!`,
                     projectType: 'Kitchen Remodel',
                     budget: '$50,000',
                     startDate: '2 months',
@@ -2844,7 +2893,15 @@ export default function CRMScreen() {
             </View>
 
             <ScrollView style={styles.callLogsScroll} showsVerticalScrollIndicator={false}>
-              {callLogs.length === 0 ? (
+              {isLoadingCallLogs ? (
+                <View style={styles.emptyCallLogs}>
+                  <ActivityIndicator size="large" color="#2563EB" />
+                  <Text style={styles.emptyCallLogsTitle}>Loading Call Logs...</Text>
+                  <Text style={styles.emptyCallLogsText}>
+                    Fetching call history from the database.
+                  </Text>
+                </View>
+              ) : callLogs.length === 0 ? (
                 <View style={styles.emptyCallLogs}>
                   <PhoneIncoming size={48} color="#D1D5DB" />
                   <Text style={styles.emptyCallLogsTitle}>No Call Logs Yet</Text>

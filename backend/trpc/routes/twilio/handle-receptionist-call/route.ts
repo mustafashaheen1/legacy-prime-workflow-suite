@@ -327,17 +327,33 @@ Generate a warm closing message thanking them by name and promising a callback w
             } else {
               console.log("[Receptionist] ✅ Client saved successfully! ID:", newClient.id);
 
-              // Also save call log
+              // Format conversation history as readable transcript
+              const transcript = state.conversationHistory
+                .map(msg => `${msg.role === 'assistant' ? 'AI' : 'Caller'}: ${msg.content}`)
+                .join('\n\n');
+
+              // Also save call log with full details
               const { error: callLogError } = await supabase
                 .from('call_logs')
                 .insert({
                   company_id: companyId,
                   client_id: newClient.id,
+                  caller_name: state.collectedInfo.name,
+                  caller_phone: state.collectedInfo.phone,
                   call_date: new Date().toISOString(),
-                  duration: state.step, // Use step count as rough duration
-                  outcome: isQualified ? 'Qualified' : 'Info Collected',
+                  call_duration: `${state.step} exchanges`,
+                  call_type: 'incoming',
+                  status: 'answered',
+                  is_qualified: isQualified,
+                  qualification_score: isQualified ? 80 : 40,
                   notes: `Project: ${state.collectedInfo.projectType}\nBudget: ${state.collectedInfo.budget}\nTimeline: ${state.collectedInfo.timeline}`,
-                  follow_up_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+                  transcript: transcript,
+                  project_type: state.collectedInfo.projectType || 'General Inquiry',
+                  budget: state.collectedInfo.budget,
+                  start_date: state.collectedInfo.timeline,
+                  property_type: state.collectedInfo.propertyType || 'Residential',
+                  added_to_crm: true,
+                  scheduled_follow_up: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
                 });
 
               if (callLogError) {
