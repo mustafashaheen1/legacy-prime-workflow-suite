@@ -27,7 +27,7 @@ export default function SettingsScreen() {
     officePhone: company?.officePhone || '',
     cellPhone: company?.cellPhone || '',
     address: company?.address || '',
-    email: company?.email || '',
+    email: company?.email || currentUser?.email || '', // Use admin's email
     website: company?.website || '',
     slogan: company?.slogan || '',
     estimateTemplate: company?.estimateTemplate || '',
@@ -267,10 +267,16 @@ export default function SettingsScreen() {
 
   const handleSaveCompanyProfile = async () => {
     if (!company?.id) return;
-    
+
+    // Always use admin's email for company email
+    const updatesWithAdminEmail = {
+      ...companyForm,
+      email: currentUser?.email || companyForm.email,
+    };
+
     updateCompanyMutation.mutate({
       companyId: company.id,
-      updates: companyForm,
+      updates: updatesWithAdminEmail,
     });
   };
 
@@ -282,7 +288,7 @@ export default function SettingsScreen() {
       officePhone: company?.officePhone || '',
       cellPhone: company?.cellPhone || '',
       address: company?.address || '',
-      email: company?.email || '',
+      email: company?.email || currentUser?.email || '', // Use admin's email
       website: company?.website || '',
       slogan: company?.slogan || '',
       estimateTemplate: company?.estimateTemplate || '',
@@ -678,11 +684,11 @@ export default function SettingsScreen() {
                 multiline
               />
 
-              <Text style={styles.formLabel}>Email</Text>
+              <Text style={styles.formLabel}>Email (Admin's email - cannot be changed)</Text>
               <TextInput
-                style={styles.formInput}
-                value={companyForm.email}
-                onChangeText={(text) => setCompanyForm({ ...companyForm, email: text })}
+                style={[styles.formInput, styles.formInputDisabled]}
+                value={companyForm.email || currentUser?.email || ''}
+                editable={false}
                 placeholder="contact@company.com"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="email-address"
@@ -1244,6 +1250,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
     color: '#1F2937',
+  },
+  formInputDisabled: {
+    backgroundColor: '#E5E7EB',
+    color: '#6B7280',
   },
   logoUploadSection: {
     flexDirection: 'row' as const,
