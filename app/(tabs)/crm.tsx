@@ -30,6 +30,12 @@ const formatUSPhone = (phone: string): string => {
   return `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${normalized.slice(6)}`;
 };
 
+// Filter phone input to only allow digits, max 10 characters
+const filterPhoneInput = (text: string): string => {
+  // Remove all non-digit characters and limit to 10 digits
+  return text.replace(/\D/g, '').slice(0, 10);
+};
+
 type MessageType = 'email' | 'sms';
 type MessageTemplate = {
   id: string;
@@ -2190,13 +2196,14 @@ export default function CRMScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Phone" 
+              <TextInput
+                style={styles.input}
+                placeholder="Phone (10 digits)"
                 placeholderTextColor="#9CA3AF"
                 value={newClientPhone}
-                onChangeText={setNewClientPhone}
-                keyboardType="phone-pad"
+                onChangeText={(text) => setNewClientPhone(filterPhoneInput(text))}
+                keyboardType="number-pad"
+                maxLength={10}
               />
               <TextInput
                 style={styles.input}
@@ -2258,14 +2265,15 @@ export default function CRMScreen() {
                 onChangeText={setNewClientEmail}
               />
 
-              <Text style={styles.inputLabel}>Phone *</Text>
+              <Text style={styles.inputLabel}>Phone * (10 digits only)</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="(555) 123-4567"
+                placeholder="5551234567"
                 placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
+                maxLength={10}
                 value={newClientPhone}
-                onChangeText={setNewClientPhone}
+                onChangeText={(text) => setNewClientPhone(filterPhoneInput(text))}
               />
 
               <Text style={styles.inputLabel}>Address</Text>
