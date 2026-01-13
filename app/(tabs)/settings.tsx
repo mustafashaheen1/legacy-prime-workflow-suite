@@ -11,6 +11,39 @@ import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 
+// Validation helpers
+const isValidUSPhone = (phone: string): boolean => {
+  if (!phone || phone.trim() === '') return true; // Empty is valid (optional field)
+  // Remove all non-digit characters
+  const digits = phone.replace(/\D/g, '');
+  // US phone numbers should have 10 digits (or 11 if starts with 1)
+  return digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
+};
+
+const isValidWebsite = (url: string): boolean => {
+  if (!url || url.trim() === '') return true; // Empty is valid (optional field)
+  // Add protocol if missing for validation
+  const urlToTest = url.startsWith('http://') || url.startsWith('https://')
+    ? url
+    : `https://${url}`;
+  try {
+    const parsedUrl = new URL(urlToTest);
+    // Check for valid domain with TLD
+    return parsedUrl.hostname.includes('.') && parsedUrl.hostname.split('.').pop()!.length >= 2;
+  } catch {
+    return false;
+  }
+};
+
+const formatUSPhone = (phone: string): string => {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  // Remove leading 1 if present
+  const normalized = digits.startsWith('1') && digits.length === 11 ? digits.slice(1) : digits;
+  if (normalized.length !== 10) return phone; // Return original if not valid
+  return `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${normalized.slice(6)}`;
+};
+
 export default function SettingsScreen() {
   const { user: currentUser, company, setCompany, logout } = useApp();
   const { isAdmin, isSuperAdmin } = usePermissions();
@@ -34,6 +67,11 @@ export default function SettingsScreen() {
   });
   const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
+  const [validationErrors, setValidationErrors] = useState<{
+    officePhone?: string;
+    cellPhone?: string;
+    website?: string;
+  }>({});
 
   const usersQuery = trpc.users.getUsers.useQuery(
     { companyId: company?.id },
@@ -255,13 +293,46 @@ export default function SettingsScreen() {
     }
   };
 
+  const validateCompanyForm = (): boolean => {
+    const errors: { officePhone?: string; cellPhone?: string; website?: string } = {};
+
+    if (!isValidUSPhone(companyForm.officePhone)) {
+      errors.officePhone = 'Please enter a valid US phone number';
+    }
+
+    if (!isValidUSPhone(companyForm.cellPhone)) {
+      errors.cellPhone = 'Please enter a valid US phone number';
+    }
+
+    if (!isValidWebsite(companyForm.website)) {
+      errors.website = 'Please enter a valid website URL';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSaveCompanyProfile = async () => {
     if (!company?.id) return;
 
+    // Validate form
+    if (!validateCompanyForm()) {
+      const errorMsg = 'Please fix the validation errors before saving';
+      if (Platform.OS === 'web') {
+        alert(errorMsg);
+      } else {
+        Alert.alert('Validation Error', errorMsg);
+      }
+      return;
+    }
+
     // Always use admin's email for company email
+    // Format phone numbers before saving
     const updatesWithAdminEmail = {
       ...companyForm,
       email: currentUser?.email || companyForm.email,
+      officePhone: formatUSPhone(companyForm.officePhone),
+      cellPhone: formatUSPhone(companyForm.cellPhone),
     };
 
     setIsSavingProfile(true);
@@ -318,6 +389,7 @@ export default function SettingsScreen() {
       slogan: company?.slogan || '',
       estimateTemplate: company?.estimateTemplate || '',
     });
+    setValidationErrors({}); // Clear any previous validation errors
     setShowCompanyProfileModal(true);
   };
 
@@ -681,23 +753,39 @@ export default function SettingsScreen() {
 
               <Text style={styles.formLabel}>Office Phone</Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, validationErrors.officePhone && styles.formInputError]}
                 value={companyForm.officePhone}
-                onChangeText={(text) => setCompanyForm({ ...companyForm, officePhone: text })}
+                onChangeText={(text) => {
+                  setCompanyForm({ ...companyForm, officePhone: text });
+                  if (validationErrors.officePhone) {
+                    setValidationErrors({ ...validationErrors, officePhone: undefined });
+                  }
+                }}
                 placeholder="(555) 555-5555"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="phone-pad"
               />
+              {validationErrors.officePhone && (
+                <Text style={styles.formErrorText}>{validationErrors.officePhone}</Text>
+              )}
 
               <Text style={styles.formLabel}>Cell Phone</Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, validationErrors.cellPhone && styles.formInputError]}
                 value={companyForm.cellPhone}
-                onChangeText={(text) => setCompanyForm({ ...companyForm, cellPhone: text })}
+                onChangeText={(text) => {
+                  setCompanyForm({ ...companyForm, cellPhone: text });
+                  if (validationErrors.cellPhone) {
+                    setValidationErrors({ ...validationErrors, cellPhone: undefined });
+                  }
+                }}
                 placeholder="(555) 555-5555"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="phone-pad"
               />
+              {validationErrors.cellPhone && (
+                <Text style={styles.formErrorText}>{validationErrors.cellPhone}</Text>
+              )}
 
               <Text style={styles.formLabel}>Address</Text>
               <TextInput
@@ -722,13 +810,21 @@ export default function SettingsScreen() {
 
               <Text style={styles.formLabel}>Website</Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, validationErrors.website && styles.formInputError]}
                 value={companyForm.website}
-                onChangeText={(text) => setCompanyForm({ ...companyForm, website: text })}
+                onChangeText={(text) => {
+                  setCompanyForm({ ...companyForm, website: text });
+                  if (validationErrors.website) {
+                    setValidationErrors({ ...validationErrors, website: undefined });
+                  }
+                }}
                 placeholder="www.yourcompany.com"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="none"
               />
+              {validationErrors.website && (
+                <Text style={styles.formErrorText}>{validationErrors.website}</Text>
+              )}
 
               <Text style={styles.formLabel}>Estimate Template (footer note)</Text>
               <TextInput
@@ -1279,6 +1375,15 @@ const styles = StyleSheet.create({
   formInputDisabled: {
     backgroundColor: '#E5E7EB',
     color: '#6B7280',
+  },
+  formInputError: {
+    borderColor: '#DC2626',
+    borderWidth: 2,
+  },
+  formErrorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    marginTop: 4,
   },
   logoUploadSection: {
     flexDirection: 'row' as const,
