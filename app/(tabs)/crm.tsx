@@ -12,6 +12,24 @@ import { z } from 'zod';
 import { useTwilioSMS, useTwilioCalls } from '@/components/TwilioIntegration';
 import { trpc } from '@/lib/trpc';
 
+// Phone validation helpers
+const isValidUSPhone = (phone: string): boolean => {
+  if (!phone || phone.trim() === '') return false; // Phone is required for clients
+  // Remove all non-digit characters
+  const digits = phone.replace(/\D/g, '');
+  // US phone numbers should have 10 digits (or 11 if starts with 1)
+  return digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
+};
+
+const formatUSPhone = (phone: string): string => {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  // Remove leading 1 if present
+  const normalized = digits.startsWith('1') && digits.length === 11 ? digits.slice(1) : digits;
+  if (normalized.length !== 10) return phone; // Return original if not valid
+  return `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${normalized.slice(6)}`;
+};
+
 type MessageType = 'email' | 'sms';
 type MessageTemplate = {
   id: string;
@@ -116,6 +134,12 @@ export default function CRMScreen() {
       return;
     }
 
+    // Validate US phone number
+    if (!isValidUSPhone(newClientPhone)) {
+      Alert.alert('Error', 'Please enter a valid US phone number (10 digits)');
+      return;
+    }
+
     const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
     if (!validSources.includes(newClientSource)) {
       Alert.alert('Error', 'Source must be one of: Google, Referral, Ad, Phone Call');
@@ -130,6 +154,9 @@ export default function CRMScreen() {
     setIsAddingClient(true);
 
     try {
+      // Format phone number before saving
+      const formattedPhone = formatUSPhone(newClientPhone);
+
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
       const response = await fetch(`${baseUrl}/api/add-client`, {
         method: 'POST',
@@ -139,7 +166,7 @@ export default function CRMScreen() {
           name: newClientName,
           address: newClientAddress || undefined,
           email: newClientEmail,
-          phone: newClientPhone,
+          phone: formattedPhone,
           source: newClientSource,
           status: 'lead',
           lastContactDate: new Date().toISOString(),
@@ -4003,6 +4030,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   submitButton: {
+    flex: 1,
     backgroundColor: '#2563EB',
     paddingVertical: 12,
     borderRadius: 8,
