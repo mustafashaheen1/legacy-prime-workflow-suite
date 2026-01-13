@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Building2, Mail, Phone, MapPin, FileText, CheckCircle2, XCircle, Upload, Shield, User, Check, X, Download, Eye } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
@@ -18,9 +18,44 @@ export default function SubcontractorProfileScreen() {
   const [showApproveModal, setShowApproveModal] = useState<boolean>(false);
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
 
-  const uploadBusinessFileMutation = trpc.subcontractors.uploadBusinessFile.useMutation();
-  const verifyBusinessFileMutation = trpc.subcontractors.verifyBusinessFile.useMutation();
   const approveSubcontractorMutation = trpc.subcontractors.approveSubcontractor.useMutation();
+
+  // Local state for business files fetched from database
+  const [businessFiles, setBusinessFiles] = useState<BusinessFile[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(true);
+  const [isVerifying, setIsVerifying] = useState<string | null>(null);
+
+  // Fetch business files from database on mount
+  useEffect(() => {
+    if (subcontractor?.id) {
+      fetchBusinessFiles();
+    }
+  }, [subcontractor?.id]);
+
+  const fetchBusinessFiles = async () => {
+    if (!subcontractor?.id) return;
+
+    try {
+      setIsLoadingFiles(true);
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/get-business-files?subcontractorId=${subcontractor.id}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch files');
+      }
+
+      const data = await response.json();
+      if (data.success && data.files) {
+        setBusinessFiles(data.files);
+        // Also update local context state
+        await updateSubcontractor(subcontractor.id, { businessFiles: data.files });
+      }
+    } catch (error) {
+      console.error('[BusinessFiles] Error fetching:', error);
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  };
 
   if (!subcontractor) {
     return (
@@ -121,7 +156,8 @@ export default function SubcontractorProfileScreen() {
           notes: uploadResponse.notes,
         };
 
-        const updatedFiles = [...(subcontractor.businessFiles || []), newBusinessFile];
+        const updatedFiles = [...businessFiles, newBusinessFile];
+        setBusinessFiles(updatedFiles);
         await updateSubcontractor(subcontractor.id, { businessFiles: updatedFiles });
 
         setIsUploading(false);
@@ -151,21 +187,46 @@ export default function SubcontractorProfileScreen() {
 
   const handleVerifyFile = async (file: BusinessFile, verified: boolean) => {
     try {
-      await verifyBusinessFileMutation.mutateAsync({
-        fileId: file.id,
-        verified,
-        verifiedBy: user?.id || 'user_current',
+      setIsVerifying(file.id);
+
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/verify-business-file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileId: file.id,
+          verified,
+          verifiedBy: user?.id || 'user_current',
+        }),
       });
 
-      const updatedFiles = (subcontractor.businessFiles || []).map(f => 
-        f.id === file.id ? { ...f, verified, verifiedBy: user?.id || 'user_current', verifiedDate: new Date().toISOString() } : f
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      // Update local state with verified file
+      const updatedFiles = businessFiles.map(f =>
+        f.id === file.id ? {
+          ...f,
+          verified: result.verified,
+          verifiedBy: result.verifiedBy,
+          verifiedDate: result.verifiedDate
+        } : f
       );
+      setBusinessFiles(updatedFiles);
       await updateSubcontractor(subcontractor.id, { businessFiles: updatedFiles });
 
       Alert.alert('Success', `File ${verified ? 'verified' : 'unverified'} successfully`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Verify] Error:', error);
-      Alert.alert('Error', 'Failed to verify file');
+      Alert.alert('Error', error.message || 'Failed to verify file');
+    } finally {
+      setIsVerifying(null);
     }
   };
 
@@ -200,7 +261,6 @@ export default function SubcontractorProfileScreen() {
     }
   };
 
-  const businessFiles = subcontractor.businessFiles || [];
   const verifiedFilesCount = businessFiles.filter(f => f.verified).length;
   const allFilesVerified = businessFiles.length > 0 && verifiedFilesCount === businessFiles.length;
 
@@ -270,7 +330,12 @@ export default function SubcontractorProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {businessFiles.length === 0 ? (
+          {isLoadingFiles ? (
+            <View style={styles.loadingFiles}>
+              <ActivityIndicator size="small" color="#2563EB" />
+              <Text style={styles.loadingFilesText}>Loading files...</Text>
+            </View>
+          ) : businessFiles.length === 0 ? (
             <View style={styles.emptyFiles}>
               <FileText size={48} color="#D1D5DB" />
               <Text style={styles.emptyFilesText}>No business files uploaded yet</Text>
@@ -315,19 +380,25 @@ export default function SubcontractorProfileScreen() {
                       >
                         <Eye size={18} color="#2563EB" />
                       </TouchableOpacity>
-                      {file.verified ? (
+                      {isVerifying === file.id ? (
+                        <View style={styles.verifyingButton}>
+                          <ActivityIndicator size="small" color="#6B7280" />
+                        </View>
+                      ) : file.verified ? (
                         <TouchableOpacity
-                          style={styles.verifiedButton}
+                          style={styles.verifiedBadgeButton}
                           onPress={() => handleVerifyFile(file, false)}
                         >
-                          <CheckCircle2 size={20} color="#10B981" />
+                          <CheckCircle2 size={16} color="#10B981" />
+                          <Text style={styles.verifiedBadgeText}>Verified</Text>
                         </TouchableOpacity>
                       ) : (
                         <TouchableOpacity
-                          style={styles.unverifiedButton}
+                          style={styles.verifyActionButton}
                           onPress={() => handleVerifyFile(file, true)}
                         >
-                          <XCircle size={20} color="#F59E0B" />
+                          <CheckCircle2 size={16} color="#FFFFFF" />
+                          <Text style={styles.verifyActionButtonText}>Verify</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -694,11 +765,52 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF',
     borderRadius: 6,
   },
-  verifiedButton: {
-    padding: 8,
+  verifyActionButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#2563EB',
+    borderRadius: 6,
   },
-  unverifiedButton: {
-    padding: 8,
+  verifyActionButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  verifiedBadgeButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 6,
+  },
+  verifiedBadgeText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#10B981',
+  },
+  verifyingButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  loadingFiles: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 40,
+    alignItems: 'center' as const,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
+    gap: 12,
+  },
+  loadingFilesText: {
+    fontSize: 15,
+    color: '#6B7280',
   },
   fileExpiry: {
     fontSize: 13,
