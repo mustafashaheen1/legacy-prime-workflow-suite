@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
-import { Building2, Mail, Phone, MapPin, FileText, CheckCircle2, XCircle, Upload, Shield, User, Check, X } from 'lucide-react-native';
+import { Building2, Mail, Phone, MapPin, FileText, CheckCircle2, XCircle, Upload, Shield, User, Check, X, Download, Eye } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
 import { BusinessFile, Subcontractor } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import * as Linking from 'expo-linking';
 import { trpc } from '@/lib/trpc';
 import { supabase } from '@/lib/supabase';
 
@@ -32,6 +34,8 @@ export default function SubcontractorProfileScreen() {
     );
   }
 
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+
   const handleFileUpload = async (type: 'license' | 'insurance' | 'w9' | 'certificate' | 'other') => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -41,25 +45,94 @@ export default function SubcontractorProfileScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        
-        const uploadedFile = await uploadBusinessFileMutation.mutateAsync({
+        setIsUploading(true);
+
+        console.log('[Upload] Starting upload for:', asset.name);
+
+        // Step 1: Get presigned URL from backend
+        const uploadResponse = await uploadBusinessFileMutation.mutateAsync({
           subcontractorId: subcontractor.id,
           type,
           name: asset.name,
-          fileType: asset.mimeType || 'unknown',
+          fileType: asset.mimeType || 'application/octet-stream',
           fileSize: asset.size || 0,
-          uri: asset.uri,
         });
 
-        const updatedFiles = [...(subcontractor.businessFiles || []), uploadedFile];
+        console.log('[Upload] Got presigned URL, uploading to S3...');
+
+        // Step 2: Upload file to S3 using presigned URL
+        if (Platform.OS === 'web') {
+          // Web: Fetch the file and upload
+          const fileResponse = await fetch(asset.uri);
+          const blob = await fileResponse.blob();
+
+          const s3Response = await fetch(uploadResponse.uploadUrl, {
+            method: 'PUT',
+            body: blob,
+            headers: {
+              'Content-Type': asset.mimeType || 'application/octet-stream',
+            },
+          });
+
+          if (!s3Response.ok) {
+            throw new Error(`S3 upload failed: ${s3Response.status}`);
+          }
+        } else {
+          // Native: Use FileSystem to upload
+          const uploadResult = await FileSystem.uploadAsync(uploadResponse.uploadUrl, asset.uri, {
+            httpMethod: 'PUT',
+            headers: {
+              'Content-Type': asset.mimeType || 'application/octet-stream',
+            },
+          });
+
+          if (uploadResult.status !== 200) {
+            throw new Error(`S3 upload failed: ${uploadResult.status}`);
+          }
+        }
+
+        console.log('[Upload] S3 upload successful');
+
+        // Step 3: Update local state with the new file
+        const newBusinessFile: BusinessFile = {
+          id: uploadResponse.id,
+          subcontractorId: uploadResponse.subcontractorId,
+          type: uploadResponse.type as BusinessFile['type'],
+          name: uploadResponse.name,
+          fileType: uploadResponse.fileType,
+          fileSize: uploadResponse.fileSize,
+          uri: uploadResponse.uri,
+          uploadDate: uploadResponse.uploadDate,
+          expiryDate: uploadResponse.expiryDate,
+          verified: uploadResponse.verified,
+          notes: uploadResponse.notes,
+        };
+
+        const updatedFiles = [...(subcontractor.businessFiles || []), newBusinessFile];
         await updateSubcontractor(subcontractor.id, { businessFiles: updatedFiles });
 
-        Alert.alert('Success', 'File uploaded successfully');
+        setIsUploading(false);
+        Alert.alert('Success', 'File uploaded successfully to cloud storage');
         setShowUploadModal(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Upload] Error:', error);
-      Alert.alert('Error', 'Failed to upload file');
+      setIsUploading(false);
+      Alert.alert('Error', error.message || 'Failed to upload file');
+    }
+  };
+
+  const handleViewFile = async (file: BusinessFile) => {
+    try {
+      // Open the file URL in browser/viewer
+      if (Platform.OS === 'web') {
+        window.open(file.uri, '_blank');
+      } else {
+        await Linking.openURL(file.uri);
+      }
+    } catch (error) {
+      console.error('[ViewFile] Error:', error);
+      Alert.alert('Error', 'Failed to open file');
     }
   };
 
@@ -223,6 +296,12 @@ export default function SubcontractorProfileScreen() {
                       </View>
                     </View>
                     <View style={styles.fileActions}>
+                      <TouchableOpacity
+                        style={styles.viewFileButton}
+                        onPress={() => handleViewFile(file)}
+                      >
+                        <Eye size={18} color="#2563EB" />
+                      </TouchableOpacity>
                       {file.verified ? (
                         <TouchableOpacity
                           style={styles.verifiedButton}
@@ -272,68 +351,77 @@ export default function SubcontractorProfileScreen() {
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Upload Business File</Text>
-            <TouchableOpacity onPress={() => setShowUploadModal(false)}>
-              <X size={24} color="#1F2937" />
+            <TouchableOpacity onPress={() => !isUploading && setShowUploadModal(false)} disabled={isUploading}>
+              <X size={24} color={isUploading ? '#9CA3AF' : '#1F2937'} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.modalContent}>
-            <Text style={styles.modalSubtitle}>Select the type of document to upload</Text>
-
-            <TouchableOpacity
-              style={styles.uploadOptionButton}
-              onPress={() => handleFileUpload('license')}
-            >
-              <FileText size={24} color="#2563EB" />
-              <View style={styles.uploadOptionText}>
-                <Text style={styles.uploadOptionTitle}>License</Text>
-                <Text style={styles.uploadOptionSubtitle}>Contractor license document</Text>
+            {isUploading ? (
+              <View style={styles.uploadingContainer}>
+                <Text style={styles.uploadingText}>Uploading file to cloud storage...</Text>
+                <Text style={styles.uploadingSubtext}>Please wait, this may take a moment</Text>
               </View>
-            </TouchableOpacity>
+            ) : (
+              <>
+                <Text style={styles.modalSubtitle}>Select the type of document to upload</Text>
 
-            <TouchableOpacity
-              style={styles.uploadOptionButton}
-              onPress={() => handleFileUpload('insurance')}
-            >
-              <Shield size={24} color="#2563EB" />
-              <View style={styles.uploadOptionText}>
-                <Text style={styles.uploadOptionTitle}>Insurance</Text>
-                <Text style={styles.uploadOptionSubtitle}>Insurance certificate</Text>
-              </View>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.uploadOptionButton}
+                  onPress={() => handleFileUpload('license')}
+                >
+                  <FileText size={24} color="#2563EB" />
+                  <View style={styles.uploadOptionText}>
+                    <Text style={styles.uploadOptionTitle}>License</Text>
+                    <Text style={styles.uploadOptionSubtitle}>Contractor license document</Text>
+                  </View>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.uploadOptionButton}
-              onPress={() => handleFileUpload('w9')}
-            >
-              <FileText size={24} color="#2563EB" />
-              <View style={styles.uploadOptionText}>
-                <Text style={styles.uploadOptionTitle}>W-9 Form</Text>
-                <Text style={styles.uploadOptionSubtitle}>Tax form W-9</Text>
-              </View>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.uploadOptionButton}
+                  onPress={() => handleFileUpload('insurance')}
+                >
+                  <Shield size={24} color="#2563EB" />
+                  <View style={styles.uploadOptionText}>
+                    <Text style={styles.uploadOptionTitle}>Insurance</Text>
+                    <Text style={styles.uploadOptionSubtitle}>Insurance certificate</Text>
+                  </View>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.uploadOptionButton}
-              onPress={() => handleFileUpload('certificate')}
-            >
-              <FileText size={24} color="#2563EB" />
-              <View style={styles.uploadOptionText}>
-                <Text style={styles.uploadOptionTitle}>Certificate</Text>
-                <Text style={styles.uploadOptionSubtitle}>Other certificates</Text>
-              </View>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.uploadOptionButton}
+                  onPress={() => handleFileUpload('w9')}
+                >
+                  <FileText size={24} color="#2563EB" />
+                  <View style={styles.uploadOptionText}>
+                    <Text style={styles.uploadOptionTitle}>W-9 Form</Text>
+                    <Text style={styles.uploadOptionSubtitle}>Tax form W-9</Text>
+                  </View>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.uploadOptionButton}
-              onPress={() => handleFileUpload('other')}
-            >
-              <FileText size={24} color="#2563EB" />
-              <View style={styles.uploadOptionText}>
-                <Text style={styles.uploadOptionTitle}>Other</Text>
-                <Text style={styles.uploadOptionSubtitle}>Other documents</Text>
-              </View>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.uploadOptionButton}
+                  onPress={() => handleFileUpload('certificate')}
+                >
+                  <FileText size={24} color="#2563EB" />
+                  <View style={styles.uploadOptionText}>
+                    <Text style={styles.uploadOptionTitle}>Certificate</Text>
+                    <Text style={styles.uploadOptionSubtitle}>Other certificates</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.uploadOptionButton}
+                  onPress={() => handleFileUpload('other')}
+                >
+                  <FileText size={24} color="#2563EB" />
+                  <View style={styles.uploadOptionText}>
+                    <Text style={styles.uploadOptionTitle}>Other</Text>
+                    <Text style={styles.uploadOptionSubtitle}>Other documents</Text>
+                  </View>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -585,7 +673,13 @@ const styles = StyleSheet.create({
   },
   fileActions: {
     flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 8,
+  },
+  viewFileButton: {
+    padding: 8,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 6,
   },
   verifiedButton: {
     padding: 8,
@@ -683,6 +777,24 @@ const styles = StyleSheet.create({
   uploadOptionSubtitle: {
     fontSize: 13,
     color: '#6B7280',
+  },
+  uploadingContainer: {
+    flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    padding: 40,
+  },
+  uploadingText: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 8,
+    textAlign: 'center' as const,
+  },
+  uploadingSubtext: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center' as const,
   },
   overlay: {
     flex: 1,
