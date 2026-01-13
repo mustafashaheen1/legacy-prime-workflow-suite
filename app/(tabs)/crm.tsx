@@ -44,6 +44,15 @@ const isValidEmail = (email: string): boolean => {
   return emailRegex.test(email.trim());
 };
 
+// Cross-platform alert helper
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    alert(`${title}: ${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
 type MessageType = 'email' | 'sms';
 type MessageTemplate = {
   id: string;
@@ -144,30 +153,30 @@ export default function CRMScreen() {
   // Handle adding a new client via direct API
   const handleAddClient = async (fromModal: boolean = false) => {
     if (!newClientName || !newClientEmail || !newClientPhone || !newClientSource) {
-      Alert.alert('Error', 'Please fill in all required fields (Name, Email, Phone, Source)');
+      showAlert('Error', 'Please fill in all required fields (Name, Email, Phone, Source)');
       return;
     }
 
     // Validate US phone number
     if (!isValidUSPhone(newClientPhone)) {
-      Alert.alert('Error', 'Please enter a valid US phone number (10 digits)');
+      showAlert('Error', 'Please enter a valid US phone number (10 digits)');
       return;
     }
 
     // Validate email address
     if (!isValidEmail(newClientEmail)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      showAlert('Error', 'Please enter a valid email address');
       return;
     }
 
     const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
     if (!validSources.includes(newClientSource)) {
-      Alert.alert('Error', 'Source must be one of: Google, Referral, Ad, Phone Call');
+      showAlert('Error', 'Source must be one of: Google, Referral, Ad, Phone Call');
       return;
     }
 
     if (!company?.id) {
-      Alert.alert('Error', 'No company found. Please log in again.');
+      showAlert('Error', 'No company found. Please log in again.');
       return;
     }
 
@@ -217,10 +226,10 @@ export default function CRMScreen() {
         setShowAddForm(false);
       }
 
-      Alert.alert('Success', `${data.client.name} has been added to your client list!`);
+      showAlert('Success', `${data.client.name} has been added to your client list!`);
     } catch (error: any) {
       console.error('[CRM] Error adding client:', error);
-      Alert.alert('Error', error.message || 'Failed to add client');
+      showAlert('Error', error.message || 'Failed to add client');
     } finally {
       setIsAddingClient(false);
     }
