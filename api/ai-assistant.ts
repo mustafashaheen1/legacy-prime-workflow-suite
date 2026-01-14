@@ -164,6 +164,40 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'add_client',
+      description: 'Add a new client to the CRM. Use this when user wants to add a new client/lead. Ask for all required information before calling this function.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Full name of the client (required)',
+          },
+          email: {
+            type: 'string',
+            description: 'Email address of the client (required)',
+          },
+          phone: {
+            type: 'string',
+            description: 'Phone number of the client (required)',
+          },
+          address: {
+            type: 'string',
+            description: 'Address of the client (optional)',
+          },
+          source: {
+            type: 'string',
+            enum: ['Google', 'Referral', 'Ad', 'Phone Call'],
+            description: 'How the client found us (required). Always ask the user.',
+          },
+        },
+        required: ['name', 'email', 'phone', 'source'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'generate_report',
       description: 'Generate a report based on business data. Use this for custom reports.',
       parameters: {
@@ -687,6 +721,67 @@ function executeToolCall(
             createdDate: e.createdDate,
             projectId: e.projectId,
           })),
+        },
+      };
+    }
+
+    case 'add_client': {
+      // Validate required fields
+      if (!args.name) {
+        return {
+          result: { error: 'Client name is required. Please ask for the client\'s name.' },
+        };
+      }
+      if (!args.email) {
+        return {
+          result: { error: 'Client email is required. Please ask for the client\'s email address.' },
+        };
+      }
+      if (!args.phone) {
+        return {
+          result: { error: 'Client phone is required. Please ask for the client\'s phone number.' },
+        };
+      }
+      if (!args.source) {
+        return {
+          result: { error: 'Please ask how the client found us (Google, Referral, Ad, or Phone Call).' },
+        };
+      }
+
+      // Check if client already exists
+      const existingClient = clients.find((c: any) =>
+        c.email?.toLowerCase() === args.email.toLowerCase() ||
+        c.phone === args.phone
+      );
+
+      if (existingClient) {
+        return {
+          result: {
+            error: `A client with this ${existingClient.email?.toLowerCase() === args.email.toLowerCase() ? 'email' : 'phone number'} already exists: ${existingClient.name}`
+          },
+        };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Client "${args.name}" will be added to the CRM.`,
+          clientData: {
+            name: args.name,
+            email: args.email,
+            phone: args.phone,
+            address: args.address || null,
+            source: args.source,
+          },
+        },
+        actionRequired: 'add_client',
+        actionData: {
+          name: args.name,
+          email: args.email,
+          phone: args.phone,
+          address: args.address || null,
+          source: args.source,
+          status: 'Lead',
         },
       };
     }

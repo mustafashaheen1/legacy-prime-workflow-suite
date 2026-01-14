@@ -281,6 +281,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     estimates,
     updateClient,
     addReport,
+    addClient,
     // Additional data for complete business intelligence
     customPriceListItems,
     dailyLogs,
@@ -378,6 +379,24 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             }
             break;
 
+          case 'add_client':
+            // Add new client to CRM
+            if (addClient && pendingAction.data) {
+              const newClient = {
+                id: `client-${Date.now()}`,
+                name: pendingAction.data.name,
+                email: pendingAction.data.email,
+                phone: pendingAction.data.phone,
+                address: pendingAction.data.address || undefined,
+                source: pendingAction.data.source,
+                status: pendingAction.data.status || 'Lead',
+                lastContactDate: new Date().toISOString(),
+              };
+              await addClient(newClient);
+              console.log('[AI Action] Client added to CRM:', newClient.name);
+            }
+            break;
+
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }
@@ -389,7 +408,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     };
 
     handlePendingAction();
-  }, [pendingAction, updateClient, addReport, clearPendingAction]);
+  }, [pendingAction, updateClient, addReport, addClient, clearPendingAction]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {
