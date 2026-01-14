@@ -209,10 +209,17 @@ PROJECT (Created from an Approved Estimate)
 **Process:**
 1. Identify or confirm the client
 2. If client doesn't exist, offer to add them first
-3. Collect estimate details
-4. Create the estimate linked to the client
-5. Verify estimate was created
-6. Report success to user
+3. Collect estimate details (project type, budget)
+4. Create the estimate linked to the client's ID
+5. Save estimate to database via API
+6. Verify estimate was saved successfully
+7. Report success to user
+
+**Important Implementation Notes:**
+- Estimates are saved to the database, not just local state
+- Each estimate is linked to a specific client via `clientId`
+- Estimates only appear for their assigned client in the CRM
+- The estimate starts as a draft with the budget as the total (items can be added later in the estimate editor)
 
 ### 5.3 Never Auto-Create Estimates
 

@@ -1318,7 +1318,7 @@ export default function CRMScreen() {
     const now = new Date();
     const daysSinceContact = Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24));
     
-    const clientEstimates = estimates; // Show all estimates
+    const clientEstimates = estimates.filter(e => e.clientId === client.id);
     const hasSentEstimate = clientEstimates.some(e => e.status === 'sent');
     const hasApprovedEstimate = clientEstimates.some(e => e.status === 'approved');
 
@@ -2475,7 +2475,7 @@ export default function CRMScreen() {
                 const client = clients.find(c => c.id === selectedClientForEstimate);
                 if (!client) return null;
 
-                const clientEstimates = estimates; // Show all estimates for now
+                const clientEstimates = estimates.filter(e => e.clientId === selectedClientForEstimate);
 
                 if (clientEstimates.length === 0) {
                   return (
@@ -3537,8 +3537,8 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               const client = clients.find(c => c.id === selectedClientForPayment);
               if (!client) return null;
 
-              // Show all estimates (matching existing estimate modal behavior)
-              const clientEstimates = estimates;
+              // Filter estimates to only show this client's estimates
+              const clientEstimates = estimates.filter(e => e.clientId === selectedClientForPayment);
 
               return (
                 <ScrollView style={styles.estimateListScroll} showsVerticalScrollIndicator={false}>
@@ -3668,8 +3668,9 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               const client = clients.find(c => c.id === selectedClientForConversion);
               if (!client) return null;
 
-              // Show estimates that haven't been converted to projects yet (exclude approved/paid)
+              // Show this client's estimates that haven't been converted to projects yet (exclude approved/paid)
               const clientEstimates = estimates.filter(e =>
+                e.clientId === selectedClientForConversion &&
                 e.status !== 'approved' && e.status !== 'paid'
               );
 

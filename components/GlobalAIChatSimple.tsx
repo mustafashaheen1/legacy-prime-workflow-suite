@@ -370,8 +370,29 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                 status: 'draft' as const,
               };
 
-              addEstimate(newEstimate);
-              console.log('[AI Action] Estimate created for client:', newEstimate.name, 'Client ID:', clientId);
+              try {
+                // Save to database via API
+                const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
+                const response = await fetch(`${apiUrl}/api/save-estimate`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ estimate: newEstimate }),
+                });
+
+                if (response.ok) {
+                  addEstimate(newEstimate);
+                  console.log('[AI Action] Estimate saved to database:', estimateId, 'Client ID:', clientId);
+                } else {
+                  const errorData = await response.json();
+                  console.error('[AI Action] Failed to save estimate:', errorData.error);
+                  // Still add to local state so user sees it
+                  addEstimate(newEstimate);
+                }
+              } catch (error) {
+                console.error('[AI Action] Error saving estimate:', error);
+                // Still add to local state so user sees it
+                addEstimate(newEstimate);
+              }
             }
             break;
 
