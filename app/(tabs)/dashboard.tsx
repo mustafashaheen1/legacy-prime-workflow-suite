@@ -68,14 +68,23 @@ export default function DashboardScreen() {
     }));
   }, [activeProjects, expenses]);
 
+  // Helper for cross-platform alerts
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const handleAIReportGeneration = async (selectionType: 'all' | 'selected') => {
     if (selectionType === 'selected' && selectedProjects.length === 0) {
-      Alert.alert('No Projects Selected', 'Please select at least one project to generate a report.');
+      showAlert('No Projects Selected', 'Please select at least one project to generate a report.');
       return;
     }
 
     if (!aiReportPrompt.trim()) {
-      Alert.alert('Missing Instructions', 'Please describe what you want to include in the custom report.');
+      showAlert('Missing Instructions', 'Please describe what you want to include in the custom report.');
       return;
     }
 
@@ -135,34 +144,18 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
       console.log('[Report] Prompt:', aiReportPrompt);
       console.log('[Report] Projects:', projectsToReport.length);
 
-      Alert.alert(
-        'Report Generated ✓',
-        'Your custom AI report has been generated successfully. You can view it in the Reports Library (folder icon on the dashboard).',
-        [
-          { text: 'View Report', onPress: () => {
-            setShowAICustomModal(false);
-            setShowReportMenu(false);
-            setShowReportTypeMenu(false);
-            setIsSelectMode(false);
-            setSelectedProjects([]);
-            setAiReportPrompt('');
-            setShowProjectPicker(false);
-            router.push('/reports' as any);
-          }},
-          { text: 'Stay Here', onPress: () => {
-            setShowAICustomModal(false);
-            setShowReportMenu(false);
-            setShowReportTypeMenu(false);
-            setIsSelectMode(false);
-            setSelectedProjects([]);
-            setAiReportPrompt('');
-            setShowProjectPicker(false);
-          }}
-        ]
-      );
+      // Reset state and navigate to reports
+      setShowAICustomModal(false);
+      setShowReportMenu(false);
+      setShowReportTypeMenu(false);
+      setIsSelectMode(false);
+      setSelectedProjects([]);
+      setAiReportPrompt('');
+      setShowProjectPicker(false);
+      router.push('/reports' as any);
     } catch (error) {
       console.error('[Report] AI generation error:', error);
-      Alert.alert('Error', 'Failed to generate custom report. Please try again.');
+      showAlert('Error', 'Failed to generate custom report. Please try again.');
     } finally {
       setIsGeneratingAI(false);
     }
