@@ -773,14 +773,25 @@ function executeToolCall(
 
     case 'query_estimates': {
       let filtered = estimates;
+      let clientFound = null;
+
       if (args.clientName) {
-        // Find projects associated with the client
-        const client = clients.find((c: any) =>
+        // Find the client by name
+        clientFound = clients.find((c: any) =>
           c.name?.toLowerCase().includes(args.clientName.toLowerCase())
         );
-        if (client) {
-          // For now, return all estimates since we don't have direct client-estimate linkage
-          // In a real implementation, you'd filter by client relationship
+        if (clientFound) {
+          // Filter estimates by client ID - estimates are now linked directly to clients
+          filtered = filtered.filter((e: any) => e.clientId === clientFound.id);
+        } else {
+          // Client not found - return empty result with helpful message
+          return {
+            result: {
+              count: 0,
+              estimates: [],
+              message: `No client found matching "${args.clientName}". Please check the client name and try again.`,
+            },
+          };
         }
       }
       if (args.projectId) {
@@ -789,6 +800,19 @@ function executeToolCall(
       if (args.status) {
         filtered = filtered.filter((e: any) => e.status === args.status);
       }
+
+      // If client was specified but no estimates found, provide helpful message
+      if (clientFound && filtered.length === 0) {
+        return {
+          result: {
+            count: 0,
+            estimates: [],
+            clientName: clientFound.name,
+            message: `${clientFound.name} doesn't have any estimates yet. Would you like me to create one?`,
+          },
+        };
+      }
+
       return {
         result: {
           count: filtered.length,
@@ -798,8 +822,9 @@ function executeToolCall(
             total: e.total,
             status: e.status,
             createdDate: e.createdDate,
-            projectId: e.projectId,
+            clientId: e.clientId,
           })),
+          clientName: clientFound?.name,
         },
       };
     }
