@@ -7,7 +7,6 @@ import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData } from '@/types';
-import { generateText } from '@rork-ai/toolkit-sdk';
 
 
 export default function DashboardScreen() {
@@ -115,18 +114,24 @@ export default function DashboardScreen() {
         };
       });
 
-      const dataContext = JSON.stringify(projectsData, null, 2);
+      // Call the AI report generation API
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/generate-ai-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: aiReportPrompt,
+          projectsData,
+        }),
+      });
 
-      const aiPrompt = `You are generating a custom construction project report based on user requirements.
+      const result = await response.json();
 
-User Request: ${aiReportPrompt}
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to generate AI report');
+      }
 
-Project Data:
-${dataContext}
-
-Generate a detailed report based on the user's request. Format it in a clear, professional manner with sections, bullet points, and summaries as appropriate. Include relevant metrics, insights, and recommendations.`;
-
-      const generatedReport = await generateText(aiPrompt);
+      const generatedReport = result.report;
 
       const report: Report = {
         id: `report-${Date.now()}`,
