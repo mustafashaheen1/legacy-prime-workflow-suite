@@ -275,7 +275,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load estimates
           try {
-            const estimatesResponse = await fetch(`${baseUrl}/api/get-estimates`);
+            const estimatesResponse = await fetch(`${baseUrl}/api/get-estimates?companyId=${company.id}`);
             if (estimatesResponse.ok) {
               const estimatesData = await estimatesResponse.json();
               if (estimatesData.success && estimatesData.estimates) {
@@ -887,10 +887,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [refreshClients]);
 
   const refreshEstimates = useCallback(async () => {
+    if (!company?.id) {
+      console.log('[App] ⚠️ Cannot refresh estimates - no company ID');
+      return;
+    }
+
     console.log('[App] 🔄 Refreshing estimates...');
     try {
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const response = await fetch(`${baseUrl}/api/get-estimates`);
+      const response = await fetch(`${baseUrl}/api/get-estimates?companyId=${company.id}`);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -908,7 +913,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     } catch (error) {
       console.error('[App] ❌ Error refreshing estimates:', error);
     }
-  }, []);
+  }, [company?.id]);
 
   const addExpense = useCallback(async (expense: Expense) => {
     // Optimistically update UI

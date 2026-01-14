@@ -297,7 +297,12 @@ function useOpenAIChat(appData: {
     }
   };
 
-  return { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction };
+  // Function to add a message from outside the hook (e.g., for estimate links)
+  const addMessage = (message: any) => {
+    setMessages(prev => [...prev, message]);
+  };
+
+  return { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage };
 }
 
 export default function GlobalAIChatSimple({ currentPageContext, inline = false }: GlobalAIChatProps) {
@@ -323,6 +328,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
   const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
   const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
+  const isProcessingActionRef = useRef<boolean>(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -365,7 +371,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const fullPriceList = [...masterPriceList, ...customPriceListItems];
 
   // Pass all business data to AI assistant for complete data-aware responses
-  const { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction } = useOpenAIChat({
+  const { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage } = useOpenAIChat({
     projects,
     clients,
     expenses,
@@ -391,6 +397,13 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   useEffect(() => {
     const handlePendingAction = async () => {
       if (!pendingAction) return;
+
+      // Prevent duplicate processing if already handling an action
+      if (isProcessingActionRef.current) {
+        console.log('[AI Action] Already processing, skipping duplicate:', pendingAction.type);
+        return;
+      }
+      isProcessingActionRef.current = true;
 
       console.log('[AI Action] Handling action:', pendingAction.type);
       setIsProcessingAction(true);
@@ -544,7 +557,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                       label: 'View Estimate',
                     },
                   };
-                  setMessages(prev => [...prev, linkMessage]);
+                  addMessage(linkMessage);
                 } else {
                   const errorData = await saveResponse.json();
                   console.error('[AI Action] Failed to save estimate:', errorData.error);
@@ -563,7 +576,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                       label: 'View Estimate',
                     },
                   };
-                  setMessages(prev => [...prev, linkMessage]);
+                  addMessage(linkMessage);
                 }
               } catch (error) {
                 console.error('[AI Action] Error generating estimate:', error);
@@ -599,7 +612,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                     label: 'View Estimate',
                   },
                 };
-                setMessages(prev => [...prev, linkMessage]);
+                addMessage(linkMessage);
               }
             }
             break;
@@ -681,6 +694,7 @@ Generate appropriate line items from the price list that fit this scope of work$
         console.error('[AI Action] Error handling action:', error);
       } finally {
         setIsProcessingAction(false);
+        isProcessingActionRef.current = false;
         clearPendingAction();
       }
     };
@@ -828,15 +842,28 @@ Generate appropriate line items from the price list that fit this scope of work$
     }
   }, [messages, isConversationMode, isSpeaking, isRecording]);
 
-  // Scroll to bottom when history finishes loading
+  // Scroll to bottom when history finishes loading or when chat opens
   useEffect(() => {
     if (!isLoadingHistory && messages.length > 0) {
       // Use a longer delay to ensure content is fully rendered after history load
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: false });
       }, 300);
+      // Double-check scroll after a longer delay for slower renders
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: false });
+      }, 600);
     }
-  }, [isLoadingHistory]);
+  }, [isLoadingHistory, messages.length]);
+
+  // Scroll to bottom when modal opens
+  useEffect(() => {
+    if (isOpen && messages.length > 0 && !isLoadingHistory) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: false });
+      }, 100);
+    }
+  }, [isOpen]);
 
   // Load and cache preferred voice on mount
   useEffect(() => {
