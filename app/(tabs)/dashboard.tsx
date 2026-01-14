@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles } from 'lucide-react-native';
 import { Image } from 'expo-image';
@@ -33,6 +33,8 @@ export default function DashboardScreen() {
   const [isGeneratingAI, setIsGeneratingAI] = useState<boolean>(false);
   const [showSearch, setShowSearch] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
+  const [reportGenerationProgress, setReportGenerationProgress] = useState<{ current: number; total: number; projectName: string }>({ current: 0, total: 0, projectName: '' });
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
@@ -163,27 +165,47 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
     }
   };
 
-  const handleReportRequest = (selectionType: 'all' | 'selected') => {
+  const handleReportRequest = async (selectionType: 'all' | 'selected') => {
     if (selectionType === 'selected' && selectedProjects.length === 0) {
       Alert.alert('No Projects Selected', 'Please select at least one project to generate a report.');
       return;
     }
 
-    const projectsToReport = selectionType === 'all' 
-      ? activeProjects 
+    const projectsToReport = selectionType === 'all'
+      ? activeProjects
       : activeProjects.filter(p => selectedProjects.includes(p.id));
 
+    if (projectsToReport.length === 0) {
+      Alert.alert('No Projects', 'There are no active projects to generate a report for.');
+      return;
+    }
+
+    // Start loading state
+    setIsGeneratingReport(true);
+    setReportGenerationProgress({ current: 0, total: projectsToReport.length, projectName: 'Initializing...' });
+
+    // Small delay to show loading state
+    await new Promise(resolve => setTimeout(resolve, 300));
+
     if (reportType === 'expenses') {
-      const projectsExpensesData = projectsToReport.map(project => {
+      const projectsExpensesData = [];
+
+      for (let i = 0; i < projectsToReport.length; i++) {
+        const project = projectsToReport[i];
+        setReportGenerationProgress({ current: i + 1, total: projectsToReport.length, projectName: project.name });
+
+        // Small delay to show progress for each project
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const projectExpenses = expenses.filter(e => e.projectId === project.id);
-        
+
         const expensesByCategory: { [category: string]: number } = {};
         projectExpenses.forEach(expense => {
           const category = expense.type || 'Uncategorized';
           expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
         });
 
-        return {
+        projectsExpensesData.push({
           projectId: project.id,
           projectName: project.name,
           budget: project.budget,
@@ -195,8 +217,8 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
           startDate: project.startDate,
           endDate: project.endDate,
           expensesByCategory,
-        };
-      });
+        });
+      }
 
       const overallExpensesByCategory: { [category: string]: number } = {};
       projectsExpensesData.forEach(project => {
@@ -217,62 +239,63 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
         expensesByCategory: overallExpensesByCategory,
       };
 
-      addReport(report);
+      await addReport(report);
 
       console.log('[Report] Generating expenses breakdown report for projects:', projectsToReport.map(p => p.name));
-      console.log('[Report] Report includes:');
-      console.log(`  - ${projectsToReport.length} projects`);
-      console.log(`  - Total Expenses: ${report.totalExpenses?.toLocaleString()}`);
-      console.log(`  - Categories:`, Object.keys(overallExpensesByCategory).join(', '));
 
-      Alert.alert(
-        'Report Generated',
-        `Expenses report saved successfully. ${projectsToReport.length} project(s) included.`,
-        [{ text: 'OK', onPress: () => {
-          setShowReportMenu(false);
-          setShowReportTypeMenu(false);
-          setIsSelectMode(false);
-          setSelectedProjects([]);
-        }}]
-      );
+      // Reset state and navigate
+      setIsGeneratingReport(false);
+      setShowReportMenu(false);
+      setShowReportTypeMenu(false);
+      setIsSelectMode(false);
+      setSelectedProjects([]);
+      router.push('/reports' as any);
       return;
     }
 
     if (reportType === 'time-tracking') {
-      const allClockEntries = clockEntries.filter(entry => 
-        projectsToReport.some(p => p.id === entry.projectId)
-      );
+      setReportGenerationProgress({ current: 0, total: projectsToReport.length, projectName: 'Processing clock entries...' });
 
       const employeeDataMap: { [employeeId: string]: any } = {};
-      
-      allClockEntries.forEach(entry => {
-        if (!employeeDataMap[entry.employeeId]) {
-          employeeDataMap[entry.employeeId] = {
-            employeeId: entry.employeeId,
-            employeeName: `Employee ${entry.employeeId.slice(0, 8)}`,
-            totalHours: 0,
-            regularHours: 0,
-            overtimeHours: 0,
-            totalDays: 0,
-            averageHoursPerDay: 0,
-            clockEntries: [],
-          };
-        }
 
-        if (entry.clockOut) {
-          const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
-          employeeDataMap[entry.employeeId].totalHours += hours;
-          
-          if (hours > 8) {
-            employeeDataMap[entry.employeeId].regularHours += 8;
-            employeeDataMap[entry.employeeId].overtimeHours += (hours - 8);
-          } else {
-            employeeDataMap[entry.employeeId].regularHours += hours;
+      for (let i = 0; i < projectsToReport.length; i++) {
+        const project = projectsToReport[i];
+        setReportGenerationProgress({ current: i + 1, total: projectsToReport.length, projectName: project.name });
+
+        // Small delay to show progress
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const projectClockEntries = clockEntries.filter(entry => entry.projectId === project.id);
+
+        projectClockEntries.forEach(entry => {
+          if (!employeeDataMap[entry.employeeId]) {
+            employeeDataMap[entry.employeeId] = {
+              employeeId: entry.employeeId,
+              employeeName: `Employee ${entry.employeeId.slice(0, 8)}`,
+              totalHours: 0,
+              regularHours: 0,
+              overtimeHours: 0,
+              totalDays: 0,
+              averageHoursPerDay: 0,
+              clockEntries: [],
+            };
           }
-          
-          employeeDataMap[entry.employeeId].clockEntries.push(entry);
-        }
-      });
+
+          if (entry.clockOut) {
+            const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
+            employeeDataMap[entry.employeeId].totalHours += hours;
+
+            if (hours > 8) {
+              employeeDataMap[entry.employeeId].regularHours += 8;
+              employeeDataMap[entry.employeeId].overtimeHours += (hours - 8);
+            } else {
+              employeeDataMap[entry.employeeId].regularHours += hours;
+            }
+
+            employeeDataMap[entry.employeeId].clockEntries.push(entry);
+          }
+        });
+      }
 
       const employeeData = Object.values(employeeDataMap).map((emp: any) => ({
         ...emp,
@@ -292,40 +315,44 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
         employeeIds: employeeData.map(emp => emp.employeeId),
       };
 
-      addReport(report);
+      await addReport(report);
 
       console.log('[Report] Generating time tracking report for projects:', projectsToReport.map(p => p.name));
-      console.log('[Report] Report includes:');
-      console.log(`  - ${projectsToReport.length} projects`);
-      console.log(`  - ${employeeData.length} employees`);
-      console.log(`  - Total Hours: ${report.totalHours?.toFixed(2)}`);
 
-      Alert.alert(
-        'Report Generated',
-        `Time tracking report saved successfully. ${employeeData.length} employee(s), ${report.totalHours?.toFixed(2)} total hours.`,
-        [{ text: 'OK', onPress: () => {
-          setShowReportMenu(false);
-          setShowReportTypeMenu(false);
-          setIsSelectMode(false);
-          setSelectedProjects([]);
-        }}]
-      );
+      // Reset state and navigate
+      setIsGeneratingReport(false);
+      setShowReportMenu(false);
+      setShowReportTypeMenu(false);
+      setIsSelectMode(false);
+      setSelectedProjects([]);
+      router.push('/reports' as any);
       return;
     }
 
     if (reportType === 'daily-logs') {
-      const projectDailyLogs = projectsToReport.map(project => {
+      const projectDailyLogs = [];
+
+      for (let i = 0; i < projectsToReport.length; i++) {
+        const project = projectsToReport[i];
+        setReportGenerationProgress({ current: i + 1, total: projectsToReport.length, projectName: project.name });
+
+        // Small delay to show progress
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const logs = Array.isArray(dailyLogs) ? dailyLogs.filter(log => log.projectId === project.id) : [];
-        return {
-          projectId: project.id,
-          projectName: project.name,
-          logs: logs,
-        };
-      }).filter(p => p.logs.length > 0);
+        if (logs.length > 0) {
+          projectDailyLogs.push({
+            projectId: project.id,
+            projectName: project.name,
+            logs: logs,
+          });
+        }
+      }
 
       const totalLogs = projectDailyLogs.reduce((sum, p) => sum + p.logs.length, 0);
 
       if (totalLogs === 0) {
+        setIsGeneratingReport(false);
         Alert.alert('No Daily Logs', 'The selected project(s) have no daily logs to export.');
         return;
       }
@@ -340,42 +367,39 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
         notes: JSON.stringify({ dailyLogs: projectDailyLogs }),
       };
 
-      addReport(report);
+      await addReport(report);
 
       console.log('[Report] Generating daily logs report for projects:', projectsToReport.map(p => p.name));
-      console.log('[Report] Report includes:');
-      console.log(`  - ${projectsToReport.length} projects`);
-      console.log(`  - ${totalLogs} daily logs`);
-      
-      projectDailyLogs.forEach(project => {
-        console.log(`\n[Report] ${project.projectName}:`);
-        console.log(`  Daily Logs: ${project.logs.length}`);
-      });
 
-      Alert.alert(
-        'Report Generated',
-        `Daily logs report saved successfully. ${totalLogs} log(s) from ${projectDailyLogs.length} project(s) included.`,
-        [{ text: 'OK', onPress: () => {
-          setShowReportMenu(false);
-          setShowReportTypeMenu(false);
-          setIsSelectMode(false);
-          setSelectedProjects([]);
-        }}]
-      );
+      // Reset state and navigate
+      setIsGeneratingReport(false);
+      setShowReportMenu(false);
+      setShowReportTypeMenu(false);
+      setIsSelectMode(false);
+      setSelectedProjects([]);
+      router.push('/reports' as any);
       return;
     }
 
-    const projectsData: ProjectReportData[] = projectsToReport.map(project => {
+    const projectsData: ProjectReportData[] = [];
+
+    for (let i = 0; i < projectsToReport.length; i++) {
+      const project = projectsToReport[i];
+      setReportGenerationProgress({ current: i + 1, total: projectsToReport.length, projectName: project.name });
+
+      // Small delay to show progress
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const projectExpenses = expenses.filter(e => e.projectId === project.id);
       const projectClockEntries = clockEntries.filter(c => c.projectId === project.id);
-      
+
       const expensesByCategory: { [category: string]: number } = {};
       projectExpenses.forEach(expense => {
         const category = expense.type || 'Uncategorized';
         expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
       });
 
-      return {
+      projectsData.push({
         projectId: project.id,
         projectName: project.name,
         budget: project.budget,
@@ -387,8 +411,8 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
         startDate: project.startDate,
         endDate: project.endDate,
         expensesByCategory,
-      };
-    });
+      });
+    }
 
     const report: Report = {
       id: `report-${Date.now()}`,
@@ -403,34 +427,17 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
       projects: projectsData,
     };
 
-    addReport(report);
+    await addReport(report);
 
     console.log('[Report] Generating administrative report for projects:', projectsToReport.map(p => p.name));
-    console.log('[Report] Report includes:');
-    console.log(`  - ${projectsToReport.length} projects`);
-    console.log(`  - Total Budget: ${report.totalBudget?.toLocaleString()}`);
-    console.log(`  - Total Expenses: ${report.totalExpenses?.toLocaleString()}`);
-    console.log(`  - Total Hours: ${report.totalHours}`);
-    
-    projectsData.forEach(project => {
-      console.log(`\n[Report] ${project.projectName}:`);
-      console.log(`  Budget: ${project.budget.toLocaleString()}`);
-      console.log(`  Expenses: ${project.expenses.toLocaleString()}`);
-      console.log(`  Hours Worked: ${project.hoursWorked}`);
-      console.log(`  Clock Entries: ${project.clockEntries}`);
-      console.log(`  Status: ${project.status}`);
-    });
 
-    Alert.alert(
-      'Report Generated',
-      `Administrative report saved successfully. ${projectsToReport.length} project(s) included.`,
-      [{ text: 'OK', onPress: () => {
-        setShowReportMenu(false);
-        setShowReportTypeMenu(false);
-        setIsSelectMode(false);
-        setSelectedProjects([]);
-      }}]
-    );
+    // Reset state and navigate
+    setIsGeneratingReport(false);
+    setShowReportMenu(false);
+    setShowReportTypeMenu(false);
+    setIsSelectMode(false);
+    setSelectedProjects([]);
+    router.push('/reports' as any);
   };
 
   const toggleProjectSelection = (projectId: string) => {
@@ -666,6 +673,32 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                   </Text>
                 </TouchableOpacity>
               )}
+            </View>
+          </View>
+        )}
+
+        {/* Report Generation Loading Overlay */}
+        {isGeneratingReport && (
+          <View style={styles.reportLoadingOverlay}>
+            <View style={styles.reportLoadingCard}>
+              <ActivityIndicator size="large" color="#2563EB" />
+              <Text style={styles.reportLoadingTitle}>Generating Report</Text>
+              <Text style={styles.reportLoadingProgress}>
+                Processing {reportGenerationProgress.current} of {reportGenerationProgress.total} projects
+              </Text>
+              <Text style={styles.reportLoadingProject}>
+                {reportGenerationProgress.projectName}
+              </Text>
+              <View style={styles.reportLoadingProgressBar}>
+                <View
+                  style={[
+                    styles.reportLoadingProgressFill,
+                    {
+                      width: `${reportGenerationProgress.total > 0 ? (reportGenerationProgress.current / reportGenerationProgress.total) * 100 : 0}%`,
+                    },
+                  ]}
+                />
+              </View>
             </View>
           </View>
         )}
@@ -1145,6 +1178,61 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F3F4F6',
+  },
+  reportLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  reportLoadingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    minWidth: 280,
+    maxWidth: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  reportLoadingTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  reportLoadingProgress: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  reportLoadingProject: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  reportLoadingProgressBar: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  reportLoadingProgressFill: {
+    height: '100%',
+    backgroundColor: '#2563EB',
+    borderRadius: 4,
   },
   scrollView: {
     flex: 1,
