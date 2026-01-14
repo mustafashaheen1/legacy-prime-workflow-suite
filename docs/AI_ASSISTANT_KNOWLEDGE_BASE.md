@@ -109,6 +109,7 @@ These operations MODIFY data and require explicit user confirmation:
 |------|-------------|-----------------|-----------------|
 | `add_client` | Add new client | name, (email OR phone) | address, source |
 | `generate_estimate` | Create estimate | clientId, name | budget, description |
+| `send_estimate` | Send estimate via email (PDF) | clientName | estimateId |
 | `set_followup` | Set follow-up date | clientId, date | notes |
 | `send_inspection_link` | Send inspection link | clientId | message |
 | `request_payment` | Request payment | estimateId, amount | message |
@@ -233,6 +234,50 @@ User: "I'm talking to a client about a $5000 bathroom job"
 AI: "Would you like me to create an estimate for this bathroom renovation?"
 User: "Yes"
 AI: "Which client is this for?"
+```
+
+### 5.4 Sending Estimates
+
+**Process:**
+1. If user says "send THIS estimate" or "send it" after creating/discussing an estimate, use that estimate's ID directly
+2. If context is unclear or user says "send estimate to [client]":
+   - If client has 1 estimate: send it directly
+   - If client has multiple estimates: list them and ask which one to send
+3. Generate PDF from estimate
+4. Open mail client with PDF attached
+5. If client has email on file, pre-fill recipient; otherwise mail client opens empty
+6. Update estimate status to "sent"
+
+**Email Handling:**
+- Only mention client's email in responses if they have one on file
+- If client has no email, still proceed - user can input email in the mail client
+
+**Example Flows:**
+
+```
+SCENARIO 1 - Just created (client has email):
+User: "Create a $50k kitchen estimate for Sarah"
+AI: "Created Kitchen Estimate for Sarah - $50,000"
+User: "Send it to her"
+AI: "Opening email to send Kitchen Estimate to sarah@email.com"
+[Mail client opens with PDF attached]
+
+SCENARIO 2 - Just created (client has NO email):
+User: "Create a $50k kitchen estimate for Tom"
+AI: "Created Kitchen Estimate for Tom - $50,000"
+User: "Send it to him"
+AI: "Opening email to send Kitchen Estimate"
+[Mail client opens - user can input Tom's email manually]
+
+SCENARIO 3 - Multiple estimates:
+User: "Send an estimate to Sarah"
+AI: "Sarah has 3 estimates:
+     1. Kitchen Remodel - $50,000 (draft)
+     2. Bathroom - $20,000 (draft)
+     3. Deck - $15,000 (sent)
+     Which one would you like to send?"
+User: "The kitchen one"
+AI: "Opening email to send Kitchen Remodel to sarah@email.com"
 ```
 
 ---
@@ -422,6 +467,7 @@ AI: Sarah has been successfully added to your CRM with ID: client-12345
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2024-01-14 | Initial knowledge base creation |
+| 1.1 | 2025-01-14 | Added send_estimate action and section 5.4 |
 
 ---
 

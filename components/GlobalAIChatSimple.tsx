@@ -7,10 +7,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useState, useRef, useEffect, useCallback } from 'react';
 // Removed Rork AI dependency - using OpenAI directly
 import { Audio } from 'expo-av';
-import { usePathname } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 // Removed tRPC dependency - using OpenAI API directly
 import { masterPriceList } from '@/mocks/priceList';
+import { sendEstimate } from '@/utils/sendEstimate';
 import { mockPhotos } from '@/mocks/data';
 
 interface GlobalAIChatProps {
@@ -329,6 +330,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const voicesLoadedRef = useRef<boolean>(false);
   const previousMessageCountRef = useRef<number>(0);
   const pathname = usePathname();
+  const router = useRouter();
   const isOnChatScreen = pathname === '/chat';
   const isOnAuthScreen = pathname?.includes('/login') || pathname?.includes('/subscription') || pathname?.includes('/signup');
   const { user } = useApp();
@@ -344,6 +346,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     company,
     estimates,
     updateClient,
+    updateEstimate,
     addReport,
     addClient,
     addProject,
@@ -528,11 +531,39 @@ Generate appropriate line items from the price list that fit this scope of work$
                   // Refresh estimates from database to ensure proper data sync
                   await refreshEstimates();
                   console.log('[AI Action] Estimate saved to database:', estimateId, 'with', generatedItems.length, 'items, Client ID:', clientId);
+
+                  // Add follow-up message with link to the estimate
+                  const linkMessage = {
+                    id: `msg-${Date.now()}-link`,
+                    role: 'assistant',
+                    text: `You can view the estimate here`,
+                    parts: [{ type: 'text', text: `You can view the estimate here` }],
+                    estimateLink: {
+                      estimateId: estimateId,
+                      clientId: clientId,
+                      label: 'View Estimate',
+                    },
+                  };
+                  setMessages(prev => [...prev, linkMessage]);
                 } else {
                   const errorData = await saveResponse.json();
                   console.error('[AI Action] Failed to save estimate:', errorData.error);
                   // Still add to local state so user sees it
                   addEstimate(newEstimate);
+
+                  // Add link message even if API failed (estimate still created locally)
+                  const linkMessage = {
+                    id: `msg-${Date.now()}-link`,
+                    role: 'assistant',
+                    text: `You can view the estimate here`,
+                    parts: [{ type: 'text', text: `You can view the estimate here` }],
+                    estimateLink: {
+                      estimateId: estimateId,
+                      clientId: clientId,
+                      label: 'View Estimate',
+                    },
+                  };
+                  setMessages(prev => [...prev, linkMessage]);
                 }
               } catch (error) {
                 console.error('[AI Action] Error generating estimate:', error);
@@ -540,9 +571,9 @@ Generate appropriate line items from the price list that fit this scope of work$
                 const fallbackItems = getDefaultEstimateItems(projectType || 'General', budget || 0, masterPriceList);
                 const subtotal = fallbackItems.reduce((sum: number, item: any) => sum + item.total, 0);
                 const taxRate = 0.08;
-                const estimateId = `estimate-${Date.now()}`;
+                const fallbackEstimateId = `estimate-${Date.now()}`;
                 const newEstimate = {
-                  id: estimateId,
+                  id: fallbackEstimateId,
                   clientId: clientId,
                   name: `${projectType} Estimate - ${clientName}`,
                   items: fallbackItems,
@@ -554,7 +585,45 @@ Generate appropriate line items from the price list that fit this scope of work$
                   status: 'draft' as const,
                 };
                 addEstimate(newEstimate);
-                console.log('[AI Action] Fallback estimate created:', estimateId);
+                console.log('[AI Action] Fallback estimate created:', fallbackEstimateId);
+
+                // Add link message for fallback estimate
+                const linkMessage = {
+                  id: `msg-${Date.now()}-link`,
+                  role: 'assistant',
+                  text: `You can view the estimate here`,
+                  parts: [{ type: 'text', text: `You can view the estimate here` }],
+                  estimateLink: {
+                    estimateId: fallbackEstimateId,
+                    clientId: clientId,
+                    label: 'View Estimate',
+                  },
+                };
+                setMessages(prev => [...prev, linkMessage]);
+              }
+            }
+            break;
+
+          case 'send_estimate':
+            // Send estimate via email - generates PDF and opens mail client
+            if (pendingAction.data) {
+              const { estimateId, clientId } = pendingAction.data;
+              console.log('[AI Action] Sending estimate:', estimateId);
+
+              try {
+                await sendEstimate({
+                  estimateId,
+                  estimates,
+                  clients,
+                  projects,
+                  company,
+                  customPriceListItems,
+                  updateEstimate,
+                  clientId,
+                });
+                console.log('[AI Action] Estimate send initiated successfully');
+              } catch (error) {
+                console.error('[AI Action] Error sending estimate:', error);
               }
             }
             break;
@@ -758,6 +827,16 @@ Generate appropriate line items from the price list that fit this scope of work$
       }
     }
   }, [messages, isConversationMode, isSpeaking, isRecording]);
+
+  // Scroll to bottom when history finishes loading
+  useEffect(() => {
+    if (!isLoadingHistory && messages.length > 0) {
+      // Use a longer delay to ensure content is fully rendered after history load
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: false });
+      }, 300);
+    }
+  }, [isLoadingHistory]);
 
   // Load and cache preferred voice on mount
   useEffect(() => {
@@ -1640,8 +1719,22 @@ Generate appropriate line items from the price list that fit this scope of work$
                       <View style={message.role === 'user' ? styles.userMessage : styles.assistantMessage}>
                         <Text style={message.role === 'user' ? styles.userMessageText : styles.assistantMessageText} selectable>
                           {part.text}
+                          {/* Render estimate link if present */}
+                          {message.estimateLink && (
+                            <>
+                              {' '}
+                              <Text
+                                style={{ color: '#2563EB', textDecorationLine: 'underline', fontWeight: '600' }}
+                                onPress={() => {
+                                  router.push(`/project/new/estimate?clientId=${message.estimateLink.clientId}&estimateId=${message.estimateLink.estimateId}`);
+                                }}
+                              >
+                                {message.estimateLink.label || 'here'}
+                              </Text>
+                            </>
+                          )}
                         </Text>
-                        {message.role === 'assistant' && (
+                        {message.role === 'assistant' && !message.estimateLink && (
                           <View style={styles.messageActions}>
                             <TouchableOpacity
                               style={styles.speakButton}
@@ -1941,8 +2034,22 @@ Generate appropriate line items from the price list that fit this scope of work$
                           <View style={message.role === 'user' ? styles.userMessage : styles.assistantMessage}>
                             <Text style={message.role === 'user' ? styles.userMessageText : styles.assistantMessageText} selectable>
                               {part.text}
+                              {/* Render estimate link if present */}
+                              {message.estimateLink && (
+                                <>
+                                  {' '}
+                                  <Text
+                                    style={{ color: '#2563EB', textDecorationLine: 'underline', fontWeight: '600' }}
+                                    onPress={() => {
+                                      router.push(`/project/new/estimate?clientId=${message.estimateLink.clientId}&estimateId=${message.estimateLink.estimateId}`);
+                                    }}
+                                  >
+                                    {message.estimateLink.label || 'here'}
+                                  </Text>
+                                </>
+                              )}
                             </Text>
-                            {message.role === 'assistant' && (
+                            {message.role === 'assistant' && !message.estimateLink && (
                               <View style={styles.messageActions}>
                                 <TouchableOpacity
                                   style={styles.speakButton}

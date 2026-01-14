@@ -260,6 +260,27 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'send_estimate',
+      description: 'Send an estimate to a client via email. Generates a PDF and opens the mail client. If estimateId is not provided and client has multiple estimates, will list them for selection.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: {
+            type: 'string',
+            description: 'The name of the client to send the estimate to',
+          },
+          estimateId: {
+            type: 'string',
+            description: 'The specific estimate ID to send. If not provided, will use the most recent or ask user to choose.',
+          },
+        },
+        required: ['clientName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_summary',
       description: 'Get a business summary/overview of projects, clients, or financials.',
       parameters: {
@@ -632,6 +653,24 @@ If user corrects or changes the client name mid-conversation:
 1. Which client is this for?
 2. What type of project?
 3. What is the budget?
+
+## SENDING ESTIMATES
+
+**Context Awareness:**
+- When user says "send THIS estimate" or "send it", refer to the estimate you just created or discussed
+- If estimate ID is known from recent context, use it directly
+- Only ask "which estimate?" if there are multiple and context is unclear
+
+**Email Handling:**
+- Only mention client's email in responses if they actually have one on file
+- If client has no email, still proceed with sending - mail client will open and user can input email manually
+- Do NOT say "to client@email.com" if the client has no email address
+
+**Process:**
+1. If user says "send this estimate" after creating one, use that estimate's ID
+2. If context unclear and client has 1 estimate, send it
+3. If context unclear and client has multiple estimates, list them and ask
+4. Generate PDF and open mail client
 
 ## CONTEXT EXAMPLES
 
@@ -1136,6 +1175,62 @@ function executeToolCall(
           projectType: args.projectType,
           budget: args.budget,
           description: args.description,
+        },
+      };
+    }
+
+    case 'send_estimate': {
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
+      );
+      if (!client) {
+        return { result: { error: `Client not found: ${args.clientName}` } };
+      }
+
+      // Get client's estimates
+      const clientEstimates = estimates.filter((e: any) => e.clientId === client.id);
+
+      if (clientEstimates.length === 0) {
+        return { result: { error: `${client.name} has no estimates. Would you like me to create one?` } };
+      }
+
+      // If specific estimateId provided, send that one
+      if (args.estimateId) {
+        const estimate = clientEstimates.find((e: any) => e.id === args.estimateId);
+        if (!estimate) {
+          return { result: { error: 'Estimate not found' } };
+        }
+        // Only include email in message if client has one
+        const emailInfo = client.email ? ` to ${client.email}` : '';
+        return {
+          result: { message: `Opening email to send "${estimate.name}"${emailInfo}` },
+          actionRequired: 'send_estimate',
+          actionData: { estimateId: estimate.id, clientId: client.id, clientEmail: client.email || '' },
+        };
+      }
+
+      // If only 1 estimate, send it
+      if (clientEstimates.length === 1) {
+        const emailInfo = client.email ? ` to ${client.email}` : '';
+        return {
+          result: { message: `Opening email to send "${clientEstimates[0].name}"${emailInfo}` },
+          actionRequired: 'send_estimate',
+          actionData: { estimateId: clientEstimates[0].id, clientId: client.id, clientEmail: client.email || '' },
+        };
+      }
+
+      // Multiple estimates - list them for user to choose
+      return {
+        result: {
+          message: `${client.name} has ${clientEstimates.length} estimates. Which one would you like to send?`,
+          estimates: clientEstimates.map((e: any, i: number) => ({
+            number: i + 1,
+            id: e.id,
+            name: e.name,
+            total: e.total,
+            status: e.status,
+          })),
         },
       };
     }
