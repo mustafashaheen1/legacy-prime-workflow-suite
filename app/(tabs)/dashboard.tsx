@@ -31,6 +31,7 @@ export default function DashboardScreen() {
   const [showAICustomModal, setShowAICustomModal] = useState<boolean>(false);
   const [aiReportPrompt, setAiReportPrompt] = useState<string>('');
   const [isGeneratingAI, setIsGeneratingAI] = useState<boolean>(false);
+  const [showProjectPicker, setShowProjectPicker] = useState<boolean>(false);
   const [showSearch, setShowSearch] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
@@ -145,6 +146,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
             setIsSelectMode(false);
             setSelectedProjects([]);
             setAiReportPrompt('');
+            setShowProjectPicker(false);
             router.push('/reports' as any);
           }},
           { text: 'Stay Here', onPress: () => {
@@ -154,6 +156,7 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
             setIsSelectMode(false);
             setSelectedProjects([]);
             setAiReportPrompt('');
+            setShowProjectPicker(false);
           }}
         ]
       );
@@ -677,32 +680,6 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
           </View>
         )}
 
-        {/* Report Generation Loading Overlay */}
-        {isGeneratingReport && (
-          <View style={styles.reportLoadingOverlay}>
-            <View style={styles.reportLoadingCard}>
-              <ActivityIndicator size="large" color="#2563EB" />
-              <Text style={styles.reportLoadingTitle}>Generating Report</Text>
-              <Text style={styles.reportLoadingProgress}>
-                Processing {reportGenerationProgress.current} of {reportGenerationProgress.total} projects
-              </Text>
-              <Text style={styles.reportLoadingProject}>
-                {reportGenerationProgress.projectName}
-              </Text>
-              <View style={styles.reportLoadingProgressBar}>
-                <View
-                  style={[
-                    styles.reportLoadingProgressFill,
-                    {
-                      width: `${reportGenerationProgress.total > 0 ? (reportGenerationProgress.current / reportGenerationProgress.total) * 100 : 0}%`,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          </View>
-        )}
-
         {displayProjects.length === 0 ? (
           <View style={styles.emptyState}>
             <Archive size={48} color="#9CA3AF" />
@@ -1068,7 +1045,11 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
         visible={showAICustomModal}
         animationType="slide"
         transparent
-        onRequestClose={() => setShowAICustomModal(false)}
+        onRequestClose={() => {
+          setShowAICustomModal(false);
+          setShowProjectPicker(false);
+          setSelectedProjects([]);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.aiModalContent}>
@@ -1080,6 +1061,8 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
               <TouchableOpacity onPress={() => {
                 setShowAICustomModal(false);
                 setAiReportPrompt('');
+                setShowProjectPicker(false);
+                setSelectedProjects([]);
               }}>
                 <X size={24} color="#6B7280" />
               </TouchableOpacity>
@@ -1137,28 +1120,83 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                   <TouchableOpacity
                     style={styles.aiSecondaryButton}
                     onPress={() => {
-                      setIsSelectMode(!isSelectMode);
-                      if (isSelectMode) {
+                      setShowProjectPicker(!showProjectPicker);
+                      if (showProjectPicker) {
                         setSelectedProjects([]);
                       }
                     }}
                   >
                     <Text style={styles.aiSecondaryButtonText}>
-                      {isSelectMode ? 'Cancel Selection' : 'Select Specific Projects'}
+                      {showProjectPicker ? 'Hide Projects' : 'Select Specific Projects'}
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={[styles.aiGenerateButton, isGeneratingAI && styles.aiGenerateButtonDisabled]}
-                    onPress={() => handleAIReportGeneration(isSelectMode && selectedProjects.length > 0 ? 'selected' : 'all')}
+                    onPress={() => handleAIReportGeneration(selectedProjects.length > 0 ? 'selected' : 'all')}
                     disabled={isGeneratingAI}
                   >
                     <Sparkles size={18} color="#FFFFFF" />
                     <Text style={styles.aiGenerateButtonText}>
-                      {isGeneratingAI ? 'Generating...' : `Generate Report ${isSelectMode && selectedProjects.length > 0 ? `(${selectedProjects.length} Projects)` : '(All Projects)'}`}
+                      {isGeneratingAI ? 'Generating...' : `Generate Report ${selectedProjects.length > 0 ? `(${selectedProjects.length} Projects)` : '(All Projects)'}`}
                     </Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* Project Picker List */}
+                {showProjectPicker && (
+                  <View style={styles.aiProjectPickerContainer}>
+                    <Text style={styles.aiProjectPickerTitle}>
+                      Select Projects ({selectedProjects.length} selected)
+                    </Text>
+                    <ScrollView style={styles.aiProjectPickerList} nestedScrollEnabled>
+                      {activeProjects.map(project => (
+                        <TouchableOpacity
+                          key={project.id}
+                          style={[
+                            styles.aiProjectPickerItem,
+                            selectedProjects.includes(project.id) && styles.aiProjectPickerItemSelected
+                          ]}
+                          onPress={() => {
+                            setSelectedProjects(prev =>
+                              prev.includes(project.id)
+                                ? prev.filter(id => id !== project.id)
+                                : [...prev, project.id]
+                            );
+                          }}
+                        >
+                          <View style={styles.aiProjectPickerCheckbox}>
+                            {selectedProjects.includes(project.id) ? (
+                              <CheckSquare size={20} color="#10B981" />
+                            ) : (
+                              <View style={styles.aiProjectPickerEmptyCheckbox} />
+                            )}
+                          </View>
+                          <View style={styles.aiProjectPickerInfo}>
+                            <Text style={styles.aiProjectPickerName}>{project.name}</Text>
+                            <Text style={styles.aiProjectPickerDetails}>
+                              Budget: ${project.budget.toLocaleString()} • {project.status}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    <TouchableOpacity
+                      style={styles.aiSelectAllButton}
+                      onPress={() => {
+                        if (selectedProjects.length === activeProjects.length) {
+                          setSelectedProjects([]);
+                        } else {
+                          setSelectedProjects(activeProjects.map(p => p.id));
+                        }
+                      }}
+                    >
+                      <Text style={styles.aiSelectAllButtonText}>
+                        {selectedProjects.length === activeProjects.length ? 'Deselect All' : 'Select All'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 
                 <View style={styles.aiHelpTextContainer}>
                   <Text style={styles.aiHelpText}>
@@ -1167,6 +1205,36 @@ Generate a detailed report based on the user's request. Format it in a clear, pr
                 </View>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Report Generation Loading Modal */}
+      <Modal
+        visible={isGeneratingReport}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.reportLoadingOverlay}>
+          <View style={styles.reportLoadingCard}>
+            <ActivityIndicator size="large" color="#2563EB" />
+            <Text style={styles.reportLoadingTitle}>Generating Report</Text>
+            <Text style={styles.reportLoadingProgress}>
+              Processing {reportGenerationProgress.current} of {reportGenerationProgress.total} projects
+            </Text>
+            <Text style={styles.reportLoadingProject}>
+              {reportGenerationProgress.projectName}
+            </Text>
+            <View style={styles.reportLoadingProgressBar}>
+              <View
+                style={[
+                  styles.reportLoadingProgressFill,
+                  {
+                    width: `${reportGenerationProgress.total > 0 ? (reportGenerationProgress.current / reportGenerationProgress.total) * 100 : 0}%`,
+                  },
+                ]}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -1180,15 +1248,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   reportLoadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
   },
   reportLoadingCard: {
     backgroundColor: '#FFFFFF',
@@ -1839,6 +1902,74 @@ const styles = StyleSheet.create({
     color: '#059669',
     textAlign: 'center',
     fontWeight: '600' as const,
+  },
+  aiProjectPickerContainer: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  aiProjectPickerTitle: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#374151',
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  aiProjectPickerList: {
+    maxHeight: 200,
+  },
+  aiProjectPickerItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  aiProjectPickerItemSelected: {
+    backgroundColor: '#ECFDF5',
+  },
+  aiProjectPickerCheckbox: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  aiProjectPickerEmptyCheckbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    borderRadius: 4,
+  },
+  aiProjectPickerInfo: {
+    flex: 1,
+  },
+  aiProjectPickerName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  aiProjectPickerDetails: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  aiSelectAllButton: {
+    padding: 12,
+    backgroundColor: '#F3F4F6',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    alignItems: 'center' as const,
+  },
+  aiSelectAllButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#2563EB',
   },
   searchContainer: {
     backgroundColor: '#FFFFFF',
