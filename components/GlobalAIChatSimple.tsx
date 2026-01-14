@@ -56,6 +56,69 @@ interface PendingAction {
   data: any;
 }
 
+// Helper function to generate default estimate items based on project type
+const getDefaultEstimateItems = (projectType: string, budget: number, priceList: any[]) => {
+  const projectTypeLower = projectType.toLowerCase();
+
+  // Map project types to relevant categories in the price list
+  const categoryMap: { [key: string]: string[] } = {
+    'bathroom': ['Bathroom', 'Plumbing', 'Tile'],
+    'kitchen': ['Kitchen', 'Appliances', 'Countertops', 'Cabinets'],
+    'painting': ['Paint', 'Drywall'],
+    'flooring': ['Flooring', 'Tile'],
+    'roofing': ['Roofing'],
+    'remodel': ['Pre-Construction', 'Demolition', 'Drywall', 'Paint'],
+    'renovation': ['Pre-Construction', 'Demolition', 'Drywall', 'Paint'],
+  };
+
+  // Find matching categories based on project type
+  let categories: string[] = [];
+  for (const [key, cats] of Object.entries(categoryMap)) {
+    if (projectTypeLower.includes(key)) {
+      categories = [...categories, ...cats];
+    }
+  }
+
+  // Default to general construction if no specific match
+  if (categories.length === 0) {
+    categories = ['Pre-Construction', 'General'];
+  }
+
+  // Remove duplicates
+  categories = [...new Set(categories)];
+
+  // Get items from matching categories
+  const matchingItems = priceList.filter((item: any) =>
+    categories.some(cat => item.category?.toLowerCase().includes(cat.toLowerCase()))
+  );
+
+  // Select items that fit within budget
+  const items: any[] = [];
+  let remainingBudget = budget * 0.85; // Leave 15% buffer for adjustments
+  const timestamp = Date.now();
+
+  for (const item of matchingItems) {
+    if (remainingBudget <= 0 || items.length >= 10) break;
+
+    const quantity = 1;
+    const total = item.unitPrice * quantity;
+
+    if (total <= remainingBudget && total > 0) {
+      items.push({
+        id: `item-${timestamp}-${items.length}`,
+        priceListItemId: item.id,
+        quantity,
+        unitPrice: item.unitPrice,
+        total,
+        notes: '',
+      });
+      remainingBudget -= total;
+    }
+  }
+
+  return items;
+};
+
 // Custom hook to replace Rork AI with direct OpenAI - now with app data awareness and persistent chat history
 function useOpenAIChat(appData: {
   projects: any[];
@@ -351,47 +414,145 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             break;
 
           case 'generate_estimate':
-            // Create estimate linked to client (no project created)
+            // Create estimate linked to client using OpenAI API to generate items
             if (addEstimate && pendingAction.data) {
               const { clientId, clientName, projectType, budget, description } = pendingAction.data;
 
-              // Create the estimate linked to the client
-              const estimateId = `estimate-${Date.now()}`;
-              const newEstimate = {
-                id: estimateId,
-                clientId: clientId,
-                name: `${projectType} Estimate - ${clientName}`,
-                items: [],
-                subtotal: budget || 0,
-                taxRate: 0,
-                taxAmount: 0,
-                total: budget || 0,
-                createdDate: new Date().toISOString(),
-                status: 'draft' as const,
-              };
-
               try {
+                // Build price list context for OpenAI (same format as estimate page)
+                const priceListContext = masterPriceList.map(item =>
+                  `${item.id}|${item.name}|${item.unit}|$${item.unitPrice}`
+                ).join('\n');
+
+                const systemPrompt = `You are a construction estimator. Your PRIMARY GOAL is to create estimates that FIT THE CUSTOMER'S BUDGET.
+
+Items (ID|Name|Unit|Price):
+${priceListContext}
+
+ABSOLUTE BUDGET CONSTRAINT (HIGHEST PRIORITY):
+- When a budget is specified, the final total MUST NOT exceed it by more than 10%
+- NEVER generate estimates that are 2x or 3x the stated budget
+- If budget is $5000, total must be $4500-$5500 MAX
+- Budget compliance is MORE IMPORTANT than including every possible item
+
+HOW TO FIT BUDGET:
+1. Start with ESSENTIAL items only (critical work, materials, labor)
+2. Use MINIMUM viable quantities
+3. Skip nice-to-have items if they push over budget
+4. Calculate running total as you add items
+5. Stop adding items when approaching budget limit
+
+CRITICAL - RESPONSE FORMAT:
+You MUST respond with ONLY a JSON object. NO explanations, NO questions, NO other text.
+Format: {"items": [{"priceListItemId":"item-id","quantity":1,"notes":"description"}]}
+
+ONLY use item IDs from the price list above. Do NOT invent new items.`;
+
+                const userPrompt = `Create an estimate for: ${projectType || 'General construction work'}
+${description ? `Description: ${description}` : ''}
+${budget ? `Budget: $${budget} (MUST stay within this amount)` : ''}
+
+Generate appropriate line items from the price list that fit this scope of work${budget ? ` and budget` : ''}.`;
+
+                // Call OpenAI API
+                const openaiResponse = await fetch('/api/generate-estimate-items', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    systemPrompt,
+                    userPrompt,
+                    priceList: masterPriceList,
+                    budget: budget || 0,
+                  }),
+                });
+
+                let generatedItems: any[] = [];
+
+                if (openaiResponse.ok) {
+                  const openaiData = await openaiResponse.json();
+                  if (openaiData.success && openaiData.items) {
+                    // Map AI response to estimate items with proper structure
+                    generatedItems = openaiData.items.map((aiItem: any, index: number) => {
+                      const priceListItem = masterPriceList.find(pl => pl.id === aiItem.priceListItemId);
+                      if (priceListItem) {
+                        return {
+                          id: `item-${Date.now()}-${index}`,
+                          priceListItemId: priceListItem.id,
+                          quantity: aiItem.quantity || 1,
+                          unitPrice: priceListItem.unitPrice,
+                          total: (aiItem.quantity || 1) * priceListItem.unitPrice,
+                          notes: aiItem.notes || '',
+                        };
+                      }
+                      return null;
+                    }).filter(Boolean);
+                  }
+                }
+
+                // Fallback to simple category matching if OpenAI fails
+                if (generatedItems.length === 0) {
+                  console.log('[AI Action] OpenAI failed, using fallback category matching');
+                  generatedItems = getDefaultEstimateItems(projectType || 'General', budget || 0, masterPriceList);
+                }
+
+                const subtotal = generatedItems.reduce((sum: number, item: any) => sum + item.total, 0);
+                const taxRate = 0.08; // 8% default tax
+                const taxAmount = subtotal * taxRate;
+                const total = subtotal + taxAmount;
+
+                // Create the estimate linked to the client
+                const estimateId = `estimate-${Date.now()}`;
+                const newEstimate = {
+                  id: estimateId,
+                  clientId: clientId,
+                  name: `${projectType} Estimate - ${clientName}`,
+                  items: generatedItems,
+                  subtotal: subtotal,
+                  taxRate: taxRate,
+                  taxAmount: taxAmount,
+                  total: total,
+                  createdDate: new Date().toISOString(),
+                  status: 'draft' as const,
+                };
+
                 // Save to database via API
                 const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
-                const response = await fetch(`${apiUrl}/api/save-estimate`, {
+                const saveResponse = await fetch(`${apiUrl}/api/save-estimate`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ estimate: newEstimate }),
                 });
 
-                if (response.ok) {
+                if (saveResponse.ok) {
                   addEstimate(newEstimate);
-                  console.log('[AI Action] Estimate saved to database:', estimateId, 'Client ID:', clientId);
+                  console.log('[AI Action] Estimate saved to database:', estimateId, 'with', generatedItems.length, 'items, Client ID:', clientId);
                 } else {
-                  const errorData = await response.json();
+                  const errorData = await saveResponse.json();
                   console.error('[AI Action] Failed to save estimate:', errorData.error);
                   // Still add to local state so user sees it
                   addEstimate(newEstimate);
                 }
               } catch (error) {
-                console.error('[AI Action] Error saving estimate:', error);
-                // Still add to local state so user sees it
+                console.error('[AI Action] Error generating estimate:', error);
+                // Fallback: create estimate with default items
+                const fallbackItems = getDefaultEstimateItems(projectType || 'General', budget || 0, masterPriceList);
+                const subtotal = fallbackItems.reduce((sum: number, item: any) => sum + item.total, 0);
+                const taxRate = 0.08;
+                const estimateId = `estimate-${Date.now()}`;
+                const newEstimate = {
+                  id: estimateId,
+                  clientId: clientId,
+                  name: `${projectType} Estimate - ${clientName}`,
+                  items: fallbackItems,
+                  subtotal: subtotal,
+                  taxRate: taxRate,
+                  taxAmount: subtotal * taxRate,
+                  total: subtotal * 1.08,
+                  createdDate: new Date().toISOString(),
+                  status: 'draft' as const,
+                };
                 addEstimate(newEstimate);
+                console.log('[AI Action] Fallback estimate created:', estimateId);
               }
             }
             break;
