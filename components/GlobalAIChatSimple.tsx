@@ -348,6 +348,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     addClient,
     addProject,
     addEstimate,
+    refreshEstimates,
     // Additional data for complete business intelligence
     customPriceListItems,
     dailyLogs,
@@ -524,7 +525,8 @@ Generate appropriate line items from the price list that fit this scope of work$
                 });
 
                 if (saveResponse.ok) {
-                  addEstimate(newEstimate);
+                  // Refresh estimates from database to ensure proper data sync
+                  await refreshEstimates();
                   console.log('[AI Action] Estimate saved to database:', estimateId, 'with', generatedItems.length, 'items, Client ID:', clientId);
                 } else {
                   const errorData = await saveResponse.json();
@@ -615,7 +617,7 @@ Generate appropriate line items from the price list that fit this scope of work$
     };
 
     handlePendingAction();
-  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, clearPendingAction]);
+  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, refreshEstimates, clearPendingAction]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {
