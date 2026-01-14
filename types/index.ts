@@ -251,7 +251,7 @@ export interface EstimateItem {
 
 export interface Estimate {
   id: string;
-  projectId: string;
+  clientId: string;
   name: string;
   items: EstimateItem[];
   subtotal: number;

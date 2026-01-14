@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Transform database format to app format
     const estimates = (data || []).map((row: any) => ({
       id: row.id,
-      projectId: row.project_id,
+      clientId: row.client_id,
       name: row.name,
       items: row.items || [],
       subtotal: parseFloat(row.subtotal),

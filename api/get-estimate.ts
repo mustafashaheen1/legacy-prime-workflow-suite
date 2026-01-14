@@ -90,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Transform to match frontend format
     const transformedEstimate = {
       id: estimate.id,
-      projectId: estimate.project_id,
+      clientId: estimate.client_id,
       name: estimate.name,
       subtotal: estimate.subtotal,
       taxRate: estimate.tax_rate,

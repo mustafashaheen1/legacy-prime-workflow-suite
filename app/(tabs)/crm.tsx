@@ -330,21 +330,21 @@ export default function CRMScreen() {
     Google: estimates
       .filter(e => e.status === 'approved')
       .filter(e => {
-        const client = clients.find(c => e.projectId.includes(c.name) || e.name.includes(c.name));
+        const client = clients.find(c => c.id === e.clientId);
         return client?.source === 'Google';
       })
       .reduce((sum, e) => sum + e.total, 0),
     Referral: estimates
       .filter(e => e.status === 'approved')
       .filter(e => {
-        const client = clients.find(c => e.projectId.includes(c.name) || e.name.includes(c.name));
+        const client = clients.find(c => c.id === e.clientId);
         return client?.source === 'Referral';
       })
       .reduce((sum, e) => sum + e.total, 0),
     Ad: estimates
       .filter(e => e.status === 'approved')
       .filter(e => {
-        const client = clients.find(c => e.projectId.includes(c.name) || e.name.includes(c.name));
+        const client = clients.find(c => c.id === e.clientId);
         return client?.source === 'Ad';
       })
       .reduce((sum, e) => sum + e.total, 0),
@@ -388,8 +388,9 @@ export default function CRMScreen() {
             return JSON.stringify({ error: `No client found matching "${input.identifier}"` });
           }
           
-          const clientEstimates = estimates; // Show all estimates
-          
+          // Get estimates for this specific client
+          const clientEstimates = estimates.filter(e => e.clientId === client.id);
+
           return JSON.stringify({
             ...client,
             estimatesCount: clientEstimates.length,
@@ -607,24 +608,11 @@ export default function CRMScreen() {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
 
-    const newProject: Project = {
-      id: `project-${Date.now()}`,
-      name: `${client.name} - Estimate`,
-      budget: 0,
-      expenses: 0,
-      progress: 0,
-      status: 'active',
-      image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-      hoursWorked: 0,
-      startDate: new Date().toISOString(),
-    };
-
-    await addProject(newProject);
     setShowEstimateTypeModal(false);
 
-    // Small delay to ensure state propagation before navigation
+    // Navigate to estimate page with clientId parameter
     setTimeout(() => {
-      router.push(`/project/${newProject.id}/estimate`);
+      router.push(`/project/new/estimate?clientId=${clientId}`);
     }, 100);
   };
 
@@ -632,24 +620,11 @@ export default function CRMScreen() {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
 
-    const newProject: Project = {
-      id: `project-${Date.now()}`,
-      name: `${client.name} - Takeoff`,
-      budget: 0,
-      expenses: 0,
-      progress: 0,
-      status: 'active',
-      image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-      hoursWorked: 0,
-      startDate: new Date().toISOString(),
-    };
-
-    await addProject(newProject);
     setShowEstimateTypeModal(false);
 
-    // Small delay to ensure state propagation before navigation
+    // Navigate to takeoff page with clientId parameter
     setTimeout(() => {
-      router.push(`/project/${newProject.id}/takeoff`);
+      router.push(`/project/new/takeoff?clientId=${clientId}`);
     }, 100);
   };
 
@@ -703,8 +678,10 @@ export default function CRMScreen() {
       // Update local state
       updateEstimate(estimateId, { status: 'sent' });
 
-      // 3. Get project info for the estimate
-      const project = projects.find(p => p.id === fullEstimate.projectId);
+      // 3. Get client info for the estimate (estimates are now linked to clients, not projects)
+      const estimateClient = clients.find(c => c.id === fullEstimate.clientId) || client;
+      // Also check if there's a project linked to this estimate
+      const project = projects.find(p => p.estimateId === estimateId);
 
       // 4. Calculate line items with details
       const lineItems = (fullEstimate.items || []).map((item: any) => {
@@ -2528,7 +2505,7 @@ export default function CRMScreen() {
                       <TouchableOpacity
                         onPress={() => {
                           setShowEstimateModal(false);
-                          router.push(`/project/${estimate.projectId}/estimate?estimateId=${estimate.id}`);
+                          router.push(`/project/new/estimate?clientId=${estimate.clientId}&estimateId=${estimate.id}`);
                         }}
                       >
                         <Text style={[styles.estimateName, styles.estimateNameClickable]}>{estimate.name}</Text>

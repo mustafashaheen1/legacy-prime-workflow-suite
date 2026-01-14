@@ -32,26 +32,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Try to get company_id from project (may not exist if using string IDs)
+    // Try to get company_id from client
     let companyId = null;
-    const { data: projectData } = await supabase
-      .from('projects')
-      .select('company_id')
-      .eq('id', estimate.projectId)
-      .single();
+    if (estimate.clientId) {
+      const { data: clientData } = await supabase
+        .from('clients')
+        .select('company_id')
+        .eq('id', estimate.clientId)
+        .single();
 
-    if (projectData) {
-      companyId = projectData.company_id;
-    } else {
-      console.log('[SaveEstimate] Project not found in DB, using null for company_id');
+      if (clientData) {
+        companyId = clientData.company_id;
+      } else {
+        console.log('[SaveEstimate] Client not found in DB, using null for company_id');
+      }
     }
 
-    // Insert estimate directly (schema cache should be refreshed after adding columns)
+    // Insert estimate directly
     const { data, error } = await supabase
       .from('estimates')
       .insert({
         id: estimate.id,
-        project_id: estimate.projectId,
+        client_id: estimate.clientId,
         company_id: companyId,
         name: estimate.name,
         items: estimate.items,

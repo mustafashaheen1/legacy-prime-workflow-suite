@@ -5,17 +5,17 @@ import { createClient } from '@supabase/supabase-js';
 export const getEstimatesProcedure = publicProcedure
   .input(
     z.object({
-      projectId: z.string().uuid(),
+      clientId: z.string().uuid().optional(),
       companyId: z.string().uuid(),
     })
   )
   .query(async ({ input }) => {
-    console.log('[Estimates] Getting estimates for project:', input.projectId);
+    console.log('[Estimates] Getting estimates for client:', input.clientId || 'all');
 
     // Create Supabase client INSIDE the handler (not at module level)
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
+
     if (!supabaseUrl || !supabaseKey) {
       console.error('[Estimates] Supabase not configured');
       throw new Error('Database not configured. Please add Supabase environment variables.');
@@ -24,13 +24,18 @@ export const getEstimatesProcedure = publicProcedure
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     try {
-      // 1. Get estimates for the project
-      const { data: estimates, error: estimatesError } = await supabase
+      // 1. Get estimates - optionally filter by client
+      let query = supabase
         .from('estimates')
         .select('*')
-        .eq('project_id', input.projectId)
         .eq('company_id', input.companyId)
-        .order('created_date', { ascending: false }) as any;
+        .order('created_date', { ascending: false });
+
+      if (input.clientId) {
+        query = query.eq('client_id', input.clientId);
+      }
+
+      const { data: estimates, error: estimatesError } = await query as any;
 
       if (estimatesError) {
         console.error('[Estimates] Error getting estimates:', estimatesError);
@@ -38,7 +43,7 @@ export const getEstimatesProcedure = publicProcedure
       }
 
       if (!estimates || estimates.length === 0) {
-        console.log('[Estimates] No estimates found for project:', input.projectId);
+        console.log('[Estimates] No estimates found');
         return {
           success: true,
           estimates: [],
@@ -61,7 +66,7 @@ export const getEstimatesProcedure = publicProcedure
       // 3. Map items to their estimates
       const estimatesWithItems = estimates.map((estimate: any) => ({
         id: estimate.id,
-        projectId: estimate.project_id,
+        clientId: estimate.client_id,
         name: estimate.name,
         subtotal: estimate.subtotal,
         taxRate: estimate.tax_rate,

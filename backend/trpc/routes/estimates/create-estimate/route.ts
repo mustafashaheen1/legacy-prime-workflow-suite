@@ -22,7 +22,7 @@ export const createEstimateProcedure = publicProcedure
   .input(
     z.object({
       companyId: z.string().uuid(),
-      projectId: z.string().uuid(),
+      clientId: z.string().uuid(),
       name: z.string().min(1),
       items: z.array(estimateItemSchema),
       subtotal: z.number(),
@@ -34,12 +34,12 @@ export const createEstimateProcedure = publicProcedure
   )
   .mutation(async ({ input }) => {
     const startTime = Date.now();
-    console.log('[Estimates] Creating estimate:', input.name, 'for project:', input.projectId);
+    console.log('[Estimates] Creating estimate:', input.name, 'for client:', input.clientId);
 
     // Create Supabase client INSIDE the handler (not at module level)
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
+
     if (!supabaseUrl || !supabaseKey) {
       console.error('[Estimates] Supabase not configured');
       throw new Error('Database not configured. Please add Supabase environment variables.');
@@ -48,13 +48,25 @@ export const createEstimateProcedure = publicProcedure
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     try {
+      // Validate client exists
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('id', input.clientId)
+        .single();
+
+      if (clientError || !clientData) {
+        console.error('[Estimates] Client not found:', input.clientId);
+        throw new Error('Client not found. Please select a valid client.');
+      }
+
       // 1. Insert the estimate record
       console.log('[Estimates] Step 1: Inserting estimate record...');
       const { data: estimate, error: estimateError } = await supabase
         .from('estimates')
         .insert({
           company_id: input.companyId,
-          project_id: input.projectId,
+          client_id: input.clientId,
           name: input.name,
           subtotal: input.subtotal,
           tax_rate: input.taxRate,
@@ -62,7 +74,7 @@ export const createEstimateProcedure = publicProcedure
           total: input.total,
           status: input.status,
         } as any)
-        .select('id, project_id, name, subtotal, tax_rate, tax_amount, total, status, created_date')
+        .select('id, client_id, name, subtotal, tax_rate, tax_amount, total, status, created_date')
         .single() as any;
 
       console.log('[Estimates] Step 1 completed in', Date.now() - startTime, 'ms');
@@ -120,7 +132,7 @@ export const createEstimateProcedure = publicProcedure
         success: true,
         estimate: {
           id: estimate.id,
-          projectId: estimate.project_id,
+          clientId: estimate.client_id,
           name: estimate.name,
           subtotal: estimate.subtotal,
           taxRate: estimate.tax_rate,

@@ -764,13 +764,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log(`[Cloud Storage] Archiving project: ${project.name}`);
     console.log('[Cloud Storage] Collecting project data...');
     
+    // Find estimate linked to this project (if any)
+    const linkedEstimate = project.estimateId ? estimates.find(e => e.id === project.estimateId) : null;
+
     const projectData = {
       project,
       expenses: expenses.filter(e => e.projectId === id),
       photos: photos.filter(p => p.projectId === id),
       tasks: tasks.filter(t => t.projectId === id),
       clockEntries: clockEntries.filter(c => c.projectId === id),
-      estimates: estimates.filter(e => e.projectId === id),
+      linkedEstimate: linkedEstimate || null,
       archivedDate: new Date().toISOString(),
     };
 
@@ -778,7 +781,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log(`[Cloud Storage] Archived ${projectData.photos.length} photos`);
     console.log(`[Cloud Storage] Archived ${projectData.tasks.length} tasks`);
     console.log(`[Cloud Storage] Archived ${projectData.clockEntries.length} clock entries`);
-    console.log(`[Cloud Storage] Archived ${projectData.estimates.length} estimates`);
+    console.log(`[Cloud Storage] Archived linked estimate:`, linkedEstimate ? linkedEstimate.id : 'none');
     
     await AsyncStorage.setItem(`archived_project_${id}`, JSON.stringify(projectData));
     console.log('[Cloud Storage] Project successfully archived to cloud storage');

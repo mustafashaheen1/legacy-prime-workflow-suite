@@ -45,10 +45,13 @@ const ARCHITECTURAL_SCALES = [
 ];
 
 export default function TakeoffScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, clientId: clientIdParam } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, addEstimate, customPriceListItems, addCustomPriceListItem } = useApp();
+  const { projects, clients, addEstimate, customPriceListItems, addCustomPriceListItem } = useApp();
   const insets = useSafeAreaInsets();
+
+  // Support both project-based and client-based takeoff
+  const clientId = clientIdParam as string | undefined;
 
   const [plans, setPlans] = useState<TakeoffPlan[]>([]);
   const [activePlanIndex, setActivePlanIndex] = useState<number>(0);
@@ -93,6 +96,7 @@ export default function TakeoffScreen() {
   const imageContainerRef = useRef<any>(null);
 
   const project = projects.find(p => p.id === id);
+  const client = clientId ? clients.find(c => c.id === clientId) : null;
 
   // Prevent browser from opening dropped files
   useEffect(() => {
@@ -1142,9 +1146,21 @@ export default function TakeoffScreen() {
 
     console.log('[Takeoff] Created', items.length, 'estimate items');
 
+    // Determine clientId - use direct clientId param or get from project
+    const effectiveClientId = clientId || project?.clientId;
+    if (!effectiveClientId) {
+      const errorMsg = 'Client information not found. Please select a client.';
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
+      return;
+    }
+
     const newEstimate: Estimate = {
       id: `estimate-${Date.now()}`,
-      projectId: id as string,
+      clientId: effectiveClientId,
       name: estimateName,
       items,
       subtotal,

@@ -258,6 +258,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const conversationModeInitialized = useRef<boolean>(false);
   const [recordingInstance, setRecordingInstance] = useState<Audio.Recording | null>(null);
   const [soundInstance, setSoundInstance] = useState<Audio.Sound | null>(null);
+  const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -282,6 +283,8 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     updateClient,
     addReport,
     addClient,
+    addProject,
+    addEstimate,
     // Additional data for complete business intelligence
     customPriceListItems,
     dailyLogs,
@@ -323,6 +326,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       if (!pendingAction) return;
 
       console.log('[AI Action] Handling action:', pendingAction.type);
+      setIsProcessingAction(true);
 
       try {
         switch (pendingAction.type) {
@@ -347,8 +351,28 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
             break;
 
           case 'generate_estimate':
-            // TODO: Navigate to estimate creation with pre-filled data
-            console.log('[AI Action] Would generate estimate:', pendingAction.data);
+            // Create estimate linked to client (no project created)
+            if (addEstimate && pendingAction.data) {
+              const { clientId, clientName, projectType, budget, description } = pendingAction.data;
+
+              // Create the estimate linked to the client
+              const estimateId = `estimate-${Date.now()}`;
+              const newEstimate = {
+                id: estimateId,
+                clientId: clientId,
+                name: `${projectType} Estimate - ${clientName}`,
+                items: [],
+                subtotal: budget || 0,
+                taxRate: 0,
+                taxAmount: 0,
+                total: budget || 0,
+                createdDate: new Date().toISOString(),
+                status: 'draft' as const,
+              };
+
+              addEstimate(newEstimate);
+              console.log('[AI Action] Estimate created for client:', newEstimate.name, 'Client ID:', clientId);
+            }
             break;
 
           case 'save_report':
@@ -403,12 +427,13 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
       } catch (error) {
         console.error('[AI Action] Error handling action:', error);
       } finally {
+        setIsProcessingAction(false);
         clearPendingAction();
       }
     };
 
     handlePendingAction();
-  }, [pendingAction, updateClient, addReport, addClient, clearPendingAction]);
+  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, clearPendingAction]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {
@@ -1499,6 +1524,18 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
               </View>
             </View>
           )}
+
+          {/* Loading indicator while AI is performing an action */}
+          {isProcessingAction && (
+            <View style={styles.assistantMessageContainer}>
+              <View style={[styles.assistantMessage, { backgroundColor: '#ECFDF5' }]}>
+                <ActivityIndicator size="small" color="#10B981" />
+                <Text style={[styles.assistantMessageText, { marginLeft: 8, fontStyle: 'italic', color: '#059669' }]}>
+                  Performing action...
+                </Text>
+              </View>
+            </View>
+          )}
         </ScrollView>
 
         <View style={styles.inputWrapper}>
@@ -1784,6 +1821,18 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
                     <ActivityIndicator size="small" color="#2563EB" />
                     <Text style={[styles.assistantMessageText, { marginLeft: 8, fontStyle: 'italic' }]}>
                       AI is thinking...
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Loading indicator while AI is performing an action */}
+              {isProcessingAction && (
+                <View style={styles.assistantMessageContainer}>
+                  <View style={[styles.assistantMessage, { backgroundColor: '#ECFDF5' }]}>
+                    <ActivityIndicator size="small" color="#10B981" />
+                    <Text style={[styles.assistantMessageText, { marginLeft: 8, fontStyle: 'italic', color: '#059669' }]}>
+                      Performing action...
                     </Text>
                   </View>
                 </View>

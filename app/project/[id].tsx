@@ -112,9 +112,12 @@ export default function ProjectDetailScreen() {
     return projectExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   }, [projectExpenses]);
 
+  // Get estimate linked to this project via project.estimateId
   const projectEstimates = useMemo(() => {
-    return estimates.filter(e => e.projectId === id);
-  }, [estimates, id]);
+    if (!project?.estimateId) return [];
+    const linkedEstimate = estimates.find(e => e.id === project.estimateId);
+    return linkedEstimate ? [linkedEstimate] : [];
+  }, [estimates, project?.estimateId]);
 
   const currentProjectFiles = useMemo(() => {
     let filtered = projectFiles.filter(f => f.projectId === id);

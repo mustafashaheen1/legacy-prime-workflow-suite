@@ -19,15 +19,15 @@ import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
 
 export default function EstimateScreen() {
-  const { id, estimateId } = useLocalSearchParams();
+  const { id, estimateId, clientId: clientIdParam } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, addEstimate, estimates, updateEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile, company } = useApp();
+  const { projects, clients, addEstimate, estimates, updateEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile, company } = useApp();
   const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
   const isWeb = Platform.OS === 'web';
   const isNarrow = screenWidth < 900;
   const isWebWide = isWeb && screenWidth >= 900;
-  
+
   const [estimateName, setEstimateName] = useState<string>('');
   const [items, setItems] = useState<EstimateItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>(priceListCategories[0]);
@@ -51,28 +51,35 @@ export default function EstimateScreen() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const project = projects.find(p => p.id === id);
+  // Support both project-based and client-based estimate creation
+  const clientId = clientIdParam as string | undefined;
+  const client = clientId ? clients.find(c => c.id === clientId) : null;
+  const project = id !== 'new' ? projects.find(p => p.id === id) : null;
 
   const allCategories = useMemo(() => {
     return [...priceListCategories, ...customCategories.map(cat => cat.name)];
   }, [customCategories]);
 
   const loadDraft = useCallback(async () => {
-    if (!id) return;
+    // Use clientId for drafts if available, otherwise use project id
+    const draftKeyId = clientId || id;
+    if (!draftKeyId) return;
     try {
-      const draftKey = `estimate_draft_${id}`;
+      const draftKey = `estimate_draft_${draftKeyId}`;
       const storedDraft = await AsyncStorage.getItem(draftKey);
-      
+
       if (storedDraft) {
         const draft = JSON.parse(storedDraft);
-        console.log('[Draft] Loaded existing draft for project:', id);
-        setEstimateName(draft.estimateName || `${project?.name} - Estimate ${new Date().toLocaleDateString()}`);
+        console.log('[Draft] Loaded existing draft for:', draftKeyId);
+        const entityName = client?.name || project?.name || 'Estimate';
+        setEstimateName(draft.estimateName || `${entityName} - Estimate ${new Date().toLocaleDateString()}`);
         setItems(draft.items || []);
         setMarkupPercent(draft.markupPercent || '0');
         setTaxPercent(draft.taxPercent || '8');
         setDraftId(draft.draftId || `draft-${Date.now()}`);
-      } else if (project && !estimateName) {
-        const defaultName = `${project.name} - Estimate ${new Date().toLocaleDateString()}`;
+      } else if ((client || project) && !estimateName) {
+        const entityName = client?.name || project?.name || 'New';
+        const defaultName = `${entityName} - Estimate ${new Date().toLocaleDateString()}`;
         setEstimateName(defaultName);
       }
     } catch (error) {
@@ -80,14 +87,17 @@ export default function EstimateScreen() {
     } finally {
       setIsLoadingDraft(false);
     }
-  }, [id, project, estimateName]);
+  }, [id, clientId, client, project, estimateName]);
 
   useEffect(() => {
-    if (project && id && !estimateId) {
-      // Only load draft if not editing an existing estimate
+    // Load draft if we have a client or project and not editing existing estimate
+    if ((client || project) && !estimateId) {
       loadDraft();
+    } else if (!client && !project && id === 'new' && !clientId) {
+      // No client or project specified for new estimate
+      setIsLoadingDraft(false);
     }
-  }, [project, id, estimateId, loadDraft]);
+  }, [client, project, id, clientId, estimateId, loadDraft]);
 
   // Load existing estimate when estimateId is provided
   useEffect(() => {
@@ -157,22 +167,28 @@ export default function EstimateScreen() {
   }, [estimateName, items, markupPercent, taxPercent, isLoadingDraft, saveDraft]);
 
   const clearDraft = async () => {
-    if (!id) return;
+    const draftKeyId = clientId || id;
+    if (!draftKeyId) return;
     try {
-      const draftKey = `estimate_draft_${id}`;
+      const draftKey = `estimate_draft_${draftKeyId}`;
       await AsyncStorage.removeItem(draftKey);
-      console.log('[Draft] Cleared draft for project:', id);
+      console.log('[Draft] Cleared draft for:', draftKeyId);
     } catch (error) {
       console.error('[Draft] Error clearing draft:', error);
     }
   };
 
   const saveEstimateAsFile = async (estimate: Estimate) => {
+    // Only save as file if we have a project context
+    if (!project) {
+      console.log('[Files] Skipping file save - no project context');
+      return;
+    }
     try {
       const estimateData = JSON.stringify(estimate, null, 2);
       const file: ProjectFile = {
         id: `file-estimate-${estimate.id}-${Date.now()}`,
-        projectId: id as string,
+        projectId: project.id,
         name: `${estimate.name}.json`,
         category: 'estimates',
         fileType: 'application/json',
@@ -188,11 +204,11 @@ export default function EstimateScreen() {
     }
   };
 
-  // Only require project for new estimates, allow editing existing estimates without project
-  if (!project && !estimateId) {
+  // Require either client or project for new estimates, allow editing existing estimates
+  if (!project && !client && !estimateId) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Project not found</Text>
+        <Text style={styles.errorText}>Client or Project not found</Text>
       </View>
     );
   }
@@ -373,6 +389,12 @@ export default function EstimateScreen() {
       return;
     }
 
+    // Require clientId for new estimates
+    if (!clientId && !client) {
+      Alert.alert('Error', 'Client information not found. Please select a client first.');
+      return;
+    }
+
     const { subtotal, taxAmount, total } = totals;
 
     setIsSaving(true);
@@ -387,8 +409,7 @@ export default function EstimateScreen() {
         },
         body: JSON.stringify({
           companyId: company.id,
-          projectId: id as string,
-          projectName: project?.name,
+          clientId: clientId as string,
           name: estimateName,
           items: items.map(item => ({
             priceListItemId: item.priceListItemId,
@@ -428,7 +449,7 @@ export default function EstimateScreen() {
         // Also add to local state for immediate UI update
         const newEstimate: Estimate = {
           id: result.estimate.id,
-          projectId: id as string,
+          clientId: clientId as string,
           name: estimateName,
           items,
           subtotal,
@@ -440,8 +461,10 @@ export default function EstimateScreen() {
         };
         addEstimate(newEstimate);
 
-        // Save as project file for backward compatibility
-        await saveEstimateAsFile(newEstimate);
+        // Save as project file for backward compatibility (if project exists)
+        if (project) {
+          await saveEstimateAsFile(newEstimate);
+        }
         await clearDraft();
 
         Alert.alert('Success', 'Estimate saved successfully!', [
@@ -474,6 +497,13 @@ export default function EstimateScreen() {
       return;
     }
 
+    // Determine clientId - use direct clientId param or get from project
+    const effectiveClientId = clientId || project?.clientId;
+    if (!effectiveClientId) {
+      Alert.alert('Error', 'Client information not found. Please select a client.');
+      return;
+    }
+
     const { subtotal, markupAmount, subtotalWithMarkup, taxAmount, total } = totals;
 
     try {
@@ -487,8 +517,7 @@ export default function EstimateScreen() {
         },
         body: JSON.stringify({
           companyId: company.id,
-          projectId: id as string,
-          projectName: project?.name,
+          clientId: effectiveClientId,
           name: estimateName,
           items: items.map(item => ({
             priceListItemId: item.priceListItemId,
@@ -526,7 +555,7 @@ export default function EstimateScreen() {
 
       const newEstimate: Estimate = {
         id: result.estimate.id,
-        projectId: id as string,
+        clientId: effectiveClientId,
         name: estimateName,
         items,
         subtotal,
@@ -835,6 +864,13 @@ export default function EstimateScreen() {
       return;
     }
 
+    // Determine clientId - use direct clientId param or get from project
+    const effectiveClientId = clientId || project?.clientId;
+    if (!effectiveClientId) {
+      Alert.alert('Error', 'Client information not found. Please select a client.');
+      return;
+    }
+
     const { subtotal, markupAmount, subtotalWithMarkup, taxAmount, total } = totals;
 
     try {
@@ -848,8 +884,7 @@ export default function EstimateScreen() {
         },
         body: JSON.stringify({
           companyId: company.id,
-          projectId: id as string,
-          projectName: project?.name,
+          clientId: effectiveClientId,
           name: estimateName,
           items: items.map(item => ({
             priceListItemId: item.priceListItemId,
@@ -887,7 +922,7 @@ export default function EstimateScreen() {
 
       const newEstimate: Estimate = {
         id: result.estimate.id,
-        projectId: id as string,
+        clientId: effectiveClientId,
         name: estimateName,
         items,
         subtotal,

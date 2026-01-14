@@ -15,8 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Parse request body
     const {
       companyId,
-      projectId,
-      projectName,
+      clientId,
       name,
       items,
       subtotal,
@@ -27,9 +26,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } = req.body;
 
     // Validate required fields
-    if (!companyId || !projectId || !name || !items || subtotal === undefined || taxRate === undefined || taxAmount === undefined || total === undefined) {
+    if (!companyId || !clientId || !name || !items || subtotal === undefined || taxRate === undefined || taxAmount === undefined || total === undefined) {
       return res.status(400).json({
-        error: 'Missing required fields: companyId, projectId, name, items, subtotal, taxRate, taxAmount, total',
+        error: 'Missing required fields: companyId, clientId, name, items, subtotal, taxRate, taxAmount, total',
       });
     }
 
@@ -46,83 +45,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Handle project ID - if it's not a UUID, we need to find or create the project in the database
-    let dbProjectId = projectId;
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+    // Validate client exists
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId);
 
-    if (!isUUID) {
-      console.log('[Create Estimate] Non-UUID project ID detected:', projectId);
-      console.log('[Create Estimate] Looking for project in database...');
+    if (isUUID) {
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('id', clientId)
+        .single();
 
-      try {
-        // Try to find existing project by name with a short timeout
-        const { data: existingProject, error: findError } = await Promise.race([
-          supabase
-            .from('projects')
-            .select('id')
-            .eq('company_id', companyId)
-            .eq('name', projectName || 'Unnamed Project')
-            .maybeSingle(),
-          new Promise<{ data: null; error: any }>((_, reject) =>
-            setTimeout(() => reject(new Error('Project lookup timeout')), 3000)
-          )
-        ]);
-
-        if (findError && findError.code !== 'PGRST116') {
-          console.warn('[Create Estimate] Project lookup error:', findError.message);
-        }
-
-        if (existingProject) {
-          console.log('[Create Estimate] Found existing project:', existingProject.id);
-          dbProjectId = existingProject.id;
-        } else {
-          // Create new project in database
-          console.log('[Create Estimate] Creating new project in database...');
-          const { data: newProject, error: projectError } = await supabase
-            .from('projects')
-            .insert({
-              company_id: companyId,
-              name: projectName || 'Unnamed Project',
-              budget: 0,
-              expenses: 0,
-              progress: 0,
-              status: 'active',
-              hours_worked: 0,
-            } as any)
-            .select('id')
-            .single();
-
-          if (projectError) {
-            console.error('[Create Estimate] Failed to create project:', projectError);
-            return res.status(500).json({
-              error: `Failed to create project: ${projectError?.message || 'Unknown error'}`,
-            });
-          }
-
-          if (!newProject) {
-            return res.status(500).json({
-              error: 'Failed to create project: No data returned',
-            });
-          }
-
-          console.log('[Create Estimate] Created new project:', newProject.id);
-          dbProjectId = newProject.id;
-        }
-      } catch (error: any) {
-        console.error('[Create Estimate] Error handling project:', error.message);
-        return res.status(500).json({
-          error: `Failed to handle project: ${error.message}`,
+      if (clientError || !clientData) {
+        console.error('[Create Estimate] Client not found:', clientId);
+        return res.status(400).json({
+          error: 'Client not found. Please select a valid client.',
         });
       }
     }
 
-    // 1. Insert the estimate record
-    console.log('[Create Estimate] Inserting estimate record with project ID:', dbProjectId);
+    // Insert the estimate record
+    console.log('[Create Estimate] Inserting estimate record with client ID:', clientId);
     const { data: estimate, error: estimateError } = await supabase
       .from('estimates')
       .insert({
         company_id: companyId,
-        project_id: dbProjectId,
+        client_id: clientId,
         name,
         subtotal,
         tax_rate: taxRate,
@@ -130,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         total,
         status,
       } as any)
-      .select('id, project_id, name, subtotal, tax_rate, tax_amount, total, status, created_date')
+      .select('id, client_id, name, subtotal, tax_rate, tax_amount, total, status, created_date')
       .single() as any;
 
     console.log('[Create Estimate] Insert completed in', Date.now() - startTime, 'ms');
@@ -150,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[Create Estimate] Estimate created successfully:', estimate.id);
 
-    // 2. Insert the estimate items (if any)
+    // Insert the estimate items (if any)
     if (items && items.length > 0) {
       console.log('[Create Estimate] Inserting', items.length, 'estimate items...');
       const itemsToInsert = items.map((item: any) => ({
@@ -195,7 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       success: true,
       estimate: {
         id: estimate.id,
-        projectId: estimate.project_id,
+        clientId: estimate.client_id,
         name: estimate.name,
         subtotal: estimate.subtotal,
         taxRate: estimate.tax_rate,
