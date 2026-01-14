@@ -1984,7 +1984,13 @@ export default function CRMScreen() {
                 const client = clients.find(c => c.id === selectedClientForEstimate);
                 if (!client) return null;
 
+                // Debug logging to find the mismatch
+                console.log('[CRM Debug] selectedClientForEstimate:', selectedClientForEstimate);
+                console.log('[CRM Debug] Total estimates in state:', estimates.length);
+                console.log('[CRM Debug] All estimate clientIds:', estimates.map(e => ({ id: e.id, clientId: e.clientId, name: e.name })));
+
                 const clientEstimates = estimates.filter(e => e.clientId === selectedClientForEstimate);
+                console.log('[CRM Debug] Filtered clientEstimates:', clientEstimates.length);
 
                 if (clientEstimates.length === 0) {
                   return (
