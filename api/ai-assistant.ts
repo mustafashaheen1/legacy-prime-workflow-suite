@@ -637,7 +637,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'convert_estimate_to_project',
-      description: 'Convert an approved estimate into a project. The estimate must be approved before it can be converted. Use this when user wants to convert an estimate to a project, start a project from an estimate, or create a project from an estimate.',
+      description: 'Convert an estimate into a project. If the estimate is not yet approved, it will be automatically approved first. Use this when user wants to convert an estimate to a project, start a project from an estimate, create a project from an estimate, or approve and convert an estimate.',
       parameters: {
         type: 'object',
         properties: {
@@ -648,6 +648,10 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           clientName: {
             type: 'string',
             description: 'The client name to find the estimate for (if estimateId not provided)',
+          },
+          autoApprove: {
+            type: 'boolean',
+            description: 'If true, automatically approve the estimate before converting. Set to true when user says "approve and convert" or when estimate needs approval.',
           },
         },
         required: [],
@@ -720,6 +724,24 @@ When a tool returns multiple client matches and user selects one, you MUST:
 - Do NOT just say "Okay, I'll proceed with Sarah" without calling the tool
 - Do NOT wait for another user message - call the tool immediately after they select
 - Do NOT ask for confirmation again - they already made their choice
+
+### Rule 10: Chained Actions (CRITICAL)
+When user requests multiple related actions (e.g., "approve and convert to project"), you MUST:
+1. Execute the FIRST action (approve_estimate)
+2. Wait for the action to complete
+3. Then IMMEDIATELY call the SECOND tool (convert_estimate_to_project)
+4. Do NOT just SAY "I'll now proceed to convert..." - actually CALL the tool
+
+**Example:**
+User: "Approve this estimate and convert it to a project"
+1. Call approve_estimate tool
+2. After success, IMMEDIATELY call convert_estimate_to_project tool
+3. Report both results
+
+**What NOT to do:**
+- Do NOT say "I'll now proceed to convert" without calling convert_estimate_to_project
+- Do NOT wait for another user message between approve and convert
+- Do NOT assume the second action happened - you MUST call the tool
 
 ### Rule 9: Handling Missing Price List Items (CRITICAL)
 When user asks to create an estimate for a project type with NO matching items in the price list:
@@ -1655,6 +1677,7 @@ function executeToolCall(
       // Find estimate by ID or by client name
       let estimate: any = null;
       let client: any = null;
+      const autoApprove = args.autoApprove === true;
 
       if (args.estimateId) {
         // Direct lookup by estimate ID
@@ -1677,10 +1700,10 @@ function executeToolCall(
 
         client = clientResult.client;
 
-        // Get client's approved estimates that haven't been converted yet
-        const clientEstimates = estimates.filter((e: any) =>
-          e.clientId === client.id && e.status === 'approved'
-        );
+        // Get client's estimates - if autoApprove is true, include non-approved estimates
+        const clientEstimates = autoApprove
+          ? estimates.filter((e: any) => e.clientId === client.id && e.status !== 'paid')
+          : estimates.filter((e: any) => e.clientId === client.id && e.status === 'approved');
 
         if (clientEstimates.length === 0) {
           // Check if they have any estimates at all
@@ -1688,10 +1711,12 @@ function executeToolCall(
           if (allClientEstimates.length === 0) {
             return { result: { error: `${client.name} has no estimates` } };
           }
-          // Check if there are unapproved estimates
-          const unapprovedEstimates = allClientEstimates.filter((e: any) => e.status !== 'approved');
-          if (unapprovedEstimates.length > 0) {
-            return { result: { error: `${client.name} has no approved estimates. Please approve an estimate first before converting to a project.` } };
+          if (!autoApprove) {
+            // Check if there are unapproved estimates
+            const unapprovedEstimates = allClientEstimates.filter((e: any) => e.status !== 'approved');
+            if (unapprovedEstimates.length > 0) {
+              return { result: { error: `${client.name} has no approved estimates. Please approve an estimate first before converting to a project.` } };
+            }
           }
           return { result: { error: `${client.name} has no estimates available to convert` } };
         }
@@ -1699,10 +1724,11 @@ function executeToolCall(
         if (clientEstimates.length === 1) {
           estimate = clientEstimates[0];
         } else {
-          // Multiple approved estimates - list them for user to choose
+          // Multiple estimates - list them for user to choose
+          const statusText = autoApprove ? '' : 'approved ';
           return {
             result: {
-              message: `${client.name} has ${clientEstimates.length} approved estimates. Which one would you like to convert to a project?`,
+              message: `${client.name} has ${clientEstimates.length} ${statusText}estimates. Which one would you like to convert to a project?`,
               estimates: clientEstimates.map((e: any, i: number) => ({
                 number: i + 1,
                 id: e.id,
@@ -1717,20 +1743,23 @@ function executeToolCall(
         return { result: { error: 'Please specify the estimate ID or client name' } };
       }
 
-      // Check if estimate is approved
-      if (estimate.status !== 'approved') {
+      // Check if estimate needs approval
+      const needsApproval = estimate.status !== 'approved';
+      if (needsApproval && !autoApprove) {
         return { result: { error: `"${estimate.name}" must be approved before it can be converted to a project. Current status: ${estimate.status}` } };
       }
 
       // Return action to convert estimate to project
+      const approvalMessage = needsApproval ? `Approving and converting "${estimate.name}"` : `Converting "${estimate.name}"`;
       return {
         result: {
           success: true,
-          message: `Converting "${estimate.name}" to a project for ${client?.name || 'client'}`,
+          message: `${approvalMessage} to a project for ${client?.name || 'client'}`,
           estimateId: estimate.id,
           estimateName: estimate.name,
           clientName: client?.name,
           budget: estimate.total,
+          needsApproval,
         },
         actionRequired: 'convert_estimate_to_project',
         actionData: {
@@ -1740,6 +1769,7 @@ function executeToolCall(
           clientName: client?.name,
           budget: estimate.total,
           clientAddress: client?.address,
+          needsApproval,
         },
       };
     }

@@ -809,9 +809,15 @@ Generate appropriate line items from the price list that fit this scope of work$
             break;
 
           case 'convert_estimate_to_project':
-            // Convert an approved estimate to a project
+            // Convert an estimate to a project (auto-approve if needed)
             if (addProject && updateEstimate && pendingAction.data) {
-              const { estimateId, estimateName, clientId, clientName, budget } = pendingAction.data;
+              const { estimateId, estimateName, clientId, clientName, budget, needsApproval } = pendingAction.data;
+
+              // If estimate needs approval, approve it first
+              if (needsApproval) {
+                await updateEstimate(estimateId, { status: 'approved' });
+                console.log('[AI Action] Auto-approved estimate:', estimateName);
+              }
 
               // Create a new project from the estimate
               const projectId = `project-${Date.now()}`;
@@ -829,9 +835,6 @@ Generate appropriate line items from the price list that fit this scope of work$
               };
 
               await addProject(newProject);
-
-              // Update estimate status to show it's been converted (mark as approved/completed)
-              await updateEstimate(estimateId, { status: 'approved' });
 
               console.log('[AI Action] Converted estimate to project:', projectId, 'for', clientName);
             }

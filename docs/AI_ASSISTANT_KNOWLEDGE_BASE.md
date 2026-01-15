@@ -428,10 +428,11 @@ AI: "✓ Project created: Bathroom
 ```
 
 **Key Rules:**
-- Estimate MUST be approved before conversion
+- If estimate is not approved, use `autoApprove: true` to approve and convert in one step
 - Project inherits the estimate's budget
 - Project status starts as "active"
 - The estimate is linked to the project via estimateId
+- When user says "approve and convert", call `convert_estimate_to_project` with `autoApprove: true`
 
 ---
 
