@@ -626,6 +626,24 @@ When calling any tool that takes a clientName parameter, you MUST pass the EXACT
 - This rule OVERRIDES any context from previous messages
 - Violating this rule causes the wrong client to be selected
 
+### Rule 8: Disambiguation Follow-Through (CRITICAL)
+When a tool returns multiple client matches and user selects one, you MUST:
+1. Identify the EXACT name they selected from the list (e.g., if they say "second one" and list showed "1. Sarah Johnson 2. Sarah", they selected "Sarah")
+2. IMMEDIATELY call the SAME tool again with the selected client's EXACT name
+3. Do NOT just acknowledge the selection - you MUST make the tool call to complete the action
+
+**Example Flow:**
+- User: "Create estimate for Sarah"
+- Tool returns: "Multiple clients: 1. Sarah Johnson 2. Sarah"
+- User: "Second one"
+- You MUST call generate_estimate with clientName: "Sarah" (the exact name from option 2)
+- Do NOT say "Let me proceed..." without actually calling the tool
+
+**What NOT to do:**
+- Do NOT just say "Okay, I'll proceed with Sarah" without calling the tool
+- Do NOT wait for another user message - call the tool immediately after they select
+- Do NOT ask for confirmation again - they already made their choice
+
 ## CLIENT MANAGEMENT
 
 **Required Fields:**
