@@ -808,6 +808,35 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             break;
 
+          case 'convert_estimate_to_project':
+            // Convert an approved estimate to a project
+            if (addProject && updateEstimate && pendingAction.data) {
+              const { estimateId, estimateName, clientId, clientName, budget } = pendingAction.data;
+
+              // Create a new project from the estimate
+              const projectId = `project-${Date.now()}`;
+              const newProject = {
+                id: projectId,
+                name: estimateName.replace(' Estimate', '').replace(' - ' + clientName, ''),
+                status: 'active' as const,
+                budget: parseFloat(budget) || 0,
+                expenses: 0,
+                progress: 0,
+                image: '',
+                hoursWorked: 0,
+                startDate: new Date().toISOString(),
+                estimateId: estimateId,
+              };
+
+              await addProject(newProject);
+
+              // Update estimate status to show it's been converted (mark as approved/completed)
+              await updateEstimate(estimateId, { status: 'approved' });
+
+              console.log('[AI Action] Converted estimate to project:', projectId, 'for', clientName);
+            }
+            break;
+
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }

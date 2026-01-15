@@ -633,6 +633,27 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'convert_estimate_to_project',
+      description: 'Convert an approved estimate into a project. The estimate must be approved before it can be converted. Use this when user wants to convert an estimate to a project, start a project from an estimate, or create a project from an estimate.',
+      parameters: {
+        type: 'object',
+        properties: {
+          estimateId: {
+            type: 'string',
+            description: 'The ID of the estimate to convert. If not provided, will try to find by client name.',
+          },
+          clientName: {
+            type: 'string',
+            description: 'The client name to find the estimate for (if estimateId not provided)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 // System prompt for dual-purpose assistant with knowledge base rules
@@ -1626,6 +1647,99 @@ function executeToolCall(
           estimateName: estimate.name,
           clientId: client?.id,
           clientName: client?.name,
+        },
+      };
+    }
+
+    case 'convert_estimate_to_project': {
+      // Find estimate by ID or by client name
+      let estimate: any = null;
+      let client: any = null;
+
+      if (args.estimateId) {
+        // Direct lookup by estimate ID
+        estimate = estimates.find((e: any) => e.id === args.estimateId);
+        if (!estimate) {
+          return { result: { error: 'Estimate not found with that ID' } };
+        }
+        client = clients.find((c: any) => c.id === estimate.clientId);
+      } else if (args.clientName) {
+        // Find by client name
+        const clientResult = findClientByName(clients, args.clientName);
+
+        if (clientResult.error) {
+          return { result: { error: clientResult.error } };
+        }
+
+        if (clientResult.multiple) {
+          return { result: clientResult };
+        }
+
+        client = clientResult.client;
+
+        // Get client's approved estimates that haven't been converted yet
+        const clientEstimates = estimates.filter((e: any) =>
+          e.clientId === client.id && e.status === 'approved'
+        );
+
+        if (clientEstimates.length === 0) {
+          // Check if they have any estimates at all
+          const allClientEstimates = estimates.filter((e: any) => e.clientId === client.id);
+          if (allClientEstimates.length === 0) {
+            return { result: { error: `${client.name} has no estimates` } };
+          }
+          // Check if there are unapproved estimates
+          const unapprovedEstimates = allClientEstimates.filter((e: any) => e.status !== 'approved');
+          if (unapprovedEstimates.length > 0) {
+            return { result: { error: `${client.name} has no approved estimates. Please approve an estimate first before converting to a project.` } };
+          }
+          return { result: { error: `${client.name} has no estimates available to convert` } };
+        }
+
+        if (clientEstimates.length === 1) {
+          estimate = clientEstimates[0];
+        } else {
+          // Multiple approved estimates - list them for user to choose
+          return {
+            result: {
+              message: `${client.name} has ${clientEstimates.length} approved estimates. Which one would you like to convert to a project?`,
+              estimates: clientEstimates.map((e: any, i: number) => ({
+                number: i + 1,
+                id: e.id,
+                name: e.name,
+                total: e.total,
+                status: e.status,
+              })),
+            },
+          };
+        }
+      } else {
+        return { result: { error: 'Please specify the estimate ID or client name' } };
+      }
+
+      // Check if estimate is approved
+      if (estimate.status !== 'approved') {
+        return { result: { error: `"${estimate.name}" must be approved before it can be converted to a project. Current status: ${estimate.status}` } };
+      }
+
+      // Return action to convert estimate to project
+      return {
+        result: {
+          success: true,
+          message: `Converting "${estimate.name}" to a project for ${client?.name || 'client'}`,
+          estimateId: estimate.id,
+          estimateName: estimate.name,
+          clientName: client?.name,
+          budget: estimate.total,
+        },
+        actionRequired: 'convert_estimate_to_project',
+        actionData: {
+          estimateId: estimate.id,
+          estimateName: estimate.name,
+          clientId: client?.id,
+          clientName: client?.name,
+          budget: estimate.total,
+          clientAddress: client?.address,
         },
       };
     }

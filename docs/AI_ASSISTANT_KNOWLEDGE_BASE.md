@@ -111,6 +111,7 @@ These operations MODIFY data and require explicit user confirmation:
 | `generate_estimate` | Create estimate | clientId, name | budget, description |
 | `send_estimate` | Send estimate via email (PDF) | clientName | estimateId |
 | `approve_estimate` | Approve an estimate | (estimateId OR clientName) | - |
+| `convert_estimate_to_project` | Convert approved estimate to project | (estimateId OR clientName) | - |
 | `create_price_list_items` | Create new price list items/category | category, items | isNewCategory |
 | `set_followup` | Set follow-up date | clientId, date | notes |
 | `send_inspection_link` | Send inspection link | clientId | message |
@@ -381,6 +382,57 @@ AI: "✓ Estimate approved!"
 - Approved estimates can be converted to projects
 - Approval status is required before converting to a project
 
+### 5.7 Converting Estimates to Projects
+
+The AI can convert an approved estimate into a project. The estimate must be approved first before conversion.
+
+**Process:**
+1. User requests to convert an estimate to a project (by client name or estimate ID)
+2. Verify the estimate is approved (if not, suggest approving first)
+3. If client has multiple approved estimates, list them for selection
+4. Create a new project with the estimate's budget
+5. Link the project to the estimate
+6. Confirm project creation to user
+
+**Example Flows:**
+
+```
+SCENARIO 1 - After approving estimate:
+User: "Approve Claudia's estimate"
+AI: "✓ Estimate approved!"
+User: "Now convert it to a project"
+AI: "Converting Infinity Pool Estimate to a project..."
+AI: "✓ Project created: Infinity Pool - Claudia Gocan
+     Budget: $370,946.74
+     Status: Active"
+
+SCENARIO 2 - Direct conversion request:
+User: "Convert Sarah's estimate to a project"
+AI: "Sarah has 2 approved estimates:
+     1. Kitchen Remodel - $50,000
+     2. Bathroom - $20,000
+     Which one would you like to convert?"
+User: "The kitchen one"
+AI: "✓ Project created: Kitchen Remodel
+     Budget: $50,000
+     Status: Active"
+
+SCENARIO 3 - Estimate not approved:
+User: "Convert Tom's estimate to a project"
+AI: "Tom's Bathroom Estimate must be approved before it can be converted to a project. Would you like me to approve it first?"
+User: "Yes"
+AI: "✓ Estimate approved! Now converting to project..."
+AI: "✓ Project created: Bathroom
+     Budget: $15,000
+     Status: Active"
+```
+
+**Key Rules:**
+- Estimate MUST be approved before conversion
+- Project inherits the estimate's budget
+- Project status starts as "active"
+- The estimate is linked to the project via estimateId
+
 ---
 
 ## 6. CONTEXT MANAGEMENT RULES
@@ -571,6 +623,7 @@ AI: Sarah has been successfully added to your CRM with ID: client-12345
 | 1.1 | 2025-01-14 | Added send_estimate action and section 5.4 |
 | 1.2 | 2025-01-15 | Added create_price_list_items tool and section 5.5 for handling missing items |
 | 1.3 | 2025-01-15 | Added approve_estimate tool and section 5.6 for approving estimates |
+| 1.4 | 2025-01-15 | Added convert_estimate_to_project tool and section 5.7 |
 
 ---
 

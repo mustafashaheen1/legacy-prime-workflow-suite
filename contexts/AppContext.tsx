@@ -1171,8 +1171,35 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setEstimates(prev => [...prev, estimate]);
   }, []);
 
-  const updateEstimate = useCallback((id: string, updates: Partial<Estimate>) => {
+  const updateEstimate = useCallback(async (id: string, updates: Partial<Estimate>) => {
+    // Update local state immediately for responsive UI
     setEstimates(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+
+    // Save to database if status is being updated
+    if (updates.status) {
+      try {
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const response = await fetch(`${baseUrl}/api/update-estimate-status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            estimateId: id,
+            status: updates.status,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          console.error('[App] Error updating estimate status:', data.error);
+          // Could revert local state here if needed
+        } else {
+          console.log('[App] Estimate status updated successfully');
+        }
+      } catch (error) {
+        console.error('[App] Error updating estimate status:', error);
+      }
+    }
   }, []);
 
   const deleteEstimate = useCallback((id: string) => {
