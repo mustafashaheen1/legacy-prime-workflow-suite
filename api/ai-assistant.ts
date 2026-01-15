@@ -658,6 +658,91 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'analyze_receipt',
+      description: 'Analyze a receipt image attached to the message. Extracts store name, amount, date, and suggests a category. Use this when user attaches a receipt image and wants to create an expense or add an expense.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_expense',
+      description: 'Add a new expense to a project. Can be used after analyzing a receipt or with manually provided details. Use this when user wants to add an expense, record a purchase, log a cost, or track spending for a project.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: {
+            type: 'string',
+            description: 'The name of the project to add the expense to',
+          },
+          expenseType: {
+            type: 'string',
+            enum: ['Subcontractor', 'Labor', 'Material', 'Office', 'Others'],
+            description: 'The type of expense',
+          },
+          category: {
+            type: 'string',
+            description: 'The expense category (e.g., Plumbing, Electrical, Lumber). Required for Subcontractor type.',
+          },
+          amount: {
+            type: 'number',
+            description: 'The expense amount in dollars',
+          },
+          store: {
+            type: 'string',
+            description: 'The store or vendor name',
+          },
+          date: {
+            type: 'string',
+            description: 'The expense date in ISO format (optional, defaults to today)',
+          },
+          receiptImageData: {
+            type: 'string',
+            description: 'Base64 encoded receipt image data from analyze_receipt (optional)',
+          },
+        },
+        required: ['projectName', 'expenseType', 'amount', 'store'],
+      },
+    },
+  },
+];
+
+// Price list categories for expense categorization
+const priceListCategories = [
+  'Pre-Construction',
+  'Foundation and Waterproofing',
+  'Storm drainage & footing drainage',
+  'Lumber and hardware material',
+  'Frame Labor only',
+  'Roof material & labor',
+  'Windows and exterior doors',
+  'Siding',
+  'Plumbing',
+  'Fire sprinklers',
+  'Fire Alarm',
+  'Mechanical/HVAC',
+  'Electrical',
+  'Insulation',
+  'Drywall',
+  'Flooring & Carpet & Tile',
+  'Interior Doors',
+  'Mill/Trim Work',
+  'Painting',
+  'Kitchen',
+  'Appliances',
+  'Bath Accessories',
+  'Landscaping',
+  'Concrete Flatwork',
+  'Permits and Fees',
+  'Cleaning',
+  'Other',
 ];
 
 // System prompt for dual-purpose assistant with knowledge base rules
@@ -743,6 +828,15 @@ User: "Approve this estimate and convert it to a project"
 - Do NOT wait for another user message between approve and convert
 - Do NOT assume the second action happened - you MUST call the tool
 
+### Rule 11: Page Context Awareness
+When pageContext is provided in CURRENT PAGE CONTEXT, the user is viewing a specific page:
+- "this project" = the project in pageContext (e.g., "Project: Kitchen Remodel" means Kitchen Remodel)
+- "add expense here" = add to the project in pageContext
+- "this client" = extract client from pageContext if available
+- "this estimate" = extract estimate from pageContext if available
+- Extract entity names from the pageContext string (e.g., "Project: ABC" means project name is "ABC")
+- If user says "add expense to this project" and pageContext shows "Project: Kitchen Remodel", add the expense to "Kitchen Remodel" without asking which project
+
 ### Rule 9: Handling Missing Price List Items (CRITICAL)
 When user asks to create an estimate for a project type with NO matching items in the price list:
 
@@ -774,6 +868,41 @@ User: "Yes, all EA. Excavation $50K, Concrete $150K, Plumbing $80K, Tile $100K, 
 AI: [Calls create_price_list_items with category: "Pool", items: [...]]
 AI: "Pool category created! Now creating your estimate..."
 AI: [Calls generate_estimate]
+
+### Rule 12: Expense Creation Flow
+When user wants to create an expense:
+
+1. If user attaches a receipt image:
+   - Call analyze_receipt to extract data from the image
+   - Show the extracted data to user for confirmation
+   - Ask which project to add it to (if not already specified)
+   - Call add_expense with the analyzed data and image
+
+2. If user provides details manually:
+   - Ask for missing required fields (project, type, amount, store)
+   - Call add_expense with provided data
+
+3. Required fields for expenses:
+   - Project name (to link expense to a project)
+   - Expense type (Subcontractor, Labor, Material, Office, Others)
+   - Amount
+   - Store/vendor name
+
+4. Category is only required for "Subcontractor" type expenses
+
+5. If pageContext shows current project (e.g., "Project: Kitchen Remodel"), use that project automatically
+
+**Example conversation:**
+User: [attaches receipt image] "Add this expense"
+AI: [Calls analyze_receipt]
+AI: "I've analyzed the receipt:
+     - Store: Home Depot
+     - Amount: $247.53
+     - Category: Lumber and hardware material
+     Which project should I add this expense to?"
+User: "Kitchen Remodel"
+AI: [Calls add_expense]
+AI: "✓ Expense added to Kitchen Remodel: $247.53 at Home Depot"
 
 ## CLIENT MANAGEMENT
 
@@ -975,11 +1104,13 @@ function findClientByName(clients: any[], clientName: string): { client?: any; e
 }
 
 // Execute tool calls against the provided app data
-function executeToolCall(
+async function executeToolCall(
   toolName: string,
   args: any,
-  appData: any
-): { result: any; actionRequired?: string; actionData?: any } {
+  appData: any,
+  openai?: OpenAI,
+  messages?: any[]
+): Promise<{ result: any; actionRequired?: string; actionData?: any }> {
   const { projects = [], clients = [], expenses = [], estimates = [], payments = [], clockEntries = [], company } = appData;
 
   switch (toolName) {
@@ -1774,6 +1905,140 @@ function executeToolCall(
       };
     }
 
+    case 'analyze_receipt': {
+      // Get the latest message's image file
+      const latestMsg = messages[messages.length - 1];
+      const imageFile = latestMsg?.files?.find((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image'));
+
+      if (!imageFile) {
+        return { result: { error: 'No receipt image found. Please attach a receipt image first, then ask me to analyze it.' } };
+      }
+
+      console.log('[AI Assistant] Analyzing receipt image...');
+
+      try {
+        // Use GPT-4o vision to analyze the receipt
+        const analysisResponse = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'image_url', image_url: { url: imageFile.uri } },
+                {
+                  type: 'text',
+                  text: `Analyze this receipt image and extract the following information. Return ONLY a valid JSON object with these fields:
+{
+  "store": "store or vendor name",
+  "amount": numeric total amount (just the number, no currency symbol),
+  "date": "date in ISO format if visible, otherwise null",
+  "category": "one of: ${priceListCategories.join(', ')}",
+  "items": "brief description of items purchased",
+  "confidence": confidence level 0-100
+}
+
+Based on the store and items, intelligently categorize this expense:
+- Hardware stores (Home Depot, Lowe's) → categorize by what was purchased (lumber, electrical, plumbing, etc.)
+- Material suppliers → specific material categories
+- Service providers → appropriate service category
+- Office/general supplies → Pre-Construction or Other`,
+                },
+              ],
+            },
+          ],
+          max_tokens: 500,
+        });
+
+        const responseContent = analysisResponse.choices[0]?.message?.content || '{}';
+
+        // Parse the JSON from the response
+        let analysis: any = {};
+        try {
+          // Try to extract JSON from the response
+          const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            analysis = JSON.parse(jsonMatch[0]);
+          }
+        } catch (parseError) {
+          console.error('[AI Assistant] Failed to parse receipt analysis:', parseError);
+          return { result: { error: 'Failed to parse receipt data. Please try again or enter details manually.' } };
+        }
+
+        console.log('[AI Assistant] Receipt analyzed:', analysis);
+
+        return {
+          result: {
+            success: true,
+            analysis: {
+              store: analysis.store || 'Unknown Store',
+              amount: analysis.amount || 0,
+              date: analysis.date || new Date().toISOString(),
+              category: analysis.category || 'Other',
+              items: analysis.items || '',
+              confidence: analysis.confidence || 70,
+            },
+            imageData: imageFile.uri, // Pass through for later S3 upload
+            message: `Receipt analyzed:\n- Store: ${analysis.store}\n- Amount: $${analysis.amount}\n- Category: ${analysis.category}\n${analysis.items ? `- Items: ${analysis.items}\n` : ''}\nWhich project should I add this expense to?`,
+          },
+        };
+      } catch (error: any) {
+        console.error('[AI Assistant] Receipt analysis error:', error);
+        return { result: { error: `Failed to analyze receipt: ${error.message}. Please try again or enter details manually.` } };
+      }
+    }
+
+    case 'add_expense': {
+      // Find project by name
+      const project = projects.find((p: any) =>
+        p.name?.toLowerCase().includes(args.projectName?.toLowerCase() || '')
+      );
+
+      if (!project) {
+        // List available projects
+        const activeProjects = projects.filter((p: any) => p.status === 'active');
+        if (activeProjects.length === 0) {
+          return { result: { error: 'No active projects found. Please create a project first.' } };
+        }
+        return {
+          result: {
+            error: `Project not found: "${args.projectName}"`,
+            availableProjects: activeProjects.map((p: any) => p.name),
+            message: `I couldn't find a project called "${args.projectName}". Here are your active projects:\n${activeProjects.map((p: any, i: number) => `${i + 1}. ${p.name}`).join('\n')}\n\nWhich project should I add the expense to?`,
+          },
+        };
+      }
+
+      // Validate required fields
+      if (!args.amount || args.amount <= 0) {
+        return { result: { error: 'Please specify a valid expense amount.' } };
+      }
+
+      if (!args.store) {
+        return { result: { error: 'Please specify the store or vendor name.' } };
+      }
+
+      // Return action to create expense
+      const formattedAmount = typeof args.amount === 'number' ? args.amount.toFixed(2) : args.amount;
+
+      return {
+        result: {
+          success: true,
+          message: `Adding ${args.expenseType} expense: $${formattedAmount} at ${args.store} to ${project.name}`,
+        },
+        actionRequired: 'add_expense',
+        actionData: {
+          projectId: project.id,
+          projectName: project.name,
+          type: args.expenseType || 'Material',
+          subcategory: args.category || args.expenseType || 'Material',
+          amount: args.amount,
+          store: args.store,
+          date: args.date || new Date().toISOString(),
+          receiptImageData: args.receiptImageData || null,
+        },
+      };
+    }
+
     case 'get_summary': {
       switch (args.type) {
         case 'overview': {
@@ -2291,7 +2556,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { messages, appData } = req.body;
+    const { messages, appData, pageContext } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
@@ -2302,6 +2567,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     console.log('[AI Assistant] Processing request with', messages.length, 'messages');
+    console.log('[AI Assistant] Page context:', pageContext || 'none');
     console.log('[AI Assistant] App data:', {
       projects: appData?.projects?.length || 0,
       clients: appData?.clients?.length || 0,
@@ -2309,9 +2575,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       estimates: appData?.estimates?.length || 0,
     });
 
+    // Build context-aware system prompt
+    let contextAwarePrompt = systemPrompt;
+    if (pageContext) {
+      contextAwarePrompt += `
+
+## CURRENT PAGE CONTEXT
+The user is currently viewing: ${pageContext}
+
+When the user says "this project", "this client", "this estimate", etc., they are referring to the item described above. Use this context to resolve ambiguous references like "add expense to this project" or "what's the budget for this project".`;
+    }
+
     // Build OpenAI messages
     const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: contextAwarePrompt },
       ...messages.map((msg: any) => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.text || msg.content,
@@ -2343,7 +2620,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const toolCall of response.tool_calls) {
         const tc = toolCall as any;
         const args = JSON.parse(tc.function.arguments);
-        const toolResult = executeToolCall(tc.function.name, args, appData || {});
+        const toolResult = await executeToolCall(tc.function.name, args, appData || {}, openai, messages);
 
         console.log('[AI Assistant] Tool result for', tc.function.name, ':', toolResult.result);
 

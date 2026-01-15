@@ -241,6 +241,7 @@ function useOpenAIChat(appData: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: apiMessages,
+          pageContext: currentPageContext || null, // Current page context for "this project" etc.
           appData: {
             projects: appData.projects,
             clients: appData.clients,
@@ -432,6 +433,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     addClient,
     addProject,
     addEstimate,
+    addExpense,
     refreshEstimates,
     // Additional data for complete business intelligence
     customPriceListItems,
@@ -840,6 +842,55 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             break;
 
+          case 'add_expense':
+            // Add an expense to a project
+            if (addExpense && pendingAction.data) {
+              const { projectId, type, subcategory, amount, store, date, receiptImageData } = pendingAction.data;
+
+              let receiptUrl: string | undefined;
+
+              // Upload receipt to S3 if image data provided
+              if (receiptImageData && receiptImageData.startsWith('data:')) {
+                try {
+                  console.log('[AI Action] Uploading receipt image to S3...');
+                  const uploadResponse = await fetch('/api/upload-to-s3', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      fileData: receiptImageData,
+                      fileName: `receipt-${Date.now()}.jpg`,
+                      fileType: 'image/jpeg',
+                    }),
+                  });
+
+                  if (uploadResponse.ok) {
+                    const uploadResult = await uploadResponse.json();
+                    receiptUrl = uploadResult.url;
+                    console.log('[AI Action] Receipt uploaded:', receiptUrl);
+                  } else {
+                    console.error('[AI Action] Failed to upload receipt:', await uploadResponse.text());
+                  }
+                } catch (e) {
+                  console.error('[AI Action] Error uploading receipt:', e);
+                }
+              }
+
+              // Create the expense
+              await addExpense({
+                id: `expense-${Date.now()}`,
+                projectId,
+                type,
+                subcategory,
+                amount: parseFloat(amount) || 0,
+                store,
+                date: date || new Date().toISOString(),
+                receiptUrl,
+              });
+
+              console.log('[AI Action] Added expense:', amount, 'to project:', projectId);
+            }
+            break;
+
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }
@@ -861,7 +912,7 @@ Generate appropriate line items from the price list that fit this scope of work$
     };
 
     handlePendingAction();
-  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, refreshEstimates, clearPendingAction, updateLastMessage, addCustomPriceListItem, addCustomCategory, updateEstimate]);
+  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, addExpense, refreshEstimates, clearPendingAction, updateLastMessage, addCustomPriceListItem, addCustomCategory, updateEstimate]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {

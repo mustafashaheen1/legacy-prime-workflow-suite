@@ -113,6 +113,8 @@ These operations MODIFY data and require explicit user confirmation:
 | `approve_estimate` | Approve an estimate | (estimateId OR clientName) | - |
 | `convert_estimate_to_project` | Convert approved estimate to project | (estimateId OR clientName) | - |
 | `create_price_list_items` | Create new price list items/category | category, items | isNewCategory |
+| `analyze_receipt` | Analyze receipt image for expense data | (attached image) | - |
+| `add_expense` | Add expense to a project | projectName, expenseType, amount, store | category, date, receiptImageData |
 | `set_followup` | Set follow-up date | clientId, date | notes |
 | `send_inspection_link` | Send inspection link | clientId | message |
 | `request_payment` | Request payment | estimateId, amount | message |
@@ -434,6 +436,82 @@ AI: "✓ Project created: Bathroom
 - The estimate is linked to the project via estimateId
 - When user says "approve and convert", call `convert_estimate_to_project` with `autoApprove: true`
 
+### 5.8 Adding Expenses
+
+The AI can add expenses to projects, either by analyzing a receipt image or with manually provided details.
+
+**Process with Receipt Image:**
+1. User attaches a receipt image and asks to add expense
+2. Call `analyze_receipt` to extract data from the image
+3. Show extracted data (store, amount, category) to user
+4. Ask which project to add the expense to
+5. Call `add_expense` with the analyzed data
+
+**Process with Manual Entry:**
+1. User provides expense details (amount, store, etc.)
+2. Ask for any missing required fields
+3. Call `add_expense` with provided data
+
+**Required Fields:**
+- `projectName` - Which project to add expense to
+- `expenseType` - One of: Subcontractor, Labor, Material, Office, Others
+- `amount` - The expense amount in dollars
+- `store` - Store or vendor name
+
+**Optional Fields:**
+- `category` - Specific category (required for Subcontractor type)
+- `date` - Expense date (defaults to today)
+- `receiptImageData` - Base64 image data for S3 upload
+
+**Example Flows:**
+
+```
+SCENARIO 1 - Receipt Image:
+[User attaches receipt image]
+User: "Add this expense"
+
+AI: [Calls analyze_receipt]
+AI: "I've analyzed the receipt:
+     - Store: Home Depot
+     - Amount: $247.53
+     - Category: Lumber and hardware material
+     - Items: 2x4 studs, screws, plywood
+
+     Which project should I add this expense to?"
+
+User: "Kitchen Remodel"
+
+AI: [Calls add_expense]
+AI: "✓ Expense added to Kitchen Remodel:
+     - $247.53 at Home Depot
+     - Category: Lumber and hardware material
+     - Receipt uploaded"
+
+SCENARIO 2 - Manual Entry:
+User: "Add a $500 plumbing expense to the Bathroom project from ABC Plumbing"
+
+AI: [Calls add_expense]
+AI: "✓ Expense added to Bathroom:
+     - $500.00 at ABC Plumbing
+     - Type: Subcontractor
+     - Category: Plumbing"
+
+SCENARIO 3 - Page Context:
+[User on Kitchen Remodel project page]
+User: "Add a $200 material expense from Home Depot"
+
+AI: [Uses pageContext to identify project]
+AI: [Calls add_expense with projectName: "Kitchen Remodel"]
+AI: "✓ Material expense added to Kitchen Remodel:
+     - $200.00 at Home Depot"
+```
+
+**Key Rules:**
+- If user is on a project page (pageContext available), use that project automatically
+- Always confirm the expense details before adding
+- Receipt images are uploaded to S3 and linked to the expense
+- Category is required for Subcontractor type expenses
+
 ---
 
 ## 6. CONTEXT MANAGEMENT RULES
@@ -625,6 +703,7 @@ AI: Sarah has been successfully added to your CRM with ID: client-12345
 | 1.2 | 2025-01-15 | Added create_price_list_items tool and section 5.5 for handling missing items |
 | 1.3 | 2025-01-15 | Added approve_estimate tool and section 5.6 for approving estimates |
 | 1.4 | 2025-01-15 | Added convert_estimate_to_project tool and section 5.7 |
+| 1.5 | 2025-01-15 | Added analyze_receipt and add_expense tools and section 5.8 for expense creation |
 
 ---
 
