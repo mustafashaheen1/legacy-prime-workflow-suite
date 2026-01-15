@@ -1545,23 +1545,21 @@ export default function CRMScreen() {
                     {createInspectionVideoLinkMutation.isPending ? 'Creating Link...' : 'Send Inspection Link'}
                   </Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => openEstimateActions(client.id)}
+                >
+                  <FileText size={16} color="#8B5CF6" />
+                  <Text style={styles.actionButtonText}>Estimates</Text>
+                </TouchableOpacity>
                 {client.status === 'Lead' && (
-                  <>
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      onPress={() => openEstimateActions(client.id)}
-                    >
-                      <FileText size={16} color="#8B5CF6" />
-                      <Text style={styles.actionButtonText}>Estimates</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={styles.convertButton}
-                      onPress={() => convertLeadToProject(client.id)}
-                    >
-                      <CheckCircle size={16} color="#FFFFFF" />
-                      <Text style={styles.convertButtonText}>Convert to Project</Text>
-                    </TouchableOpacity>
-                  </>
+                  <TouchableOpacity
+                    style={styles.convertButton}
+                    onPress={() => convertLeadToProject(client.id)}
+                  >
+                    <CheckCircle size={16} color="#FFFFFF" />
+                    <Text style={styles.convertButtonText}>Convert to Project</Text>
+                  </TouchableOpacity>
                 )}
                 {(client.status === 'Lead' || client.status === 'Project') && (
                   <TouchableOpacity

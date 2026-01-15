@@ -715,6 +715,33 @@ AI: "Sarah has been added to your CRM!" ← WRONG if action hasn't completed yet
 
 When you need to query or modify data, use the available tools. The tools have access to the user's actual business data.`;
 
+// Helper function to find client by name with disambiguation for multiple matches
+function findClientByName(clients: any[], clientName: string): { client?: any; error?: string; multiple?: boolean; message?: string; clients?: any[] } {
+  const matches = clients.filter((c: any) =>
+    c.name?.toLowerCase().includes(clientName.toLowerCase())
+  );
+
+  if (matches.length === 0) {
+    return { error: `No client found matching "${clientName}"` };
+  }
+
+  if (matches.length === 1) {
+    return { client: matches[0] };
+  }
+
+  // Multiple matches - return list for disambiguation
+  return {
+    multiple: true,
+    message: `Multiple clients match "${clientName}". Which one did you mean?`,
+    clients: matches.map((c: any, i: number) => ({
+      number: i + 1,
+      name: c.name,
+      email: c.email || 'No email',
+      phone: c.phone || 'No phone',
+    })),
+  };
+}
+
 // Execute tool calls against the provided app data
 function executeToolCall(
   toolName: string,
@@ -930,14 +957,17 @@ function executeToolCall(
     }
 
     case 'set_followup': {
-      const client = clients.find((c: any) =>
-        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
-      );
-      if (!client) {
-        return {
-          result: { error: `Client "${args.clientName}" not found` },
-        };
+      const clientResult = findClientByName(clients, args.clientName);
+
+      if (clientResult.error) {
+        return { result: { error: clientResult.error } };
       }
+
+      if (clientResult.multiple) {
+        return { result: clientResult };
+      }
+
+      const client = clientResult.client;
       return {
         result: {
           success: true,
@@ -957,14 +987,17 @@ function executeToolCall(
     }
 
     case 'send_inspection_link': {
-      const client = clients.find((c: any) =>
-        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
-      );
-      if (!client) {
-        return {
-          result: { error: `Client "${args.clientName}" not found` },
-        };
+      const clientResult = findClientByName(clients, args.clientName);
+
+      if (clientResult.error) {
+        return { result: { error: clientResult.error } };
       }
+
+      if (clientResult.multiple) {
+        return { result: clientResult };
+      }
+
+      const client = clientResult.client;
       return {
         result: {
           success: true,
@@ -982,14 +1015,17 @@ function executeToolCall(
     }
 
     case 'request_payment': {
-      const client = clients.find((c: any) =>
-        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
-      );
-      if (!client) {
-        return {
-          result: { error: `Client "${args.clientName}" not found` },
-        };
+      const clientResult = findClientByName(clients, args.clientName);
+
+      if (clientResult.error) {
+        return { result: { error: clientResult.error } };
       }
+
+      if (clientResult.multiple) {
+        return { result: clientResult };
+      }
+
+      const client = clientResult.client;
 
       // If no estimate ID provided, list available estimates
       if (!args.estimateId) {
@@ -1150,15 +1186,19 @@ function executeToolCall(
     }
 
     case 'generate_estimate': {
-      const client = clients.find((c: any) =>
-        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
-      );
-      if (!client) {
+      const clientResult = findClientByName(clients, args.clientName);
+
+      if (clientResult.error) {
         return {
-          result: { error: `Client "${args.clientName}" not found. Please add them to your CRM first.` },
+          result: { error: `${clientResult.error}. Please add them to your CRM first.` },
         };
       }
 
+      if (clientResult.multiple) {
+        return { result: clientResult };
+      }
+
+      const client = clientResult.client;
       return {
         result: {
           success: true,
@@ -1180,13 +1220,18 @@ function executeToolCall(
     }
 
     case 'send_estimate': {
-      // Find client
-      const client = clients.find((c: any) =>
-        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
-      );
-      if (!client) {
-        return { result: { error: `Client not found: ${args.clientName}` } };
+      // Find client with disambiguation
+      const clientResult = findClientByName(clients, args.clientName);
+
+      if (clientResult.error) {
+        return { result: { error: clientResult.error } };
       }
+
+      if (clientResult.multiple) {
+        return { result: clientResult };
+      }
+
+      const client = clientResult.client;
 
       // Get client's estimates
       const clientEstimates = estimates.filter((e: any) => e.clientId === client.id);
