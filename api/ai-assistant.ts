@@ -612,6 +612,27 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'approve_estimate',
+      description: 'Approve an estimate, changing its status to approved. Use this when the user wants to approve, mark approved, or set an estimate as approved. Can specify estimate by ID or by client name.',
+      parameters: {
+        type: 'object',
+        properties: {
+          estimateId: {
+            type: 'string',
+            description: 'The ID of the estimate to approve. If not provided, will try to find by client name.',
+          },
+          clientName: {
+            type: 'string',
+            description: 'The client name to find the estimate for (if estimateId not provided)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 // System prompt for dual-purpose assistant with knowledge base rules
@@ -1520,6 +1541,91 @@ function executeToolCall(
             total: e.total,
             status: e.status,
           })),
+        },
+      };
+    }
+
+    case 'approve_estimate': {
+      // Find estimate by ID or by client name
+      let estimate: any = null;
+      let client: any = null;
+
+      if (args.estimateId) {
+        // Direct lookup by estimate ID
+        estimate = estimates.find((e: any) => e.id === args.estimateId);
+        if (!estimate) {
+          return { result: { error: 'Estimate not found with that ID' } };
+        }
+        client = clients.find((c: any) => c.id === estimate.clientId);
+      } else if (args.clientName) {
+        // Find by client name
+        const clientResult = findClientByName(clients, args.clientName);
+
+        if (clientResult.error) {
+          return { result: { error: clientResult.error } };
+        }
+
+        if (clientResult.multiple) {
+          return { result: clientResult };
+        }
+
+        client = clientResult.client;
+
+        // Get client's estimates that are not already approved
+        const clientEstimates = estimates.filter((e: any) =>
+          e.clientId === client.id && e.status !== 'approved' && e.status !== 'paid'
+        );
+
+        if (clientEstimates.length === 0) {
+          // Check if they have any estimates at all
+          const allClientEstimates = estimates.filter((e: any) => e.clientId === client.id);
+          if (allClientEstimates.length === 0) {
+            return { result: { error: `${client.name} has no estimates` } };
+          }
+          return { result: { error: `${client.name} has no estimates that need approval (all are already approved or paid)` } };
+        }
+
+        if (clientEstimates.length === 1) {
+          estimate = clientEstimates[0];
+        } else {
+          // Multiple estimates - list them for user to choose
+          return {
+            result: {
+              message: `${client.name} has ${clientEstimates.length} estimates that can be approved. Which one?`,
+              estimates: clientEstimates.map((e: any, i: number) => ({
+                number: i + 1,
+                id: e.id,
+                name: e.name,
+                total: e.total,
+                status: e.status,
+              })),
+            },
+          };
+        }
+      } else {
+        return { result: { error: 'Please specify the estimate ID or client name' } };
+      }
+
+      // Check if estimate is already approved
+      if (estimate.status === 'approved') {
+        return { result: { message: `"${estimate.name}" is already approved` } };
+      }
+
+      // Return action to approve the estimate
+      return {
+        result: {
+          success: true,
+          message: `Approving "${estimate.name}" for ${client?.name || 'client'}`,
+          estimateId: estimate.id,
+          estimateName: estimate.name,
+          clientName: client?.name,
+        },
+        actionRequired: 'approve_estimate',
+        actionData: {
+          estimateId: estimate.id,
+          estimateName: estimate.name,
+          clientId: client?.id,
+          clientName: client?.name,
         },
       };
     }

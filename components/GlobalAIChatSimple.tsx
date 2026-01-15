@@ -799,6 +799,15 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             break;
 
+          case 'approve_estimate':
+            // Approve an estimate - change status to approved
+            if (updateEstimate && pendingAction.data) {
+              const { estimateId, estimateName, clientName } = pendingAction.data;
+              await updateEstimate(estimateId, { status: 'approved' });
+              console.log('[AI Action] Estimate approved:', estimateName, 'for', clientName);
+            }
+            break;
+
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }
@@ -820,7 +829,7 @@ Generate appropriate line items from the price list that fit this scope of work$
     };
 
     handlePendingAction();
-  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, refreshEstimates, clearPendingAction, updateLastMessage, addCustomPriceListItem, addCustomCategory]);
+  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, refreshEstimates, clearPendingAction, updateLastMessage, addCustomPriceListItem, addCustomCategory, updateEstimate]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {

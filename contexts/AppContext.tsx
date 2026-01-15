@@ -876,8 +876,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            clientId: id,
-            updates,
+            json: {
+              clientId: id,
+              updates,
+            },
           }),
         }
       );
@@ -888,8 +890,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         console.error('[App] Error updating client:', data.error);
         // Revert local state on error
         await refreshClients();
-      } else {
+      } else if (data.result?.data?.json) {
         console.log('[App] Client updated successfully');
+      } else {
+        console.error('[App] Unexpected response format:', data);
+        await refreshClients();
       }
     } catch (error) {
       console.error('[App] Error updating client:', error);

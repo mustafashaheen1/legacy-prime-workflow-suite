@@ -110,6 +110,7 @@ These operations MODIFY data and require explicit user confirmation:
 | `add_client` | Add new client | name, (email OR phone) | address, source |
 | `generate_estimate` | Create estimate | clientId, name | budget, description |
 | `send_estimate` | Send estimate via email (PDF) | clientName | estimateId |
+| `approve_estimate` | Approve an estimate | (estimateId OR clientName) | - |
 | `create_price_list_items` | Create new price list items/category | category, items | isNewCategory |
 | `set_followup` | Set follow-up date | clientId, date | notes |
 | `send_inspection_link` | Send inspection link | clientId | message |
@@ -339,6 +340,47 @@ AI: "✓ Infinity Pool Estimate created for Claudia
 - ALWAYS inform user and ask for their input on items and pricing
 - AI can SUGGEST item names but user must provide pricing
 
+### 5.6 Approving Estimates
+
+The AI can approve estimates when requested by the user. This changes the estimate status from "draft" or "sent" to "approved".
+
+**Process:**
+1. User requests to approve an estimate (by client name or estimate ID)
+2. If client has multiple unapproved estimates, list them for selection
+3. Change estimate status to "approved"
+4. Confirm approval to user
+
+**Example Flows:**
+
+```
+SCENARIO 1 - Single estimate:
+User: "Approve the estimate for Claudia"
+AI: "Approving Infinity Pool Estimate for Claudia..."
+AI: "✓ Estimate approved! You can now convert it to a project."
+
+SCENARIO 2 - Multiple estimates:
+User: "Approve Sarah's estimate"
+AI: "Sarah has 2 estimates that can be approved:
+     1. Kitchen Remodel - $50,000 (sent)
+     2. Bathroom - $20,000 (draft)
+     Which one would you like to approve?"
+User: "The kitchen one"
+AI: "Approving Kitchen Remodel for Sarah..."
+AI: "✓ Estimate approved!"
+
+SCENARIO 3 - After creating estimate:
+User: "Create estimate for Tom, bathroom $15K"
+AI: "✓ Bathroom Estimate created for Tom - $15,000"
+User: "Approve it"
+AI: "Approving Bathroom Estimate for Tom..."
+AI: "✓ Estimate approved!"
+```
+
+**Key Rules:**
+- Cannot approve estimates that are already approved or paid
+- Approved estimates can be converted to projects
+- Approval status is required before converting to a project
+
 ---
 
 ## 6. CONTEXT MANAGEMENT RULES
@@ -528,6 +570,7 @@ AI: Sarah has been successfully added to your CRM with ID: client-12345
 | 1.0 | 2024-01-14 | Initial knowledge base creation |
 | 1.1 | 2025-01-14 | Added send_estimate action and section 5.4 |
 | 1.2 | 2025-01-15 | Added create_price_list_items tool and section 5.5 for handling missing items |
+| 1.3 | 2025-01-15 | Added approve_estimate tool and section 5.6 for approving estimates |
 
 ---
 
