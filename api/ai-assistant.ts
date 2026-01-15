@@ -1853,6 +1853,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         console.log('[AI Assistant] Tool result for', tc.function.name, ':', toolResult.result);
 
+        // If disambiguation is needed (multiple clients found), return directly without another AI call
+        if (toolResult.result?.multiple) {
+          const clientList = toolResult.result.clients
+            .map((c: any) => `${c.number}. ${c.name} - ${c.email}`)
+            .join('\n');
+          return res.status(200).json({
+            type: 'text',
+            content: `${toolResult.result.message}\n\n${clientList}`,
+          });
+        }
+
         // Track any actions that need to be performed
         if (toolResult.actionRequired) {
           actionRequired = toolResult.actionRequired;
