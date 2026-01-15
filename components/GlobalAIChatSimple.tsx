@@ -145,6 +145,7 @@ function useOpenAIChat(appData: {
   proposals: any[];
   updateClient?: (clientId: string, updates: any) => Promise<void>;
   userId?: string; // User ID for persistent chat history
+  currentPageContext?: string | null; // Current page context for "this project" etc.
 }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -241,7 +242,7 @@ function useOpenAIChat(appData: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: apiMessages,
-          pageContext: currentPageContext || null, // Current page context for "this project" etc.
+          pageContext: appData.currentPageContext || null, // Current page context for "this project" etc.
           appData: {
             projects: appData.projects,
             clients: appData.clients,
@@ -470,6 +471,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     users: [], // TODO: Add users from AppContext when available
     proposals,
     userId: user?.id, // User ID for persistent chat history
+    currentPageContext, // Pass page context from component prop
   });
 
   // Handle pending actions from AI assistant
