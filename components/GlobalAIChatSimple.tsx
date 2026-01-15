@@ -55,6 +55,7 @@ const getSanitizedMimeType = (initialMimeType: string | undefined, fileName: str
 interface PendingAction {
   type: string;
   data: any;
+  successMessage?: string; // Message to show after action completes successfully
 }
 
 // Helper function to generate default estimate items based on project type
@@ -265,22 +266,37 @@ function useOpenAIChat(appData: {
 
       const data = await response.json();
 
-      // Add assistant message
-      const assistantMsg = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        text: data.content,
-        parts: [{ type: 'text', text: data.content }],
-      };
-      setMessages(prev => [...prev, assistantMsg]);
-
-      // Save assistant message to database
-      saveMessageToDb('assistant', data.content);
-
       // Handle pending actions from AI
+      // If there's an action required, DON'T show the AI's success message yet
+      // We'll show an appropriate message after the action completes or fails
       if (data.actionRequired && data.actionData) {
         console.log('[AI Chat] Action required:', data.actionRequired, data.actionData);
-        setPendingAction({ type: data.actionRequired, data: data.actionData });
+        // Store the intended success message for after action completes
+        setPendingAction({
+          type: data.actionRequired,
+          data: data.actionData,
+          successMessage: data.content, // Store the message to show after success
+        });
+        // Show a "working on it" message while action is in progress
+        const workingMsg = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          text: 'Working on it...',
+          parts: [{ type: 'text', text: 'Working on it...' }],
+        };
+        setMessages(prev => [...prev, workingMsg]);
+      } else {
+        // No action required, just show the message normally
+        const assistantMsg = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          text: data.content,
+          parts: [{ type: 'text', text: data.content }],
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+
+        // Save assistant message to database
+        saveMessageToDb('assistant', data.content);
       }
     } catch (error) {
       console.error('[AI Chat] Error:', error);
@@ -323,7 +339,42 @@ function useOpenAIChat(appData: {
     }
   };
 
-  return { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage };
+  // Function to update the last message (used after action completes)
+  const updateLastMessage = async (newText: string, metadata?: any) => {
+    setMessages(prev => {
+      const updated = [...prev];
+      if (updated.length > 0) {
+        const lastIdx = updated.length - 1;
+        updated[lastIdx] = {
+          ...updated[lastIdx],
+          text: newText,
+          parts: [{ type: 'text', text: newText }],
+        };
+      }
+      return updated;
+    });
+
+    // Save to database
+    if (appData.userId) {
+      try {
+        await fetch('/api/save-chat-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: appData.userId,
+            role: 'assistant',
+            content: newText,
+            files: [],
+            metadata: metadata || null,
+          }),
+        });
+      } catch (error) {
+        console.error('[AI Chat] Error saving updated message to DB:', error);
+      }
+    }
+  };
+
+  return { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage, updateLastMessage };
 }
 
 export default function GlobalAIChatSimple({ currentPageContext, inline = false }: GlobalAIChatProps) {
@@ -392,7 +443,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const fullPriceList = [...masterPriceList, ...customPriceListItems];
 
   // Pass all business data to AI assistant for complete data-aware responses
-  const { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage } = useOpenAIChat({
+  const { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage, updateLastMessage } = useOpenAIChat({
     projects,
     clients,
     expenses,
@@ -711,8 +762,16 @@ Generate appropriate line items from the price list that fit this scope of work$
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }
-      } catch (error) {
+
+        // Action succeeded - update the "Working on it..." message with success message
+        const successMsg = pendingAction.successMessage || 'Done!';
+        await updateLastMessage(successMsg);
+        console.log('[AI Action] Updated message with success:', successMsg);
+      } catch (error: any) {
         console.error('[AI Action] Error handling action:', error);
+        // Action failed - update the message with error
+        const errorMsg = `Sorry, there was an error: ${error.message || 'Unknown error'}. Please try again.`;
+        await updateLastMessage(errorMsg);
       } finally {
         setIsProcessingAction(false);
         isProcessingActionRef.current = false;
@@ -721,7 +780,7 @@ Generate appropriate line items from the price list that fit this scope of work$
     };
 
     handlePendingAction();
-  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, refreshEstimates, clearPendingAction]);
+  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, refreshEstimates, clearPendingAction, updateLastMessage]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {
