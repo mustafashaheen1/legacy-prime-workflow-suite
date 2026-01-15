@@ -61,6 +61,7 @@ interface PendingAction {
 // Helper function to generate default estimate items based on project type
 const getDefaultEstimateItems = (projectType: string, budget: number, priceList: any[]) => {
   const projectTypeLower = projectType.toLowerCase();
+  const timestamp = Date.now();
 
   // Map project types to relevant categories in the price list
   const categoryMap: { [key: string]: string[] } = {
@@ -71,6 +72,7 @@ const getDefaultEstimateItems = (projectType: string, budget: number, priceList:
     'roofing': ['Roofing'],
     'remodel': ['Pre-Construction', 'Demolition', 'Drywall', 'Paint'],
     'renovation': ['Pre-Construction', 'Demolition', 'Drywall', 'Paint'],
+    'pool': ['Pre-Construction', 'Concrete', 'Excavation'],
   };
 
   // Find matching categories based on project type
@@ -97,7 +99,6 @@ const getDefaultEstimateItems = (projectType: string, budget: number, priceList:
   // Select items that fit within budget
   const items: any[] = [];
   let remainingBudget = budget * 0.85; // Leave 15% buffer for adjustments
-  const timestamp = Date.now();
 
   for (const item of matchingItems) {
     if (remainingBudget <= 0 || items.length >= 10) break;
@@ -116,6 +117,44 @@ const getDefaultEstimateItems = (projectType: string, budget: number, priceList:
       });
       remainingBudget -= total;
     }
+  }
+
+  // If no items were added from the price list, create a custom line item
+  // This handles cases like "infinity pool" where no price list items match
+  if (items.length === 0 && budget > 0) {
+    const laborPercent = 0.35; // 35% labor
+    const materialsPercent = 0.50; // 50% materials
+    const overheadPercent = 0.15; // 15% overhead/profit
+
+    items.push({
+      id: `item-${timestamp}-0`,
+      priceListItemId: null, // Custom item, not from price list
+      name: `${projectType} - Labor`,
+      quantity: 1,
+      unitPrice: budget * laborPercent,
+      total: budget * laborPercent,
+      notes: 'Professional labor and installation',
+    });
+
+    items.push({
+      id: `item-${timestamp}-1`,
+      priceListItemId: null,
+      name: `${projectType} - Materials`,
+      quantity: 1,
+      unitPrice: budget * materialsPercent,
+      total: budget * materialsPercent,
+      notes: 'All materials and equipment',
+    });
+
+    items.push({
+      id: `item-${timestamp}-2`,
+      priceListItemId: null,
+      name: `${projectType} - Project Management & Overhead`,
+      quantity: 1,
+      unitPrice: budget * overheadPercent,
+      total: budget * overheadPercent,
+      notes: 'Project management, permits, and overhead',
+    });
   }
 
   return items;
