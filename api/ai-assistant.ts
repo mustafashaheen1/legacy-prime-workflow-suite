@@ -577,6 +577,41 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'create_price_list_items',
+      description: 'Create new price list items (and optionally a new category) when user wants to add items for estimate creation. Use this when the price list does not have items matching the requested project type.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            description: 'The category name (e.g., "Pool", "Solar", "HVAC")',
+          },
+          isNewCategory: {
+            type: 'boolean',
+            description: 'Whether this is a new category to create',
+          },
+          items: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Item name (e.g., "Pool Excavation")' },
+                unit: { type: 'string', description: 'Unit of measure (EA, SF, HR, LF, etc.)' },
+                unitPrice: { type: 'number', description: 'Price per unit' },
+                description: { type: 'string', description: 'Optional description' },
+              },
+              required: ['name', 'unit', 'unitPrice'],
+            },
+            description: 'Array of items to create',
+          },
+        },
+        required: ['category', 'items'],
+      },
+    },
+  },
 ];
 
 // System prompt for dual-purpose assistant with knowledge base rules
@@ -643,6 +678,38 @@ When a tool returns multiple client matches and user selects one, you MUST:
 - Do NOT just say "Okay, I'll proceed with Sarah" without calling the tool
 - Do NOT wait for another user message - call the tool immediately after they select
 - Do NOT ask for confirmation again - they already made their choice
+
+### Rule 9: Handling Missing Price List Items (CRITICAL)
+When user asks to create an estimate for a project type with NO matching items in the price list:
+
+1. DO NOT create empty estimates or auto-generate placeholder items
+2. Inform the user that no matching items exist for that project type
+3. Suggest relevant item names based on the project type
+4. Ask if they want to create a new category with these items
+5. For each item, ask for: unit (EA/SF/HR/LF/etc.) and unit price
+6. After user provides info, call the create_price_list_items tool to create them
+7. THEN proceed to create the original estimate
+
+**Suggested Items by Project Type:**
+- Pool/Spa: Excavation & Grading, Shell/Concrete, Plumbing & Equipment, Tile/Interior, Decking/Coping
+- Solar: Panels, Inverter, Mounting Hardware, Electrical Work, Permits & Inspection
+- HVAC: Equipment, Ductwork, Electrical, Thermostat/Controls, Labor
+- Landscaping: Design, Plants & Materials, Irrigation, Hardscape, Labor
+- For other types: suggest 3-5 logical phases/components
+
+**Example conversation:**
+User: "Create estimate for pool"
+AI: "I don't have pool items in your price list. I can create a 'Pool' category with:
+     1. Pool Excavation & Grading
+     2. Pool Shell & Concrete Work
+     3. Pool Plumbing & Equipment
+     4. Pool Tile & Interior Finish
+     5. Pool Decking & Coping
+     Would you like to proceed? Please provide the unit and price for each."
+User: "Yes, all EA. Excavation $50K, Concrete $150K, Plumbing $80K, Tile $100K, Decking $120K"
+AI: [Calls create_price_list_items with category: "Pool", items: [...]]
+AI: "Pool category created! Now creating your estimate..."
+AI: [Calls generate_estimate]
 
 ## CLIENT MANAGEMENT
 
@@ -741,6 +808,80 @@ AI: "Sarah has been added to your CRM!" ← WRONG if action hasn't completed yet
 - Respond in English
 
 When you need to query or modify data, use the available tools. The tools have access to the user's actual business data.`;
+
+// Helper function to suggest items for a project type when none exist in price list
+function getSuggestedItemsForProjectType(projectType: string): string[] {
+  const typeLower = (projectType || '').toLowerCase();
+
+  // Industry-standard breakdowns for common project types
+  if (typeLower.includes('pool') || typeLower.includes('spa')) {
+    return [
+      'Pool Excavation & Grading',
+      'Pool Shell & Concrete Work',
+      'Pool Plumbing & Equipment',
+      'Pool Tile & Interior Finish',
+      'Pool Decking & Coping',
+    ];
+  }
+
+  if (typeLower.includes('solar')) {
+    return [
+      'Solar Panels',
+      'Solar Inverter',
+      'Mounting Hardware & Racking',
+      'Electrical Work & Wiring',
+      'Permits & Inspection',
+    ];
+  }
+
+  if (typeLower.includes('hvac') || typeLower.includes('heating') || typeLower.includes('cooling')) {
+    return [
+      'HVAC Equipment',
+      'Ductwork Installation',
+      'Electrical Connections',
+      'Thermostat & Controls',
+      'Labor & Installation',
+    ];
+  }
+
+  if (typeLower.includes('landscape') || typeLower.includes('landscaping')) {
+    return [
+      'Design & Planning',
+      'Plants & Materials',
+      'Irrigation System',
+      'Hardscape Work',
+      'Labor & Installation',
+    ];
+  }
+
+  if (typeLower.includes('fence') || typeLower.includes('fencing')) {
+    return [
+      'Fence Posts & Hardware',
+      'Fence Panels/Materials',
+      'Gate & Hardware',
+      'Labor & Installation',
+    ];
+  }
+
+  if (typeLower.includes('deck') || typeLower.includes('patio')) {
+    return [
+      'Deck Framing & Structure',
+      'Decking Materials',
+      'Railing & Hardware',
+      'Finishing & Sealing',
+      'Labor & Installation',
+    ];
+  }
+
+  // Generic breakdown for unknown project types
+  return [
+    `${projectType} - Materials`,
+    `${projectType} - Labor`,
+    `${projectType} - Equipment`,
+    `${projectType} - Permits & Fees`,
+    `${projectType} - Project Management`,
+  ];
+}
 
 // Helper function to find client by name with disambiguation for multiple matches
 function findClientByName(clients: any[], clientName: string): { client?: any; error?: string; multiple?: boolean; message?: string; clients?: any[] } {
@@ -1226,6 +1367,63 @@ function executeToolCall(
       }
 
       const client = clientResult.client;
+
+      // Check if price list has matching items for this project type
+      const { priceList = [] } = appData;
+      const projectTypeLower = (args.projectType || '').toLowerCase();
+
+      // Map project types to relevant categories
+      const categoryMap: { [key: string]: string[] } = {
+        'bathroom': ['Bathroom', 'Plumbing', 'Tile'],
+        'kitchen': ['Kitchen', 'Appliances', 'Countertops', 'Cabinets'],
+        'painting': ['Paint', 'Drywall'],
+        'flooring': ['Flooring', 'Tile'],
+        'roofing': ['Roofing', 'Roof'],
+        'remodel': ['Pre-Construction', 'Demolition', 'Drywall', 'Paint'],
+        'renovation': ['Pre-Construction', 'Demolition', 'Drywall', 'Paint'],
+        'pool': ['Pool', 'Concrete', 'Excavation'],
+        'solar': ['Solar', 'Electrical'],
+        'hvac': ['HVAC', 'Mechanical'],
+        'landscaping': ['Landscaping', 'Exterior'],
+      };
+
+      // Find matching categories
+      let matchingCategories: string[] = [];
+      for (const [key, cats] of Object.entries(categoryMap)) {
+        if (projectTypeLower.includes(key)) {
+          matchingCategories = [...matchingCategories, ...cats];
+        }
+      }
+
+      // If no specific match, use general categories
+      if (matchingCategories.length === 0) {
+        matchingCategories = ['Pre-Construction', 'General'];
+      }
+
+      // Check if we have items in these categories
+      const matchingItems = priceList.filter((item: any) =>
+        matchingCategories.some(cat =>
+          item.category?.toLowerCase().includes(cat.toLowerCase())
+        )
+      );
+
+      // If no matching items found, prompt user to create them
+      if (matchingItems.length === 0 || (matchingItems.length < 3 && args.budget > 10000)) {
+        // Suggest items based on project type
+        const suggestedItems = getSuggestedItemsForProjectType(args.projectType);
+
+        return {
+          result: {
+            noMatchingItems: true,
+            projectType: args.projectType,
+            clientName: client.name,
+            budget: args.budget,
+            message: `I don't have any "${args.projectType}" items in your price list. I can create a new category with these suggested items:\n\n${suggestedItems.map((item: string, i: number) => `${i + 1}. ${item}`).join('\n')}\n\nWould you like to proceed? Please provide the unit (EA, SF, HR, etc.) and price for each item.`,
+            suggestedItems,
+          },
+        };
+      }
+
       return {
         result: {
           success: true,
@@ -1242,6 +1440,25 @@ function executeToolCall(
           projectType: args.projectType,
           budget: args.budget,
           description: args.description,
+        },
+      };
+    }
+
+    case 'create_price_list_items': {
+      // This action will be handled by the frontend to create items in the database
+      return {
+        result: {
+          success: true,
+          message: `Creating ${args.items?.length || 0} items in "${args.category}" category...`,
+          category: args.category,
+          isNewCategory: args.isNewCategory,
+          itemCount: args.items?.length || 0,
+        },
+        actionRequired: 'create_price_list_items',
+        actionData: {
+          category: args.category,
+          isNewCategory: args.isNewCategory,
+          items: args.items,
         },
       };
     }

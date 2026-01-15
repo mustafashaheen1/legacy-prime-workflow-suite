@@ -119,44 +119,8 @@ const getDefaultEstimateItems = (projectType: string, budget: number, priceList:
     }
   }
 
-  // If no items were added from the price list, create a custom line item
-  // This handles cases like "infinity pool" where no price list items match
-  if (items.length === 0 && budget > 0) {
-    const laborPercent = 0.35; // 35% labor
-    const materialsPercent = 0.50; // 50% materials
-    const overheadPercent = 0.15; // 15% overhead/profit
-
-    items.push({
-      id: `item-${timestamp}-0`,
-      priceListItemId: null, // Custom item, not from price list
-      name: `${projectType} - Labor`,
-      quantity: 1,
-      unitPrice: budget * laborPercent,
-      total: budget * laborPercent,
-      notes: 'Professional labor and installation',
-    });
-
-    items.push({
-      id: `item-${timestamp}-1`,
-      priceListItemId: null,
-      name: `${projectType} - Materials`,
-      quantity: 1,
-      unitPrice: budget * materialsPercent,
-      total: budget * materialsPercent,
-      notes: 'All materials and equipment',
-    });
-
-    items.push({
-      id: `item-${timestamp}-2`,
-      priceListItemId: null,
-      name: `${projectType} - Project Management & Overhead`,
-      quantity: 1,
-      unitPrice: budget * overheadPercent,
-      total: budget * overheadPercent,
-      notes: 'Project management, permits, and overhead',
-    });
-  }
-
+  // Return items found (may be empty if no matching items in price list)
+  // The AI assistant will handle the case when no items are found by prompting user
   return items;
 };
 
@@ -471,6 +435,8 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     refreshEstimates,
     // Additional data for complete business intelligence
     customPriceListItems,
+    addCustomPriceListItem,
+    addCustomCategory,
     dailyLogs,
     photos,
     subcontractors,
@@ -798,6 +764,41 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             break;
 
+          case 'create_price_list_items':
+            // Create new price list items (and optionally a new category)
+            if (addCustomPriceListItem && pendingAction.data) {
+              const { category, isNewCategory, items } = pendingAction.data;
+
+              // Create category if it's new
+              if (isNewCategory && addCustomCategory) {
+                await addCustomCategory({
+                  id: `cat-${Date.now()}`,
+                  name: category,
+                  createdAt: new Date().toISOString(),
+                });
+                console.log('[AI Action] Created new category:', category);
+              }
+
+              // Create each item
+              for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                await addCustomPriceListItem({
+                  id: `pl-custom-${Date.now()}-${i}`,
+                  category,
+                  name: item.name,
+                  description: item.description || '',
+                  unit: item.unit,
+                  unitPrice: item.unitPrice,
+                  isCustom: true,
+                  createdAt: new Date().toISOString(),
+                });
+                console.log('[AI Action] Created price list item:', item.name);
+              }
+
+              console.log('[AI Action] Created', items.length, 'price list items in category:', category);
+            }
+            break;
+
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }
@@ -819,7 +820,7 @@ Generate appropriate line items from the price list that fit this scope of work$
     };
 
     handlePendingAction();
-  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, refreshEstimates, clearPendingAction, updateLastMessage]);
+  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, refreshEstimates, clearPendingAction, updateLastMessage, addCustomPriceListItem, addCustomCategory]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {

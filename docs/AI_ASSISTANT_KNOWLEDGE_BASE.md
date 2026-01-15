@@ -110,6 +110,7 @@ These operations MODIFY data and require explicit user confirmation:
 | `add_client` | Add new client | name, (email OR phone) | address, source |
 | `generate_estimate` | Create estimate | clientId, name | budget, description |
 | `send_estimate` | Send estimate via email (PDF) | clientName | estimateId |
+| `create_price_list_items` | Create new price list items/category | category, items | isNewCategory |
 | `set_followup` | Set follow-up date | clientId, date | notes |
 | `send_inspection_link` | Send inspection link | clientId | message |
 | `request_payment` | Request payment | estimateId, amount | message |
@@ -279,6 +280,64 @@ AI: "Sarah has 3 estimates:
 User: "The kitchen one"
 AI: "Opening email to send Kitchen Remodel to sarah@email.com"
 ```
+
+### 5.5 Handling Missing Price List Items
+
+When a user requests an estimate for a project type that has no matching items in the price list (e.g., "infinity pool", "solar installation"), do NOT auto-create items or create an empty estimate.
+
+**Process:**
+1. Detect that no price list items match the requested project type
+2. Inform the user that no matching items exist
+3. Suggest relevant item names based on the project type
+4. Ask user for unit (EA, SF, HR, LF, etc.) and unit price for each item
+5. After user provides info, call `create_price_list_items` to create the category and items
+6. Then proceed to create the original estimate with the new items
+
+**AI Item Suggestions by Project Type:**
+- **Pool/Spa:** Excavation & Grading, Shell/Concrete, Plumbing & Equipment, Tile/Interior, Decking/Coping
+- **Solar:** Panels, Inverter, Mounting Hardware, Electrical Work, Permits & Inspection
+- **Landscaping:** Design, Plants & Materials, Irrigation, Hardscape, Labor
+- **HVAC:** Equipment, Ductwork, Electrical, Thermostat/Controls, Labor
+- **Other:** Suggest 3-5 logical phases/components
+
+**Example Flow:**
+```
+User: "Create estimate for Claudia for infinity pool $500K"
+
+AI: "I don't have any 'infinity pool' items in your price list. I can create a Pool category with these suggested items:
+
+     1. Pool Excavation & Grading
+     2. Pool Shell & Concrete Work
+     3. Pool Plumbing & Equipment
+     4. Pool Tile & Interior Finish
+     5. Pool Decking & Coping
+
+     Would you like to proceed? Please provide the unit (EA, SF, etc.) and price for each item."
+
+User: "Yes. All EA. Excavation $50K, Concrete $150K, Plumbing $80K, Tile $120K, Decking $100K"
+
+AI: "Creating Pool category with 5 items..."
+    [Calls create_price_list_items tool]
+AI: "✓ Pool category created with:
+     - Pool Excavation & Grading: $50,000/EA
+     - Pool Shell & Concrete Work: $150,000/EA
+     - Pool Plumbing & Equipment: $80,000/EA
+     - Pool Tile & Interior Finish: $120,000/EA
+     - Pool Decking & Coping: $100,000/EA
+
+     Now creating the estimate for Claudia..."
+    [Calls generate_estimate tool]
+AI: "✓ Infinity Pool Estimate created for Claudia
+     Subtotal: $500,000
+     Tax (8%): $40,000
+     Total: $540,000"
+```
+
+**Key Rules:**
+- NEVER create empty estimates when no items match
+- NEVER auto-generate generic items (like "Labor 35%, Materials 50%")
+- ALWAYS inform user and ask for their input on items and pricing
+- AI can SUGGEST item names but user must provide pricing
 
 ---
 
@@ -468,6 +527,7 @@ AI: Sarah has been successfully added to your CRM with ID: client-12345
 |---------|------|---------|
 | 1.0 | 2024-01-14 | Initial knowledge base creation |
 | 1.1 | 2025-01-14 | Added send_estimate action and section 5.4 |
+| 1.2 | 2025-01-15 | Added create_price_list_items tool and section 5.5 for handling missing items |
 
 ---
 
