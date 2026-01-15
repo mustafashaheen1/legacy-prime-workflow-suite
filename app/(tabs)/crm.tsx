@@ -471,12 +471,10 @@ export default function CRMScreen() {
   };
 
   const selectAllClients = () => {
-    // Only select leads (visible clients), not converted projects
-    const visibleLeads = clients.filter(c => c.status === 'Lead');
-    if (selectedClients.size === visibleLeads.length) {
+    if (selectedClients.size === clients.length) {
       setSelectedClients(new Set());
     } else {
-      setSelectedClients(new Set(visibleLeads.map(c => c.id)));
+      setSelectedClients(new Set(clients.map(c => c.id)));
     }
   };
 
@@ -1307,11 +1305,11 @@ export default function CRMScreen() {
               )}
             </View>
             <View style={styles.rightActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.selectAllButton}
                 onPress={selectAllClients}
               >
-                {selectedClients.size === clients.length ? (
+                {selectedClients.size === clients.length && selectedClients.size > 0 ? (
                   <CheckSquare size={20} color="#2563EB" />
                 ) : (
                   <Square size={20} color="#6B7280" />
@@ -1340,7 +1338,6 @@ export default function CRMScreen() {
           </View>
           
           {[...clients]
-            .filter(client => client.status === 'Lead') // Only show leads, not converted projects
             .sort((a, b) => {
               const dateA = new Date(a.createdAt || a.lastContactDate || a.lastContacted).getTime();
               const dateB = new Date(b.createdAt || b.lastContactDate || b.lastContacted).getTime();
