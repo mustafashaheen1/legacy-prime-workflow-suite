@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { userId, role, content, files = [] } = req.body;
+    const { userId, role, content, files = [], metadata = null } = req.body;
 
     // Validate required fields
     if (!userId || !role || !content) {
@@ -44,6 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         role,
         content,
         files,
+        metadata,
       })
       .select()
       .single();
@@ -63,6 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       content: data.content,
       createdAt: data.created_at,
       files: data.files,
+      metadata: data.metadata,
     });
   } catch (error: any) {
     console.error('[SaveChatMessage] Unexpected error:', error);

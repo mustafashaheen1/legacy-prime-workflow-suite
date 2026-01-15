@@ -298,8 +298,29 @@ function useOpenAIChat(appData: {
   };
 
   // Function to add a message from outside the hook (e.g., for estimate links)
-  const addMessage = (message: any) => {
+  // Also persists to database if it has special metadata like estimateLink
+  const addMessage = async (message: any) => {
     setMessages(prev => [...prev, message]);
+
+    // Save to database if we have userId and message has content
+    if (appData.userId && message.text) {
+      try {
+        const metadata = message.estimateLink ? { estimateLink: message.estimateLink } : null;
+        await fetch('/api/save-chat-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: appData.userId,
+            role: message.role || 'assistant',
+            content: message.text,
+            files: message.files || [],
+            metadata,
+          }),
+        });
+      } catch (error) {
+        console.error('[AI Chat] Error saving link message to DB:', error);
+      }
+    }
   };
 
   return { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage };
