@@ -798,20 +798,32 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend if company exists
     if (company?.id) {
       try {
-        const { vanillaClient } = await import('@/lib/trpc');
-        await vanillaClient.crm.addClient.mutate({
-          companyId: company.id,
-          name: client.name,
-          address: client.address,
-          email: client.email,
-          phone: client.phone,
-          source: client.source,
-          status: client.status,
-          lastContacted: client.lastContacted,
-          lastContactDate: client.lastContactDate,
-          nextFollowUpDate: client.nextFollowUpDate,
+        // Use direct API endpoint instead of tRPC (tRPC was timing out)
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const response = await fetch(`${baseUrl}/api/add-client`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            name: client.name,
+            address: client.address || null,
+            email: client.email,
+            phone: client.phone,
+            source: client.source,
+            status: client.status || 'Lead',
+            lastContacted: client.lastContacted || null,
+            lastContactDate: client.lastContactDate || new Date().toISOString(),
+            nextFollowUpDate: client.nextFollowUpDate || null,
+          }),
         });
-        console.log('[App] Client saved to backend:', client.name);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to add client');
+        }
+
+        const data = await response.json();
+        console.log('[App] Client saved to backend:', client.name, data.client?.id);
       } catch (error) {
         console.error('[App] Error saving client to backend:', error);
         // Rollback on error

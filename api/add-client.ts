@@ -1,6 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
+export const config = {
+  maxDuration: 15,
+};
+
 // Direct API endpoint for adding a client - bypasses tRPC for better performance
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
