@@ -16,13 +16,17 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'query_projects',
-      description: 'Query projects by name, status, or get all projects. Use this when user asks about their projects.',
+      description: 'Query projects by name, status, client name, or get all projects. Use this when user asks about their projects. Projects are linked to clients via estimates - returns clientName and clientId when available.',
       parameters: {
         type: 'object',
         properties: {
           projectName: {
             type: 'string',
             description: 'Filter by project name (partial match)',
+          },
+          clientName: {
+            type: 'string',
+            description: 'Filter by client name - finds projects linked to the client via estimates',
           },
           status: {
             type: 'string',
@@ -1145,26 +1149,59 @@ async function executeToolCall(
 
   switch (toolName) {
     case 'query_projects': {
-      let filtered = projects;
+      // First, enrich ALL projects with client information via estimate linkage
+      const allEnrichedProjects = projects.map((p: any) => {
+        let clientName = null;
+        let clientId = null;
+        if (p.estimateId) {
+          const linkedEstimate = estimates.find((e: any) => e.id === p.estimateId);
+          if (linkedEstimate?.clientId) {
+            const linkedClient = clients.find((c: any) => c.id === linkedEstimate.clientId);
+            if (linkedClient) {
+              clientName = linkedClient.name;
+              clientId = linkedClient.id;
+            }
+          }
+        }
+        return {
+          id: p.id,
+          name: p.name,
+          status: p.status,
+          budget: p.budget,
+          expenses: p.expenses,
+          progress: p.progress,
+          estimateId: p.estimateId,
+          clientName,
+          clientId,
+        };
+      });
+
+      let filtered = allEnrichedProjects;
+
+      // Filter by project name
       if (args.projectName) {
         filtered = filtered.filter((p: any) =>
           p.name?.toLowerCase().includes(args.projectName.toLowerCase())
         );
       }
+
+      // Filter by client name (finds projects linked to matching clients)
+      if (args.clientName) {
+        const searchName = args.clientName.toLowerCase();
+        filtered = filtered.filter((p: any) =>
+          p.clientName?.toLowerCase().includes(searchName)
+        );
+      }
+
+      // Filter by status
       if (args.status) {
         filtered = filtered.filter((p: any) => p.status === args.status);
       }
+
       return {
         result: {
           count: filtered.length,
-          projects: filtered.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            status: p.status,
-            budget: p.budget,
-            expenses: p.expenses,
-            progress: p.progress,
-          })),
+          projects: filtered,
         },
       };
     }
@@ -2026,6 +2063,11 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'add_expense': {
+      console.log('[AI Assistant] add_expense called with projectName:', args.projectName);
+      console.log('[AI Assistant] Available projects:', projects.map((p: any) => ({ id: p.id, name: p.name, estimateId: p.estimateId })));
+      console.log('[AI Assistant] Available clients (first 5):', clients.slice(0, 5).map((c: any) => ({ id: c.id, name: c.name })));
+      console.log('[AI Assistant] Available estimates (first 5):', estimates.slice(0, 5).map((e: any) => ({ id: e.id, clientId: e.clientId })));
+
       // Find project by name OR by client name (via estimate linkage)
       let project = projects.find((p: any) =>
         p.name?.toLowerCase().includes(args.projectName?.toLowerCase() || '')
@@ -2035,15 +2077,18 @@ Based on the store and items, intelligently categorize this expense:
       // Projects are linked to clients via estimate_id -> estimates -> client_id
       if (!project && args.projectName) {
         const searchName = args.projectName.toLowerCase();
+        console.log('[AI Assistant] Project not found by name, searching by client name:', searchName);
 
         // Check if the search term matches a client name
         const matchingClient = clients.find((c: any) =>
           c.name?.toLowerCase().includes(searchName)
         );
+        console.log('[AI Assistant] Matching client:', matchingClient ? { id: matchingClient.id, name: matchingClient.name } : 'none');
 
         if (matchingClient) {
           // Find estimates for this client
           const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
+          console.log('[AI Assistant] Client estimates:', clientEstimates.map((e: any) => ({ id: e.id, clientId: e.clientId })));
           const clientEstimateIds = clientEstimates.map((e: any) => e.id);
 
           // Find project linked to any of this client's estimates
@@ -2053,6 +2098,9 @@ Based on the store and items, intelligently categorize this expense:
 
           if (project) {
             console.log(`[AI Assistant] Found project "${project.name}" for client "${matchingClient.name}" via estimate linkage`);
+          } else {
+            console.log('[AI Assistant] No project found with estimateId in:', clientEstimateIds);
+            console.log('[AI Assistant] Projects with estimateIds:', projects.filter((p: any) => p.estimateId).map((p: any) => ({ name: p.name, estimateId: p.estimateId })));
           }
         }
       }
