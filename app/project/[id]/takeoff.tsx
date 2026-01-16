@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
-import { ArrowLeft, Upload, Plus, Trash2, Check, X, Ruler, Square, MapPin, Save, Sparkles, Tag, ZoomIn, ZoomOut, Download, Settings, Grid3x3, Edit3, Circle as CircleIcon } from 'lucide-react-native';
+import { ArrowLeft, Upload, Plus, Trash2, Check, X, Ruler, Square, MapPin, Save, Sparkles, Tag, ZoomIn, ZoomOut, Download, Settings, Grid3x3, Edit3, Circle as CircleIcon, FileText, Table } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -91,6 +91,9 @@ export default function TakeoffScreen() {
 
   // Annotation state
   const [showAnnotation, setShowAnnotation] = useState<boolean>(false);
+
+  // Export modal state
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
 
   // Ref for exporting
   const imageContainerRef = useRef<any>(null);
@@ -785,6 +788,220 @@ export default function TakeoffScreen() {
     } catch (error: any) {
       console.error('[Export] Error:', error);
       Alert.alert('Export Failed', `Failed to export page: ${error.message}`);
+    }
+  };
+
+  const handleExportEstimatePDF = async () => {
+    setShowExportModal(false);
+
+    const allMeasurements = plans.flatMap(plan => plan.measurements);
+    if (allMeasurements.length === 0) {
+      if (Platform.OS === 'web') {
+        window.alert('No items to export. Add measurements first.');
+      } else {
+        Alert.alert('Error', 'No items to export. Add measurements first.');
+      }
+      return;
+    }
+
+    const { subtotal, overheadAmount, taxAmount, total } = calculateTotals();
+
+    // Build items HTML
+    const itemsHtml = allMeasurements.map((measurement, index) => {
+      const priceListItem = masterPriceList.find(item => item.id === measurement.priceListItemId);
+      if (!priceListItem) return '';
+      const itemTotal = measurement.quantity * priceListItem.unitPrice;
+
+      return `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;">${index + 1}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;">${priceListItem.name}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;">${priceListItem.category}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #E5E7EB; text-align: center;">${measurement.quantity}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #E5E7EB; text-align: center;">${priceListItem.unit}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #E5E7EB; text-align: right;">$${priceListItem.unitPrice.toFixed(2)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #E5E7EB; text-align: right;">$${itemTotal.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${estimateName || 'Takeoff Estimate'}</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: white;
+            color: #1F2937;
+          }
+          h1 {
+            color: #1F2937;
+            margin-bottom: 8px;
+            font-size: 28px;
+          }
+          .subtitle {
+            color: #6B7280;
+            margin-bottom: 30px;
+            font-size: 14px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+          }
+          th {
+            background: #F3F4F6;
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            color: #374151;
+            border-bottom: 2px solid #E5E7EB;
+          }
+          .totals-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #F9FAFB;
+            border-radius: 8px;
+          }
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 15px;
+          }
+          .total-row.grand {
+            border-top: 2px solid #E5E7EB;
+            margin-top: 10px;
+            padding-top: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #1F2937;
+          }
+          @media print {
+            body { padding: 20px; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>${estimateName || 'Takeoff Estimate'}</h1>
+        <p class="subtitle">Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40px;">#</th>
+              <th>Item</th>
+              <th>Category</th>
+              <th style="text-align: center;">Qty</th>
+              <th style="text-align: center;">Unit</th>
+              <th style="text-align: right;">Unit Price</th>
+              <th style="text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div class="totals-section">
+          <div class="total-row">
+            <span>Subtotal</span>
+            <span>$${subtotal.toFixed(2)}</span>
+          </div>
+          <div class="total-row">
+            <span>Overhead & Profit (${overheadPercent}%)</span>
+            <span>$${overheadAmount.toFixed(2)}</span>
+          </div>
+          <div class="total-row">
+            <span>Sales Tax (${salesTaxPercent}%)</span>
+            <span>$${taxAmount.toFixed(2)}</span>
+          </div>
+          <div class="total-row grand">
+            <span>Grand Total</span>
+            <span>$${total.toFixed(2)}</span>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    if (Platform.OS === 'web') {
+      // Open print dialog in new window
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    } else {
+      Alert.alert('Export', 'PDF export is currently only supported on web');
+    }
+  };
+
+  const handleExportEstimateCSV = () => {
+    setShowExportModal(false);
+
+    const allMeasurements = plans.flatMap(plan => plan.measurements);
+    if (allMeasurements.length === 0) {
+      if (Platform.OS === 'web') {
+        window.alert('No items to export. Add measurements first.');
+      } else {
+        Alert.alert('Error', 'No items to export. Add measurements first.');
+      }
+      return;
+    }
+
+    const { subtotal, overheadAmount, taxAmount, total } = calculateTotals();
+
+    // Build CSV content
+    const headers = ['#', 'Item', 'Category', 'Quantity', 'Unit', 'Unit Price', 'Total', 'Notes'];
+    const rows: string[] = [];
+
+    allMeasurements.forEach((measurement, index) => {
+      const priceListItem = masterPriceList.find(item => item.id === measurement.priceListItemId);
+      if (!priceListItem) return;
+      const itemTotal = measurement.quantity * priceListItem.unitPrice;
+
+      rows.push([
+        index + 1,
+        `"${priceListItem.name.replace(/"/g, '""')}"`,
+        `"${priceListItem.category.replace(/"/g, '""')}"`,
+        measurement.quantity,
+        priceListItem.unit,
+        priceListItem.unitPrice.toFixed(2),
+        itemTotal.toFixed(2),
+        `"${(measurement.notes || '').replace(/"/g, '""')}"`,
+      ].join(','));
+    });
+
+    // Add empty row and summary
+    rows.push('');
+    rows.push(`,,,,,"Subtotal",$${subtotal.toFixed(2)},`);
+    rows.push(`,,,,,"Overhead (${overheadPercent}%)",$${overheadAmount.toFixed(2)},`);
+    rows.push(`,,,,,"Tax (${salesTaxPercent}%)",$${taxAmount.toFixed(2)},`);
+    rows.push(`,,,,,"Grand Total",$${total.toFixed(2)},`);
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+
+    if (Platform.OS === 'web') {
+      // Download CSV file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${estimateName || 'takeoff-estimate'}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } else {
+      Alert.alert('Export', 'CSV export is currently only supported on web');
     }
   };
 
@@ -1680,7 +1897,7 @@ export default function TakeoffScreen() {
 
                 <TouchableOpacity
                   style={styles.toolButton}
-                  onPress={handleExportCurrentPage}
+                  onPress={() => setShowExportModal(true)}
                 >
                   <Download size={18} color="#2563EB" />
                   <Text style={styles.toolButtonText}>Export</Text>
@@ -2392,6 +2609,62 @@ export default function TakeoffScreen() {
           </View>
         </Modal>
 
+        {/* Export Options Modal */}
+        <Modal
+          visible={showExportModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowExportModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.exportModal}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Export Estimate</Text>
+                <TouchableOpacity onPress={() => setShowExportModal(false)}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.exportModalText}>
+                Choose export format for your takeoff estimate:
+              </Text>
+
+              <TouchableOpacity
+                style={styles.exportOptionButton}
+                onPress={handleExportEstimatePDF}
+              >
+                <FileText size={24} color="#2563EB" />
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={styles.exportOptionTitle}>Export as PDF</Text>
+                  <Text style={styles.exportOptionDesc}>Formatted document for printing/sharing</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.exportOptionButton}
+                onPress={handleExportEstimateCSV}
+              >
+                <Table size={24} color="#10B981" />
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={styles.exportOptionTitle}>Export as CSV</Text>
+                  <Text style={styles.exportOptionDesc}>Spreadsheet format for Excel/Sheets</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.exportOptionButton, { borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }]}
+                onPress={handleExportCurrentPage}
+              >
+                <Download size={24} color="#6B7280" />
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={styles.exportOptionTitle}>Export Page Image</Text>
+                  <Text style={styles.exportOptionDesc}>Save current page with annotations as PDF</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         {/* Image Annotation Component */}
         {activePlan && (
           <ImageAnnotation
@@ -2861,6 +3134,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  exportModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    alignSelf: 'center',
+    marginBottom: 'auto',
+    marginTop: 'auto',
+  },
+  exportModalText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  exportOptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  exportOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  exportOptionDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
