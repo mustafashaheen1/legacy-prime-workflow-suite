@@ -637,7 +637,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'convert_estimate_to_project',
-      description: 'Convert an estimate into a project. If the estimate is not yet approved, it will be automatically approved first. Use this when user wants to convert an estimate to a project, start a project from an estimate, create a project from an estimate, or approve and convert an estimate.',
+      description: 'Convert an estimate into a project. IMPORTANT: If user confirms they want to approve and convert, call this with autoApprove: true - do NOT call approve_estimate separately.',
       parameters: {
         type: 'object',
         properties: {
@@ -651,7 +651,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           },
           autoApprove: {
             type: 'boolean',
-            description: 'If true, automatically approve the estimate before converting. Set to true when user says "approve and convert" or when estimate needs approval.',
+            description: 'CRITICAL: Set to true when user wants to approve AND convert in one step. This handles the approval automatically. Use this when: (1) user says "yes" to approve and convert, (2) user says "approve and convert", (3) estimate needs approval and user confirms.',
           },
         },
         required: [],
@@ -810,23 +810,30 @@ When a tool returns multiple client matches and user selects one, you MUST:
 - Do NOT wait for another user message - call the tool immediately after they select
 - Do NOT ask for confirmation again - they already made their choice
 
-### Rule 10: Chained Actions (CRITICAL)
-When user requests multiple related actions (e.g., "approve and convert to project"), you MUST:
-1. Execute the FIRST action (approve_estimate)
-2. Wait for the action to complete
-3. Then IMMEDIATELY call the SECOND tool (convert_estimate_to_project)
-4. Do NOT just SAY "I'll now proceed to convert..." - actually CALL the tool
+### Rule 10: Converting Estimates to Projects (CRITICAL)
+When user wants to convert an estimate to a project:
 
-**Example:**
-User: "Approve this estimate and convert it to a project"
-1. Call approve_estimate tool
-2. After success, IMMEDIATELY call convert_estimate_to_project tool
-3. Report both results
+**If estimate is not yet approved:**
+1. The convert_estimate_to_project tool will tell you the estimate needs approval
+2. Ask the user: "This estimate needs to be approved first. Would you like me to approve it and convert to a project?"
+3. If user says "Yes", call convert_estimate_to_project with autoApprove: true
+4. Do NOT call approve_estimate separately - use autoApprove: true instead
+
+**Example Flow:**
+User: "Convert this estimate to a project"
+AI: [calls convert_estimate_to_project] -> gets error "must be approved first"
+AI: "This estimate needs to be approved first. Would you like me to approve it and convert to a project?"
+User: "Yes"
+AI: [calls convert_estimate_to_project with autoApprove: true] -> SUCCESS
 
 **What NOT to do:**
-- Do NOT say "I'll now proceed to convert" without calling convert_estimate_to_project
-- Do NOT wait for another user message between approve and convert
-- Do NOT assume the second action happened - you MUST call the tool
+- Do NOT call approve_estimate separately then try to call convert_estimate_to_project
+- Do NOT say "I'll approve it first..." without using autoApprove: true
+- Do NOT wait for another user message after they say "Yes" - call the tool immediately with autoApprove: true
+
+**Direct request to approve and convert:**
+User: "Approve and convert this estimate to a project"
+AI: [calls convert_estimate_to_project with autoApprove: true immediately]
 
 ### Rule 11: Page Context Awareness
 When pageContext is provided in CURRENT PAGE CONTEXT, the user is viewing a specific page:
@@ -1877,7 +1884,15 @@ async function executeToolCall(
       // Check if estimate needs approval
       const needsApproval = estimate.status !== 'approved';
       if (needsApproval && !autoApprove) {
-        return { result: { error: `"${estimate.name}" must be approved before it can be converted to a project. Current status: ${estimate.status}` } };
+        return {
+          result: {
+            needsApproval: true,
+            estimateId: estimate.id,
+            estimateName: estimate.name,
+            clientName: client?.name,
+            message: `"${estimate.name}" needs to be approved first (current status: ${estimate.status}). Ask the user if they want to approve and convert, then call this tool again with autoApprove: true.`
+          }
+        };
       }
 
       // Return action to convert estimate to project
