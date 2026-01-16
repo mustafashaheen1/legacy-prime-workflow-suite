@@ -840,6 +840,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                   image: '',
                   hoursWorked: 0,
                   startDate: new Date().toISOString(),
+                  estimateId: estimateId, // Link the project to the estimate
                 }),
               });
 
