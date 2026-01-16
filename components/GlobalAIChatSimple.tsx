@@ -815,7 +815,7 @@ Generate appropriate line items from the price list that fit this scope of work$
           case 'convert_estimate_to_project':
             // Convert an estimate to a project (auto-approve if needed)
             if (updateEstimate && pendingAction.data && company?.id) {
-              const { estimateId, estimateName, clientId, clientName, budget, needsApproval, clientAddress } = pendingAction.data;
+              const { estimateId, estimateName, clientName, budget, needsApproval } = pendingAction.data;
 
               // If estimate needs approval, approve it first
               if (needsApproval) {
@@ -840,9 +840,6 @@ Generate appropriate line items from the price list that fit this scope of work$
                   image: '',
                   hoursWorked: 0,
                   startDate: new Date().toISOString(),
-                  estimateId: estimateId,
-                  clientId: clientId,
-                  address: clientAddress,
                 }),
               });
 

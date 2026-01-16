@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Add Project] Starting request...');
 
   try {
-    const { companyId, name, budget, expenses, progress, status, image, hoursWorked, startDate, endDate, estimateId, clientId, address } = req.body;
+    const { companyId, name, budget, expenses, progress, status, image, hoursWorked, startDate, endDate } = req.body;
 
     // Validate required fields
     if (!companyId) {
@@ -45,7 +45,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[Add Project] Adding project:', name, 'for company:', companyId);
 
-    const insertData: any = {
+    // Only use columns that exist in the projects table
+    const insertData = {
       company_id: companyId,
       name: name,
       budget: budget || 0,
@@ -57,17 +58,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       start_date: startDate || new Date().toISOString(),
       end_date: endDate || null,
     };
-
-    // Add optional fields if provided
-    if (estimateId) {
-      insertData.estimate_id = estimateId;
-    }
-    if (clientId) {
-      insertData.client_id = clientId;
-    }
-    if (address) {
-      insertData.address = address;
-    }
 
     const { data, error } = await supabase
       .from('projects')
@@ -96,9 +86,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       hoursWorked: Number(data.hours_worked) || 0,
       startDate: data.start_date,
       endDate: data.end_date || undefined,
-      estimateId: data.estimate_id || undefined,
-      clientId: data.client_id || undefined,
-      address: data.address || undefined,
     };
 
     return res.status(200).json({
