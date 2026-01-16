@@ -1,6 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
 
+export const config = {
+  maxDuration: 60,
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 // Define the function calling tools for the AI assistant
 const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {

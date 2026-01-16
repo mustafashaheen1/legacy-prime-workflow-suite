@@ -1,6 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
+export const config = {
+  maxDuration: 30,
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 // API endpoint to save an AI chat message
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
