@@ -212,7 +212,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'generate_report',
-      description: 'Generate a report based on business data. Use this for custom reports.',
+      description: 'Generate a report based on business data. Use this for custom reports. For expense reports, can filter by project name or client name.',
       parameters: {
         type: 'object',
         properties: {
@@ -227,7 +227,11 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           },
           projectId: {
             type: 'string',
-            description: 'Filter by specific project',
+            description: 'Filter by specific project ID',
+          },
+          projectName: {
+            type: 'string',
+            description: 'Filter by project name OR client name (e.g., "Home Office" or "Claudia" will both work)',
           },
           dateRange: {
             type: 'object',
@@ -1151,6 +1155,11 @@ async function executeToolCall(
 ): Promise<{ result: any; actionRequired?: string; actionData?: any }> {
   const { projects = [], clients = [], expenses = [], estimates = [], payments = [], clockEntries = [], company } = appData;
 
+  // Log data counts for debugging expense queries
+  if (toolName === 'query_expenses' || toolName === 'generate_report') {
+    console.log(`[AI Assistant] executeToolCall "${toolName}" - Data counts: ${projects.length} projects, ${clients.length} clients, ${expenses.length} expenses, ${estimates.length} estimates`);
+  }
+
   switch (toolName) {
     case 'query_projects': {
       // First, enrich ALL projects with client information via estimate linkage
@@ -1237,16 +1246,59 @@ async function executeToolCall(
     }
 
     case 'query_expenses': {
+      console.log(`[AI Assistant] query_expenses called with args:`, JSON.stringify(args));
+      console.log(`[AI Assistant] Total expenses in appData: ${expenses.length}`);
+      console.log(`[AI Assistant] Total projects in appData: ${projects.length}`);
+      console.log(`[AI Assistant] Sample expense projectIds:`, expenses.slice(0, 5).map((e: any) => ({ id: e.id?.substring(0, 8), projectId: e.projectId })));
+
       let filtered = expenses;
+      let projectFound = null;
+
       if (args.projectId) {
         filtered = filtered.filter((e: any) => e.projectId === args.projectId);
+        console.log(`[AI Assistant] After projectId filter: ${filtered.length} expenses`);
       }
       if (args.projectName) {
-        const project = projects.find((p: any) =>
+        console.log(`[AI Assistant] Searching for project by name: "${args.projectName}"`);
+
+        // First try to find by project name
+        projectFound = projects.find((p: any) =>
           p.name?.toLowerCase().includes(args.projectName.toLowerCase())
         );
-        if (project) {
-          filtered = filtered.filter((e: any) => e.projectId === project.id);
+        console.log(`[AI Assistant] Direct project name match: ${projectFound ? projectFound.name : 'none'}`);
+
+        // If not found by project name, try to find by client name via estimate linkage
+        if (!projectFound) {
+          const matchingClient = clients.find((c: any) =>
+            c.name?.toLowerCase().includes(args.projectName.toLowerCase())
+          );
+          console.log(`[AI Assistant] Client name match: ${matchingClient ? matchingClient.name : 'none'}`);
+
+          if (matchingClient) {
+            const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
+            console.log(`[AI Assistant] Found ${clientEstimates.length} estimates for client ${matchingClient.name}`);
+            const clientEstimateIds = clientEstimates.map((e: any) => e.id);
+            console.log(`[AI Assistant] Client estimate IDs:`, clientEstimateIds);
+
+            projectFound = projects.find((p: any) =>
+              p.estimateId && clientEstimateIds.includes(p.estimateId)
+            );
+            if (projectFound) {
+              console.log(`[AI Assistant] Found project "${projectFound.name}" (ID: ${projectFound.id}) for client "${matchingClient.name}" via estimate linkage`);
+            } else {
+              console.log(`[AI Assistant] No project found via estimate linkage. Projects with estimateIds:`, projects.filter((p: any) => p.estimateId).map((p: any) => ({ name: p.name, estimateId: p.estimateId })));
+            }
+          }
+        }
+
+        if (projectFound) {
+          console.log(`[AI Assistant] Filtering expenses for projectId: ${projectFound.id}`);
+          const beforeFilter = filtered.length;
+          filtered = filtered.filter((e: any) => e.projectId === projectFound.id);
+          console.log(`[AI Assistant] Filtered from ${beforeFilter} to ${filtered.length} expenses`);
+          if (filtered.length === 0) {
+            console.log(`[AI Assistant] All expense projectIds:`, expenses.map((e: any) => e.projectId));
+          }
         }
       }
       if (args.withReceipts) {
@@ -1257,6 +1309,7 @@ async function executeToolCall(
         result: {
           count: filtered.length,
           total,
+          projectName: projectFound?.name,
           expenses: filtered.map((e: any) => ({
             id: e.id,
             type: e.type,
@@ -1512,16 +1565,63 @@ async function executeToolCall(
     }
 
     case 'generate_report': {
+      console.log(`[AI Assistant] generate_report called with args:`, JSON.stringify(args));
       let reportData: any = {};
 
       switch (args.reportType) {
         case 'expenses': {
+          console.log(`[AI Assistant] Generating expense report. Total expenses: ${expenses.length}`);
           let filtered = expenses;
+          let projectFound = null;
+
           if (args.withReceipts) {
             filtered = filtered.filter((e: any) => e.receiptUrl);
           }
           if (args.projectId) {
             filtered = filtered.filter((e: any) => e.projectId === args.projectId);
+            projectFound = projects.find((p: any) => p.id === args.projectId);
+          }
+          // Support filtering by project name OR client name
+          if (args.projectName) {
+            console.log(`[AI Assistant] Filtering expense report by projectName: "${args.projectName}"`);
+
+            // First try to find by project name
+            projectFound = projects.find((p: any) =>
+              p.name?.toLowerCase().includes(args.projectName.toLowerCase())
+            );
+            console.log(`[AI Assistant] Direct project match: ${projectFound ? projectFound.name : 'none'}`);
+
+            // If not found by project name, try to find by client name via estimate linkage
+            if (!projectFound) {
+              const matchingClient = clients.find((c: any) =>
+                c.name?.toLowerCase().includes(args.projectName.toLowerCase())
+              );
+              console.log(`[AI Assistant] Client match: ${matchingClient ? matchingClient.name : 'none'}`);
+
+              if (matchingClient) {
+                const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
+                console.log(`[AI Assistant] Client has ${clientEstimates.length} estimates`);
+                const clientEstimateIds = clientEstimates.map((e: any) => e.id);
+                projectFound = projects.find((p: any) =>
+                  p.estimateId && clientEstimateIds.includes(p.estimateId)
+                );
+                if (projectFound) {
+                  console.log(`[AI Assistant] Report: Found project "${projectFound.name}" (ID: ${projectFound.id}) for client "${matchingClient.name}"`);
+                } else {
+                  console.log(`[AI Assistant] No project found via estimate linkage`);
+                }
+              }
+            }
+
+            if (projectFound) {
+              console.log(`[AI Assistant] Filtering expenses by projectId: ${projectFound.id}`);
+              const beforeCount = filtered.length;
+              filtered = filtered.filter((e: any) => e.projectId === projectFound.id);
+              console.log(`[AI Assistant] Expense report filtered from ${beforeCount} to ${filtered.length}`);
+              if (filtered.length === 0 && beforeCount > 0) {
+                console.log(`[AI Assistant] All expense projectIds:`, expenses.map((e: any) => e.projectId));
+              }
+            }
           }
 
           // Group by category
@@ -1533,6 +1633,7 @@ async function executeToolCall(
 
           reportData = {
             type: 'expenses',
+            projectName: projectFound?.name,
             totalExpenses: filtered.reduce((sum: number, e: any) => sum + e.amount, 0),
             count: filtered.length,
             withReceipts: args.withReceipts,
