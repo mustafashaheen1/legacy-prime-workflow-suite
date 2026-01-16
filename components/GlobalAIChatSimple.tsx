@@ -194,6 +194,15 @@ function useOpenAIChat(appData: {
     if (!appData.userId) return;
 
     try {
+      // Don't save large base64 image data to database - it can exceed column size limits
+      // Only save file metadata (without the actual data URI) for display purposes
+      const filesToSave = files.map(f => ({
+        mimeType: f.mimeType,
+        // Only keep the URI if it's a URL (not base64)
+        uri: f.uri?.startsWith('http') ? f.uri : undefined,
+        hasImage: f.uri?.startsWith('data:image') || f.mimeType?.startsWith('image/'),
+      })).filter(f => f.uri || f.hasImage);
+
       await fetch('/api/save-chat-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -201,7 +210,7 @@ function useOpenAIChat(appData: {
           userId: appData.userId,
           role,
           content,
-          files,
+          files: filesToSave,
         }),
       });
     } catch (error) {
@@ -884,7 +893,12 @@ Generate appropriate line items from the price list that fit this scope of work$
               const imageDataToUpload = receiptImageData || pendingReceiptDataRef.current?.imageData;
 
               // Upload receipt to S3 if image data provided
-              if (imageDataToUpload && imageDataToUpload.startsWith('data:')) {
+              // Check if it's already an S3 URL (already uploaded)
+              if (imageDataToUpload && imageDataToUpload.startsWith('http')) {
+                receiptUrl = imageDataToUpload;
+                console.log('[AI Action] Using existing S3 URL:', receiptUrl);
+              } else if (imageDataToUpload && imageDataToUpload.startsWith('data:')) {
+                // Upload base64 data to S3
                 try {
                   console.log('[AI Action] Uploading receipt image to S3...');
                   const uploadResponse = await fetch('/api/upload-to-s3', {
@@ -2081,9 +2095,32 @@ Generate appropriate line items from the price list that fit this scope of work$
             if (result.success && result.data) {
               const { store, amount, category, items, confidence } = result.data;
 
+              // Upload receipt image to S3 immediately so it persists
+              let receiptS3Url: string | undefined;
+              try {
+                console.log('[Send] Uploading receipt to S3...');
+                const uploadResponse = await fetch('/api/upload-to-s3', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    fileData: dataUri,
+                    fileName: `receipt-${Date.now()}.jpg`,
+                    fileType: 'image/jpeg',
+                  }),
+                });
+                if (uploadResponse.ok) {
+                  const uploadResult = await uploadResponse.json();
+                  receiptS3Url = uploadResult.url;
+                  console.log('[Send] Receipt uploaded to S3:', receiptS3Url);
+                }
+              } catch (uploadError) {
+                console.error('[Send] Failed to upload receipt to S3:', uploadError);
+              }
+
               // Store the receipt data for when user specifies the project
+              // Use S3 URL if available, otherwise fall back to base64 data
               pendingReceiptDataRef.current = {
-                imageData: dataUri,
+                imageData: receiptS3Url || dataUri,
                 store: store || '',
                 amount: amount || 0,
                 category: category || 'Material',
