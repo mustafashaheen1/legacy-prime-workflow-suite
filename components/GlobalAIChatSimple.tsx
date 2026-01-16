@@ -4,6 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useState, useRef, useEffect, useCallback } from 'react';
 // Removed Rork AI dependency - using OpenAI directly
 import { Audio } from 'expo-av';
@@ -1807,54 +1808,146 @@ Generate appropriate line items from the price list that fit this scope of work$
     }
   };
 
+  // Compress image to reduce size for API requests
+  const compressImage = async (uri: string): Promise<string> => {
+    // Only compress on native platforms (not web)
+    if (Platform.OS === 'web') {
+      return uri;
+    }
+
+    try {
+      console.log('[Image Compression] Starting compression...');
+
+      // Resize to max 1024px on longest side and compress to 70% quality
+      const result = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1024 } }],
+        {
+          compress: 0.7,
+          format: ImageManipulator.SaveFormat.JPEG
+        }
+      );
+
+      console.log('[Image Compression] Compressed successfully, new URI:', result.uri);
+      return result.uri;
+    } catch (error) {
+      console.error('[Image Compression] Error compressing image:', error);
+      // Return original URI if compression fails
+      return uri;
+    }
+  };
+
   const convertFileToDataUri = async (file: AttachedFile): Promise<string> => {
     try {
       console.log('[File Conversion] Starting conversion for:', file.name);
-      
+
+      // Check if this is an image that needs compression
+      const isImage = file.mimeType.startsWith('image/');
+      let uriToProcess = file.uri;
+
+      // Compress images before converting to data URI
+      if (isImage && Platform.OS !== 'web') {
+        uriToProcess = await compressImage(file.uri);
+      }
+
       if (Platform.OS === 'web') {
-        if (file.uri.startsWith('data:')) {
-          return file.uri;
+        if (uriToProcess.startsWith('data:')) {
+          // For web, if image is already a data URI and large, compress via canvas
+          if (isImage && uriToProcess.length > 500000) { // > 500KB
+            console.log('[File Conversion] Compressing large web image...');
+            return await compressWebImage(uriToProcess);
+          }
+          return uriToProcess;
         }
-        
-        const response = await fetch(file.uri);
+
+        const response = await fetch(uriToProcess);
         if (!response.ok) {
           throw new Error(`Failed to fetch file: ${response.status}`);
         }
-        
+
         const blob = await response.blob();
-        
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            try {
-              const result = reader.result as string;
-              if (!result) {
-                reject(new Error('FileReader returned empty result'));
-                return;
-              }
-              resolve(result);
-            } catch (err) {
-              reject(err);
-            }
-          };
-          reader.onerror = () => {
-            reject(new Error('FileReader failed to read file'));
-          };
-          reader.readAsDataURL(blob);
-        });
+
+        // For web images, compress if large
+        if (isImage && blob.size > 500000) {
+          console.log('[File Conversion] Compressing large web blob...');
+          const dataUri = await blobToDataUri(blob);
+          return await compressWebImage(dataUri);
+        }
+
+        return await blobToDataUri(blob);
       } else {
-        const base64 = await FileSystem.readAsStringAsync(file.uri, {
+        const base64 = await FileSystem.readAsStringAsync(uriToProcess, {
           encoding: 'base64' as any,
         });
         if (!base64 || base64.length === 0) {
           throw new Error('Failed to read file or file is empty');
         }
-        return `data:${file.mimeType};base64,${base64}`;
+        // Use JPEG for compressed images
+        const outputMimeType = isImage ? 'image/jpeg' : file.mimeType;
+        return `data:${outputMimeType};base64,${base64}`;
       }
     } catch (error) {
       console.error('[File Conversion] Error:', error);
       throw new Error(`Could not process file ${file.name}`);
     }
+  };
+
+  // Helper to convert blob to data URI
+  const blobToDataUri = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        if (!result) {
+          reject(new Error('FileReader returned empty result'));
+          return;
+        }
+        resolve(result);
+      };
+      reader.onerror = () => reject(new Error('FileReader failed to read file'));
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Compress image on web using canvas
+  const compressWebImage = async (dataUri: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxSize = 1024;
+        let { width, height } = img;
+
+        // Scale down if larger than maxSize
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = (height / width) * maxSize;
+            width = maxSize;
+          } else {
+            width = (width / height) * maxSize;
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to JPEG with 70% quality
+        const compressed = canvas.toDataURL('image/jpeg', 0.7);
+        console.log('[File Conversion] Web image compressed from', dataUri.length, 'to', compressed.length, 'bytes');
+        resolve(compressed);
+      };
+      img.onerror = () => reject(new Error('Failed to load image for compression'));
+      img.src = dataUri;
+    });
   };
 
   const generateImage = async (prompt: string) => {
@@ -1895,13 +1988,13 @@ Generate appropriate line items from the price list that fit this scope of work$
 
   const handleSend = async (speakResponse = false) => {
     if (!input.trim() && attachedFiles.length === 0) return;
-    
+
     const userMessage = input.trim() || 'Please analyze the attached images';
     const hasImages = attachedFiles.some(f => f.mimeType.startsWith('image/'));
-    
-    const isImageGenerationRequest = userMessage.toLowerCase().includes('genera') && 
+
+    const isImageGenerationRequest = userMessage.toLowerCase().includes('genera') &&
       (userMessage.toLowerCase().includes('imagen') || userMessage.toLowerCase().includes('image'));
-    
+
     if (isImageGenerationRequest && !hasImages) {
       const prompt = userMessage.replace(/genera(r)?\s+(una?\s+)?imagen\s+(de|con)?\s*/i, '').trim();
       if (prompt) {
@@ -1910,14 +2003,84 @@ Generate appropriate line items from the price list that fit this scope of work$
         return;
       }
     }
-    
+
     setInput('');
 
     try {
       if (hasImages) {
         console.log('[Send] Processing with images');
+
+        // Check if this is likely a receipt/expense request
+        const lowerMessage = userMessage.toLowerCase();
+        const isReceiptRequest =
+          lowerMessage.includes('expense') ||
+          lowerMessage.includes('receipt') ||
+          lowerMessage.includes('add this') ||
+          lowerMessage.includes('analyze this') ||
+          lowerMessage === 'please analyze the attached images';
+
+        if (isReceiptRequest && attachedFiles.length === 1) {
+          // Use dedicated receipt analysis endpoint to avoid payload size issues
+          console.log('[Send] Using dedicated receipt analysis endpoint');
+          const file = attachedFiles[0];
+          const dataUri = await convertFileToDataUri(file);
+
+          setAttachedFiles([]);
+
+          // Add user message to chat
+          addMessage({
+            id: Date.now().toString(),
+            role: 'user',
+            parts: [{ type: 'text', text: userMessage }],
+            text: userMessage,
+          });
+
+          // Show loading message
+          addMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            parts: [{ type: 'text', text: 'Analyzing receipt...' }],
+            text: 'Analyzing receipt...',
+          });
+
+          try {
+            const response = await fetch('/api/analyze-receipt', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                imageData: dataUri,
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`Receipt analysis failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.success && result.data) {
+              const { store, amount, category, items, confidence } = result.data;
+
+              // Update the last message with receipt analysis results
+              const analysisMessage = `I've analyzed the receipt:\n- Store: ${store}\n- Amount: $${amount?.toFixed(2) || '0.00'}\n- Category: ${category}\n${items ? `- Items: ${items}\n` : ''}\nWhich project should I add this expense to?`;
+
+              updateLastMessage(analysisMessage);
+
+              // Store the receipt data for when user specifies the project
+              // We'll handle this through the normal AI flow next
+            } else {
+              updateLastMessage('I couldn\'t analyze the receipt clearly. Please enter the expense details manually, or try taking another photo with better lighting.');
+            }
+          } catch (analyzeError) {
+            console.error('[Send] Receipt analysis error:', analyzeError);
+            updateLastMessage('Sorry, I had trouble analyzing the receipt. Please try again or enter the expense details manually.');
+          }
+          return;
+        }
+
+        // For non-receipt images or multiple images, use the regular flow
         const filesForAI: { type: 'file'; mimeType: string; uri: string; }[] = [];
-        
+
         for (const file of attachedFiles.filter(f => f.mimeType.startsWith('image/'))) {
           const dataUri = await convertFileToDataUri(file);
           filesForAI.push({
@@ -1926,9 +2089,9 @@ Generate appropriate line items from the price list that fit this scope of work$
             uri: dataUri,
           });
         }
-        
+
         setAttachedFiles([]);
-        
+
         await sendMessage({
           text: userMessage,
           files: filesForAI as any,
