@@ -814,8 +814,8 @@ Generate appropriate line items from the price list that fit this scope of work$
 
           case 'convert_estimate_to_project':
             // Convert an estimate to a project (auto-approve if needed)
-            if (addProject && updateEstimate && pendingAction.data) {
-              const { estimateId, estimateName, clientId, clientName, budget, needsApproval } = pendingAction.data;
+            if (updateEstimate && pendingAction.data && company?.id) {
+              const { estimateId, estimateName, clientId, clientName, budget, needsApproval, clientAddress } = pendingAction.data;
 
               // If estimate needs approval, approve it first
               if (needsApproval) {
@@ -823,24 +823,46 @@ Generate appropriate line items from the price list that fit this scope of work$
                 console.log('[AI Action] Auto-approved estimate:', estimateName);
               }
 
-              // Create a new project from the estimate
-              const projectId = `project-${Date.now()}`;
-              const newProject = {
-                id: projectId,
-                name: estimateName.replace(' Estimate', '').replace(' - ' + clientName, ''),
-                status: 'active' as const,
-                budget: parseFloat(budget) || 0,
-                expenses: 0,
-                progress: 0,
-                image: '',
-                hoursWorked: 0,
-                startDate: new Date().toISOString(),
-                estimateId: estimateId,
-              };
+              // Use direct API endpoint for reliable project creation
+              console.log('[AI Action] Creating project via direct API...');
+              const projectName = estimateName.replace(' Estimate', '').replace(' - ' + clientName, '');
 
-              await addProject(newProject);
+              const response = await fetch('/api/add-project', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  companyId: company.id,
+                  name: projectName,
+                  budget: parseFloat(budget) || 0,
+                  expenses: 0,
+                  progress: 0,
+                  status: 'active',
+                  image: '',
+                  hoursWorked: 0,
+                  startDate: new Date().toISOString(),
+                  estimateId: estimateId,
+                  clientId: clientId,
+                  address: clientAddress,
+                }),
+              });
 
-              console.log('[AI Action] Converted estimate to project:', projectId, 'for', clientName);
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to create project');
+              }
+
+              const result = await response.json();
+
+              if (result.success && result.project) {
+                // Update local state with the new project from database
+                // The project has a UUID from Supabase, so addProject won't re-sync
+                if (addProject) {
+                  await addProject(result.project);
+                }
+                console.log('[AI Action] Project created successfully:', result.project.id, 'for', clientName);
+              } else {
+                throw new Error('Project creation failed - no project returned');
+              }
             }
             break;
 
