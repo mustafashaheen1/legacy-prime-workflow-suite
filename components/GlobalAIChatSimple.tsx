@@ -413,6 +413,14 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const voicesLoadedRef = useRef<boolean>(false);
   const previousMessageCountRef = useRef<number>(0);
+  // Store pending receipt data for when user specifies a project
+  const pendingReceiptDataRef = useRef<{
+    imageData: string;
+    store: string;
+    amount: number;
+    category: string;
+    items?: string;
+  } | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const isOnChatScreen = pathname === '/chat';
@@ -872,15 +880,18 @@ Generate appropriate line items from the price list that fit this scope of work$
 
               let receiptUrl: string | undefined;
 
+              // Check for image data from action data OR from pending receipt data ref
+              const imageDataToUpload = receiptImageData || pendingReceiptDataRef.current?.imageData;
+
               // Upload receipt to S3 if image data provided
-              if (receiptImageData && receiptImageData.startsWith('data:')) {
+              if (imageDataToUpload && imageDataToUpload.startsWith('data:')) {
                 try {
                   console.log('[AI Action] Uploading receipt image to S3...');
                   const uploadResponse = await fetch('/api/upload-to-s3', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      fileData: receiptImageData,
+                      fileData: imageDataToUpload,
                       fileName: `receipt-${Date.now()}.jpg`,
                       fileType: 'image/jpeg',
                     }),
@@ -898,19 +909,27 @@ Generate appropriate line items from the price list that fit this scope of work$
                 }
               }
 
+              // Use pending receipt data for store/amount if available and not provided
+              const finalStore = store || pendingReceiptDataRef.current?.store || '';
+              const finalAmount = amount || pendingReceiptDataRef.current?.amount || 0;
+              const finalSubcategory = subcategory || pendingReceiptDataRef.current?.category || type || 'Material';
+
               // Create the expense
               await addExpense({
                 id: `expense-${Date.now()}`,
                 projectId,
-                type,
-                subcategory,
-                amount: parseFloat(amount) || 0,
-                store,
+                type: type || 'Material',
+                subcategory: finalSubcategory,
+                amount: parseFloat(String(finalAmount)) || 0,
+                store: finalStore,
                 date: date || new Date().toISOString(),
                 receiptUrl,
               });
 
-              console.log('[AI Action] Added expense:', amount, 'to project:', projectId);
+              console.log('[AI Action] Added expense:', finalAmount, 'to project:', projectId, 'with receipt:', receiptUrl ? 'yes' : 'no');
+
+              // Clear the pending receipt data after use
+              pendingReceiptDataRef.current = null;
             }
             break;
 
@@ -2062,13 +2081,20 @@ Generate appropriate line items from the price list that fit this scope of work$
             if (result.success && result.data) {
               const { store, amount, category, items, confidence } = result.data;
 
+              // Store the receipt data for when user specifies the project
+              pendingReceiptDataRef.current = {
+                imageData: dataUri,
+                store: store || '',
+                amount: amount || 0,
+                category: category || 'Material',
+                items: items || undefined,
+              };
+              console.log('[Send] Stored pending receipt data for later use');
+
               // Update the last message with receipt analysis results
               const analysisMessage = `I've analyzed the receipt:\n- Store: ${store}\n- Amount: $${amount?.toFixed(2) || '0.00'}\n- Category: ${category}\n${items ? `- Items: ${items}\n` : ''}\nWhich project should I add this expense to?`;
 
               updateLastMessage(analysisMessage);
-
-              // Store the receipt data for when user specifies the project
-              // We'll handle this through the normal AI flow next
             } else {
               updateLastMessage('I couldn\'t analyze the receipt clearly. Please enter the expense details manually, or try taking another photo with better lighting.');
             }

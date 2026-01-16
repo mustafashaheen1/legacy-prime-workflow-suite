@@ -892,11 +892,11 @@ AI: [Calls generate_estimate]
 ### Rule 12: Expense Creation Flow
 When user wants to create an expense:
 
-1. If user attaches a receipt image:
-   - Call analyze_receipt to extract data from the image
-   - Show the extracted data to user for confirmation
-   - Ask which project to add it to (if not already specified)
-   - Call add_expense with the analyzed data and image
+1. If receipt was already analyzed and you show results like "Store: X, Amount: $Y":
+   - The receipt data (including image) is stored client-side automatically
+   - When user specifies a project, call add_expense with the analyzed details
+   - IMPORTANT: Include store, amount, and category from the analysis in the add_expense call
+   - The receipt image will be uploaded automatically from stored data
 
 2. If user provides details manually:
    - Ask for missing required fields (project, type, amount, store)
@@ -904,7 +904,7 @@ When user wants to create an expense:
 
 3. Required fields for expenses:
    - Project name (to link expense to a project)
-   - Expense type (Subcontractor, Labor, Material, Office, Others)
+   - Expense type (Subcontractor, Labor, Material, Office, Others) - defaults to "Material"
    - Amount
    - Store/vendor name
 
@@ -912,16 +912,20 @@ When user wants to create an expense:
 
 5. If pageContext shows current project (e.g., "Project: Kitchen Remodel"), use that project automatically
 
+**CRITICAL: After Receipt Analysis**
+When you showed "I've analyzed the receipt: Store: X, Amount: $Y, Category: Z" and user says which project:
+- You MUST call add_expense with: projectName, store, amount, and category from your previous analysis
+- Example: If you showed "Store: SiteOne, Amount: $87.25, Category: ELECTRICAL"
+  Then call: add_expense(projectName: "user's project", store: "SiteOne", amount: 87.25, category: "ELECTRICAL", expenseType: "Material")
+
 **Example conversation:**
-User: [attaches receipt image] "Add this expense"
-AI: [Calls analyze_receipt]
 AI: "I've analyzed the receipt:
      - Store: Home Depot
      - Amount: $247.53
      - Category: Lumber and hardware material
      Which project should I add this expense to?"
 User: "Kitchen Remodel"
-AI: [Calls add_expense]
+AI: [Calls add_expense with projectName: "Kitchen Remodel", store: "Home Depot", amount: 247.53, category: "Lumber and hardware material", expenseType: "Material"]
 AI: "✓ Expense added to Kitchen Remodel: $247.53 at Home Depot"
 
 ### Rule 13: Finding Projects by Client Name (CRITICAL)
