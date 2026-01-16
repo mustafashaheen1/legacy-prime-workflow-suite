@@ -212,26 +212,22 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'generate_report',
-      description: 'Generate a report based on business data. Use this for custom reports. For expense reports, can filter by project name or client name.',
+      description: 'Generate and SAVE a report to the database. Reports are saved and visible in the Reports Library. Available types: administrative (Admin & Financial), expenses (Expenses breakdown), time-tracking (Employee hours), daily-logs (Daily work logs), custom (AI-generated custom report). Can filter by project name or client name.',
       parameters: {
         type: 'object',
         properties: {
           reportType: {
             type: 'string',
-            enum: ['expenses', 'projects', 'time-tracking', 'financial', 'clients'],
-            description: 'Type of report to generate',
-          },
-          withReceipts: {
-            type: 'boolean',
-            description: 'For expense reports, only include expenses with receipts',
-          },
-          projectId: {
-            type: 'string',
-            description: 'Filter by specific project ID',
+            enum: ['administrative', 'expenses', 'time-tracking', 'daily-logs', 'custom'],
+            description: 'Type of report: administrative (Admin & Financial overview), expenses (expense breakdown by category), time-tracking (employee hours), daily-logs (work logs), custom (AI-generated)',
           },
           projectName: {
             type: 'string',
-            description: 'Filter by project name OR client name (e.g., "Home Office" or "Claudia" will both work)',
+            description: 'Filter by project name OR client name (e.g., "Home Office" or "Claudia" will both work). Required for most reports.',
+          },
+          customPrompt: {
+            type: 'string',
+            description: 'For custom reports, the specific analysis or report the user wants',
           },
           dateRange: {
             type: 'object',
@@ -241,7 +237,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             },
           },
         },
-        required: ['reportType'],
+        required: ['reportType', 'projectName'],
       },
     },
   },
@@ -1566,155 +1562,312 @@ async function executeToolCall(
 
     case 'generate_report': {
       console.log(`[AI Assistant] generate_report called with args:`, JSON.stringify(args));
+
+      // Helper function to find project by name or client name
+      const findProjectByNameOrClient = (searchName: string) => {
+        // First try to find by project name
+        let projectFound = projects.find((p: any) =>
+          p.name?.toLowerCase().includes(searchName.toLowerCase())
+        );
+
+        // If not found by project name, try to find by client name via estimate linkage
+        if (!projectFound) {
+          const matchingClient = clients.find((c: any) =>
+            c.name?.toLowerCase().includes(searchName.toLowerCase())
+          );
+          if (matchingClient) {
+            const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
+            const clientEstimateIds = clientEstimates.map((e: any) => e.id);
+            projectFound = projects.find((p: any) =>
+              p.estimateId && clientEstimateIds.includes(p.estimateId)
+            );
+            if (projectFound) {
+              console.log(`[AI Assistant] Found project "${projectFound.name}" for client "${matchingClient.name}"`);
+            }
+          }
+        }
+        return projectFound;
+      };
+
+      // Find the project first
+      const project = args.projectName ? findProjectByNameOrClient(args.projectName) : null;
+
+      if (!project && args.reportType !== 'custom') {
+        return {
+          result: {
+            error: `Could not find a project for "${args.projectName}". Please specify a valid project name or client name.`,
+          },
+        };
+      }
+
       let reportData: any = {};
 
       switch (args.reportType) {
-        case 'expenses': {
-          console.log(`[AI Assistant] Generating expense report. Total expenses: ${expenses.length}`);
-          let filtered = expenses;
-          let projectFound = null;
+        case 'administrative': {
+          // Admin & Financial Report - matches project/[id].tsx logic
+          const projectClockEntries = clockEntries.filter((entry: any) => entry.projectId === project.id);
+          const projectExpenses = expenses.filter((e: any) => e.projectId === project.id);
 
-          if (args.withReceipts) {
-            filtered = filtered.filter((e: any) => e.receiptUrl);
-          }
-          if (args.projectId) {
-            filtered = filtered.filter((e: any) => e.projectId === args.projectId);
-            projectFound = projects.find((p: any) => p.id === args.projectId);
-          }
-          // Support filtering by project name OR client name
-          if (args.projectName) {
-            console.log(`[AI Assistant] Filtering expense report by projectName: "${args.projectName}"`);
-
-            // First try to find by project name
-            projectFound = projects.find((p: any) =>
-              p.name?.toLowerCase().includes(args.projectName.toLowerCase())
-            );
-            console.log(`[AI Assistant] Direct project match: ${projectFound ? projectFound.name : 'none'}`);
-
-            // If not found by project name, try to find by client name via estimate linkage
-            if (!projectFound) {
-              const matchingClient = clients.find((c: any) =>
-                c.name?.toLowerCase().includes(args.projectName.toLowerCase())
-              );
-              console.log(`[AI Assistant] Client match: ${matchingClient ? matchingClient.name : 'none'}`);
-
-              if (matchingClient) {
-                const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
-                console.log(`[AI Assistant] Client has ${clientEstimates.length} estimates`);
-                const clientEstimateIds = clientEstimates.map((e: any) => e.id);
-                projectFound = projects.find((p: any) =>
-                  p.estimateId && clientEstimateIds.includes(p.estimateId)
-                );
-                if (projectFound) {
-                  console.log(`[AI Assistant] Report: Found project "${projectFound.name}" (ID: ${projectFound.id}) for client "${matchingClient.name}"`);
-                } else {
-                  console.log(`[AI Assistant] No project found via estimate linkage`);
-                }
-              }
-            }
-
-            if (projectFound) {
-              console.log(`[AI Assistant] Filtering expenses by projectId: ${projectFound.id}`);
-              const beforeCount = filtered.length;
-              filtered = filtered.filter((e: any) => e.projectId === projectFound.id);
-              console.log(`[AI Assistant] Expense report filtered from ${beforeCount} to ${filtered.length}`);
-              if (filtered.length === 0 && beforeCount > 0) {
-                console.log(`[AI Assistant] All expense projectIds:`, expenses.map((e: any) => e.projectId));
-              }
-            }
-          }
-
-          // Group by category
-          const byCategory: Record<string, number> = {};
-          filtered.forEach((e: any) => {
-            const cat = e.type || 'Other';
-            byCategory[cat] = (byCategory[cat] || 0) + e.amount;
+          const expensesByCategory: { [category: string]: number } = {};
+          projectExpenses.forEach((expense: any) => {
+            const category = expense.type || 'Uncategorized';
+            expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
           });
 
+          const totalExpenses = projectExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+          const totalLaborHours = projectClockEntries.reduce((sum: number, entry: any) => {
+            if (!entry.clockOut) return sum;
+            const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
+            return sum + hours;
+          }, 0);
+
+          // Get change orders for adjusted budget (if available)
+          const { changeOrders = [] } = appData;
+          const projectChangeOrders = changeOrders.filter((co: any) => co.projectId === project.id && co.status === 'approved');
+          const totalChangeOrdersApproved = projectChangeOrders.reduce((sum: number, co: any) => sum + (co.amount || 0), 0);
+          const adjustedBudget = (project.budget || 0) + totalChangeOrdersApproved;
+
+          const projectReportData = {
+            projectId: project.id,
+            projectName: project.name,
+            budget: project.budget || 0,
+            expenses: totalExpenses,
+            hoursWorked: totalLaborHours,
+            clockEntries: projectClockEntries.length,
+            status: project.status,
+            progress: project.progress || 0,
+            startDate: project.startDate,
+            endDate: project.endDate,
+            expensesByCategory,
+          };
+
           reportData = {
-            type: 'expenses',
-            projectName: projectFound?.name,
-            totalExpenses: filtered.reduce((sum: number, e: any) => sum + e.amount, 0),
-            count: filtered.length,
-            withReceipts: args.withReceipts,
-            byCategory,
-            expenses: filtered,
+            reportType: 'administrative',
+            reportName: `Admin & Financial Report - ${project.name}`,
+            projectIds: [project.id],
+            projectsCount: 1,
+            totalBudget: adjustedBudget,
+            totalExpenses,
+            totalHours: totalLaborHours,
+            projects: [projectReportData],
+            expensesByCategory,
+            // Summary for AI response
+            summary: {
+              projectName: project.name,
+              budget: adjustedBudget,
+              expenses: totalExpenses,
+              profit: adjustedBudget - totalExpenses,
+              laborHours: Math.round(totalLaborHours * 100) / 100,
+              expenseCount: projectExpenses.length,
+            },
           };
           break;
         }
 
-        case 'projects': {
-          const activeProjects = projects.filter((p: any) => p.status === 'active');
-          const completedProjects = projects.filter((p: any) => p.status === 'completed');
-          const totalBudget = projects.reduce((sum: number, p: any) => sum + (p.budget || 0), 0);
-          const totalExpenses = projects.reduce((sum: number, p: any) => sum + (p.expenses || 0), 0);
+        case 'expenses': {
+          // Expenses Report - matches project/[id].tsx logic
+          const projectExpenses = expenses.filter((e: any) => e.projectId === project.id);
+
+          const expensesByCategory: { [category: string]: number } = {};
+          projectExpenses.forEach((expense: any) => {
+            const category = expense.type || 'Uncategorized';
+            expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
+          });
+
+          const totalExpenses = projectExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+
+          const projectReportData = {
+            projectId: project.id,
+            projectName: project.name,
+            budget: project.budget || 0,
+            expenses: totalExpenses,
+            hoursWorked: project.hoursWorked || 0,
+            clockEntries: 0,
+            status: project.status,
+            progress: project.progress || 0,
+            startDate: project.startDate,
+            endDate: project.endDate,
+            expensesByCategory,
+          };
 
           reportData = {
-            type: 'projects',
-            totalProjects: projects.length,
-            activeProjects: activeProjects.length,
-            completedProjects: completedProjects.length,
-            totalBudget,
+            reportType: 'expenses',
+            reportName: `Expenses Report - ${project.name}`,
+            projectIds: [project.id],
+            projectsCount: 1,
             totalExpenses,
-            profitMargin: totalBudget > 0 ? ((totalBudget - totalExpenses) / totalBudget) * 100 : 0,
-            projects,
+            projects: [projectReportData],
+            expensesByCategory,
+            // Summary for AI response
+            summary: {
+              projectName: project.name,
+              totalExpenses,
+              expenseCount: projectExpenses.length,
+              categories: expensesByCategory,
+              expenses: projectExpenses.map((e: any) => ({
+                type: e.type,
+                subcategory: e.subcategory,
+                amount: e.amount,
+                store: e.store,
+                date: e.date,
+              })),
+            },
           };
           break;
         }
 
         case 'time-tracking': {
-          const totalHours = clockEntries.reduce((sum: number, c: any) => {
-            if (c.clockIn && c.clockOut) {
-              const hours = (new Date(c.clockOut).getTime() - new Date(c.clockIn).getTime()) / 3600000;
-              return sum + hours;
+          // Time Tracking Report - matches project/[id].tsx logic
+          const projectClockEntries = clockEntries.filter((entry: any) => entry.projectId === project.id);
+
+          const employeeDataMap: { [employeeId: string]: any } = {};
+
+          projectClockEntries.forEach((entry: any) => {
+            if (!employeeDataMap[entry.employeeId]) {
+              employeeDataMap[entry.employeeId] = {
+                employeeId: entry.employeeId,
+                employeeName: entry.employeeName || `Employee ${entry.employeeId.slice(0, 8)}`,
+                totalHours: 0,
+                regularHours: 0,
+                overtimeHours: 0,
+                totalDays: 0,
+                averageHoursPerDay: 0,
+                clockEntries: [],
+              };
             }
-            return sum;
+
+            if (entry.clockOut) {
+              const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
+              employeeDataMap[entry.employeeId].totalHours += hours;
+
+              if (hours > 8) {
+                employeeDataMap[entry.employeeId].regularHours += 8;
+                employeeDataMap[entry.employeeId].overtimeHours += (hours - 8);
+              } else {
+                employeeDataMap[entry.employeeId].regularHours += hours;
+              }
+
+              employeeDataMap[entry.employeeId].clockEntries.push(entry);
+            }
+          });
+
+          const employeeData = Object.values(employeeDataMap).map((emp: any) => ({
+            ...emp,
+            totalDays: emp.clockEntries.length,
+            averageHoursPerDay: emp.totalHours / (emp.clockEntries.length || 1),
+            clockEntries: undefined, // Don't include full entries in report
+          }));
+
+          const totalHours = employeeData.reduce((sum: number, emp: any) => sum + emp.totalHours, 0);
+
+          reportData = {
+            reportType: 'time-tracking',
+            reportName: `Time Tracking Report - ${project.name}`,
+            projectIds: [project.id],
+            projectsCount: 1,
+            totalHours,
+            employeeData,
+            employeeIds: employeeData.map((emp: any) => emp.employeeId),
+            // Summary for AI response
+            summary: {
+              projectName: project.name,
+              totalHours: Math.round(totalHours * 100) / 100,
+              employeeCount: employeeData.length,
+              employees: employeeData.map((emp: any) => ({
+                name: emp.employeeName,
+                totalHours: Math.round(emp.totalHours * 100) / 100,
+                regularHours: Math.round(emp.regularHours * 100) / 100,
+                overtimeHours: Math.round(emp.overtimeHours * 100) / 100,
+                daysWorked: emp.totalDays,
+              })),
+            },
+          };
+          break;
+        }
+
+        case 'daily-logs': {
+          // Daily Logs Report - matches project/[id].tsx logic
+          const { dailyLogs = [] } = appData;
+          const projectLogs = dailyLogs.filter((log: any) => log.projectId === project.id);
+
+          if (projectLogs.length === 0) {
+            return {
+              result: {
+                error: `No daily logs found for project "${project.name}". Daily logs need to be created first.`,
+              },
+            };
+          }
+
+          reportData = {
+            reportType: 'custom', // Daily logs are saved as 'custom' type
+            reportName: `Daily Logs - ${project.name}`,
+            projectIds: [project.id],
+            projectsCount: 1,
+            notes: JSON.stringify({
+              dailyLogs: [{
+                projectId: project.id,
+                projectName: project.name,
+                logs: projectLogs,
+              }],
+            }),
+            // Summary for AI response
+            summary: {
+              projectName: project.name,
+              logCount: projectLogs.length,
+              logs: projectLogs.map((log: any) => ({
+                date: log.date,
+                workPerformed: log.workPerformed,
+                issues: log.issues,
+                notes: log.notes,
+              })),
+            },
+          };
+          break;
+        }
+
+        case 'custom': {
+          // Custom AI Report - let the AI generate analysis
+          const projectClockEntries = project ? clockEntries.filter((entry: any) => entry.projectId === project.id) : clockEntries;
+          const projectExpenses = project ? expenses.filter((e: any) => e.projectId === project.id) : expenses;
+          const { dailyLogs = [] } = appData;
+          const projectLogs = project ? dailyLogs.filter((log: any) => log.projectId === project.id) : dailyLogs;
+
+          const totalExpenses = projectExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+          const totalHours = projectClockEntries.reduce((sum: number, entry: any) => {
+            if (!entry.clockOut) return sum;
+            return sum + (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
           }, 0);
 
           reportData = {
-            type: 'time-tracking',
-            totalEntries: clockEntries.length,
-            totalHours: Math.round(totalHours * 100) / 100,
-            clockEntries,
-          };
-          break;
-        }
-
-        case 'financial': {
-          const totalBudget = projects.reduce((sum: number, p: any) => sum + (p.budget || 0), 0);
-          const totalExpenses = expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
-          const totalPayments = payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-
-          reportData = {
-            type: 'financial',
-            totalBudget,
+            reportType: 'custom',
+            reportName: `Custom Report - ${project?.name || 'All Projects'}`,
+            projectIds: project ? [project.id] : [],
+            projectsCount: project ? 1 : projects.length,
             totalExpenses,
-            totalPayments,
-            profit: totalPayments - totalExpenses,
-            projects: projects.length,
-          };
-          break;
-        }
-
-        case 'clients': {
-          const leads = clients.filter((c: any) => c.status === 'Lead');
-          const activeClients = clients.filter((c: any) => c.status === 'Project');
-          const completed = clients.filter((c: any) => c.status === 'Completed');
-
-          reportData = {
-            type: 'clients',
-            totalClients: clients.length,
-            leads: leads.length,
-            activeClients: activeClients.length,
-            completedClients: completed.length,
-            clients,
+            totalHours,
+            notes: `Custom report generated by AI Assistant.\nPrompt: ${args.customPrompt || 'General analysis'}`,
+            // Summary for AI response
+            summary: {
+              projectName: project?.name || 'All Projects',
+              prompt: args.customPrompt,
+              data: {
+                expenses: projectExpenses.length,
+                totalExpenses,
+                clockEntries: projectClockEntries.length,
+                totalHours: Math.round(totalHours * 100) / 100,
+                dailyLogs: projectLogs.length,
+              },
+            },
           };
           break;
         }
       }
 
       return {
-        result: reportData,
+        result: {
+          message: `Report generated and will be saved: "${reportData.reportName}"`,
+          summary: reportData.summary,
+        },
         actionRequired: 'save_report',
         actionData: reportData,
       };
