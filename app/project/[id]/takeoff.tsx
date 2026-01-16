@@ -95,7 +95,7 @@ export default function TakeoffScreen() {
   // Ref for exporting
   const imageContainerRef = useRef<any>(null);
 
-  const project = projects.find(p => p.id === id);
+  const project = id !== 'new' ? projects.find(p => p.id === id) : null;
   const client = clientId ? clients.find(c => c.id === clientId) : null;
 
   // Prevent browser from opening dropped files
@@ -117,10 +117,11 @@ export default function TakeoffScreen() {
     };
   }, []);
 
-  if (!project) {
+  // Allow takeoff with just clientId (no project required for new estimates from CRM)
+  if (!project && !client) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Project not found</Text>
+        <Text style={styles.errorText}>Project or client not found</Text>
       </View>
     );
   }
