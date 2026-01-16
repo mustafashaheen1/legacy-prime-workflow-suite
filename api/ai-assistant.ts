@@ -683,13 +683,13 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'add_expense',
-      description: 'Add a new expense to a project. Can be used after analyzing a receipt or with manually provided details. Use this when user wants to add an expense, record a purchase, log a cost, or track spending for a project.',
+      description: 'Add a new expense to a project. Can be used after analyzing a receipt or with manually provided details. Use this when user wants to add an expense, record a purchase, log a cost, or track spending for a project. Can find projects by project name OR by client name (e.g., "Claudia\'s project" will find the project linked to Claudia).',
       parameters: {
         type: 'object',
         properties: {
           projectName: {
             type: 'string',
-            description: 'The name of the project to add the expense to',
+            description: 'The name of the project OR the client name (e.g., "Claudia\'s project", "home office", "Claudia"). Will search by project name first, then by client name via estimate linkage.',
           },
           expenseType: {
             type: 'string',
@@ -919,6 +919,20 @@ AI: "I've analyzed the receipt:
 User: "Kitchen Remodel"
 AI: [Calls add_expense]
 AI: "✓ Expense added to Kitchen Remodel: $247.53 at Home Depot"
+
+### Rule 13: Finding Projects by Client Name (CRITICAL)
+Projects can be found by EITHER project name OR client name:
+
+- If user says "add to Claudia's project", pass projectName: "Claudia" to add_expense
+- If user says "add to the home office project", pass projectName: "home office" to add_expense
+- The tool will first search by project name, then by client name via estimate linkage
+- Projects are linked to clients through: Project.estimate_id → Estimate.id → Estimate.client_id → Client
+
+**Example:**
+User: "Add this expense to Claudia's project"
+AI: [Calls add_expense with projectName: "Claudia"]
+→ Tool finds client "Claudia", gets her estimates, finds project linked to those estimates
+AI: "✓ Expense added to home office (Claudia's project)"
 
 ## CLIENT MANAGEMENT
 
@@ -2012,22 +2026,62 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'add_expense': {
-      // Find project by name
-      const project = projects.find((p: any) =>
+      // Find project by name OR by client name (via estimate linkage)
+      let project = projects.find((p: any) =>
         p.name?.toLowerCase().includes(args.projectName?.toLowerCase() || '')
       );
 
+      // If not found by project name, try to find by client name
+      // Projects are linked to clients via estimate_id -> estimates -> client_id
+      if (!project && args.projectName) {
+        const searchName = args.projectName.toLowerCase();
+
+        // Check if the search term matches a client name
+        const matchingClient = clients.find((c: any) =>
+          c.name?.toLowerCase().includes(searchName)
+        );
+
+        if (matchingClient) {
+          // Find estimates for this client
+          const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
+          const clientEstimateIds = clientEstimates.map((e: any) => e.id);
+
+          // Find project linked to any of this client's estimates
+          project = projects.find((p: any) =>
+            p.estimateId && clientEstimateIds.includes(p.estimateId)
+          );
+
+          if (project) {
+            console.log(`[AI Assistant] Found project "${project.name}" for client "${matchingClient.name}" via estimate linkage`);
+          }
+        }
+      }
+
       if (!project) {
-        // List available projects
+        // List available projects with their linked clients for clarity
         const activeProjects = projects.filter((p: any) => p.status === 'active');
         if (activeProjects.length === 0) {
           return { result: { error: 'No active projects found. Please create a project first.' } };
         }
+
+        // Get client names for each project via estimate linkage
+        const projectsWithClients = activeProjects.map((p: any) => {
+          let clientName = '';
+          if (p.estimateId) {
+            const linkedEstimate = estimates.find((e: any) => e.id === p.estimateId);
+            if (linkedEstimate?.clientId) {
+              const linkedClient = clients.find((c: any) => c.id === linkedEstimate.clientId);
+              clientName = linkedClient?.name || '';
+            }
+          }
+          return { ...p, clientName };
+        });
+
         return {
           result: {
             error: `Project not found: "${args.projectName}"`,
-            availableProjects: activeProjects.map((p: any) => p.name),
-            message: `I couldn't find a project called "${args.projectName}". Here are your active projects:\n${activeProjects.map((p: any, i: number) => `${i + 1}. ${p.name}`).join('\n')}\n\nWhich project should I add the expense to?`,
+            availableProjects: projectsWithClients.map((p: any) => p.clientName ? `${p.name} (${p.clientName})` : p.name),
+            message: `I couldn't find a project called "${args.projectName}". Here are your active projects:\n${projectsWithClients.map((p: any, i: number) => `${i + 1}. ${p.name}${p.clientName ? ` (${p.clientName}'s project)` : ''}`).join('\n')}\n\nWhich project should I add the expense to?`,
           },
         };
       }

@@ -2027,12 +2027,13 @@ Generate appropriate line items from the price list that fit this scope of work$
 
           setAttachedFiles([]);
 
-          // Add user message to chat
+          // Add user message to chat (with file for display in UI)
           addMessage({
             id: Date.now().toString(),
             role: 'user',
             parts: [{ type: 'text', text: userMessage }],
             text: userMessage,
+            files: [{ uri: dataUri, mimeType: file.mimeType || 'image/jpeg' }],
           });
 
           // Show loading message
@@ -2136,6 +2137,21 @@ Generate appropriate line items from the price list that fit this scope of work$
 
           {messages.map((message) => (
             <View key={message.id} style={styles.messageWrapper}>
+              {/* Show attached images for user messages */}
+              {message.role === 'user' && message.files && message.files.length > 0 && (
+                <View style={styles.userMessageContainer}>
+                  <View style={styles.attachedImagesContainer}>
+                    {message.files.filter((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image')).map((file: any, idx: number) => (
+                      <Image
+                        key={`${message.id}-img-${idx}`}
+                        source={{ uri: file.uri }}
+                        style={styles.attachedImage}
+                        resizeMode="cover"
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
               {message.parts.map((part, i) => {
                 if (part.type === 'text') {
                   return (
@@ -2451,6 +2467,21 @@ Generate appropriate line items from the price list that fit this scope of work$
 
               {messages.map((message) => (
                 <View key={message.id} style={styles.messageWrapper}>
+                  {/* Show attached images for user messages */}
+                  {message.role === 'user' && message.files && message.files.length > 0 && (
+                    <View style={styles.userMessageContainer}>
+                      <View style={styles.attachedImagesContainer}>
+                        {message.files.filter((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image')).map((file: any, idx: number) => (
+                          <Image
+                            key={`${message.id}-img-${idx}`}
+                            source={{ uri: file.uri }}
+                            style={styles.attachedImage}
+                            resizeMode="cover"
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  )}
                   {message.parts.map((part, i) => {
                     if (part.type === 'text') {
                       return (
@@ -2857,6 +2888,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#FFFFFF',
     lineHeight: 20,
+  },
+  attachedImagesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+    justifyContent: 'flex-end',
+  },
+  attachedImage: {
+    width: 150,
+    height: 150,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
   },
   assistantMessageContainer: {
     alignItems: 'flex-start',
