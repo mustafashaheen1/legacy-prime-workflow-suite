@@ -84,6 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         customCategory: item.custom_category,
         isSeparator: item.is_separator,
         separatorLabel: item.separator_label,
+        imageUrl: item.image_url,
       }));
     }
 
