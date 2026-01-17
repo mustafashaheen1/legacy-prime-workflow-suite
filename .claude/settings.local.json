@@ -76,7 +76,8 @@
       "Bash(psql:*)",
       "Bash(timeout 10 npx tsc:*)",
       "Bash(timeout 15 npx tsc:*)",
-      "Bash(timeout 60 npx tsc:*)"
+      "Bash(timeout 60 npx tsc:*)",
+      "Bash(mcp__ide__getDiagnostics)"
     ],
     "deny": [],
     "ask": []

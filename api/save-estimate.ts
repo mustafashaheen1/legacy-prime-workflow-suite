@@ -48,15 +48,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Insert estimate directly
-    const { data, error } = await supabase
+    // Step 1: Insert estimate record (without items column)
+    const { data: estimateData, error: estimateError } = await supabase
       .from('estimates')
       .insert({
         id: estimate.id,
         client_id: estimate.clientId,
         company_id: companyId,
         name: estimate.name,
-        items: estimate.items,
         subtotal: estimate.subtotal,
         tax_rate: estimate.taxRate,
         tax_amount: estimate.taxAmount,
@@ -67,16 +66,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select()
       .single();
 
-    if (error) {
-      console.error('[SaveEstimate] Database error:', error);
-      return res.status(500).json({ error: error.message });
+    if (estimateError) {
+      console.error('[SaveEstimate] Database error:', estimateError);
+      return res.status(500).json({ error: estimateError.message });
+    }
+
+    // Step 2: Insert items into estimate_items table (same as create-estimate.ts)
+    if (estimate.items && estimate.items.length > 0) {
+      console.log('[SaveEstimate] Inserting', estimate.items.length, 'items into estimate_items table');
+      const itemsToInsert = estimate.items.map((item: any) => ({
+        estimate_id: estimate.id,
+        price_list_item_id: item.priceListItemId,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        custom_price: item.customPrice || null,
+        total: item.total,
+        budget: item.budget || null,
+        budget_unit_price: item.budgetUnitPrice || null,
+        notes: item.notes || null,
+        custom_name: item.customName || null,
+        custom_unit: item.customUnit || null,
+        custom_category: item.customCategory || null,
+        is_separator: item.isSeparator || false,
+        separator_label: item.separatorLabel || null,
+        image_url: item.imageUrl || null,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('estimate_items')
+        .insert(itemsToInsert);
+
+      if (itemsError) {
+        console.error('[SaveEstimate] Error inserting items:', itemsError);
+        // Rollback: delete the estimate
+        await supabase.from('estimates').delete().eq('id', estimate.id);
+        return res.status(500).json({ error: `Failed to save estimate items: ${itemsError.message}` });
+      }
+
+      console.log('[SaveEstimate] Items inserted successfully');
     }
 
     console.log('[SaveEstimate] ===== ESTIMATE SAVED SUCCESSFULLY =====');
 
     return res.status(200).json({
       success: true,
-      estimate: data,
+      estimate: estimateData,
     });
   } catch (error: any) {
     console.error('[SaveEstimate] Unexpected error:', error);

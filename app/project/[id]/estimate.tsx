@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip, Search, X, Square } from 'lucide-react-native';
+import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip, Search, X, Square, Image as ImageIcon } from 'lucide-react-native';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { masterPriceList, PriceListItem, priceListCategories, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { EstimateItem, Estimate, ProjectFile } from '@/types';
@@ -330,6 +330,37 @@ export default function EstimateScreen() {
     }));
   };
 
+  const updateItemImage = (itemId: string, imageUrl: string) => {
+    setItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, imageUrl } : item
+    ));
+  };
+
+  const removeItemImage = (itemId: string) => {
+    setItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, imageUrl: undefined } : item
+    ));
+  };
+
+  const pickItemImage = async (itemId: string, source: 'camera' | 'library') => {
+    const permission = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (permission.status !== 'granted') {
+      Alert.alert('Permission needed', 'Please grant permission to access photos');
+      return;
+    }
+
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.8 });
+
+    if (!result.canceled && result.assets[0]) {
+      updateItemImage(itemId, result.assets[0].uri);
+    }
+  };
+
   const removeItem = (itemId: string) => {
     setItems(prev => prev.filter(item => item.id !== itemId));
   };
@@ -425,6 +456,7 @@ export default function EstimateScreen() {
             customCategory: item.customCategory,
             isSeparator: item.isSeparator,
             separatorLabel: item.separatorLabel,
+            imageUrl: item.imageUrl,
           })),
           subtotal,
           taxRate: parseFloat(taxPercent) || 0,
@@ -533,6 +565,7 @@ export default function EstimateScreen() {
             customCategory: item.customCategory,
             isSeparator: item.isSeparator,
             separatorLabel: item.separatorLabel,
+            imageUrl: item.imageUrl,
           })),
           subtotal,
           taxRate: parseFloat(taxPercent) || 0,
@@ -593,6 +626,7 @@ export default function EstimateScreen() {
         const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
         const displayPrice = item.customPrice ?? item.unitPrice;
         const notes = item.notes ? `<div style="color: #666; font-size: 12px; margin-top: 4px;">Note: ${item.notes}</div>` : '';
+        const imageHtml = item.imageUrl ? `<img src="${item.imageUrl}" style="max-width: 200px; max-height: 150px; margin-top: 8px; border-radius: 4px; display: block;" />` : '';
 
         return `
           <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e0e0e0;">
@@ -607,6 +641,7 @@ export default function EstimateScreen() {
               <div style="color: #666; font-size: 13px;">$${item.total.toFixed(2)}</div>
             `}
             ${notes}
+            ${imageHtml}
           </div>
         `;
       }).join('');
@@ -900,6 +935,7 @@ export default function EstimateScreen() {
             customCategory: item.customCategory,
             isSeparator: item.isSeparator,
             separatorLabel: item.separatorLabel,
+            imageUrl: item.imageUrl,
           })),
           subtotal,
           taxRate: parseFloat(taxPercent) || 0,
@@ -1387,6 +1423,26 @@ export default function EstimateScreen() {
                       numberOfLines={2}
                     />
                   </View>
+
+                  <View style={styles.itemPhotoSection}>
+                    {item.imageUrl ? (
+                      <View style={styles.itemPhotoPreview}>
+                        <Image source={{ uri: item.imageUrl }} style={styles.itemPhotoThumbnail} />
+                        <TouchableOpacity onPress={() => removeItemImage(item.id)} style={styles.removePhotoButton}>
+                          <X size={14} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={styles.addPhotoButtons}>
+                        <TouchableOpacity onPress={() => pickItemImage(item.id, 'camera')} style={styles.addPhotoButton}>
+                          <Camera size={16} color="#6B7280" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => pickItemImage(item.id, 'library')} style={styles.addPhotoButton}>
+                          <ImageIcon size={16} color="#6B7280" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
                 </View>
               );
             })}
@@ -1799,6 +1855,13 @@ export default function EstimateScreen() {
                       {item.notes ? (
                         <Text style={styles.previewItemNotes}>Note: {item.notes}</Text>
                       ) : null}
+                      {item.imageUrl && (
+                        <Image
+                          source={{ uri: item.imageUrl }}
+                          style={styles.previewItemImage}
+                          resizeMode="contain"
+                        />
+                      )}
                     </View>
                   );
                 })}
@@ -3712,6 +3775,39 @@ const styles = StyleSheet.create({
     minHeight: 50,
     textAlignVertical: 'top',
   },
+  itemPhotoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  addPhotoButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  addPhotoButton: {
+    padding: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  itemPhotoPreview: {
+    position: 'relative',
+  },
+  itemPhotoThumbnail: {
+    width: 60,
+    height: 60,
+    borderRadius: 6,
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 10,
+    padding: 2,
+  },
 
   totalRow: {
     flexDirection: 'row',
@@ -4133,6 +4229,12 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontStyle: 'italic' as const,
     marginTop: 4,
+  },
+  previewItemImage: {
+    width: 180,
+    height: 120,
+    marginTop: 8,
+    borderRadius: 4,
   },
   previewTotalsRow: {
     flexDirection: 'row',

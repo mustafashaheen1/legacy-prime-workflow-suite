@@ -247,6 +247,7 @@ export interface EstimateItem {
   customCategory?: string;
   isSeparator?: boolean;
   separatorLabel?: string;
+  imageUrl?: string;
 }
 
 export interface Estimate {

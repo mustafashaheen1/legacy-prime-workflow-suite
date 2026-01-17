@@ -115,6 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         custom_category: item.customCategory,
         is_separator: item.isSeparator || false,
         separator_label: item.separatorLabel,
+        image_url: item.imageUrl || null,
       }));
 
       const { error: itemsError } = await supabase
