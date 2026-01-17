@@ -394,7 +394,7 @@ export default function EstimateScreen() {
         }
 
         // Upload to S3
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
         const fileName = `estimate-item-${itemId}-${Date.now()}.jpg`;
         console.log('[Estimate] Uploading to S3...', { apiUrl, fileName });
 
@@ -481,6 +481,19 @@ export default function EstimateScreen() {
 
   const saveEstimate = async () => {
     if (isSaving) return; // Prevent double-clicks
+
+    // Check if any images are still uploading
+    if (uploadingImageItemId) {
+      Alert.alert('Please Wait', 'An image is still uploading. Please wait for it to complete before saving.');
+      return;
+    }
+
+    // Check for blob URLs that weren't uploaded to S3
+    const hasUnuploadedImages = items.some(item => item.imageUrl?.startsWith('blob:'));
+    if (hasUnuploadedImages) {
+      Alert.alert('Upload Issue', 'Some images failed to upload to cloud storage. Please remove and re-attach the images before saving.');
+      return;
+    }
 
     const totals = validateEstimate();
     if (!totals) return;
@@ -626,6 +639,19 @@ export default function EstimateScreen() {
   };
 
   const sendEstimateAsPDF = async () => {
+    // Check if any images are still uploading
+    if (uploadingImageItemId) {
+      Alert.alert('Please Wait', 'An image is still uploading. Please wait for it to complete before sending.');
+      return;
+    }
+
+    // Check for blob URLs that weren't uploaded to S3
+    const hasUnuploadedImages = items.some(item => item.imageUrl?.startsWith('blob:'));
+    if (hasUnuploadedImages) {
+      Alert.alert('Upload Issue', 'Some images failed to upload to cloud storage. Please remove and re-attach the images before sending.');
+      return;
+    }
+
     const totals = validateEstimate();
     if (!totals) return;
 
@@ -1030,6 +1056,19 @@ export default function EstimateScreen() {
   };
 
   const requestSignature = async () => {
+    // Check if any images are still uploading
+    if (uploadingImageItemId) {
+      Alert.alert('Please Wait', 'An image is still uploading. Please wait for it to complete.');
+      return;
+    }
+
+    // Check for blob URLs that weren't uploaded to S3
+    const hasUnuploadedImages = items.some(item => item.imageUrl?.startsWith('blob:'));
+    if (hasUnuploadedImages) {
+      Alert.alert('Upload Issue', 'Some images failed to upload to cloud storage. Please remove and re-attach the images.');
+      return;
+    }
+
     const totals = validateEstimate();
     if (!totals) return;
 
