@@ -129,6 +129,7 @@ export default function EstimateScreen() {
         setTaxPercent((estimate.taxRate || 0).toString());
         setMarkupPercent('0'); // Reset markup for editing
         setDraftId(estimate.id);
+        setSavedEstimateId(estimate.id); // Track for updates instead of creating duplicates
         setIsLoadingDraft(false);
       } catch (error: any) {
         console.error('[Estimate] Error loading estimate:', error);
