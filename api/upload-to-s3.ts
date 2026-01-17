@@ -16,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { fileData, fileName, fileType } = req.body;
+    const { fileData, fileName, fileType, folder } = req.body;
 
     if (!fileData) {
       return res.status(400).json({ error: 'No file data provided' });
@@ -42,7 +42,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Generate unique filename
     const timestamp = Date.now();
-    const uniqueFileName = `takeoff-documents/${timestamp}-${fileName}`;
+    const folderPath = folder || 'takeoff-documents';
+    const uniqueFileName = `${folderPath}/${timestamp}-${fileName}`;
 
     console.log('[S3 Upload] Uploading file:', uniqueFileName, 'Size:', buffer.length, 'bytes');
 

@@ -50,6 +50,7 @@ export default function EstimateScreen() {
   const [showAIGenerateModal, setShowAIGenerateModal] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [uploadingImageItemId, setUploadingImageItemId] = useState<string | null>(null);
 
   // Support both project-based and client-based estimate creation
   const clientId = clientIdParam as string | undefined;
@@ -357,7 +358,74 @@ export default function EstimateScreen() {
       : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.8 });
 
     if (!result.canceled && result.assets[0]) {
-      updateItemImage(itemId, result.assets[0].uri);
+      const localUri = result.assets[0].uri;
+      console.log('[Estimate] Image selected, local URI:', localUri);
+
+      // Show loading state
+      setUploadingImageItemId(itemId);
+      updateItemImage(itemId, localUri);
+
+      try {
+        // Convert image to base64 for S3 upload
+        let base64Data: string;
+
+        if (Platform.OS === 'web') {
+          // Web: Fetch blob and convert to base64
+          console.log('[Estimate] Converting blob to base64 (web)...');
+          const response = await fetch(localUri);
+          const blob = await response.blob();
+          base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          console.log('[Estimate] Base64 conversion complete, length:', base64Data.length);
+        } else {
+          // Mobile: Use FileSystem to read as base64
+          console.log('[Estimate] Converting to base64 (mobile)...');
+          const base64 = await FileSystem.readAsStringAsync(localUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          base64Data = `data:image/jpeg;base64,${base64}`;
+          console.log('[Estimate] Base64 conversion complete, length:', base64Data.length);
+        }
+
+        // Upload to S3
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
+        const fileName = `estimate-item-${itemId}-${Date.now()}.jpg`;
+        console.log('[Estimate] Uploading to S3...', { apiUrl, fileName });
+
+        const uploadResponse = await fetch(`${apiUrl}/api/upload-to-s3`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileData: base64Data,
+            fileName: fileName,
+            fileType: 'image/jpeg',
+            folder: 'estimate-item-photos',
+          }),
+        });
+
+        console.log('[Estimate] S3 upload response status:', uploadResponse.status);
+
+        if (uploadResponse.ok) {
+          const result = await uploadResponse.json();
+          console.log('[Estimate] Image uploaded to S3 successfully:', result.url);
+          updateItemImage(itemId, result.url);
+        } else {
+          const errorText = await uploadResponse.text();
+          console.error('[Estimate] Failed to upload image to S3:', errorText);
+          Alert.alert('Upload Failed', 'Could not upload image to cloud storage. Please try again.');
+          // Keep the local URI so user can see the image
+        }
+      } catch (error) {
+        console.error('[Estimate] Error uploading image:', error);
+        Alert.alert('Upload Error', 'Could not upload image. Please check your connection and try again.');
+        // Keep the local URI so user can see the image
+      } finally {
+        setUploadingImageItemId(null);
+      }
     }
   };
 
@@ -1428,16 +1496,31 @@ export default function EstimateScreen() {
                     {item.imageUrl ? (
                       <View style={styles.itemPhotoPreview}>
                         <Image source={{ uri: item.imageUrl }} style={styles.itemPhotoThumbnail} />
-                        <TouchableOpacity onPress={() => removeItemImage(item.id)} style={styles.removePhotoButton}>
-                          <X size={14} color="#EF4444" />
-                        </TouchableOpacity>
+                        {uploadingImageItemId === item.id && (
+                          <View style={styles.uploadingOverlay}>
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          </View>
+                        )}
+                        {uploadingImageItemId !== item.id && (
+                          <TouchableOpacity onPress={() => removeItemImage(item.id)} style={styles.removePhotoButton}>
+                            <X size={14} color="#EF4444" />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     ) : (
                       <View style={styles.addPhotoButtons}>
-                        <TouchableOpacity onPress={() => pickItemImage(item.id, 'camera')} style={styles.addPhotoButton}>
+                        <TouchableOpacity
+                          onPress={() => pickItemImage(item.id, 'camera')}
+                          style={styles.addPhotoButton}
+                          disabled={uploadingImageItemId !== null}
+                        >
                           <Camera size={16} color="#6B7280" />
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => pickItemImage(item.id, 'library')} style={styles.addPhotoButton}>
+                        <TouchableOpacity
+                          onPress={() => pickItemImage(item.id, 'library')}
+                          style={styles.addPhotoButton}
+                          disabled={uploadingImageItemId !== null}
+                        >
                           <ImageIcon size={16} color="#6B7280" />
                         </TouchableOpacity>
                       </View>
@@ -3799,6 +3882,17 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 6,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   removePhotoButton: {
     position: 'absolute',
