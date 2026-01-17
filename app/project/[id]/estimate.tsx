@@ -1195,7 +1195,7 @@ export default function EstimateScreen() {
                   style={styles.addBreakPointButton}
                   onPress={() => setShowAddSeparatorModal(true)}
                 >
-                  <Plus size={16} color="#F59E0B" />
+                  <Plus size={16} color="#374151" />
                   <Text style={styles.addBreakPointButtonText}>Break Point</Text>
                 </TouchableOpacity>
               </View>
@@ -4229,12 +4229,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
   separatorItem: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#F5F5F5',
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     borderWidth: 2,
-    borderColor: '#F59E0B',
+    borderColor: '#374151',
     borderStyle: 'dashed',
   },
   separatorContent: {
@@ -4245,12 +4245,12 @@ const styles = StyleSheet.create({
   separatorLine: {
     flex: 1,
     height: 2,
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#374151',
   },
   separatorLabel: {
     fontSize: 16,
     fontWeight: '700' as const,
-    color: '#F59E0B',
+    color: '#374151',
     textAlign: 'center',
     minWidth: 120,
     paddingVertical: 4,
@@ -4269,16 +4269,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: '#F59E0B',
+    borderColor: '#374151',
     flexShrink: 1,
     minWidth: 0,
   },
   addBreakPointButtonText: {
     fontSize: Platform.select({ web: 11, default: 12 }) as number,
     fontWeight: '600' as const,
-    color: '#F59E0B',
+    color: '#374151',
     flexShrink: 1,
   },
   previewSeparator: {
@@ -4290,12 +4290,12 @@ const styles = StyleSheet.create({
   previewSeparatorLine: {
     flex: 1,
     height: 2,
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#374151',
   },
   previewSeparatorLabel: {
     fontSize: 15,
     fontWeight: '700' as const,
-    color: '#F59E0B',
+    color: '#374151',
     letterSpacing: 1,
   },
   aiModalContent: {
