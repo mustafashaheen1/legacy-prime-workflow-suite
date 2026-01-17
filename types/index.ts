@@ -34,6 +34,8 @@ export interface Project {
   startDate: string;
   endDate?: string;
   estimateId?: string;
+  clientId?: string;
+  address?: string;
 }
 
 export interface Expense {

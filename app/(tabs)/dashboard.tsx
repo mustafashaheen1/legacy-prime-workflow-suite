@@ -11,7 +11,7 @@ import { Project, Report, ProjectReportData } from '@/types';
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
-  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, dailyLogs = [] } = useApp();
+  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate } = useApp();
   const router = useRouter();
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showArchived, setShowArchived] = useState<boolean>(false);
@@ -34,7 +34,11 @@ export default function DashboardScreen() {
   const [showSearch, setShowSearch] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
+  const [isCreatingProject, setIsCreatingProject] = useState<boolean>(false);
   const [reportGenerationProgress, setReportGenerationProgress] = useState<{ current: number; total: number; projectName: string }>({ current: 0, total: 0, projectName: '' });
+  const [showClientPickerModal, setShowClientPickerModal] = useState<boolean>(false);
+  const [showEstimatePickerModal, setShowEstimatePickerModal] = useState<boolean>(false);
+  const [selectedClientForConversion, setSelectedClientForConversion] = useState<string | null>(null);
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
@@ -73,6 +77,314 @@ export default function DashboardScreen() {
       alert(`${title}: ${message}`);
     } else {
       Alert.alert(title, message);
+    }
+  };
+
+  // Validation helpers
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const isValidUSPhone = (phone: string): boolean => {
+    // Remove all non-numeric characters for validation
+    const digitsOnly = phone.replace(/\D/g, '');
+    // US phone should have 10 digits (or 11 with country code 1)
+    return digitsOnly.length === 10 || (digitsOnly.length === 11 && digitsOnly.startsWith('1'));
+  };
+
+  const formatUSPhone = (value: string): string => {
+    // Remove all non-numeric characters
+    const digitsOnly = value.replace(/\D/g, '');
+
+    // Format as (XXX) XXX-XXXX
+    if (digitsOnly.length <= 3) {
+      return digitsOnly;
+    } else if (digitsOnly.length <= 6) {
+      return `(${digitsOnly.slice(0, 3)}) ${digitsOnly.slice(3)}`;
+    } else {
+      return `(${digitsOnly.slice(0, 3)}) ${digitsOnly.slice(3, 6)}-${digitsOnly.slice(6, 10)}`;
+    }
+  };
+
+  const handlePhoneChange = (value: string) => {
+    // Only allow digits and formatting characters
+    const formatted = formatUSPhone(value);
+    setProjectPhone(formatted);
+  };
+
+  const handleBudgetChange = (value: string) => {
+    // Only allow numbers and decimal point
+    const cleaned = value.replace(/[^0-9.]/g, '');
+    // Prevent multiple decimal points
+    const parts = cleaned.split('.');
+    if (parts.length > 2) {
+      setProjectBudget(parts[0] + '.' + parts.slice(1).join(''));
+    } else {
+      setProjectBudget(cleaned);
+    }
+  };
+
+  const handleCreateProject = async () => {
+    // Validation
+    if (!projectName.trim()) {
+      showAlert('Error', 'Please enter a client/project name');
+      return;
+    }
+    if (!projectEmail.trim()) {
+      showAlert('Error', 'Please enter an email');
+      return;
+    }
+    if (!isValidEmail(projectEmail)) {
+      showAlert('Error', 'Please enter a valid email address');
+      return;
+    }
+    if (!projectPhone.trim()) {
+      showAlert('Error', 'Please enter a phone number');
+      return;
+    }
+    if (!isValidUSPhone(projectPhone)) {
+      showAlert('Error', 'Please enter a valid US phone number (10 digits)');
+      return;
+    }
+    if (!projectBudget.trim()) {
+      showAlert('Error', 'Please enter a budget');
+      return;
+    }
+    const budgetNum = parseFloat(projectBudget);
+    if (isNaN(budgetNum) || budgetNum < 0) {
+      showAlert('Error', 'Please enter a valid budget amount');
+      return;
+    }
+
+    if (!company?.id) {
+      showAlert('Error', 'Company information not found. Please try again.');
+      return;
+    }
+
+    setIsCreatingProject(true);
+
+    try {
+      // Determine source
+      const sourceValue = projectSource.trim() || 'Phone Call';
+      const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
+      const finalSource = validSources.includes(sourceValue) ? sourceValue : 'Phone Call';
+
+      // Check for existing client by email or phone
+      const existingClient = clients.find(c =>
+        c.email.toLowerCase() === projectEmail.toLowerCase() ||
+        c.phone.replace(/\D/g, '') === projectPhone.replace(/\D/g, '')
+      );
+
+      let clientId: string;
+
+      if (existingClient) {
+        // Use existing client and update status to Project
+        clientId = existingClient.id;
+        updateClient(existingClient.id, { status: 'Project' });
+      } else {
+        // Create new client in database
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+        const clientResponse = await fetch(`${apiUrl}/api/add-client`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            name: projectName,
+            address: projectAddress || null,
+            email: projectEmail,
+            phone: projectPhone,
+            source: finalSource,
+            status: 'Project',
+          }),
+        });
+
+        if (!clientResponse.ok) {
+          const errorData = await clientResponse.json();
+          throw new Error(errorData.error || 'Failed to create client');
+        }
+
+        const clientResult = await clientResponse.json();
+        if (!clientResult.success || !clientResult.client) {
+          throw new Error('Failed to create client');
+        }
+
+        clientId = clientResult.client.id;
+
+        // Add to local state
+        addClient({
+          id: clientResult.client.id,
+          name: projectName,
+          address: projectAddress || '',
+          email: projectEmail,
+          phone: projectPhone,
+          source: finalSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call',
+          status: 'Project',
+          lastContacted: '',
+          notes: [],
+        });
+      }
+
+      // Create project in database
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+      const projectResponse = await fetch(`${apiUrl}/api/add-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          name: projectName,
+          budget: budgetNum,
+          expenses: 0,
+          progress: 0,
+          status: 'active',
+          image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+          hoursWorked: 0,
+          startDate: new Date().toISOString(),
+          clientId: clientId,
+          address: projectAddress || null,
+        }),
+      });
+
+      if (!projectResponse.ok) {
+        const errorData = await projectResponse.json();
+        throw new Error(errorData.error || 'Failed to create project');
+      }
+
+      const projectResult = await projectResponse.json();
+      if (!projectResult.success || !projectResult.project) {
+        throw new Error('Failed to create project');
+      }
+
+      // Add to local state
+      const newProject: Project = {
+        id: projectResult.project.id,
+        name: projectResult.project.name,
+        budget: projectResult.project.budget,
+        expenses: projectResult.project.expenses,
+        progress: projectResult.project.progress,
+        status: projectResult.project.status,
+        image: projectResult.project.image,
+        hoursWorked: projectResult.project.hoursWorked,
+        startDate: projectResult.project.startDate,
+        clientId: projectResult.project.clientId,
+        address: projectResult.project.address,
+      };
+
+      addProject(newProject);
+
+      // Reset form
+      setProjectName('');
+      setProjectAddress('');
+      setProjectEmail('');
+      setProjectPhone('');
+      setProjectSource('');
+      setProjectBudget('');
+      setShowCreateModal(false);
+      showAlert('Success', 'Project created successfully!');
+    } catch (error: any) {
+      console.error('[Dashboard] Error creating project:', error);
+      showAlert('Error', error.message || 'Failed to create project. Please try again.');
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
+
+  const handleConvertEstimateToProject = async (estimateId: string) => {
+    const client = clients.find(c => c.id === selectedClientForConversion);
+    if (!client) return;
+
+    const estimate = estimates.find(e => e.id === estimateId);
+    if (!estimate) return;
+
+    if (!company?.id) {
+      showAlert('Error', 'Company information not found. Please try again.');
+      return;
+    }
+
+    // Close modals
+    setShowEstimatePickerModal(false);
+    setShowClientPickerModal(false);
+    setSelectedClientForConversion(null);
+
+    setIsCreatingProject(true);
+
+    try {
+      // Create project in database - use direct API instead of tRPC for consistency
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+      const projectResponse = await fetch(`${apiUrl}/api/add-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          name: `${client.name} - ${estimate.name}`,
+          budget: estimate.total,
+          expenses: 0,
+          progress: 0,
+          status: 'active',
+          image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+          hoursWorked: 0,
+          startDate: new Date().toISOString(),
+          estimateId: estimateId,
+          clientId: client.id,
+          address: client.address || null,
+        }),
+      });
+
+      if (!projectResponse.ok) {
+        const errorData = await projectResponse.json();
+        throw new Error(errorData.error || 'Failed to create project');
+      }
+
+      const projectResult = await projectResponse.json();
+      if (!projectResult.success || !projectResult.project) {
+        throw new Error('Failed to create project');
+      }
+
+      // Add to local state
+      const newProject: Project = {
+        id: projectResult.project.id,
+        name: projectResult.project.name,
+        budget: projectResult.project.budget,
+        expenses: projectResult.project.expenses,
+        progress: projectResult.project.progress,
+        status: projectResult.project.status,
+        image: projectResult.project.image,
+        hoursWorked: projectResult.project.hoursWorked,
+        startDate: projectResult.project.startDate,
+        endDate: projectResult.project.endDate,
+        estimateId: projectResult.project.estimateId,
+        clientId: projectResult.project.clientId,
+        address: projectResult.project.address,
+      };
+
+      addProject(newProject);
+
+      // Update estimate status to approved
+      updateEstimate(estimateId, { status: 'approved' });
+
+      // Update client status to Project
+      updateClient(client.id, { status: 'Project' });
+
+      // Show success message
+      if (Platform.OS === 'web') {
+        if (confirm(`Project created for ${client.name} using estimate "${estimate.name}"!\n\nWould you like to view the project now?`)) {
+          router.push(`/project/${newProject.id}`);
+        }
+      } else {
+        Alert.alert(
+          'Success',
+          `Project created for ${client.name} using estimate "${estimate.name}"!`,
+          [
+            { text: 'View Project', onPress: () => router.push(`/project/${newProject.id}`) },
+            { text: 'OK' },
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error('[Dashboard] Error converting to project:', error);
+      showAlert('Error', error.message || 'Failed to create project. Please try again.');
+    } finally {
+      setIsCreatingProject(false);
     }
   };
 
@@ -849,24 +1161,18 @@ export default function DashboardScreen() {
             <TouchableOpacity
               style={styles.importOptionCard}
               onPress={() => {
-                if (clients.filter(c => c.status === 'Lead').length === 0) {
-                  Alert.alert('No Leads Available', 'Add clients to your CRM first to import from there.');
+                // Get clients that have at least one estimate
+                const clientsWithEstimates = clients.filter(client =>
+                  estimates.some(est => est.clientId === client.id)
+                );
+
+                if (clientsWithEstimates.length === 0) {
+                  showAlert('No Estimates Available', 'Create estimates for clients in CRM first to import from there.');
                   return;
                 }
-                Alert.alert(
-                  'Import from CRM',
-                  'Select a client from CRM to convert to project',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Go to CRM',
-                      onPress: () => {
-                        setShowImportOptions(false);
-                        router.push('/crm');
-                      },
-                    },
-                  ]
-                );
+
+                setShowImportOptions(false);
+                setShowClientPickerModal(true);
               }}
             >
               <View style={styles.importIconContainer}>
@@ -944,10 +1250,11 @@ export default function DashboardScreen() {
                   <TextInput
                     style={styles.formInput}
                     value={projectPhone}
-                    onChangeText={setProjectPhone}
-                    placeholder="Enter client phone"
+                    onChangeText={handlePhoneChange}
+                    placeholder="(555) 555-5555"
                     placeholderTextColor="#9CA3AF"
                     keyboardType="phone-pad"
+                    maxLength={14}
                   />
                 </View>
 
@@ -967,71 +1274,23 @@ export default function DashboardScreen() {
                   <TextInput
                     style={styles.formInput}
                     value={projectBudget}
-                    onChangeText={setProjectBudget}
+                    onChangeText={handleBudgetChange}
                     placeholder="Enter budget amount"
                     placeholderTextColor="#9CA3AF"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                   />
                 </View>
 
-                <TouchableOpacity 
-                  style={styles.createButton}
-                  onPress={() => {
-                    if (!projectName.trim()) {
-                      Alert.alert('Error', 'Please enter a client/project name');
-                      return;
-                    }
-                    if (!projectEmail.trim()) {
-                      Alert.alert('Error', 'Please enter an email');
-                      return;
-                    }
-                    if (!projectPhone.trim()) {
-                      Alert.alert('Error', 'Please enter a phone number');
-                      return;
-                    }
-                    if (!projectBudget.trim()) {
-                      Alert.alert('Error', 'Please enter a budget');
-                      return;
-                    }
-
-                    const newProject: Project = {
-                      id: `project-${Date.now()}`,
-                      name: projectName,
-                      budget: parseFloat(projectBudget),
-                      expenses: 0,
-                      progress: 0,
-                      status: 'active',
-                      image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
-                      hoursWorked: 0,
-                      startDate: new Date().toISOString(),
-                    };
-
-                    addProject(newProject);
-
-                    const sourceValue = projectSource.trim() || 'Phone Call';
-                    const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
-                    const finalSource = validSources.includes(sourceValue) ? sourceValue as 'Google' | 'Referral' | 'Ad' | 'Phone Call' : 'Phone Call';
-
-                    const existingClient = clients.find(c => 
-                      c.email.toLowerCase() === projectEmail.toLowerCase() ||
-                      c.phone === projectPhone
-                    );
-
-                    if (existingClient) {
-                      updateClient(existingClient.id, { status: 'Project' });
-                    }
-
-                    setProjectName('');
-                    setProjectAddress('');
-                    setProjectEmail('');
-                    setProjectPhone('');
-                    setProjectSource('');
-                    setProjectBudget('');
-                    setShowCreateModal(false);
-                    Alert.alert('Success', 'Project created successfully!');
-                  }}
+                <TouchableOpacity
+                  style={[styles.createButton, isCreatingProject && styles.createButtonDisabled]}
+                  onPress={handleCreateProject}
+                  disabled={isCreatingProject}
                 >
-                  <Text style={styles.createButtonText}>{t('projects.createNew')}</Text>
+                  {isCreatingProject ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.createButtonText}>{t('projects.createNew')}</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -1232,6 +1491,142 @@ export default function DashboardScreen() {
                   },
                 ]}
               />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Client Picker Modal for Import from CRM */}
+      <Modal
+        visible={showClientPickerModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          setShowClientPickerModal(false);
+          setSelectedClientForConversion(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Client</Text>
+              <TouchableOpacity onPress={() => {
+                setShowClientPickerModal(false);
+                setSelectedClientForConversion(null);
+              }}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.importDescription}>
+                Select a client with estimates to convert to a project
+              </Text>
+
+              <ScrollView style={{ maxHeight: 400 }}>
+                {clients
+                  .filter(client => estimates.some(est => est.clientId === client.id))
+                  .map(client => {
+                    const clientEstimates = estimates.filter(est => est.clientId === client.id);
+                    return (
+                      <TouchableOpacity
+                        key={client.id}
+                        style={styles.importOptionCard}
+                        onPress={() => {
+                          setSelectedClientForConversion(client.id);
+                          setShowClientPickerModal(false);
+                          setShowEstimatePickerModal(true);
+                        }}
+                      >
+                        <View style={styles.importIconContainer}>
+                          <FileText size={24} color="#2563EB" />
+                        </View>
+                        <View style={styles.importOptionContent}>
+                          <Text style={styles.importOptionTitle}>{client.name}</Text>
+                          <Text style={styles.importOptionText}>
+                            {clientEstimates.length} estimate{clientEstimates.length !== 1 ? 's' : ''} available
+                          </Text>
+                          {client.email && (
+                            <Text style={[styles.importOptionText, { fontSize: 12, marginTop: 2 }]}>
+                              {client.email}
+                            </Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Estimate Picker Modal */}
+      <Modal
+        visible={showEstimatePickerModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          setShowEstimatePickerModal(false);
+          setSelectedClientForConversion(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowEstimatePickerModal(false);
+                  setShowClientPickerModal(true);
+                }}
+                style={{ marginRight: 12 }}
+              >
+                <Text style={{ fontSize: 24, color: '#6B7280' }}>←</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Select Estimate</Text>
+              <TouchableOpacity onPress={() => {
+                setShowEstimatePickerModal(false);
+                setSelectedClientForConversion(null);
+              }}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              {selectedClientForConversion && (
+                <>
+                  <Text style={styles.importDescription}>
+                    Select an estimate to convert to a project for{' '}
+                    {clients.find(c => c.id === selectedClientForConversion)?.name}
+                  </Text>
+
+                  <ScrollView style={{ maxHeight: 400 }}>
+                    {estimates
+                      .filter(est => est.clientId === selectedClientForConversion)
+                      .map(estimate => (
+                        <TouchableOpacity
+                          key={estimate.id}
+                          style={styles.importOptionCard}
+                          onPress={() => handleConvertEstimateToProject(estimate.id)}
+                          disabled={isCreatingProject}
+                        >
+                          <View style={styles.importIconContainer}>
+                            <FileText size={24} color="#10B981" />
+                          </View>
+                          <View style={styles.importOptionContent}>
+                            <Text style={styles.importOptionTitle}>{estimate.name}</Text>
+                            <Text style={styles.importOptionText}>
+                              Total: ${estimate.total?.toFixed(2) || '0.00'}
+                            </Text>
+                            <Text style={[styles.importOptionText, { fontSize: 12, marginTop: 2 }]}>
+                              {estimate.items?.length || 0} line items • Created {new Date(estimate.createdDate).toLocaleDateString()}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                  </ScrollView>
+                </>
+              )}
             </View>
           </View>
         </View>
@@ -1804,6 +2199,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 10,
+  },
+  createButtonDisabled: {
+    backgroundColor: '#93C5FD',
   },
   createButtonText: {
     color: '#FFFFFF',
