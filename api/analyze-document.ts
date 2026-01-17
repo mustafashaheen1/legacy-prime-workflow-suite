@@ -57,38 +57,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
       .join('\n\n');
 
-    const prompt = `You are a construction estimator analyzing a construction document/blueprint IMAGE.
+    const prompt = `You are a construction estimator analyzing a construction document/blueprint/estimate/invoice.
 
 YOUR TASK:
-1. Analyze the image to understand what construction work is proposed
-2. Select appropriate items from the PRICE LIST DATABASE below
-3. Estimate quantities based on the document
-4. Return ONLY items that exist in the price list - NO custom items
+1. Carefully analyze ALL pages of the document to understand what construction work is described
+2. Extract ALL line items, materials, labor, and costs mentioned in the document
+3. Match each item to the most appropriate item from the PRICE LIST DATABASE below
+4. If you find items that don't match the price list exactly, still include them with your best category match
 
 AVAILABLE PRICE LIST ITEMS:
 ${priceListText}
 
-CRITICAL INSTRUCTIONS:
-- Look at the image carefully to understand the scope of work
-- For each type of work you see, select the most appropriate item from the price list above
+INSTRUCTIONS:
+- Read every page carefully - documents often have itemized lists, schedules, or specifications
+- Look for: material lists, line items, quantities, costs, labor hours, equipment
+- For each item you find, match it to the CLOSEST item in the price list above
 - Use the item ID from the price list (shown in brackets [ID: ...])
-- Estimate realistic quantities based on what you see in the document
-- If you see measurements, use them to calculate quantities
-- ONLY use items from the price list above - do NOT invent new items
-- If no suitable item exists in the price list for some work, skip it
+- If an item doesn't match exactly, pick the most similar category item
+- Extract quantities from the document when available
+- If no quantity is specified, estimate 1 as default
 
-RESPONSE FORMAT - CRITICAL:
-Respond ONLY with a valid JSON array. NO explanations, NO markdown, NO other text.
+WHAT TO LOOK FOR:
+- Material schedules and lists
+- Labor and work descriptions
+- Cost breakdowns
+- Specifications sections
+- Bill of materials
+- Scope of work descriptions
+- Any itemized content
 
+RESPONSE FORMAT - Return ONLY a valid JSON array:
 [
   {
     "priceListItemId": "item-id-from-database",
     "quantity": 100,
-    "notes": "Any relevant notes or specifications from the image"
+    "notes": "Description from document - any relevant details"
   }
 ]
 
-If you cannot identify any work that matches the price list, respond with an empty array: []
+IMPORTANT:
+- If the document has ANY construction-related content, try to match it to price list items
+- Be liberal with matching - pick the closest category even if not exact
+- Include notes about what you found in the document
+- Only return empty array [] if the document contains NO construction/building content at all
 
 Start your response with [ and end with ].`;
 
@@ -181,12 +192,15 @@ Start your response with [ and end with ].`;
     if (items.length === 0) {
       console.warn('[AI Takeoff] No items extracted from document');
       console.warn('[AI Takeoff] OpenAI returned empty array. Raw response:', content);
-      return res.status(400).json({
-        error: 'No Items Found',
-        message: 'The AI could not extract any construction items from this document. The image may be unclear, too low quality, or not contain a standard construction takeoff/estimate format.',
-        success: false,
+
+      // Instead of returning an error, return success with empty items and let the frontend handle it
+      // This allows the user to see the AI's raw response and understand why no items were found
+      return res.status(200).json({
+        success: true,
         items: [],
-        rawResponse: content, // Include raw response for debugging
+        message: 'The AI analyzed the document but could not identify construction items that match your price list. This may happen if the document is not construction-related, or if the content is in a format the AI cannot parse (like scanned handwriting).',
+        rawResponse: content,
+        suggestion: 'Try uploading a clearer document, or manually add items to your estimate.',
       });
     }
 

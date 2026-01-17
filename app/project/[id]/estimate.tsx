@@ -2303,13 +2303,23 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
 
           const result = await apiResponse.json();
           console.log('[AI Estimate] Backend API returned', result.items?.length || 0, 'items');
+          if (result.rawResponse) {
+            console.log('[AI Estimate] AI raw response:', result.rawResponse.substring(0, 500));
+          }
 
-          if (!result.success || !result.items || result.items.length === 0) {
-            Alert.alert(
-              'No Items Found',
-              'The AI could not extract any construction items from this PDF. The document may be unclear, low quality, or not in a standard construction format.',
-              [{ text: 'OK' }]
-            );
+          if (!result.items || result.items.length === 0) {
+            const message = result.message || 'The AI could not extract any construction items from this PDF.';
+            const suggestion = result.suggestion || 'Try uploading a clearer document, or manually add items.';
+
+            if (Platform.OS === 'web') {
+              window.alert(`No Items Found\n\n${message}\n\n${suggestion}`);
+            } else {
+              Alert.alert(
+                'No Items Found',
+                `${message}\n\n${suggestion}`,
+                [{ text: 'OK' }]
+              );
+            }
             setIsGenerating(false);
             return;
           }
@@ -2423,13 +2433,23 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
 
           const result = await apiResponse.json();
           console.log('[AI Estimate] Backend API returned', result.items?.length || 0, 'items');
+          if (result.rawResponse) {
+            console.log('[AI Estimate] AI raw response:', result.rawResponse.substring(0, 500));
+          }
 
-          if (!result.success || !result.items || result.items.length === 0) {
-            Alert.alert(
-              'No Items Found',
-              'The AI could not extract any construction items from this image. The image may be unclear, low quality, or not contain construction information.',
-              [{ text: 'OK' }]
-            );
+          if (!result.items || result.items.length === 0) {
+            const message = result.message || 'The AI could not extract any construction items from this image.';
+            const suggestion = result.suggestion || 'Try uploading a clearer image, or manually add items.';
+
+            if (Platform.OS === 'web') {
+              window.alert(`No Items Found\n\n${message}\n\n${suggestion}`);
+            } else {
+              Alert.alert(
+                'No Items Found',
+                `${message}\n\n${suggestion}`,
+                [{ text: 'OK' }]
+              );
+            }
             setIsGenerating(false);
             return;
           }
