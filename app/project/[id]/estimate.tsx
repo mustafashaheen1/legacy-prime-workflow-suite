@@ -51,6 +51,7 @@ export default function EstimateScreen() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [uploadingImageItemId, setUploadingImageItemId] = useState<string | null>(null);
+  const [savedEstimateId, setSavedEstimateId] = useState<string | null>(null);
 
   // Support both project-based and client-based estimate creation
   const clientId = clientIdParam as string | undefined;
@@ -498,56 +499,86 @@ export default function EstimateScreen() {
 
     setIsSaving(true);
     try {
-      console.log('[Estimate] Saving estimate to Supabase...');
+      const itemsData = items.map(item => ({
+        priceListItemId: item.priceListItemId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        customPrice: item.customPrice,
+        total: item.total,
+        budget: item.budget,
+        budgetUnitPrice: item.budgetUnitPrice,
+        notes: item.notes,
+        customName: item.customName,
+        customUnit: item.customUnit,
+        customCategory: item.customCategory,
+        isSeparator: item.isSeparator,
+        separatorLabel: item.separatorLabel,
+        imageUrl: item.imageUrl,
+      }));
 
-      // Save to Supabase via lightweight backend endpoint
-      const response = await fetch('/api/create-estimate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          companyId: company.id,
-          clientId: clientId as string,
-          name: estimateName,
-          items: items.map(item => ({
-            priceListItemId: item.priceListItemId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            customPrice: item.customPrice,
-            total: item.total,
-            budget: item.budget,
-            budgetUnitPrice: item.budgetUnitPrice,
-            notes: item.notes,
-            customName: item.customName,
-            customUnit: item.customUnit,
-            customCategory: item.customCategory,
-            isSeparator: item.isSeparator,
-            separatorLabel: item.separatorLabel,
-            imageUrl: item.imageUrl,
-          })),
-          subtotal,
-          taxRate: parseFloat(taxPercent) || 0,
-          taxAmount,
-          total,
-          status: 'draft',
-        }),
-      });
+      let result;
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save estimate');
+      if (savedEstimateId) {
+        // Update existing estimate
+        console.log('[Estimate] Updating existing estimate:', savedEstimateId);
+        const response = await fetch('/api/update-estimate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            estimateId: savedEstimateId,
+            companyId: company.id,
+            clientId: clientId as string,
+            name: estimateName,
+            items: itemsData,
+            subtotal,
+            taxRate: parseFloat(taxPercent) || 0,
+            taxAmount,
+            total,
+            status: 'draft',
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to update estimate');
+        }
+        result = await response.json();
+      } else {
+        // Create new estimate
+        console.log('[Estimate] Creating new estimate...');
+        const response = await fetch('/api/create-estimate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            clientId: clientId as string,
+            name: estimateName,
+            items: itemsData,
+            subtotal,
+            taxRate: parseFloat(taxPercent) || 0,
+            taxAmount,
+            total,
+            status: 'draft',
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to save estimate');
+        }
+        result = await response.json();
       }
-
-      const result = await response.json();
 
       console.log('[Estimate] Response result:', result);
 
       if (result.success && result.estimate) {
         console.log('[Estimate] Estimate saved successfully:', result.estimate.id);
 
-        // Also add to local state for immediate UI update
-        const newEstimate: Estimate = {
+        // Track the saved estimate ID for future updates
+        setSavedEstimateId(result.estimate.id);
+
+        // Also add/update local state for immediate UI update
+        const savedEstimate: Estimate = {
           id: result.estimate.id,
           clientId: clientId as string,
           name: estimateName,
@@ -559,11 +590,16 @@ export default function EstimateScreen() {
           createdDate: new Date().toISOString(),
           status: 'draft',
         };
-        addEstimate(newEstimate);
+
+        if (savedEstimateId) {
+          updateEstimate(result.estimate.id, savedEstimate);
+        } else {
+          addEstimate(savedEstimate);
+        }
 
         // Save as project file for backward compatibility (if project exists)
         if (project) {
-          await saveEstimateAsFile(newEstimate);
+          await saveEstimateAsFile(savedEstimate);
         }
         await clearDraft();
 
@@ -607,54 +643,84 @@ export default function EstimateScreen() {
     const { subtotal, markupAmount, subtotalWithMarkup, taxAmount, total } = totals;
 
     try {
-      console.log('[Estimate] Saving estimate to Supabase (status: sent)...');
+      const itemsData = items.map(item => ({
+        priceListItemId: item.priceListItemId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        customPrice: item.customPrice,
+        total: item.total,
+        budget: item.budget,
+        budgetUnitPrice: item.budgetUnitPrice,
+        notes: item.notes,
+        customName: item.customName,
+        customUnit: item.customUnit,
+        customCategory: item.customCategory,
+        isSeparator: item.isSeparator,
+        separatorLabel: item.separatorLabel,
+        imageUrl: item.imageUrl,
+      }));
 
-      // Save to Supabase via lightweight backend endpoint
-      const response = await fetch('/api/create-estimate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          companyId: company.id,
-          clientId: effectiveClientId,
-          name: estimateName,
-          items: items.map(item => ({
-            priceListItemId: item.priceListItemId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            customPrice: item.customPrice,
-            total: item.total,
-            budget: item.budget,
-            budgetUnitPrice: item.budgetUnitPrice,
-            notes: item.notes,
-            customName: item.customName,
-            customUnit: item.customUnit,
-            customCategory: item.customCategory,
-            isSeparator: item.isSeparator,
-            separatorLabel: item.separatorLabel,
-            imageUrl: item.imageUrl,
-          })),
-          subtotal,
-          taxRate: parseFloat(taxPercent) || 0,
-          taxAmount,
-          total,
-          status: 'sent',
-        }),
-      });
+      let result;
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save estimate');
+      if (savedEstimateId) {
+        // Update existing estimate with sent status
+        console.log('[Estimate] Updating existing estimate as sent:', savedEstimateId);
+        const response = await fetch('/api/update-estimate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            estimateId: savedEstimateId,
+            companyId: company.id,
+            clientId: effectiveClientId,
+            name: estimateName,
+            items: itemsData,
+            subtotal,
+            taxRate: parseFloat(taxPercent) || 0,
+            taxAmount,
+            total,
+            status: 'sent',
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to update estimate');
+        }
+        result = await response.json();
+      } else {
+        // Create new estimate with sent status
+        console.log('[Estimate] Creating new estimate as sent...');
+        const response = await fetch('/api/create-estimate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            clientId: effectiveClientId,
+            name: estimateName,
+            items: itemsData,
+            subtotal,
+            taxRate: parseFloat(taxPercent) || 0,
+            taxAmount,
+            total,
+            status: 'sent',
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to save estimate');
+        }
+        result = await response.json();
       }
-
-      const result = await response.json();
 
       if (!result.success || !result.estimate) {
         throw new Error('Failed to save estimate to database');
       }
 
-      const newEstimate: Estimate = {
+      // Track the saved estimate ID for future updates
+      setSavedEstimateId(result.estimate.id);
+
+      const sentEstimate: Estimate = {
         id: result.estimate.id,
         clientId: effectiveClientId,
         name: estimateName,
@@ -667,8 +733,12 @@ export default function EstimateScreen() {
         status: 'sent',
       };
 
-      addEstimate(newEstimate);
-      await saveEstimateAsFile(newEstimate);
+      if (savedEstimateId) {
+        updateEstimate(result.estimate.id, sentEstimate);
+      } else {
+        addEstimate(sentEstimate);
+      }
+      await saveEstimateAsFile(sentEstimate);
       await clearDraft();
 
       // Generate PDF matching the Preview modal format
