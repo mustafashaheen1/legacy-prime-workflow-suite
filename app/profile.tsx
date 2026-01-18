@@ -12,7 +12,7 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useApp } from '@/contexts/AppContext';
 import { getRoleDisplayName } from '@/lib/permissions';
 import { Camera, Mail, Briefcase, Building2, LogOut } from 'lucide-react-native';

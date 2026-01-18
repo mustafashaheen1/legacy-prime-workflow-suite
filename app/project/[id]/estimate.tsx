@@ -10,7 +10,7 @@ import { EstimateItem, Estimate, ProjectFile } from '@/types';
 import { vanillaClient } from '@/lib/trpc';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as pdfjsLib from 'pdfjs-dist';
 import { Audio } from 'expo-av';
 import Constants from 'expo-constants';

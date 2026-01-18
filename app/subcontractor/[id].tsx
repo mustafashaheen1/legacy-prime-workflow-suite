@@ -5,7 +5,7 @@ import { Building2, Mail, Phone, MapPin, FileText, CheckCircle2, XCircle, Upload
 import { useApp } from '@/contexts/AppContext';
 import { BusinessFile, Subcontractor } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
 import { trpc } from '@/lib/trpc';
 import { supabase } from '@/lib/supabase';
