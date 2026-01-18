@@ -1,7 +1,144 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { uploadToS3, generateS3Key, deleteFromS3 } from '../backend/lib/s3';
-import { validateImageFile, base64ToBuffer } from '../backend/lib/file-validation';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+
+// Initialize S3 client
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+});
+
+const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'legacy-prime-construction-media';
+
+// Allowed MIME types for images
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/heic',
+  'image/heif',
+  'image/webp',
+];
+
+const MAX_IMAGE_SIZE = parseInt(process.env.MAX_IMAGE_SIZE || '10485760'); // 10MB default
+
+/**
+ * Validate image file type and size
+ */
+function validateImageFile(params: {
+  mimeType: string;
+  size: number;
+}): { valid: boolean; error?: string } {
+  const { mimeType, size } = params;
+
+  if (!ALLOWED_IMAGE_TYPES.includes(mimeType.toLowerCase())) {
+    return {
+      valid: false,
+      error: `Invalid file type: ${mimeType}. Allowed types: JPEG, PNG, HEIC, HEIF, WebP`,
+    };
+  }
+
+  if (size > MAX_IMAGE_SIZE) {
+    const maxSizeMB = (MAX_IMAGE_SIZE / 1024 / 1024).toFixed(1);
+    const actualSizeMB = (size / 1024 / 1024).toFixed(1);
+    return {
+      valid: false,
+      error: `File too large: ${actualSizeMB}MB. Maximum size is ${maxSizeMB}MB`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Convert base64 string to Buffer
+ */
+function base64ToBuffer(base64: string): Buffer {
+  const base64Data = base64.includes(',') ? base64.split(',')[1] : base64;
+  return Buffer.from(base64Data, 'base64');
+}
+
+/**
+ * Generate S3 key (path) for a file
+ */
+function generateS3Key(params: {
+  companyId: string;
+  projectId: string;
+  type: 'photos' | 'videos';
+  fileName: string;
+}): string {
+  const { companyId, projectId, type, fileName } = params;
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const random = Math.random().toString(36).substring(2, 8);
+  const extension = fileName.split('.').pop() || 'jpg';
+  const key = `company-${companyId}/project-${projectId}/${type}/${timestamp}-${random}.${extension}`;
+  return key;
+}
+
+/**
+ * Upload a file buffer to S3
+ */
+async function uploadToS3(params: {
+  buffer: Buffer;
+  key: string;
+  contentType: string;
+}): Promise<{ url: string; key: string }> {
+  const { buffer, key, contentType } = params;
+
+  console.log('[S3] Uploading file:', {
+    key,
+    contentType,
+    size: buffer.length,
+    bucket: BUCKET_NAME,
+  });
+
+  try {
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    });
+
+    await s3Client.send(command);
+
+    const url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+    console.log('[S3] Upload successful:', url);
+    return { url, key };
+  } catch (error: any) {
+    console.error('[S3] Upload error:', error);
+    if (error.name === 'NoSuchBucket') {
+      throw new Error('Storage configuration error. Bucket does not exist.');
+    } else if (error.name === 'AccessDenied') {
+      throw new Error('Storage access denied. Check IAM permissions.');
+    } else if (error.name === 'RequestTimeout') {
+      throw new Error('Upload timed out. Please try again.');
+    } else {
+      throw new Error(`Failed to upload file: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Delete a file from S3
+ */
+async function deleteFromS3(key: string): Promise<void> {
+  console.log('[S3] Deleting file:', key);
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+    await s3Client.send(command);
+    console.log('[S3] Delete successful:', key);
+  } catch (error: any) {
+    console.error('[S3] Delete error:', error);
+    throw new Error(`Failed to delete file: ${error.message}`);
+  }
+}
 
 export const config = {
   maxDuration: 60, // 60 seconds for photo upload
