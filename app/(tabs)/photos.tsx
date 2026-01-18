@@ -1,12 +1,10 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, ActivityIndicator, Pressable, Alert } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Camera, Upload, Edit2, X, Sparkles, Check, Plus, Trash2, Settings } from 'lucide-react-native';
+import { Camera, Upload, Edit2, X, Check, Plus, Trash2, Settings } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { generateText } from '@rork-ai/toolkit-sdk';
 import { Photo } from '@/types';
-import { useMutation } from '@tanstack/react-query';
 import { compressImage, getFileSize, validateFileForUpload, getMimeType } from '@/lib/upload-utils';
 import { useUploadProgress } from '@/hooks/useUploadProgress';
 
@@ -21,7 +19,6 @@ export default function PhotosScreen() {
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [editingCategoryName, setEditingCategoryName] = useState<string | null>(null);
   const [editedCategoryValue, setEditedCategoryValue] = useState<string>('');
-  const [aiSuggestedCategory, setAiSuggestedCategory] = useState<string | null>(null);
   const [tempCategory, setTempCategory] = useState<string>('');
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
   const [previewNotes, setPreviewNotes] = useState<string>('');
@@ -59,7 +56,6 @@ export default function PhotosScreen() {
       setPreviewNotes('');
       setTempCategory(category);
       setShowPreviewModal(true);
-      suggestCategoryMutation.mutate(imageUri);
     }
   };
 
@@ -91,51 +87,8 @@ export default function PhotosScreen() {
       setPreviewNotes('');
       setTempCategory(category);
       setShowPreviewModal(true);
-      suggestCategoryMutation.mutate(imageUri);
     }
   };
-
-  const suggestCategoryMutation = useMutation({
-    mutationFn: async (imageUri: string) => {
-      console.log('[AI] Suggesting category for image...');
-      const prompt = `Analyze this construction image and suggest the most appropriate category from this list: ${photoCategories.join(', ')}. Only respond with the category name, nothing else.`;
-      
-      const base64 = await fetch(imageUri)
-        .then(res => res.blob())
-        .then(blob => new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        }));
-      
-      const suggestion = await generateText({
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image', image: base64 }
-            ]
-          }
-        ]
-      });
-      
-      const cleanSuggestion = suggestion.trim();
-      const matchedCategory = photoCategories.find(
-        cat => cat.toLowerCase() === cleanSuggestion.toLowerCase()
-      );
-      
-      console.log('[AI] Suggested category:', matchedCategory || cleanSuggestion);
-      return matchedCategory || cleanSuggestion;
-    },
-    onSuccess: (suggestedCat) => {
-      setAiSuggestedCategory(suggestedCat);
-    },
-    onError: (error) => {
-      console.error('[AI] Error suggesting category:', error);
-      Alert.alert('Error', 'Could not get AI suggestion. Please select manually.');
-    }
-  });
 
   const handleSaveFromPreview = async () => {
     if (!selectedImage || !company) {
@@ -225,7 +178,6 @@ export default function PhotosScreen() {
         // Close modal and reset
         setSelectedImage(null);
         setPreviewNotes('');
-        setAiSuggestedCategory(null);
         setShowPreviewModal(false);
         setTempCategory('');
 
@@ -305,7 +257,6 @@ export default function PhotosScreen() {
     setEditingPhoto(photo);
     setTempCategory(photo.category);
     setShowCategoryModal(true);
-    suggestCategoryMutation.mutate(photo.url);
   };
 
   const handleOpenCategoryModal = () => {
@@ -322,21 +273,13 @@ export default function PhotosScreen() {
     }
     
     setShowCategoryModal(false);
-    setAiSuggestedCategory(null);
     setTempCategory('');
-  };
-
-  const handleUseSuggestion = () => {
-    if (aiSuggestedCategory) {
-      setTempCategory(aiSuggestedCategory);
-    }
   };
 
   const handleCancelPreview = () => {
     setShowPreviewModal(false);
     setSelectedImage(null);
     setPreviewNotes('');
-    setAiSuggestedCategory(null);
     setTempCategory('');
   };
 
@@ -445,32 +388,6 @@ export default function PhotosScreen() {
                 style={styles.modalImage} 
                 contentFit="cover" 
               />
-            )}
-
-            {suggestCategoryMutation.isPending && (
-              <View style={styles.aiSuggestionLoading}>
-                <ActivityIndicator size="small" color="#2563EB" />
-                <Text style={styles.aiSuggestionText}>AI is analyzing the image...</Text>
-              </View>
-            )}
-
-            {aiSuggestedCategory && !suggestCategoryMutation.isPending && (
-              <View style={styles.aiSuggestionContainer}>
-                <View style={styles.aiSuggestionHeader}>
-                  <Sparkles size={16} color="#8B5CF6" />
-                  <Text style={styles.aiSuggestionTitle}>AI Suggestion</Text>
-                </View>
-                <TouchableOpacity 
-                  style={styles.aiSuggestionButton}
-                  onPress={handleUseSuggestion}
-                >
-                  <Text style={styles.aiSuggestionCategory}>{aiSuggestedCategory}</Text>
-                  {tempCategory === aiSuggestedCategory && (
-                    <Check size={16} color="#10B981" />
-                  )}
-                </TouchableOpacity>
-                <Text style={styles.aiSuggestionHint}>Tap to use this suggestion</Text>
-              </View>
             )}
 
             <Text style={styles.modalLabel}>Select Category</Text>
@@ -627,32 +544,6 @@ export default function PhotosScreen() {
                   style={styles.previewModalImage} 
                   contentFit="cover" 
                 />
-              )}
-
-              {suggestCategoryMutation.isPending && (
-                <View style={styles.aiSuggestionLoading}>
-                  <ActivityIndicator size="small" color="#2563EB" />
-                  <Text style={styles.aiSuggestionText}>AI is analyzing the image...</Text>
-                </View>
-              )}
-
-              {aiSuggestedCategory && !suggestCategoryMutation.isPending && (
-                <View style={styles.aiSuggestionContainer}>
-                  <View style={styles.aiSuggestionHeader}>
-                    <Sparkles size={16} color="#8B5CF6" />
-                    <Text style={styles.aiSuggestionTitle}>AI Suggestion</Text>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.aiSuggestionButton}
-                    onPress={handleUseSuggestion}
-                  >
-                    <Text style={styles.aiSuggestionCategory}>{aiSuggestedCategory}</Text>
-                    {tempCategory === aiSuggestedCategory && (
-                      <Check size={16} color="#10B981" />
-                    )}
-                  </TouchableOpacity>
-                  <Text style={styles.aiSuggestionHint}>Tap to use this suggestion</Text>
-                </View>
               )}
 
               <View style={styles.previewFormSection}>
