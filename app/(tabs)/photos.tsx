@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { Photo } from '@/types';
 import { useMutation } from '@tanstack/react-query';
-import { trpc } from '@/lib/trpc';
+import { vanillaClient } from '@/lib/trpc';
 import { compressImage, getFileSize, validateFileForUpload, getMimeType } from '@/lib/upload-utils';
 import { useUploadProgress } from '@/hooks/useUploadProgress';
 
@@ -189,7 +189,7 @@ export default function PhotosScreen() {
       uploadProgress.startUpload();
       uploadProgress.setProgress(50);
 
-      const result = await trpc.photos.addPhoto.mutate({
+      const result = await vanillaClient.photos.addPhoto.mutate({
         companyId: company.id,
         projectId: selectedProjectId,
         category: tempCategory,
