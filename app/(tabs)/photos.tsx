@@ -7,7 +7,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { Photo } from '@/types';
 import { useMutation } from '@tanstack/react-query';
-import { vanillaClient } from '@/lib/trpc';
 import { compressImage, getFileSize, validateFileForUpload, getMimeType } from '@/lib/upload-utils';
 import { useUploadProgress } from '@/hooks/useUploadProgress';
 
@@ -185,21 +184,35 @@ export default function PhotosScreen() {
       const mimeType = getMimeType(selectedImage);
       const fileName = `photo-${Date.now()}.jpg`;
 
-      // 4. Upload to S3 via backend
+      // 4. Upload to S3 via backend API (using direct endpoint to avoid TRPC timeout)
       uploadProgress.startUpload();
       uploadProgress.setProgress(50);
 
-      const result = await vanillaClient.photos.addPhoto.mutate({
-        companyId: company.id,
-        projectId: selectedProjectId,
-        category: tempCategory,
-        notes: previewNotes,
-        fileData: compressed.base64,
-        fileName,
-        mimeType,
-        fileSize: compressedSize,
-        date: new Date().toISOString(),
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/add-photo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyId: company.id,
+          projectId: selectedProjectId,
+          category: tempCategory,
+          notes: previewNotes,
+          fileData: compressed.base64,
+          fileName,
+          mimeType,
+          fileSize: compressedSize,
+          date: new Date().toISOString(),
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload photo');
+      }
+
+      const result = await response.json();
 
       uploadProgress.setProgress(90);
 
