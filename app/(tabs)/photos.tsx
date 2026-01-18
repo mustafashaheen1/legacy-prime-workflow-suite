@@ -133,8 +133,8 @@ export default function PhotosScreen() {
 
       uploadProgress.setProgress(40);
 
-      // 3. Get MIME type
-      const mimeType = getMimeType(selectedImage);
+      // 3. Set MIME type (ImageManipulator always outputs JPEG)
+      const mimeType = 'image/jpeg';
       const fileName = `photo-${Date.now()}.jpg`;
 
       // 4. Upload to S3 via backend API (using direct endpoint to avoid TRPC timeout)
