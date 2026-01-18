@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, ActivityIndicator, Pressable, Alert } from 'react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Camera, Upload, Edit2, X, Sparkles, Check, Plus, Trash2, Settings } from 'lucide-react-native';
 import { Image } from 'expo-image';
@@ -12,7 +12,7 @@ import { compressImage, getFileSize, validateFileForUpload, getMimeType } from '
 import { useUploadProgress } from '@/hooks/useUploadProgress';
 
 export default function PhotosScreen() {
-  const { photos, addPhoto, updatePhoto, photoCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company } = useApp();
+  const { photos, addPhoto, updatePhoto, photoCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company, projects } = useApp();
   const [category, setCategory] = useState<string>(photoCategories[0] || 'Other');
   const [notes, setNotes] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -26,11 +26,28 @@ export default function PhotosScreen() {
   const [tempCategory, setTempCategory] = useState<string>('');
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
   const [previewNotes, setPreviewNotes] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [showProjectPickerModal, setShowProjectPickerModal] = useState<boolean>(false);
 
   // Upload progress state
   const uploadProgress = useUploadProgress();
 
+  // Auto-select first active project on mount
+  useEffect(() => {
+    if (!selectedProjectId && projects.length > 0) {
+      const firstActiveProject = projects.find(p => p.status === 'active');
+      if (firstActiveProject) {
+        setSelectedProjectId(firstActiveProject.id);
+      }
+    }
+  }, [projects, selectedProjectId]);
+
   const pickImage = async () => {
+    if (!selectedProjectId) {
+      Alert.alert('No Project Selected', 'Please select a project before uploading photos');
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -48,6 +65,11 @@ export default function PhotosScreen() {
   };
 
   const takePhoto = async () => {
+    if (!selectedProjectId) {
+      Alert.alert('No Project Selected', 'Please select a project before uploading photos');
+      return;
+    }
+
     if (Platform.OS === 'web') {
       console.log('Camera not available on web');
       return;
@@ -122,6 +144,11 @@ export default function PhotosScreen() {
       return;
     }
 
+    if (!selectedProjectId) {
+      Alert.alert('No Project Selected', 'Please select a project before uploading photos');
+      return;
+    }
+
     try {
       uploadProgress.reset();
       uploadProgress.startCompression();
@@ -164,7 +191,7 @@ export default function PhotosScreen() {
 
       const result = await trpc.photos.addPhoto.mutate({
         companyId: company.id,
-        projectId: '1', // TODO: Get actual project ID
+        projectId: selectedProjectId,
         category: tempCategory,
         notes: previewNotes,
         fileData: compressed.base64,
@@ -338,10 +365,29 @@ export default function PhotosScreen() {
           <Text style={styles.helperText}>This is the default category for new photos. You can change it when adding a photo.</Text>
         </View>
 
+        <View style={styles.projectSection}>
+          <Text style={styles.sectionLabel}>Project</Text>
+          <TouchableOpacity
+            style={styles.projectPicker}
+            onPress={() => setShowProjectPickerModal(true)}
+          >
+            <Text style={styles.projectPickerText}>
+              {selectedProjectId
+                ? projects.find(p => p.id === selectedProjectId)?.name || 'Select a project'
+                : 'Select a project'
+              }
+            </Text>
+            <Edit2 size={16} color="#6B7280" />
+          </TouchableOpacity>
+          <Text style={styles.helperText}>Photos will be saved to this project</Text>
+        </View>
+
         <View style={styles.gallery}>
           <Text style={styles.galleryTitle}>Thumbnail Gallery</Text>
           <View style={styles.galleryGrid}>
-            {photos.map((photo) => (
+            {photos
+              .filter(photo => !selectedProjectId || photo.projectId === selectedProjectId)
+              .map((photo) => (
               <View key={photo.id} style={styles.galleryItem}>
                 <Image source={{ uri: photo.url }} style={styles.thumbnail} contentFit="cover" />
                 <View style={styles.thumbnailFooter}>
@@ -690,6 +736,56 @@ export default function PhotosScreen() {
             )}
           </View>
         </View>
+      </Modal>
+
+      {/* Project Picker Modal */}
+      <Modal
+        visible={showProjectPickerModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowProjectPickerModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowProjectPickerModal(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Project</Text>
+              <TouchableOpacity onPress={() => setShowProjectPickerModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 400 }}>
+              {projects
+                .filter(p => p.status === 'active' || p.status === 'on-hold')
+                .map(project => (
+                  <TouchableOpacity
+                    key={project.id}
+                    style={[
+                      styles.projectOption,
+                      selectedProjectId === project.id && styles.projectOptionSelected
+                    ]}
+                    onPress={() => {
+                      setSelectedProjectId(project.id);
+                      setShowProjectPickerModal(false);
+                    }}
+                  >
+                    <View style={styles.projectOptionContent}>
+                      <Text style={styles.projectOptionName}>{project.name}</Text>
+                      <Text style={styles.projectOptionBudget}>
+                        Budget: ${project.budget.toLocaleString()}
+                      </Text>
+                    </View>
+                    {selectedProjectId === project.id && (
+                      <Check size={20} color="#2563EB" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -1251,5 +1347,48 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     marginTop: 12,
     textAlign: 'center',
+  },
+  projectSection: {
+    marginBottom: 24,
+    paddingHorizontal: 16,
+  },
+  projectPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  projectPickerText: {
+    fontSize: 15,
+    color: '#1F2937',
+    flex: 1,
+  },
+  projectOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  projectOptionSelected: {
+    backgroundColor: '#EFF6FF',
+  },
+  projectOptionContent: {
+    flex: 1,
+  },
+  projectOptionName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  projectOptionBudget: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });
