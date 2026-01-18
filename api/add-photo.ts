@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { uploadToS3, generateS3Key, deleteFromS3 } from '../lib/s3';
-import { validateImageFile, base64ToBuffer } from '../lib/file-validation';
+import { uploadToS3, generateS3Key, deleteFromS3 } from '../backend/lib/s3';
+import { validateImageFile, base64ToBuffer } from '../backend/lib/file-validation';
 
 export const config = {
   maxDuration: 60, // 60 seconds for photo upload
