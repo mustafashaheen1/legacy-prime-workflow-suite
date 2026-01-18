@@ -81,6 +81,10 @@ import { addPriceListItemProcedure } from "./routes/price-list/add-price-list-it
 import { createEstimateProcedure } from "./routes/estimates/create-estimate/route.js";
 import { getEstimatesProcedure } from "./routes/estimates/get-estimates/route.js";
 import { testEstimateProcedure } from "./routes/estimates/test-estimate/route.js";
+import { getPhotoCategoriesProcedure } from "./routes/photo-categories/get-photo-categories/route.js";
+import { addPhotoCategoryProcedure } from "./routes/photo-categories/add-photo-category/route.js";
+import { updatePhotoCategoryProcedure } from "./routes/photo-categories/update-photo-category/route.js";
+import { deletePhotoCategoryProcedure } from "./routes/photo-categories/delete-photo-category/route.js";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -203,6 +207,12 @@ export const appRouter = createTRPCRouter({
     createEstimate: createEstimateProcedure,
     getEstimates: getEstimatesProcedure,
     testEstimate: testEstimateProcedure,
+  }),
+  photoCategories: createTRPCRouter({
+    getPhotoCategories: getPhotoCategoriesProcedure,
+    addPhotoCategory: addPhotoCategoryProcedure,
+    updatePhotoCategory: updatePhotoCategoryProcedure,
+    deletePhotoCategory: deletePhotoCategoryProcedure,
   }),
 });
 

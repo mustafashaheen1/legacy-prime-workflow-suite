@@ -217,6 +217,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setPhotos([]);
           }
 
+          // Load photo categories from database
+          try {
+            const categoriesResponse = await fetch(
+              `${baseUrl}/trpc/photoCategories.getPhotoCategories?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+            );
+            const categoriesData = await categoriesResponse.json();
+            const categoriesResult = categoriesData.result.data.json;
+            if (categoriesResult.success && categoriesResult.categories) {
+              setPhotoCategories(categoriesResult.categories);
+              console.log('[App] ✅ Loaded', categoriesResult.categories.length, 'photo categories');
+            } else {
+              setPhotoCategories([]);
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading photo categories:', error?.message || error);
+            setPhotoCategories([]);
+          }
+
           // Load tasks
           try {
             const tasksResponse = await fetch(
@@ -381,23 +399,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         setCustomCategories(parsedCustomCategories);
       }
 
-      const defaultPhotoCategories = [
-        'Foundation',
-        'Framing',
-        'Electrical',
-        'Plumbing',
-        'HVAC',
-        'Drywall',
-        'Painting',
-        'Flooring',
-        'Exterior',
-        'Landscaping',
-        'Other',
-      ];
-      const parsedPhotoCategories = safeJsonParse<string[]>(storedPhotoCategories, 'photoCategories', defaultPhotoCategories);
-      if (Array.isArray(parsedPhotoCategories)) {
-        setPhotoCategories(parsedPhotoCategories);
-      }
+      // Photo categories are now loaded from database via loadPhotoCategories()
+      // This will be called when company is loaded
 
       const parsedExpenses = safeJsonParse<Expense[]>(storedExpenses, 'expenses', mockExpenses);
       if (Array.isArray(parsedExpenses)) {
@@ -532,6 +535,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           } catch (error) {
             console.error('[App] Error loading photos:', error);
             setPhotos([]);
+          }
+
+          // Load photo categories from database
+          try {
+            const categoriesResponse = await fetch(
+              `${baseUrl}/trpc/photoCategories.getPhotoCategories?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
+            );
+            const categoriesData = await categoriesResponse.json();
+            const categoriesResult = categoriesData.result.data.json;
+            if (categoriesResult.success && categoriesResult.categories) {
+              setPhotoCategories(categoriesResult.categories);
+              console.log('[App] Loaded', categoriesResult.categories.length, 'photo categories from database');
+            } else {
+              setPhotoCategories([]);
+            }
+          } catch (error) {
+            console.error('[App] Error loading photo categories:', error);
+            setPhotoCategories([]);
           }
 
           // Load clock entries from database
@@ -1274,32 +1295,125 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [customCategories, customPriceListItems]);
 
   const addPhotoCategory = useCallback(async (category: string) => {
+    if (!company?.id) {
+      console.error('[PhotoCategory] No company ID available');
+      return;
+    }
+
     if (photoCategories.includes(category)) {
       console.log('[PhotoCategory] Category already exists:', category);
       return;
     }
-    const updated = [...photoCategories, category];
-    setPhotoCategories(updated);
-    await AsyncStorage.setItem('photoCategories', JSON.stringify(updated));
-    console.log('[PhotoCategory] Added category:', category);
-  }, [photoCategories]);
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(
+        `${baseUrl}/trpc/photoCategories.addPhotoCategory`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            json: {
+              companyId: company.id,
+              name: category,
+            },
+          }),
+        }
+      );
+
+      const data = await response.json();
+      const result = data.result?.data?.json;
+
+      if (result?.success) {
+        setPhotoCategories([...photoCategories, category]);
+        console.log('[PhotoCategory] Added category:', category);
+      } else {
+        console.error('[PhotoCategory] Failed to add category');
+      }
+    } catch (error: any) {
+      console.error('[PhotoCategory] Error adding category:', error?.message || error);
+    }
+  }, [photoCategories, company]);
 
   const updatePhotoCategory = useCallback(async (oldName: string, newName: string) => {
-    const updated = photoCategories.map(cat => cat === oldName ? newName : cat);
-    setPhotoCategories(updated);
-    await AsyncStorage.setItem('photoCategories', JSON.stringify(updated));
-    
-    const updatedPhotos = photos.map(p => p.category === oldName ? { ...p, category: newName } : p);
-    setPhotos(updatedPhotos);
-    console.log('[PhotoCategory] Updated category:', oldName, 'to', newName);
-  }, [photoCategories, photos]);
+    if (!company?.id) {
+      console.error('[PhotoCategory] No company ID available');
+      return;
+    }
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(
+        `${baseUrl}/trpc/photoCategories.updatePhotoCategory`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            json: {
+              companyId: company.id,
+              oldName,
+              newName,
+            },
+          }),
+        }
+      );
+
+      const data = await response.json();
+      const result = data.result?.data?.json;
+
+      if (result?.success) {
+        // Update local state
+        const updated = photoCategories.map(cat => cat === oldName ? newName : cat);
+        setPhotoCategories(updated);
+
+        const updatedPhotos = photos.map(p => p.category === oldName ? { ...p, category: newName } : p);
+        setPhotos(updatedPhotos);
+
+        console.log('[PhotoCategory] Updated category:', oldName, 'to', newName);
+      } else {
+        console.error('[PhotoCategory] Failed to update category');
+      }
+    } catch (error: any) {
+      console.error('[PhotoCategory] Error updating category:', error?.message || error);
+    }
+  }, [photoCategories, photos, company]);
 
   const deletePhotoCategory = useCallback(async (category: string) => {
-    const updated = photoCategories.filter(cat => cat !== category);
-    setPhotoCategories(updated);
-    await AsyncStorage.setItem('photoCategories', JSON.stringify(updated));
-    console.log('[PhotoCategory] Deleted category:', category);
-  }, [photoCategories]);
+    if (!company?.id) {
+      console.error('[PhotoCategory] No company ID available');
+      return;
+    }
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(
+        `${baseUrl}/trpc/photoCategories.deletePhotoCategory`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            json: {
+              companyId: company.id,
+              name: category,
+            },
+          }),
+        }
+      );
+
+      const data = await response.json();
+      const result = data.result?.data?.json;
+
+      if (result?.success) {
+        const updated = photoCategories.filter(cat => cat !== category);
+        setPhotoCategories(updated);
+        console.log('[PhotoCategory] Deleted category:', category);
+      } else {
+        console.error('[PhotoCategory] Failed to delete category');
+      }
+    } catch (error: any) {
+      console.error('[PhotoCategory] Error deleting category:', error?.message || error);
+    }
+  }, [photoCategories, company]);
 
   const addCallLog = useCallback((log: CallLog) => {
     setCallLogs(prev => [log, ...prev]);
