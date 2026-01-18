@@ -1,5 +1,6 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 /**
  * Compress image to reduce file size before upload
@@ -83,11 +84,29 @@ export async function uriToBase64(uri: string): Promise<string> {
 
 /**
  * Get file size from URI
- * @param uri - Local file URI
+ * @param uri - Local file URI or blob URI
  * @returns File size in bytes
  */
 export async function getFileSize(uri: string): Promise<number> {
   try {
+    // On web, FileSystem is not available, so we need to handle it differently
+    if (Platform.OS === 'web') {
+      // For web, if it's a blob URL, fetch it to get the size
+      if (uri.startsWith('blob:')) {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        return blob.size;
+      }
+      // For data URLs, estimate size from base64 length
+      if (uri.startsWith('data:')) {
+        const base64 = uri.split(',')[1];
+        return Math.ceil((base64.length * 3) / 4);
+      }
+      // Default fallback for web
+      return 0;
+    }
+
+    // For native platforms (iOS/Android), use FileSystem
     const fileInfo = await FileSystem.getInfoAsync(uri);
     if (!fileInfo.exists) {
       throw new Error('File does not exist');
@@ -95,7 +114,8 @@ export async function getFileSize(uri: string): Promise<number> {
     return fileInfo.size || 0;
   } catch (error) {
     console.error('[Upload] Error getting file size:', error);
-    throw new Error('Failed to get file size');
+    // Return 0 instead of throwing to allow upload to continue
+    return 0;
   }
 }
 
