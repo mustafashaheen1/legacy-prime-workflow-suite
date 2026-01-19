@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Platform } from 'react-native';
 import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company, Subcontractor, SubcontractorProposal, Notification } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
@@ -89,6 +90,33 @@ interface AppState {
   refreshClients: () => Promise<void>;
   refreshEstimates: () => Promise<void>;
   logout: () => void;
+}
+
+/**
+ * Helper function to convert local image URI to base64
+ */
+async function fetchLocalImageAsBase64(uri: string): Promise<string> {
+  if (Platform.OS === 'web') {
+    // Web: fetch blob and convert to base64
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        // Return base64 string (strip data URL prefix if present)
+        resolve(result.includes(',') ? result.split(',')[1] : result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } else {
+    // React Native: use expo-file-system
+    const FileSystem = require('expo-file-system/legacy');
+    return await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  }
 }
 
 export const [AppProvider, useApp] = createContextHook<AppState>(() => {
@@ -1579,11 +1607,90 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [projectFiles]);
 
   const addDailyLog = useCallback(async (log: DailyLog) => {
+    // Optimistic update to UI
     const updated = [log, ...dailyLogs];
     setDailyLogs(updated);
     await AsyncStorage.setItem('dailyLogs', JSON.stringify(updated));
-    console.log('[Storage] Daily log saved successfully');
-  }, [dailyLogs]);
+    console.log('[Storage] Daily log saved locally');
+
+    // Save to backend if company and user exist
+    if (!company?.id || !user?.id) {
+      console.log('[Storage] No company/user - saved locally only');
+      return;
+    }
+
+    try {
+      // Convert photos to base64 if they have local URIs
+      const photosWithData = await Promise.all(
+        (log.photos || []).map(async (photo) => {
+          // Skip if already uploaded to S3 (HTTP URL)
+          if (photo.uri.startsWith('http')) {
+            return null;
+          }
+
+          // Convert local URI to base64
+          try {
+            const base64 = await fetchLocalImageAsBase64(photo.uri);
+            return {
+              id: photo.id,
+              fileData: base64,
+              fileName: `photo-${photo.id}.jpg`,
+              mimeType: 'image/jpeg',
+              fileSize: base64.length,
+              author: photo.author,
+              notes: photo.notes,
+            };
+          } catch (error) {
+            console.error('[Storage] Failed to convert photo to base64:', error);
+            return null;
+          }
+        })
+      );
+
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/save-daily-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company.id,
+          projectId: log.projectId,
+          logDate: log.logDate,
+          createdBy: log.createdBy, // User name (will be converted to UUID)
+          equipmentNote: log.equipmentNote,
+          materialNote: log.materialNote,
+          officialNote: log.officialNote,
+          subsNote: log.subsNote,
+          employeesNote: log.employeesNote,
+          workPerformed: log.workPerformed,
+          issues: log.issues,
+          generalNotes: log.generalNotes,
+          tasks: log.tasks || [],
+          photos: photosWithData.filter(p => p !== null),
+          sharedWith: log.sharedWith || [], // Emails (will be converted to UUIDs)
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save daily log');
+      }
+
+      const result = await response.json();
+      console.log('[Storage] Daily log saved to database:', result.dailyLog?.id);
+
+      // Update local state with database UUID
+      if (result.dailyLog?.id) {
+        const updatedWithDbId = updated.map(l =>
+          l.id === log.id ? { ...l, id: result.dailyLog.id } : l
+        );
+        setDailyLogs(updatedWithDbId);
+        await AsyncStorage.setItem('dailyLogs', JSON.stringify(updatedWithDbId));
+      }
+    } catch (error: any) {
+      console.error('[Storage] Error saving to backend:', error?.message || error);
+      // Keep optimistic update - log saved locally and can be synced later
+    }
+  }, [dailyLogs, company, user]);
 
   const updateDailyLog = useCallback(async (id: string, updates: Partial<DailyLog>) => {
     const updated = dailyLogs.map(log => log.id === id ? { ...log, ...updates } : log);

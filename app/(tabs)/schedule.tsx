@@ -242,7 +242,7 @@ export default function ScheduleScreen() {
     console.log('[Share] Removed team member:', email);
   };
 
-  const handleSaveDailyLog = () => {
+  const handleSaveDailyLog = async () => {
     if (!selectedProject || !user) return;
 
     const logId = Date.now().toString();
@@ -265,14 +265,26 @@ export default function ScheduleScreen() {
       createdAt: new Date().toISOString(),
     };
 
-    addDailyLog(log);
-    
-    if (sharedWith.length > 0) {
-      console.log('[Share] Daily log shared with:', sharedWith.join(', '));
+    try {
+      await addDailyLog(log); // Now returns Promise
+
+      if (sharedWith.length > 0) {
+        console.log('[Share] Daily log shared with:', sharedWith.join(', '));
+      }
+
+      setShowDailyLogsModal(false);
+      console.log('[Daily Log] Created with', tasks.length, 'tasks and', photos.length, 'photos');
+
+      // Show success message
+      Alert.alert('Success', 'Daily log saved successfully');
+    } catch (error: any) {
+      console.error('[Daily Log] Error saving:', error);
+      // Log was saved locally, show appropriate message
+      Alert.alert(
+        'Saved Locally',
+        'Daily log saved to your device. It will sync when connection is restored.'
+      );
     }
-    
-    setShowDailyLogsModal(false);
-    console.log('[Daily Log] Created with', tasks.length, 'tasks and', photos.length, 'photos');
   };
 
   const getTaskPosition = (task: ScheduledTask) => {
@@ -1050,7 +1062,13 @@ export default function ScheduleScreen() {
                               day: 'numeric'
                             })}
                           </Text>
-                          <Text style={styles.historyCreatedBy}>By {log.createdBy}</Text>
+                          <Text style={styles.historyCreatedBy}>
+                            By {log.createdBy} • {new Date(log.createdAt).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            })}
+                          </Text>
                         </View>
                         <TouchableOpacity
                           onPress={() => {
