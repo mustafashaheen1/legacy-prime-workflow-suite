@@ -1700,11 +1700,40 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [dailyLogs]);
 
   const deleteDailyLog = useCallback(async (id: string) => {
+    // Optimistic update - remove from UI immediately
     const updated = dailyLogs.filter(log => log.id !== id);
     setDailyLogs(updated);
     await AsyncStorage.setItem('dailyLogs', JSON.stringify(updated));
-    console.log('[Storage] Daily log deleted successfully');
-  }, [dailyLogs]);
+    console.log('[Storage] Daily log deleted from local storage');
+
+    // Delete from backend if company exists
+    if (!company?.id) {
+      console.log('[Storage] No company - deleted locally only');
+      return;
+    }
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/delete-daily-log`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dailyLogId: id,
+          companyId: company.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete from database');
+      }
+
+      console.log('[Storage] ✅ Daily log deleted from database');
+    } catch (error: any) {
+      console.error('[Storage] Error deleting from backend:', error?.message || error);
+      // Keep optimistic update - log removed from UI even if backend fails
+    }
+  }, [dailyLogs, company]);
 
   const addPayment = useCallback(async (payment: Payment) => {
     const updated = [payment, ...payments];

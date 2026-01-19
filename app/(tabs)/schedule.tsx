@@ -1070,26 +1070,54 @@ export default function ScheduleScreen() {
                             })}
                           </Text>
                         </View>
-                        <TouchableOpacity
-                          onPress={() => {
-                            const logText = `Daily Log - ${new Date(log.logDate).toLocaleDateString()}\n` +
-                              `Created by: ${log.createdBy}\n\n` +
-                              (log.equipmentNote ? `Equipment: ${log.equipmentNote}\n` : '') +
-                              (log.materialNote ? `Material: ${log.materialNote}\n` : '') +
-                              (log.officialNote ? `Official: ${log.officialNote}\n` : '') +
-                              (log.subsNote ? `Subs: ${log.subsNote}\n` : '') +
-                              (log.employeesNote ? `Employees: ${log.employeesNote}\n` : '') +
-                              `\nWork Performed:\n${log.workPerformed}\n` +
-                              `\nIssues:\n${log.issues}\n` +
-                              `\nGeneral Notes:\n${log.generalNotes}\n` +
-                              (log.tasks.length > 0 ? `\nTasks:\n${log.tasks.map(t => `${t.completed ? '✓' : '○'} ${t.description}`).join('\n')}\n` : '');
-                            console.log('[Export] Daily log:', logText);
-                            alert('Export functionality: This will be available to share via email/SMS in production.');
-                          }}
-                          style={styles.exportButton}
-                        >
-                          <Download size={18} color="#2563EB" />
-                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              Alert.alert(
+                                'Delete Daily Log',
+                                'Are you sure you want to delete this daily log? This action cannot be undone.',
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: 'Delete',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                      try {
+                                        await deleteDailyLog(log.id);
+                                        Alert.alert('Success', 'Daily log deleted successfully');
+                                      } catch (error) {
+                                        Alert.alert('Error', 'Failed to delete daily log');
+                                      }
+                                    },
+                                  },
+                                ],
+                              );
+                            }}
+                            style={styles.exportButton}
+                          >
+                            <Trash2 size={18} color="#EF4444" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => {
+                              const logText = `Daily Log - ${new Date(log.logDate).toLocaleDateString()}\n` +
+                                `Created by: ${log.createdBy}\n\n` +
+                                (log.equipmentNote ? `Equipment: ${log.equipmentNote}\n` : '') +
+                                (log.materialNote ? `Material: ${log.materialNote}\n` : '') +
+                                (log.officialNote ? `Official: ${log.officialNote}\n` : '') +
+                                (log.subsNote ? `Subs: ${log.subsNote}\n` : '') +
+                                (log.employeesNote ? `Employees: ${log.employeesNote}\n` : '') +
+                                `\nWork Performed:\n${log.workPerformed}\n` +
+                                `\nIssues:\n${log.issues}\n` +
+                                `\nGeneral Notes:\n${log.generalNotes}\n` +
+                                (log.tasks.length > 0 ? `\nTasks:\n${log.tasks.map(t => `${t.completed ? '✓' : '○'} ${t.description}`).join('\n')}\n` : '');
+                              console.log('[Export] Daily log:', logText);
+                              alert('Export functionality: This will be available to share via email/SMS in production.');
+                            }}
+                            style={styles.exportButton}
+                          >
+                            <Download size={18} color="#2563EB" />
+                          </TouchableOpacity>
+                        </View>
                       </View>
 
                       {(log.equipmentNote || log.materialNote || log.officialNote || log.subsNote || log.employeesNote) && (
