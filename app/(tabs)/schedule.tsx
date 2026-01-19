@@ -1070,7 +1070,7 @@ export default function ScheduleScreen() {
                             })}
                           </Text>
                         </View>
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <View style={{ flexDirection: 'row' }}>
                           <TouchableOpacity
                             onPress={() => {
                               Alert.alert(
@@ -1093,7 +1093,7 @@ export default function ScheduleScreen() {
                                 ],
                               );
                             }}
-                            style={styles.exportButton}
+                            style={[styles.exportButton, { marginRight: 8 }]}
                           >
                             <Trash2 size={18} color="#EF4444" />
                           </TouchableOpacity>
