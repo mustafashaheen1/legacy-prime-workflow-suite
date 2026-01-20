@@ -5,7 +5,7 @@ export const config = {
   maxDuration: 60,
   api: {
     bodyParser: {
-      sizeLimit: '10mb',
+      sizeLimit: '50mb', // Increased to handle large PDFs (base64 encoding adds ~33% overhead)
     },
   },
 };

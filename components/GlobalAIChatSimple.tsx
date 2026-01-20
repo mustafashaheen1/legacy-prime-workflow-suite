@@ -2216,6 +2216,7 @@ Important:
       const filesWithS3Urls = [...attachedFiles];
       if (hasPDFs) {
         console.log('[Send] Uploading PDFs to S3...');
+        let uploadFailed = false;
         for (let i = 0; i < filesWithS3Urls.length; i++) {
           const file = filesWithS3Urls[i];
           if (file.mimeType === 'application/pdf') {
@@ -2241,12 +2242,44 @@ Important:
                 };
                 console.log('[Send] PDF uploaded to S3:', uploadResult.url);
               } else {
-                console.error('[Send] Failed to upload PDF to S3');
+                const error = await uploadResponse.json().catch(() => ({}));
+                console.error('[Send] Failed to upload PDF to S3:', uploadResponse.status, error);
+                uploadFailed = true;
+
+                // Show user-friendly error
+                if (uploadResponse.status === 413) {
+                  addMessage({
+                    id: Date.now().toString(),
+                    role: 'assistant',
+                    parts: [{ type: 'text', text: `Sorry, the PDF "${file.name}" is too large to upload. Please try a smaller file (under 35MB).` }],
+                    text: `Sorry, the PDF "${file.name}" is too large to upload. Please try a smaller file (under 35MB).`,
+                  });
+                } else {
+                  addMessage({
+                    id: Date.now().toString(),
+                    role: 'assistant',
+                    parts: [{ type: 'text', text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.` }],
+                    text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.`,
+                  });
+                }
               }
             } catch (uploadError) {
               console.error('[Send] Error uploading PDF:', uploadError);
+              uploadFailed = true;
+              addMessage({
+                id: Date.now().toString(),
+                role: 'assistant',
+                parts: [{ type: 'text', text: `Sorry, I encountered an error uploading "${file.name}". Please try again.` }],
+                text: `Sorry, I encountered an error uploading "${file.name}". Please try again.`,
+              });
             }
           }
+        }
+
+        // Don't proceed if upload failed
+        if (uploadFailed) {
+          setAttachedFiles([]);
+          return;
         }
       }
 
