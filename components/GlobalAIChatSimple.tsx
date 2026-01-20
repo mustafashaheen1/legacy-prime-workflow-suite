@@ -2469,11 +2469,18 @@ Generate appropriate line items from the price list that fit this scope of work$
                 console.log('[Send] PDF uploaded to S3:', fileUrl);
 
                 // Update the user message with uploaded PDF
-                updateMessageFiles(userMessageId, (files) =>
-                  files.map((f: any) =>
-                    f.mimeType === 'application/pdf' && f.name === file.name
-                      ? { ...f, uri: fileUrl, uploading: false }
-                      : f
+                setMessages(prev =>
+                  prev.map(msg =>
+                    msg.id === userMessageId
+                      ? {
+                          ...msg,
+                          files: msg.files?.map((f: any) =>
+                            f.mimeType === 'application/pdf' && f.name === file.name
+                              ? { ...f, uri: fileUrl, uploading: false }
+                              : f
+                          ),
+                        }
+                      : msg
                   )
                 );
               } else {
