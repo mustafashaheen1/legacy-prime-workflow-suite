@@ -865,56 +865,55 @@ Generate appropriate line items from the price list that fit this scope of work$
 
                 // Create estimate
                 const subtotal = matchedItems.reduce((sum: number, item: any) => sum + item.total, 0);
-                  const taxRate = 0.105; // 10.5% default
-                  const taxAmount = subtotal * taxRate;
-                  const total = subtotal + taxAmount;
+                const taxRate = 0.105; // 10.5% default
+                const taxAmount = subtotal * taxRate;
+                const total = subtotal + taxAmount;
 
-                  const estimateId = `estimate-${Date.now()}`;
-                  const newEstimate = {
-                    id: estimateId,
-                    clientId: client.id,
-                    name: estimateName,
-                    items: matchedItems.map((item: any, index: number) => ({
-                      id: `item-${Date.now()}-${index}`,
-                      priceListItemId: item.priceListItemId,
-                      quantity: item.quantity,
-                      unitPrice: item.unitPrice,
-                      total: item.total,
-                      notes: item.notes
-                    })),
-                    subtotal,
-                    taxRate,
-                    taxAmount,
-                    total,
-                    createdDate: new Date().toISOString(),
-                    status: 'draft' as const,
+                const estimateId = `estimate-${Date.now()}`;
+                const newEstimate = {
+                  id: estimateId,
+                  clientId: client.id,
+                  name: estimateName,
+                  items: matchedItems.map((item: any, index: number) => ({
+                    id: `item-${Date.now()}-${index}`,
+                    priceListItemId: item.priceListItemId,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    total: item.total,
+                    notes: item.notes
+                  })),
+                  subtotal,
+                  taxRate,
+                  taxAmount,
+                  total,
+                  createdDate: new Date().toISOString(),
+                  status: 'draft' as const,
+                };
+
+                // Save to database
+                const saveResponse = await fetch(`${apiUrl}/api/save-estimate`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ estimate: newEstimate }),
+                });
+
+                if (saveResponse.ok) {
+                  await refreshEstimates();
+                  console.log('[AI Action] Takeoff estimate saved:', estimateId);
+
+                  // Add link message
+                  const linkMessage = {
+                    id: `msg-${Date.now()}-link`,
+                    role: 'assistant',
+                    text: `I've created a takeoff estimate "${estimateName}" with ${matchedItems.length} line items.\n\nTotal: $${total.toFixed(2)}`,
+                    parts: [{ type: 'text', text: `I've created a takeoff estimate "${estimateName}" with ${matchedItems.length} line items.\n\nTotal: $${total.toFixed(2)}` }],
+                    takeoffLink: {
+                      estimateId: estimateId,
+                      clientId: client.id,
+                      label: '📋 View Takeoff Estimate',
+                    },
                   };
-
-                  // Save to database
-                  const saveResponse = await fetch(`${apiUrl}/api/save-estimate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ estimate: newEstimate }),
-                  });
-
-                  if (saveResponse.ok) {
-                    await refreshEstimates();
-                    console.log('[AI Action] Takeoff estimate saved:', estimateId);
-
-                    // Add link message
-                    const linkMessage = {
-                      id: `msg-${Date.now()}-link`,
-                      role: 'assistant',
-                      text: `I've created a takeoff estimate "${estimateName}" with ${matchedItems.length} line items.\n\nTotal: $${total.toFixed(2)}`,
-                      parts: [{ type: 'text', text: `I've created a takeoff estimate "${estimateName}" with ${matchedItems.length} line items.\n\nTotal: $${total.toFixed(2)}` }],
-                      takeoffLink: {
-                        estimateId: estimateId,
-                        clientId: client.id,
-                        label: '📋 View Takeoff Estimate',
-                      },
-                    };
-                    addMessage(linkMessage);
-                  }
+                  addMessage(linkMessage);
                 }
               } catch (error) {
                 console.error('[AI Action] Error generating takeoff estimate:', error);
