@@ -716,6 +716,163 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             break;
 
+          case 'generate_takeoff_estimate':
+            // Create takeoff estimate from attached images/PDFs
+            if (pendingAction.data) {
+              const { clientName, estimateName, documentDescription, selectedFiles } = pendingAction.data;
+
+              try {
+                // Call document analysis API
+                const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
+                const analysisResponse = await fetch(`${apiUrl}/api/analyze-document`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    companyId: user?.company_id,
+                    imageUrls: selectedFiles.map((f: any) => f.uri),
+                    fileNames: selectedFiles.map((f: any) => f.name),
+                    prompt: `Analyze this construction document (${documentDescription}) and extract a detailed material takeoff.
+
+Return a JSON array of line items with this exact structure:
+[
+  {
+    "item": "Material name",
+    "quantity": number,
+    "unit": "unit of measurement (e.g., SQ FT, LF, EA)",
+    "notes": "Additional details or location"
+  }
+]
+
+Important:
+- Extract ALL materials, dimensions, and quantities visible
+- Include measurements from blueprints (convert to actual dimensions if scale is shown)
+- For floor plans: include flooring, walls, trim, doors, windows
+- For foundation: concrete volume, rebar lengths, forms
+- Be comprehensive but accurate
+- If you see a scale (e.g., 1/4" = 1'), apply it to measurements
+- Return ONLY the JSON array, no other text`
+                  })
+                });
+
+                if (!analysisResponse.ok) {
+                  throw new Error('Document analysis failed');
+                }
+
+                const analysisResult = await analysisResponse.json();
+                if (!analysisResult.success) {
+                  throw new Error(analysisResult.error || 'Failed to analyze document');
+                }
+
+                // Parse AI response
+                const extractedItems = JSON.parse(analysisResult.analysis);
+
+                // Match items to price list
+                const matchedItems = extractedItems.map((extracted: any) => {
+                  const match = masterPriceList.find((pl: any) =>
+                    pl.name.toLowerCase().includes(extracted.item.toLowerCase()) ||
+                    extracted.item.toLowerCase().includes(pl.name.toLowerCase())
+                  );
+
+                  return {
+                    priceListItemId: match?.id || null,
+                    name: match?.name || extracted.item,
+                    category: match?.category || 'Materials',
+                    unit: match?.unit || extracted.unit,
+                    quantity: extracted.quantity,
+                    unitPrice: match?.unitPrice || 0,
+                    total: (match?.unitPrice || 0) * extracted.quantity,
+                    notes: extracted.notes
+                  };
+                });
+
+                // Find or create client
+                let client = clients.find((c: any) =>
+                  c.name.toLowerCase() === clientName.toLowerCase()
+                );
+
+                if (!client && addClient) {
+                  // Create new client
+                  const newClientId = `client-${Date.now()}`;
+                  const newClient = {
+                    id: newClientId,
+                    name: clientName,
+                    email: '',
+                    phone: '',
+                    status: 'lead' as const,
+                    source: 'AI Assistant',
+                    createdDate: new Date().toISOString(),
+                  };
+                  await addClient(newClient);
+                  client = newClient;
+                }
+
+                if (client) {
+                  // Create estimate
+                  const subtotal = matchedItems.reduce((sum: number, item: any) => sum + item.total, 0);
+                  const taxRate = 0.105; // 10.5% default
+                  const taxAmount = subtotal * taxRate;
+                  const total = subtotal + taxAmount;
+
+                  const estimateId = `estimate-${Date.now()}`;
+                  const newEstimate = {
+                    id: estimateId,
+                    clientId: client.id,
+                    name: estimateName,
+                    items: matchedItems.map((item: any, index: number) => ({
+                      id: `item-${Date.now()}-${index}`,
+                      priceListItemId: item.priceListItemId,
+                      quantity: item.quantity,
+                      unitPrice: item.unitPrice,
+                      total: item.total,
+                      notes: item.notes
+                    })),
+                    subtotal,
+                    taxRate,
+                    taxAmount,
+                    total,
+                    createdDate: new Date().toISOString(),
+                    status: 'draft' as const,
+                  };
+
+                  // Save to database
+                  const saveResponse = await fetch(`${apiUrl}/api/save-estimate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ estimate: newEstimate }),
+                  });
+
+                  if (saveResponse.ok) {
+                    await refreshEstimates();
+                    console.log('[AI Action] Takeoff estimate saved:', estimateId);
+
+                    // Add link message
+                    const linkMessage = {
+                      id: `msg-${Date.now()}-link`,
+                      role: 'assistant',
+                      text: `I've created a takeoff estimate "${estimateName}" with ${matchedItems.length} line items.\n\nTotal: $${total.toFixed(2)}`,
+                      parts: [{ type: 'text', text: `I've created a takeoff estimate "${estimateName}" with ${matchedItems.length} line items.\n\nTotal: $${total.toFixed(2)}` }],
+                      takeoffLink: {
+                        estimateId: estimateId,
+                        clientId: client.id,
+                        label: '📋 View Takeoff Estimate',
+                      },
+                    };
+                    addMessage(linkMessage);
+                  }
+                }
+              } catch (error) {
+                console.error('[AI Action] Error generating takeoff estimate:', error);
+                const errorMessage = {
+                  id: `msg-${Date.now()}-error`,
+                  role: 'assistant',
+                  text: 'Sorry, I encountered an error generating the takeoff estimate. Please try again.',
+                  parts: [{ type: 'text', text: 'Sorry, I encountered an error generating the takeoff estimate. Please try again.' }],
+                };
+                addMessage(errorMessage);
+              }
+            }
+            break;
+
           case 'send_estimate':
             // Send estimate via email - generates PDF and opens mail client
             if (pendingAction.data) {
@@ -2209,21 +2366,95 @@ Generate appropriate line items from the price list that fit this scope of work$
             </View>
           ) : null}
 
+          {/* PDF Attachment Display Component */}
+          {(() => {
+            const PDFAttachment = ({ file }: { file: any }) => (
+              <TouchableOpacity
+                onPress={() => {
+                  if (Platform.OS === 'web') {
+                    window.open(file.uri, '_blank');
+                  } else {
+                    Alert.alert('PDF', `${file.name}\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+                  }
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#FEF3C7',
+                  padding: 12,
+                  borderRadius: 8,
+                  marginTop: 8,
+                  borderWidth: 1,
+                  borderColor: '#FCD34D',
+                }}
+              >
+                <FileText size={24} color="#D97706" />
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#92400E' }}>
+                    {file.name}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#78350F', marginTop: 2 }}>
+                    PDF • {(file.size / 1024 / 1024).toFixed(2)} MB
+                  </Text>
+                </View>
+                <Download size={18} color="#D97706" />
+              </TouchableOpacity>
+            );
+            return null;
+          })()}
+
           {messages.map((message) => (
             <View key={message.id} style={styles.messageWrapper}>
-              {/* Show attached images for user messages */}
+              {/* Show attached files for user messages */}
               {message.role === 'user' && message.files && message.files.length > 0 && (
                 <View style={styles.userMessageContainer}>
-                  <View style={styles.attachedImagesContainer}>
-                    {message.files.filter((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image')).map((file: any, idx: number) => (
-                      <Image
-                        key={`${message.id}-img-${idx}`}
-                        source={{ uri: file.uri }}
-                        style={styles.attachedImage}
-                        resizeMode="cover"
-                      />
-                    ))}
-                  </View>
+                  {/* Images */}
+                  {message.files.filter((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image')).length > 0 && (
+                    <View style={styles.attachedImagesContainer}>
+                      {message.files.filter((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image')).map((file: any, idx: number) => (
+                        <Image
+                          key={`${message.id}-img-${idx}`}
+                          source={{ uri: file.uri }}
+                          style={styles.attachedImage}
+                          resizeMode="cover"
+                        />
+                      ))}
+                    </View>
+                  )}
+                  {/* PDFs */}
+                  {message.files.filter((f: any) => f.mimeType === 'application/pdf').map((file: any, idx: number) => (
+                    <TouchableOpacity
+                      key={`${message.id}-pdf-${idx}`}
+                      onPress={() => {
+                        if (Platform.OS === 'web') {
+                          window.open(file.uri, '_blank');
+                        } else {
+                          Alert.alert('PDF', `${file.name}\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+                        }
+                      }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: '#FEF3C7',
+                        padding: 12,
+                        borderRadius: 8,
+                        marginTop: 8,
+                        borderWidth: 1,
+                        borderColor: '#FCD34D',
+                      }}
+                    >
+                      <FileText size={24} color="#D97706" />
+                      <View style={{ marginLeft: 12, flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: '#92400E' }}>
+                          {file.name}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#78350F', marginTop: 2 }}>
+                          PDF • {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </Text>
+                      </View>
+                      <Download size={18} color="#D97706" />
+                    </TouchableOpacity>
+                  ))}
                 </View>
               )}
               {message.parts.map((part, i) => {
@@ -2248,7 +2479,26 @@ Generate appropriate line items from the price list that fit this scope of work$
                             </>
                           )}
                         </Text>
-                        {message.role === 'assistant' && !message.estimateLink && (
+                        {message.takeoffLink && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              router.push(`/project/new/takeoff?clientId=${message.takeoffLink.clientId}&estimateId=${message.takeoffLink.estimateId}`);
+                            }}
+                            style={{
+                              backgroundColor: '#10B981',
+                              paddingVertical: 10,
+                              paddingHorizontal: 16,
+                              borderRadius: 8,
+                              marginTop: 12,
+                              alignSelf: 'flex-start',
+                            }}
+                          >
+                            <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>
+                              {message.takeoffLink.label}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        {message.role === 'assistant' && !message.estimateLink && !message.takeoffLink && (
                           <View style={styles.messageActions}>
                             <TouchableOpacity
                               style={styles.speakButton}
@@ -2578,7 +2828,26 @@ Generate appropriate line items from the price list that fit this scope of work$
                                 </>
                               )}
                             </Text>
-                            {message.role === 'assistant' && !message.estimateLink && (
+                            {message.takeoffLink && (
+                              <TouchableOpacity
+                                onPress={() => {
+                                  router.push(`/project/new/takeoff?clientId=${message.takeoffLink.clientId}&estimateId=${message.takeoffLink.estimateId}`);
+                                }}
+                                style={{
+                                  backgroundColor: '#10B981',
+                                  paddingVertical: 10,
+                                  paddingHorizontal: 16,
+                                  borderRadius: 8,
+                                  marginTop: 12,
+                                  alignSelf: 'flex-start',
+                                }}
+                              >
+                                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>
+                                  {message.takeoffLink.label}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                            {message.role === 'assistant' && !message.estimateLink && !message.takeoffLink && (
                               <View style={styles.messageActions}>
                                 <TouchableOpacity
                                   style={styles.speakButton}

@@ -271,6 +271,36 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     },
   },
   {
+    type: 'function' as const,
+    function: {
+      name: 'generate_takeoff_estimate',
+      description: 'Analyze an attached construction document (image or PDF) to generate a detailed takeoff estimate. Extracts materials, quantities, and measurements from blueprints, plans, or material lists. Use when user asks to: "create takeoff estimate", "analyze this blueprint", "generate estimate from this plan", "what materials are needed", or uploads construction documents.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: {
+            type: 'string',
+            description: 'Name of the client/customer for this estimate'
+          },
+          estimateName: {
+            type: 'string',
+            description: 'Descriptive name for this takeoff estimate (e.g., "Kitchen Remodel Takeoff", "Foundation Material Estimate")'
+          },
+          documentDescription: {
+            type: 'string',
+            description: 'Brief description of what the document shows (e.g., "kitchen floor plan", "foundation blueprint", "material list for bathroom remodel")'
+          },
+          imageIndexes: {
+            type: 'array',
+            items: { type: 'number' },
+            description: 'Array of indexes (0-based) of attached images/PDFs to analyze. Use [0] for first attachment, [0,1] for first two, etc. If user says "analyze this" or "from this document", use all attached files.'
+          }
+        },
+        required: ['clientName', 'estimateName', 'documentDescription', 'imageIndexes']
+      }
+    }
+  },
+  {
     type: 'function',
     function: {
       name: 'send_estimate',
@@ -1961,6 +1991,64 @@ async function executeToolCall(
           budget: args.budget,
           description: args.description,
         },
+      };
+    }
+
+    case 'generate_takeoff_estimate': {
+      console.log('[Tool] generate_takeoff_estimate called:', {
+        clientName: args.clientName,
+        estimateName: args.estimateName,
+        documentDescription: args.documentDescription,
+        imageIndexes: args.imageIndexes,
+        attachedFilesCount: attachedFiles?.length || 0
+      });
+
+      // Validate images are attached
+      if (!attachedFiles || attachedFiles.length === 0) {
+        return {
+          result: {
+            error: 'No images or PDFs attached. Please attach a construction document first.'
+          }
+        };
+      }
+
+      // Validate image indexes
+      const invalidIndexes = args.imageIndexes.filter((idx: number) =>
+        idx < 0 || idx >= attachedFiles.length
+      );
+      if (invalidIndexes.length > 0) {
+        return {
+          result: {
+            error: `Invalid image indexes: ${invalidIndexes.join(', ')}. Only ${attachedFiles.length} files attached.`
+          }
+        };
+      }
+
+      // Get selected files
+      const selectedFiles = args.imageIndexes.map((idx: number) => attachedFiles[idx]);
+      console.log('[Tool] Analyzing files:', selectedFiles.map((f: any) => f.name));
+
+      return {
+        result: {
+          success: true,
+          message: `Analyzing ${selectedFiles.length} document(s) for "${args.estimateName}"...`,
+          clientName: args.clientName,
+          estimateName: args.estimateName,
+          documentDescription: args.documentDescription,
+          fileCount: selectedFiles.length
+        },
+        actionRequired: 'generate_takeoff_estimate',
+        actionData: {
+          clientName: args.clientName,
+          estimateName: args.estimateName,
+          documentDescription: args.documentDescription,
+          selectedFiles: selectedFiles.map((f: any) => ({
+            uri: f.uri,
+            name: f.name,
+            mimeType: f.mimeType,
+            size: f.size
+          }))
+        }
       };
     }
 
