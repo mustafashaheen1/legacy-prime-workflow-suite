@@ -2468,21 +2468,17 @@ Generate appropriate line items from the price list that fit this scope of work$
                 };
                 console.log('[Send] PDF uploaded to S3:', fileUrl);
 
-                // Update the user message with uploaded PDF
-                setMessages(prev =>
-                  prev.map(msg =>
-                    msg.id === userMessageId
-                      ? {
-                          ...msg,
-                          files: msg.files?.map((f: any) =>
-                            f.mimeType === 'application/pdf' && f.name === file.name
-                              ? { ...f, uri: fileUrl, uploading: false }
-                              : f
-                          ),
-                        }
-                      : msg
-                  )
+                // Create updated files array
+                const updatedFiles = filesForDisplay.map((f: any) =>
+                  f.mimeType === 'application/pdf' && f.name === file.name
+                    ? { ...f, uri: fileUrl, uploading: false }
+                    : f
                 );
+
+                // Update the user message with uploaded PDF
+                updateMessageById(userMessageId, {
+                  files: updatedFiles,
+                });
               } else {
                 console.error('[Send] Failed to upload PDF to S3:', uploadResponse.status);
                 uploadFailed = true;
