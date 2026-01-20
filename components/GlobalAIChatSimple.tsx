@@ -2216,6 +2216,9 @@ Important:
     setInput('');
 
     try {
+      // Store files with potential S3 URLs (for PDFs)
+      let filesWithS3Urls = [...attachedFiles];
+
       // For PDFs: Upload to S3 first, then send message
       if (hasPDFs) {
         const filesToUpload = [...attachedFiles];
@@ -2223,7 +2226,7 @@ Important:
         setIsPdfUploading(true);
 
         console.log('[Send] Uploading PDFs to S3 using presigned URLs...');
-        const filesWithS3Urls = [...filesToUpload];
+        filesWithS3Urls = [...filesToUpload];
         let uploadFailed = false;
 
         for (let i = 0; i < filesWithS3Urls.length; i++) {
