@@ -1177,7 +1177,8 @@ async function executeToolCall(
   args: any,
   appData: any,
   openai?: OpenAI,
-  messages?: any[]
+  messages?: any[],
+  attachedFiles?: any[]
 ): Promise<{ result: any; actionRequired?: string; actionData?: any }> {
   const { projects = [], clients = [], expenses = [], estimates = [], payments = [], clockEntries = [], company } = appData;
 
@@ -3047,6 +3048,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       estimates: appData?.estimates?.length || 0,
     });
 
+    // Extract attached files from messages
+    const attachedFiles: any[] = [];
+    for (const msg of messages) {
+      if (msg.files && Array.isArray(msg.files)) {
+        attachedFiles.push(...msg.files);
+      }
+    }
+    console.log('[AI Assistant] Attached files:', attachedFiles.length);
+
     // Build context-aware system prompt
     let contextAwarePrompt = systemPrompt;
     if (pageContext) {
@@ -3092,7 +3102,7 @@ When the user says "this project", "this client", "this estimate", etc., they ar
       for (const toolCall of response.tool_calls) {
         const tc = toolCall as any;
         const args = JSON.parse(tc.function.arguments);
-        const toolResult = await executeToolCall(tc.function.name, args, appData || {}, openai, messages);
+        const toolResult = await executeToolCall(tc.function.name, args, appData || {}, openai, messages, attachedFiles);
 
         console.log('[AI Assistant] Tool result for', tc.function.name, ':', toolResult.result);
 
