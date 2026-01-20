@@ -2075,16 +2075,83 @@ Generate appropriate line items from the price list that fit this scope of work$
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         const mimeType = getSanitizedMimeType(file.mimeType, file.name);
-        
+
         const newFile: AttachedFile = {
           uri: file.uri,
           name: file.name,
           mimeType,
           size: file.size || 0,
           type: 'file',
+          uploading: mimeType === 'application/pdf', // Mark PDFs as uploading
         };
         console.log('[Attachment] File successfully attached:', newFile.name);
         setAttachedFiles([...attachedFiles, newFile]);
+
+        // If it's a PDF, upload to S3 immediately
+        if (mimeType === 'application/pdf') {
+          try {
+            console.log('[Attachment] Uploading PDF to S3...');
+
+            // Get presigned upload URL
+            const urlResponse = await fetch('/api/get-s3-upload-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: file.name || `document-${Date.now()}.pdf`,
+                fileType: 'application/pdf',
+              }),
+            });
+
+            if (!urlResponse.ok) {
+              throw new Error('Failed to get upload URL');
+            }
+
+            const { uploadUrl, fileUrl } = await urlResponse.json();
+            console.log('[Attachment] Got presigned URL, uploading PDF directly to S3...');
+
+            // Upload file directly to S3 using presigned URL
+            let uploadResponse;
+            if (Platform.OS === 'web') {
+              const response = await fetch(file.uri);
+              const blob = await response.blob();
+              uploadResponse = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: blob,
+                headers: { 'Content-Type': 'application/pdf' },
+              });
+            } else {
+              const dataUri = await convertFileToDataUri(newFile);
+              const base64Data = dataUri.replace(/^data:.+;base64,/, '');
+              const buffer = Buffer.from(base64Data, 'base64');
+              uploadResponse = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: buffer,
+                headers: { 'Content-Type': 'application/pdf' },
+              });
+            }
+
+            if (uploadResponse.ok) {
+              console.log('[Attachment] PDF uploaded successfully to S3:', fileUrl);
+
+              // Update the attached file with S3 URL and remove uploading flag
+              setAttachedFiles(prev =>
+                prev.map(f =>
+                  f.name === file.name && f.mimeType === 'application/pdf'
+                    ? { ...f, uri: fileUrl, uploading: false }
+                    : f
+                )
+              );
+            } else {
+              throw new Error(`Upload failed with status: ${uploadResponse.status}`);
+            }
+          } catch (uploadError: any) {
+            console.error('[Attachment] Error uploading PDF to S3:', uploadError);
+            alert(`Failed to upload PDF: ${uploadError.message}`);
+
+            // Remove the file from attached files since upload failed
+            setAttachedFiles(prev => prev.filter(f => f.name !== file.name));
+          }
+        }
       }
     } catch (error) {
       console.error('[Attachment] Error picking file:', error);
@@ -2390,128 +2457,16 @@ Generate appropriate line items from the price list that fit this scope of work$
     setInput('');
 
     try {
-      // Create user message immediately with files (show loading state for PDFs)
-      const userMessageId = Date.now().toString();
-      const filesForDisplay = attachedFiles.map(f => ({
-        uri: f.uri,
-        mimeType: f.mimeType,
-        name: f.name,
-        size: f.size,
-        uploading: f.mimeType === 'application/pdf', // Mark PDFs as uploading
-      }));
-
-      // Add user message to UI immediately
-      addMessage({
-        id: userMessageId,
-        role: 'user',
-        parts: [{ type: 'text', text: userMessage }],
-        text: userMessage,
-        files: filesForDisplay as any,
-      });
-
-      // Store files with potential S3 URLs (for PDFs)
-      let filesWithS3Urls = [...attachedFiles];
+      // PDFs are already uploaded to S3 when attached, so just use the files as-is
+      const filesWithS3Urls = [...attachedFiles];
       setAttachedFiles([]);
 
-      // For PDFs: Upload to S3 in background and update the message
-      if (hasPDFs) {
-        console.log('[Send] Uploading PDFs to S3 using presigned URLs...');
-        let uploadFailed = false;
-        const uploadedFiles = [...filesForDisplay]; // Clone for updates
-
-        for (let i = 0; i < filesWithS3Urls.length; i++) {
-          const file = filesWithS3Urls[i];
-          if (file.mimeType === 'application/pdf') {
-            try {
-              // Get presigned upload URL
-              const urlResponse = await fetch('/api/get-s3-upload-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  fileName: file.name || `document-${Date.now()}.pdf`,
-                  fileType: 'application/pdf',
-                }),
-              });
-
-              if (!urlResponse.ok) {
-                throw new Error('Failed to get upload URL');
-              }
-
-              const { uploadUrl, fileUrl } = await urlResponse.json();
-              console.log('[Send] Got presigned URL, uploading PDF directly to S3...');
-
-              // Upload file directly to S3 using presigned URL
-              let uploadResponse;
-              if (Platform.OS === 'web') {
-                const response = await fetch(file.uri);
-                const blob = await response.blob();
-                uploadResponse = await fetch(uploadUrl, {
-                  method: 'PUT',
-                  body: blob,
-                  headers: { 'Content-Type': 'application/pdf' },
-                });
-              } else {
-                const dataUri = await convertFileToDataUri(file);
-                const base64Data = dataUri.replace(/^data:.+;base64,/, '');
-                const buffer = Buffer.from(base64Data, 'base64');
-                uploadResponse = await fetch(uploadUrl, {
-                  method: 'PUT',
-                  body: buffer,
-                  headers: { 'Content-Type': 'application/pdf' },
-                });
-              }
-
-              if (uploadResponse.ok) {
-                // Replace local URI with S3 URL in filesWithS3Urls
-                filesWithS3Urls[i] = {
-                  ...file,
-                  uri: fileUrl,
-                };
-                console.log('[Send] PDF uploaded to S3:', fileUrl);
-
-                // Update the cloned array
-                const fileIndex = uploadedFiles.findIndex((f: any) =>
-                  f.mimeType === 'application/pdf' && f.name === file.name
-                );
-                if (fileIndex !== -1) {
-                  uploadedFiles[fileIndex] = {
-                    ...uploadedFiles[fileIndex],
-                    uri: fileUrl,
-                    uploading: false,
-                  };
-                }
-              } else {
-                console.error('[Send] Failed to upload PDF to S3:', uploadResponse.status);
-                uploadFailed = true;
-                addMessage({
-                  id: Date.now().toString(),
-                  role: 'assistant',
-                  parts: [{ type: 'text', text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.` }],
-                  text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.`,
-                });
-              }
-            } catch (uploadError: any) {
-              console.error('[Send] Error uploading PDF:', uploadError);
-              uploadFailed = true;
-              addMessage({
-                id: Date.now().toString(),
-                role: 'assistant',
-                parts: [{ type: 'text', text: `Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}` }],
-                text: `Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}`,
-              });
-            }
-          }
-        }
-
-        // Don't proceed if upload failed
-        if (uploadFailed) {
-          return;
-        }
-
-        // Update message with all uploaded PDFs at once (outside the loop)
-        updateMessageById(userMessageId, {
-          files: uploadedFiles,
-        });
+      // Check if any PDFs are still uploading
+      const hasUploadingPDFs = attachedFiles.some(f => f.uploading === true);
+      if (hasUploadingPDFs) {
+        console.log('[Send] Cannot send - PDFs are still uploading');
+        alert('Please wait for PDF upload to complete before sending.');
+        return;
       }
 
       if (hasImages) {
@@ -2532,8 +2487,12 @@ Generate appropriate line items from the price list that fit this scope of work$
           const file = filesWithS3Urls[0];
           const dataUri = await convertFileToDataUri(file);
 
-          // User message already added above, update it with the converted image
-          updateMessageById(userMessageId, {
+          // Add user message to chat
+          addMessage({
+            id: Date.now().toString(),
+            role: 'user',
+            parts: [{ type: 'text', text: userMessage }],
+            text: userMessage,
             files: [{ uri: dataUri, mimeType: file.mimeType || 'image/jpeg' }],
           });
 
@@ -2962,7 +2921,11 @@ Generate appropriate line items from the price list that fit this scope of work$
                     <Image source={{ uri: file.uri }} style={styles.attachmentImage} />
                   ) : (
                     <View style={styles.attachmentFileIcon}>
-                      <FileIcon size={24} color="#6B7280" />
+                      {file.uploading ? (
+                        <ActivityIndicator size="small" color="#6B7280" />
+                      ) : (
+                        <FileIcon size={24} color="#6B7280" />
+                      )}
                     </View>
                   )}
                   <TouchableOpacity
@@ -2972,7 +2935,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                     <X size={14} color="#FFFFFF" />
                   </TouchableOpacity>
                   <Text style={styles.attachmentName} numberOfLines={1}>
-                    {file.name}
+                    {file.uploading ? `${file.name} (uploading...)` : file.name}
                   </Text>
                 </View>
               ))}
@@ -3020,9 +2983,21 @@ Generate appropriate line items from the price list that fit this scope of work$
               </>
             )}
             <TouchableOpacity
-              style={[styles.sendButton, (isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
+              style={[
+                styles.sendButton,
+                (isRecording ||
+                  isTranscribing ||
+                  (!input.trim() && attachedFiles.length === 0) ||
+                  attachedFiles.some(f => f.uploading === true)) &&
+                  styles.sendButtonDisabled,
+              ]}
               onPress={() => handleSend()}
-              disabled={isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
+              disabled={
+                isRecording ||
+                isTranscribing ||
+                (!input.trim() && attachedFiles.length === 0) ||
+                attachedFiles.some(f => f.uploading === true)
+              }
             >
               <Send size={20} color="#FFFFFF" />
             </TouchableOpacity>
@@ -3326,7 +3301,11 @@ Generate appropriate line items from the price list that fit this scope of work$
                         <Image source={{ uri: file.uri }} style={styles.attachmentImage} />
                       ) : (
                         <View style={styles.attachmentFileIcon}>
-                          <FileIcon size={24} color="#6B7280" />
+                          {file.uploading ? (
+                            <ActivityIndicator size="small" color="#6B7280" />
+                          ) : (
+                            <FileIcon size={24} color="#6B7280" />
+                          )}
                         </View>
                       )}
                       <TouchableOpacity
@@ -3336,7 +3315,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                         <X size={14} color="#FFFFFF" />
                       </TouchableOpacity>
                       <Text style={styles.attachmentName} numberOfLines={1}>
-                        {file.name}
+                        {file.uploading ? `${file.name} (uploading...)` : file.name}
                       </Text>
                     </View>
                   ))}
@@ -3384,9 +3363,21 @@ Generate appropriate line items from the price list that fit this scope of work$
                   </>
                 )}
                 <TouchableOpacity
-                  style={[styles.sendButton, (isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)) && styles.sendButtonDisabled]}
+                  style={[
+                    styles.sendButton,
+                    (isRecording ||
+                      isTranscribing ||
+                      (!input.trim() && attachedFiles.length === 0) ||
+                      attachedFiles.some(f => f.uploading === true)) &&
+                      styles.sendButtonDisabled,
+                  ]}
                   onPress={() => handleSend()}
-                  disabled={isRecording || isTranscribing || (!input.trim() && attachedFiles.length === 0)}
+                  disabled={
+                    isRecording ||
+                    isTranscribing ||
+                    (!input.trim() && attachedFiles.length === 0) ||
+                    attachedFiles.some(f => f.uploading === true)
+                  }
                 >
                   <Send size={20} color="#FFFFFF" />
                 </TouchableOpacity>
