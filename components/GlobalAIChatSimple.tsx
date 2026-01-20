@@ -227,6 +227,97 @@ function useOpenAIChat(appData: {
     }
   };
 
+  // Send to AI API without adding user message (user message already added)
+  const sendToAI = async (messageText: string, files: any[]) => {
+    console.log('[sendToAI] Message text:', messageText);
+    console.log('[sendToAI] Files received:', files.length, files);
+
+    setIsLoading(true);
+
+    // Save user message to database
+    saveMessageToDb('user', messageText, files);
+
+    try {
+      // Prepare messages for API - send last 50 messages for context (to avoid token limits)
+      const recentMessages = messages.slice(-50);
+      const apiMessages = recentMessages.map(msg => ({
+        role: msg.role,
+        text: msg.text,
+        files: msg.files,
+      }));
+
+      // Call AI Assistant API with all business data
+      const response = await fetch('/api/ai-assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: apiMessages,
+          pageContext: appData.currentPageContext || null,
+          appData: {
+            projects: appData.projects,
+            clients: appData.clients,
+            expenses: appData.expenses,
+            estimates: appData.estimates,
+            payments: appData.payments,
+            clockEntries: appData.clockEntries,
+            company: appData.company,
+            priceList: appData.priceList,
+            dailyLogs: appData.dailyLogs,
+            tasks: appData.tasks,
+            photos: appData.photos,
+            changeOrders: appData.changeOrders,
+            subcontractors: appData.subcontractors,
+            callLogs: appData.callLogs,
+            users: appData.users,
+            proposals: appData.proposals,
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from AI');
+      }
+
+      const data = await response.json();
+
+      if (data.actionRequired && data.actionData) {
+        console.log('[AI Chat] Action required:', data.actionRequired, data.actionData);
+        setPendingAction({
+          type: data.actionRequired,
+          data: data.actionData,
+          successMessage: data.content,
+        });
+        const workingMsg = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          text: 'Working on it...',
+          parts: [{ type: 'text', text: 'Working on it...' }],
+        };
+        setMessages(prev => [...prev, workingMsg]);
+      } else {
+        const assistantMsg = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          text: data.content,
+          parts: [{ type: 'text', text: data.content }],
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+        saveMessageToDb('assistant', data.content);
+      }
+    } catch (error) {
+      console.error('[AI Chat] Error:', error);
+      const errorMsg = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        text: 'Sorry, I encountered an error. Please try again.',
+        parts: [{ type: 'text', text: 'Sorry, I encountered an error. Please try again.' }],
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const sendMessage = async (userMessage: string | { text: string; files: any[] }) => {
     const messageText = typeof userMessage === 'string' ? userMessage : userMessage.text;
     const files = typeof userMessage === 'object' && 'files' in userMessage ? userMessage.files : [];
@@ -418,7 +509,6 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
   const [generatedImages, setGeneratedImages] = useState<{ url: string; prompt: string }[]>([]);
-  const [isPdfUploading, setIsPdfUploading] = useState<boolean>(false);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -2280,17 +2370,32 @@ Generate appropriate line items from the price list that fit this scope of work$
     setInput('');
 
     try {
+      // Create user message immediately with files (show loading state for PDFs)
+      const userMessageId = Date.now().toString();
+      const filesForDisplay = attachedFiles.map(f => ({
+        uri: f.uri,
+        mimeType: f.mimeType,
+        name: f.name,
+        size: f.size,
+        uploading: f.mimeType === 'application/pdf', // Mark PDFs as uploading
+      }));
+
+      // Add user message to UI immediately
+      addMessage({
+        id: userMessageId,
+        role: 'user',
+        parts: [{ type: 'text', text: userMessage }],
+        text: userMessage,
+        files: filesForDisplay as any,
+      });
+
       // Store files with potential S3 URLs (for PDFs)
       let filesWithS3Urls = [...attachedFiles];
+      setAttachedFiles([]);
 
-      // For PDFs: Upload to S3 first, then send message
+      // For PDFs: Upload to S3 in background and update the message
       if (hasPDFs) {
-        const filesToUpload = [...attachedFiles];
-        setAttachedFiles([]);
-        setIsPdfUploading(true);
-
         console.log('[Send] Uploading PDFs to S3 using presigned URLs...');
-        filesWithS3Urls = [...filesToUpload];
         let uploadFailed = false;
 
         for (let i = 0; i < filesWithS3Urls.length; i++) {
@@ -2342,6 +2447,22 @@ Generate appropriate line items from the price list that fit this scope of work$
                   uri: fileUrl,
                 };
                 console.log('[Send] PDF uploaded to S3:', fileUrl);
+
+                // Update the user message with uploaded PDF
+                setMessages((prevMessages: any[]) =>
+                  prevMessages.map((msg: any) =>
+                    msg.id === userMessageId
+                      ? {
+                          ...msg,
+                          files: msg.files?.map((f: any) =>
+                            f.mimeType === 'application/pdf' && f.name === file.name
+                              ? { ...f, uri: fileUrl, uploading: false }
+                              : f
+                          ),
+                        }
+                      : msg
+                  )
+                );
               } else {
                 console.error('[Send] Failed to upload PDF to S3:', uploadResponse.status);
                 uploadFailed = true;
@@ -2367,11 +2488,8 @@ Generate appropriate line items from the price list that fit this scope of work$
 
         // Don't proceed if upload failed
         if (uploadFailed) {
-          setIsPdfUploading(false);
           return;
         }
-
-        setIsPdfUploading(false);
       }
 
       if (hasImages) {
@@ -2386,22 +2504,23 @@ Generate appropriate line items from the price list that fit this scope of work$
           lowerMessage.includes('analyze this') ||
           lowerMessage === 'please analyze the attached images';
 
-        if (isReceiptRequest && attachedFiles.length === 1 && !hasPDFs) {
+        if (isReceiptRequest && filesWithS3Urls.length === 1 && !hasPDFs) {
           // Use dedicated receipt analysis endpoint to avoid payload size issues
           console.log('[Send] Using dedicated receipt analysis endpoint');
-          const file = attachedFiles[0];
+          const file = filesWithS3Urls[0];
           const dataUri = await convertFileToDataUri(file);
 
-          setAttachedFiles([]);
-
-          // Add user message to chat (with file for display in UI)
-          addMessage({
-            id: Date.now().toString(),
-            role: 'user',
-            parts: [{ type: 'text', text: userMessage }],
-            text: userMessage,
-            files: [{ uri: dataUri, mimeType: file.mimeType || 'image/jpeg' }],
-          });
+          // User message already added above, update it with the converted image
+          setMessages((prevMessages: any[]) =>
+            prevMessages.map((msg: any) =>
+              msg.id === userMessageId
+                ? {
+                    ...msg,
+                    files: [{ uri: dataUri, mimeType: file.mimeType || 'image/jpeg' }],
+                  }
+                : msg
+            )
+          );
 
           // Show loading message
           addMessage({
@@ -2502,12 +2621,20 @@ Generate appropriate line items from the price list that fit this scope of work$
           });
         }
 
-        setAttachedFiles([]);
+        // Update user message with final files
+        setMessages((prevMessages: any[]) =>
+          prevMessages.map((msg: any) =>
+            msg.id === userMessageId
+              ? {
+                  ...msg,
+                  files: filesForAI,
+                }
+              : msg
+          )
+        );
 
-        await sendMessage({
-          text: userMessage,
-          files: filesForAI as any,
-        });
+        // Send to AI API (user message already added)
+        await sendToAI(userMessage, filesForAI);
       } else if (hasPDFs) {
         // PDFs only (no images)
         console.log('[Send] Sending message with PDFs');
@@ -2523,17 +2650,26 @@ Generate appropriate line items from the price list that fit this scope of work$
           });
         }
 
-        console.log('[Send] Files being sent to AI:', filesForAI);
-        setAttachedFiles([]);
+        // Update user message with final files
+        setMessages((prevMessages: any[]) =>
+          prevMessages.map((msg: any) =>
+            msg.id === userMessageId
+              ? {
+                  ...msg,
+                  files: filesForAI,
+                }
+              : msg
+          )
+        );
 
-        await sendMessage({
-          text: userMessage,
-          files: filesForAI as any,
-        });
+        console.log('[Send] Files being sent to AI:', filesForAI);
+
+        // Send to AI API (user message already added)
+        await sendToAI(userMessage, filesForAI);
       } else {
         console.log('[Send] Sending text message');
-        setAttachedFiles([]);
-        await sendMessage(userMessage);
+        // Send to AI API (user message already added)
+        await sendToAI(userMessage, []);
       }
     } catch (error) {
       console.error('[Send] Error:', error);
@@ -2627,38 +2763,45 @@ Generate appropriate line items from the price list that fit this scope of work$
                   {message.files.filter((f: any) => f.mimeType === 'application/pdf').map((file: any, idx: number) => {
                     const fileName = file.name || file.uri?.split('/').pop() || 'Document.pdf';
                     const fileSizeMB = file.size ? (file.size / 1024 / 1024).toFixed(2) : '0.00';
-                    console.log('[PDF Display]', { fileName, fileSizeMB, uri: file.uri });
+                    const isUploading = file.uploading === true;
+                    console.log('[PDF Display]', { fileName, fileSizeMB, uri: file.uri, isUploading });
                     return (
                       <TouchableOpacity
                         key={`${message.id}-pdf-${idx}`}
                         onPress={() => {
-                          if (Platform.OS === 'web') {
+                          if (!isUploading && Platform.OS === 'web') {
                             window.open(file.uri, '_blank');
-                          } else {
+                          } else if (!isUploading) {
                             Alert.alert('PDF', `${fileName}\nSize: ${fileSizeMB} MB`);
                           }
                         }}
+                        disabled={isUploading}
                         style={{
                           flexDirection: 'row',
                           alignItems: 'center',
-                          backgroundColor: '#FEF3C7',
+                          backgroundColor: isUploading ? '#F3F4F6' : '#FEF3C7',
                           padding: 12,
                           borderRadius: 8,
                           marginTop: 8,
                           borderWidth: 1,
-                          borderColor: '#FCD34D',
+                          borderColor: isUploading ? '#D1D5DB' : '#FCD34D',
+                          opacity: isUploading ? 0.7 : 1,
                         }}
                       >
-                        <FileText size={24} color="#D97706" />
+                        {isUploading ? (
+                          <ActivityIndicator size="small" color="#6B7280" />
+                        ) : (
+                          <FileText size={24} color="#D97706" />
+                        )}
                         <View style={{ marginLeft: 12, flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#92400E' }}>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: isUploading ? '#6B7280' : '#92400E' }}>
                             {fileName}
                           </Text>
-                          <Text style={{ fontSize: 12, color: '#78350F', marginTop: 2 }}>
-                            PDF • {fileSizeMB} MB
+                          <Text style={{ fontSize: 12, color: isUploading ? '#9CA3AF' : '#78350F', marginTop: 2 }}>
+                            {isUploading ? 'Uploading...' : `PDF • ${fileSizeMB} MB`}
                           </Text>
                         </View>
-                        <Download size={18} color="#D97706" />
+                        {!isUploading && <Download size={18} color="#D97706" />}
                       </TouchableOpacity>
                     );
                   })}
@@ -2785,17 +2928,6 @@ Generate appropriate line items from the price list that fit this scope of work$
             </View>
           )}
 
-          {/* Loading indicator while PDF is uploading */}
-          {isPdfUploading && (
-            <View style={styles.assistantMessageContainer}>
-              <View style={[styles.assistantMessage, { backgroundColor: '#EFF6FF' }]}>
-                <ActivityIndicator size="small" color="#2563EB" />
-                <Text style={[styles.assistantMessageText, { marginLeft: 8, fontStyle: 'italic', color: '#1D4ED8' }]}>
-                  Uploading PDF...
-                </Text>
-              </View>
-            </View>
-          )}
         </ScrollView>
 
         <View style={styles.inputWrapper}>
