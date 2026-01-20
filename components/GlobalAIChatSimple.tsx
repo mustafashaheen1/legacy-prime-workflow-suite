@@ -735,34 +735,16 @@ Generate appropriate line items from the price list that fit this scope of work$
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    companyId: user?.company_id,
                     imageUrls: selectedFiles.map((f: any) => f.uri),
-                    fileNames: selectedFiles.map((f: any) => f.name),
-                    prompt: `Analyze this construction document (${documentDescription}) and extract a detailed material takeoff.
-
-Return a JSON array of line items with this exact structure:
-[
-  {
-    "item": "Material name",
-    "quantity": number,
-    "unit": "unit of measurement (e.g., SQ FT, LF, EA)",
-    "notes": "Additional details or location"
-  }
-]
-
-Important:
-- Extract ALL materials, dimensions, and quantities visible
-- Include measurements from blueprints (convert to actual dimensions if scale is shown)
-- For floor plans: include flooring, walls, trim, doors, windows
-- For foundation: concrete volume, rebar lengths, forms
-- Be comprehensive but accurate
-- If you see a scale (e.g., 1/4" = 1'), apply it to measurements
-- Return ONLY the JSON array, no other text`
+                    priceListItems: masterPriceList,
+                    documentType: documentDescription,
                   })
                 });
 
                 if (!analysisResponse.ok) {
-                  throw new Error('Document analysis failed');
+                  const errorData = await analysisResponse.json();
+                  console.error('[AI Action] Document analysis error:', errorData);
+                  throw new Error(errorData.error || 'Document analysis failed');
                 }
 
                 const analysisResult = await analysisResponse.json();
@@ -770,25 +752,23 @@ Important:
                   throw new Error(analysisResult.error || 'Failed to analyze document');
                 }
 
-                // Parse AI response
-                const extractedItems = JSON.parse(analysisResult.analysis);
+                // The API now returns items already matched to price list
+                const extractedItems = analysisResult.items;
 
-                // Match items to price list
-                const matchedItems = extractedItems.map((extracted: any) => {
-                  const match = masterPriceList.find((pl: any) =>
-                    pl.name.toLowerCase().includes(extracted.item.toLowerCase()) ||
-                    extracted.item.toLowerCase().includes(pl.name.toLowerCase())
-                  );
+                // Map API items to estimate items
+                const matchedItems = extractedItems.map((item: any) => {
+                  // Find the price list item details
+                  const priceListItem = masterPriceList.find((pl: any) => pl.id === item.priceListItemId);
 
                   return {
-                    priceListItemId: match?.id || null,
-                    name: match?.name || extracted.item,
-                    category: match?.category || 'Materials',
-                    unit: match?.unit || extracted.unit,
-                    quantity: extracted.quantity,
-                    unitPrice: match?.unitPrice || 0,
-                    total: (match?.unitPrice || 0) * extracted.quantity,
-                    notes: extracted.notes
+                    priceListItemId: item.priceListItemId,
+                    name: priceListItem?.name || 'Unknown Item',
+                    category: priceListItem?.category || 'Materials',
+                    unit: priceListItem?.unit || 'EA',
+                    quantity: item.quantity,
+                    unitPrice: priceListItem?.unitPrice || 0,
+                    total: (priceListItem?.unitPrice || 0) * item.quantity,
+                    notes: item.notes || ''
                   };
                 });
 
