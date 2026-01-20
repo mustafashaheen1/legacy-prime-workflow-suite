@@ -3087,10 +3087,12 @@ When the user says "this project", "this client", "this estimate", etc., they ar
 
     // Add user/assistant messages with file support
     for (const msg of messages) {
+      const messageText = msg.text || msg.content || '';
+
       if (msg.role === 'user' && msg.files && msg.files.length > 0) {
         // User message with attachments - build content array
         const contentParts: any[] = [
-          { type: 'text', text: msg.text || msg.content }
+          { type: 'text', text: messageText }
         ];
 
         // Add file attachments
@@ -3113,15 +3115,16 @@ When the user says "this project", "this client", "this estimate", etc., they ar
           }
         }
 
+        console.log('[AI Assistant] Adding user message with', contentParts.length, 'content parts');
         openaiMessages.push({
           role: 'user',
           content: contentParts
         });
-      } else {
-        // Regular text-only message
+      } else if (messageText) {
+        // Regular text-only message (skip empty messages)
         openaiMessages.push({
           role: msg.role as 'user' | 'assistant',
-          content: msg.text || msg.content,
+          content: messageText,
         });
       }
     }
