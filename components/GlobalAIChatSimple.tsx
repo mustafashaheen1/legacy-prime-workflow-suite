@@ -2547,39 +2547,44 @@ Important:
                     </View>
                   )}
                   {/* PDFs */}
-                  {message.files.filter((f: any) => f.mimeType === 'application/pdf').map((file: any, idx: number) => (
-                    <TouchableOpacity
-                      key={`${message.id}-pdf-${idx}`}
-                      onPress={() => {
-                        if (Platform.OS === 'web') {
-                          window.open(file.uri, '_blank');
-                        } else {
-                          Alert.alert('PDF', `${file.name}\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
-                        }
-                      }}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: '#FEF3C7',
-                        padding: 12,
-                        borderRadius: 8,
-                        marginTop: 8,
-                        borderWidth: 1,
-                        borderColor: '#FCD34D',
-                      }}
-                    >
-                      <FileText size={24} color="#D97706" />
-                      <View style={{ marginLeft: 12, flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontWeight: '600', color: '#92400E' }}>
-                          {file.name}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#78350F', marginTop: 2 }}>
-                          PDF • {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </Text>
-                      </View>
-                      <Download size={18} color="#D97706" />
-                    </TouchableOpacity>
-                  ))}
+                  {message.files.filter((f: any) => f.mimeType === 'application/pdf').map((file: any, idx: number) => {
+                    const fileName = file.name || file.uri?.split('/').pop() || 'Document.pdf';
+                    const fileSizeMB = file.size ? (file.size / 1024 / 1024).toFixed(2) : '0.00';
+                    console.log('[PDF Display]', { fileName, fileSizeMB, uri: file.uri });
+                    return (
+                      <TouchableOpacity
+                        key={`${message.id}-pdf-${idx}`}
+                        onPress={() => {
+                          if (Platform.OS === 'web') {
+                            window.open(file.uri, '_blank');
+                          } else {
+                            Alert.alert('PDF', `${fileName}\nSize: ${fileSizeMB} MB`);
+                          }
+                        }}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: '#FEF3C7',
+                          padding: 12,
+                          borderRadius: 8,
+                          marginTop: 8,
+                          borderWidth: 1,
+                          borderColor: '#FCD34D',
+                        }}
+                      >
+                        <FileText size={24} color="#D97706" />
+                        <View style={{ marginLeft: 12, flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#92400E' }}>
+                            {fileName}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: '#78350F', marginTop: 2 }}>
+                            PDF • {fileSizeMB} MB
+                          </Text>
+                        </View>
+                        <Download size={18} color="#D97706" />
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               )}
               {message.parts.map((part, i) => {
