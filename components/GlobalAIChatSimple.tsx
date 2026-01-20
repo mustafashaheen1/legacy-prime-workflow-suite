@@ -2212,33 +2212,23 @@ Important:
       }
     }
 
-    // Clear input and attached files immediately
-    const messageToBeSent = userMessage;
-    const filesToUpload = [...attachedFiles];
     setInput('');
-    setAttachedFiles([]);
 
     try {
-      // Upload PDFs to S3 first if any are attached
-      const filesWithS3Urls = [...filesToUpload];
+      // For PDFs: Upload to S3 first, then send message
       if (hasPDFs) {
-        // Show uploading status
-        const uploadingMessage = {
-          id: Date.now().toString(),
-          role: 'assistant',
-          parts: [{ type: 'text', text: 'Uploading PDF...' }],
-          text: 'Uploading PDF...',
-        };
-        addMessage(uploadingMessage);
+        const filesToUpload = [...attachedFiles];
+        setAttachedFiles([]);
 
         console.log('[Send] Uploading PDFs to S3 using presigned URLs...');
+        const filesWithS3Urls = [...filesToUpload];
         let uploadFailed = false;
 
         for (let i = 0; i < filesWithS3Urls.length; i++) {
           const file = filesWithS3Urls[i];
           if (file.mimeType === 'application/pdf') {
             try {
-              // Step 1: Get presigned upload URL
+              // Get presigned upload URL
               const urlResponse = await fetch('/api/get-s3-upload-url', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2255,10 +2245,9 @@ Important:
               const { uploadUrl, fileUrl } = await urlResponse.json();
               console.log('[Send] Got presigned URL, uploading PDF directly to S3...');
 
-              // Step 2: Upload file directly to S3 using presigned URL
+              // Upload file directly to S3 using presigned URL
               let uploadResponse;
               if (Platform.OS === 'web') {
-                // Web: Upload the file blob directly
                 const response = await fetch(file.uri);
                 const blob = await response.blob();
                 uploadResponse = await fetch(uploadUrl, {
@@ -2267,7 +2256,6 @@ Important:
                   headers: { 'Content-Type': 'application/pdf' },
                 });
               } else {
-                // Mobile: Convert to base64 then buffer
                 const dataUri = await convertFileToDataUri(file);
                 const base64Data = dataUri.replace(/^data:.+;base64,/, '');
                 const buffer = Buffer.from(base64Data, 'base64');
@@ -2283,18 +2271,27 @@ Important:
                 filesWithS3Urls[i] = {
                   ...file,
                   uri: fileUrl,
-                  uploading: false,
                 };
                 console.log('[Send] PDF uploaded to S3:', fileUrl);
               } else {
                 console.error('[Send] Failed to upload PDF to S3:', uploadResponse.status);
                 uploadFailed = true;
-                updateLastMessage(`Sorry, I couldn't upload the PDF "${file.name}". Please try again.`);
+                addMessage({
+                  id: Date.now().toString(),
+                  role: 'assistant',
+                  parts: [{ type: 'text', text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.` }],
+                  text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.`,
+                });
               }
             } catch (uploadError: any) {
               console.error('[Send] Error uploading PDF:', uploadError);
               uploadFailed = true;
-              updateLastMessage(`Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}`);
+              addMessage({
+                id: Date.now().toString(),
+                role: 'assistant',
+                parts: [{ type: 'text', text: `Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}` }],
+                text: `Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}`,
+              });
             }
           }
         }
@@ -2303,10 +2300,6 @@ Important:
         if (uploadFailed) {
           return;
         }
-
-        // Update the uploading message to show success
-        updateLastMessage('✓ PDF uploaded successfully');
-      }
 
       if (hasImages) {
         console.log('[Send] Processing with images');
