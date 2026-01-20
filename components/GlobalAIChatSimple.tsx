@@ -750,7 +750,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                       const maxPages = Math.min(pdf.numPages, 10); // Limit to 10 pages
                       console.log(`[Takeoff] PDF has ${pdf.numPages} pages, processing ${maxPages}`);
 
-                      // Convert each page to image
+                      // Convert each page to image and upload to S3
                       for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
                         const page = await pdf.getPage(pageNum);
                         const viewport = page.getViewport({ scale: 1.5 });
@@ -762,11 +762,45 @@ Generate appropriate line items from the price list that fit this scope of work$
 
                         if (context) {
                           await page.render({ canvasContext: context, viewport }).promise;
-                          const dataUrl = canvas.toDataURL('image/png');
-                          imageUrls.push(dataUrl);
+
+                          // Convert to blob for S3 upload
+                          const blob = await new Promise<Blob>((resolve) => {
+                            canvas.toBlob((b) => resolve(b!), 'image/png');
+                          });
+
+                          // Upload to S3 using presigned URL
+                          const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
+                          const urlResponse = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              fileName: `page-${pageNum}.png`,
+                              fileType: 'image/png',
+                            }),
+                          });
+
+                          if (!urlResponse.ok) {
+                            throw new Error('Failed to get S3 upload URL');
+                          }
+
+                          const { uploadUrl, fileUrl } = await urlResponse.json();
+
+                          // Upload to S3
+                          const uploadResponse = await fetch(uploadUrl, {
+                            method: 'PUT',
+                            body: blob,
+                            headers: { 'Content-Type': 'image/png' },
+                          });
+
+                          if (!uploadResponse.ok) {
+                            throw new Error('Failed to upload image to S3');
+                          }
+
+                          // Use S3 URL instead of data URL
+                          imageUrls.push(fileUrl);
                         }
                       }
-                      console.log('[Takeoff] Converted PDF to', imageUrls.length, 'images');
+                      console.log('[Takeoff] Converted PDF to', imageUrls.length, 'images and uploaded to S3');
                     } catch (pdfError) {
                       console.error('[Takeoff] Error converting PDF:', pdfError);
                       throw new Error('Failed to convert PDF to images for analysis');
