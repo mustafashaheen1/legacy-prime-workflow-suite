@@ -2584,26 +2584,24 @@ Generate appropriate line items from the price list that fit this scope of work$
           });
         }
 
-        // Add PDFs with S3 URLs
+        // Add PDFs with S3 URLs (already uploaded when attached)
         for (const file of filesWithS3Urls.filter(f => f.mimeType === 'application/pdf')) {
           filesForAI.push({
             type: 'file',
             mimeType: file.mimeType,
-            uri: file.uri, // This is now the S3 URL
+            uri: file.uri, // This is the S3 URL from when file was attached
             name: file.name,
             size: file.size,
           });
         }
 
-        // Update user message with final files
-        updateMessageById(userMessageId, {
-          files: filesForAI,
+        // Send message with files
+        await sendMessage({
+          text: userMessage,
+          files: filesForAI as any,
         });
-
-        // Send to AI API (user message already added)
-        await sendToAI(userMessage, filesForAI);
       } else if (hasPDFs) {
-        // PDFs only (no images)
+        // PDFs only (no images) - already uploaded when attached
         console.log('[Send] Sending message with PDFs');
         const filesForAI: { type: 'file'; mimeType: string; uri: string; name?: string; size?: number; }[] = [];
 
@@ -2611,25 +2609,22 @@ Generate appropriate line items from the price list that fit this scope of work$
           filesForAI.push({
             type: 'file',
             mimeType: file.mimeType,
-            uri: file.uri, // This is now the S3 URL
+            uri: file.uri, // This is the S3 URL from when file was attached
             name: file.name,
             size: file.size,
           });
         }
 
-        // Update user message with final files
-        updateMessageById(userMessageId, {
-          files: filesForAI,
-        });
-
         console.log('[Send] Files being sent to AI:', filesForAI);
 
-        // Send to AI API (user message already added)
-        await sendToAI(userMessage, filesForAI);
+        // Send message with PDF files
+        await sendMessage({
+          text: userMessage,
+          files: filesForAI as any,
+        });
       } else {
         console.log('[Send] Sending text message');
-        // Send to AI API (user message already added)
-        await sendToAI(userMessage, []);
+        await sendMessage(userMessage);
       }
     } catch (error) {
       console.error('[Send] Error:', error);
