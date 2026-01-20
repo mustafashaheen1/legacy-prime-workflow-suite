@@ -198,9 +198,12 @@ function useOpenAIChat(appData: {
       // Only save file metadata (without the actual data URI) for display purposes
       const filesToSave = files.map(f => ({
         mimeType: f.mimeType,
-        // Only keep the URI if it's a URL (not base64)
+        // Keep URIs that are URLs (S3 links for PDFs and images)
         uri: f.uri?.startsWith('http') ? f.uri : undefined,
         hasImage: f.uri?.startsWith('data:image') || f.mimeType?.startsWith('image/'),
+        // Include file metadata for PDFs
+        name: f.name,
+        size: f.size,
       })).filter(f => f.uri || f.hasImage);
 
       await fetch('/api/save-chat-message', {
@@ -2192,6 +2195,7 @@ Important:
 
     const userMessage = input.trim() || 'Please analyze the attached images';
     const hasImages = attachedFiles.some(f => f.mimeType.startsWith('image/'));
+    const hasPDFs = attachedFiles.some(f => f.mimeType === 'application/pdf');
 
     const isImageGenerationRequest = userMessage.toLowerCase().includes('genera') &&
       (userMessage.toLowerCase().includes('imagen') || userMessage.toLowerCase().includes('image'));
@@ -2208,6 +2212,44 @@ Important:
     setInput('');
 
     try {
+      // Upload PDFs to S3 first if any are attached
+      const filesWithS3Urls = [...attachedFiles];
+      if (hasPDFs) {
+        console.log('[Send] Uploading PDFs to S3...');
+        for (let i = 0; i < filesWithS3Urls.length; i++) {
+          const file = filesWithS3Urls[i];
+          if (file.mimeType === 'application/pdf') {
+            try {
+              const dataUri = await convertFileToDataUri(file);
+              const uploadResponse = await fetch('/api/upload-to-s3', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  fileData: dataUri,
+                  fileName: file.name || `document-${Date.now()}.pdf`,
+                  fileType: 'application/pdf',
+                  folder: 'ai-assistant-documents',
+                }),
+              });
+
+              if (uploadResponse.ok) {
+                const uploadResult = await uploadResponse.json();
+                // Replace local URI with S3 URL
+                filesWithS3Urls[i] = {
+                  ...file,
+                  uri: uploadResult.url,
+                };
+                console.log('[Send] PDF uploaded to S3:', uploadResult.url);
+              } else {
+                console.error('[Send] Failed to upload PDF to S3');
+              }
+            } catch (uploadError) {
+              console.error('[Send] Error uploading PDF:', uploadError);
+            }
+          }
+        }
+      }
+
       if (hasImages) {
         console.log('[Send] Processing with images');
 
@@ -2220,7 +2262,7 @@ Important:
           lowerMessage.includes('analyze this') ||
           lowerMessage === 'please analyze the attached images';
 
-        if (isReceiptRequest && attachedFiles.length === 1) {
+        if (isReceiptRequest && attachedFiles.length === 1 && !hasPDFs) {
           // Use dedicated receipt analysis endpoint to avoid payload size issues
           console.log('[Send] Using dedicated receipt analysis endpoint');
           const file = attachedFiles[0];
@@ -2311,14 +2353,49 @@ Important:
         }
 
         // For non-receipt images or multiple images, use the regular flow
-        const filesForAI: { type: 'file'; mimeType: string; uri: string; }[] = [];
+        const filesForAI: { type: 'file'; mimeType: string; uri: string; name?: string; size?: number; }[] = [];
 
-        for (const file of attachedFiles.filter(f => f.mimeType.startsWith('image/'))) {
+        // Add images
+        for (const file of filesWithS3Urls.filter(f => f.mimeType.startsWith('image/'))) {
           const dataUri = await convertFileToDataUri(file);
           filesForAI.push({
             type: 'file',
             mimeType: file.mimeType,
             uri: dataUri,
+            name: file.name,
+            size: file.size,
+          });
+        }
+
+        // Add PDFs with S3 URLs
+        for (const file of filesWithS3Urls.filter(f => f.mimeType === 'application/pdf')) {
+          filesForAI.push({
+            type: 'file',
+            mimeType: file.mimeType,
+            uri: file.uri, // This is now the S3 URL
+            name: file.name,
+            size: file.size,
+          });
+        }
+
+        setAttachedFiles([]);
+
+        await sendMessage({
+          text: userMessage,
+          files: filesForAI as any,
+        });
+      } else if (hasPDFs) {
+        // PDFs only (no images)
+        console.log('[Send] Sending message with PDFs');
+        const filesForAI: { type: 'file'; mimeType: string; uri: string; name?: string; size?: number; }[] = [];
+
+        for (const file of filesWithS3Urls.filter(f => f.mimeType === 'application/pdf')) {
+          filesForAI.push({
+            type: 'file',
+            mimeType: file.mimeType,
+            uri: file.uri, // This is now the S3 URL
+            name: file.name,
+            size: file.size,
           });
         }
 
