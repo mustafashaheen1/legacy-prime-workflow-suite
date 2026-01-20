@@ -457,6 +457,26 @@ function useOpenAIChat(appData: {
     }
   };
 
+  // Function to update a specific message by ID
+  const updateMessageById = (messageId: string, updates: any) => {
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === messageId ? { ...msg, ...updates } : msg
+      )
+    );
+  };
+
+  // Function to update files in a message (for PDF upload progress)
+  const updateMessageFiles = (messageId: string, fileUpdater: (files: any[]) => any[]) => {
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, files: fileUpdater(msg.files || []) }
+          : msg
+      )
+    );
+  };
+
   // Function to update the last message (used after action completes)
   const updateLastMessage = async (newText: string, metadata?: any) => {
     setMessages(prev => {
@@ -2449,18 +2469,11 @@ Generate appropriate line items from the price list that fit this scope of work$
                 console.log('[Send] PDF uploaded to S3:', fileUrl);
 
                 // Update the user message with uploaded PDF
-                setMessages((prevMessages: any[]) =>
-                  prevMessages.map((msg: any) =>
-                    msg.id === userMessageId
-                      ? {
-                          ...msg,
-                          files: msg.files?.map((f: any) =>
-                            f.mimeType === 'application/pdf' && f.name === file.name
-                              ? { ...f, uri: fileUrl, uploading: false }
-                              : f
-                          ),
-                        }
-                      : msg
+                updateMessageFiles(userMessageId, (files) =>
+                  files.map((f: any) =>
+                    f.mimeType === 'application/pdf' && f.name === file.name
+                      ? { ...f, uri: fileUrl, uploading: false }
+                      : f
                   )
                 );
               } else {
@@ -2511,16 +2524,9 @@ Generate appropriate line items from the price list that fit this scope of work$
           const dataUri = await convertFileToDataUri(file);
 
           // User message already added above, update it with the converted image
-          setMessages((prevMessages: any[]) =>
-            prevMessages.map((msg: any) =>
-              msg.id === userMessageId
-                ? {
-                    ...msg,
-                    files: [{ uri: dataUri, mimeType: file.mimeType || 'image/jpeg' }],
-                  }
-                : msg
-            )
-          );
+          updateMessageById(userMessageId, {
+            files: [{ uri: dataUri, mimeType: file.mimeType || 'image/jpeg' }],
+          });
 
           // Show loading message
           addMessage({
@@ -2622,16 +2628,9 @@ Generate appropriate line items from the price list that fit this scope of work$
         }
 
         // Update user message with final files
-        setMessages((prevMessages: any[]) =>
-          prevMessages.map((msg: any) =>
-            msg.id === userMessageId
-              ? {
-                  ...msg,
-                  files: filesForAI,
-                }
-              : msg
-          )
-        );
+        updateMessageById(userMessageId, {
+          files: filesForAI,
+        });
 
         // Send to AI API (user message already added)
         await sendToAI(userMessage, filesForAI);
@@ -2651,16 +2650,9 @@ Generate appropriate line items from the price list that fit this scope of work$
         }
 
         // Update user message with final files
-        setMessages((prevMessages: any[]) =>
-          prevMessages.map((msg: any) =>
-            msg.id === userMessageId
-              ? {
-                  ...msg,
-                  files: filesForAI,
-                }
-              : msg
-          )
-        );
+        updateMessageById(userMessageId, {
+          files: filesForAI,
+        });
 
         console.log('[Send] Files being sent to AI:', filesForAI);
 
