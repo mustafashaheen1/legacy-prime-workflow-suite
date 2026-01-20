@@ -274,7 +274,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function' as const,
     function: {
       name: 'generate_takeoff_estimate',
-      description: 'Analyze an attached construction document (image or PDF) to generate a detailed takeoff estimate. Extracts materials, quantities, and measurements from blueprints, plans, or material lists. Use when user asks to: "create takeoff estimate", "analyze this blueprint", "generate estimate from this plan", "what materials are needed", or uploads construction documents.',
+      description: 'Analyze an attached construction document (image or PDF) to generate a detailed takeoff estimate. Extracts materials, quantities, and measurements from blueprints, plans, or material lists. AUTOMATICALLY use this tool when: user uploads a document AND asks to create/generate a takeoff estimate for a specific client. DO NOT ask for confirmation - if files are attached and client name is provided, call this tool immediately.',
       parameters: {
         type: 'object',
         properties: {
@@ -284,19 +284,19 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           },
           estimateName: {
             type: 'string',
-            description: 'Descriptive name for this takeoff estimate (e.g., "Kitchen Remodel Takeoff", "Foundation Material Estimate")'
+            description: 'Descriptive name for this takeoff estimate. OPTIONAL - if not provided, will auto-generate from client name and document (e.g., "Takeoff Estimate - [ClientName]")'
           },
           documentDescription: {
             type: 'string',
-            description: 'Brief description of what the document shows (e.g., "kitchen floor plan", "foundation blueprint", "material list for bathroom remodel")'
+            description: 'Brief description of what the document shows. OPTIONAL - if not provided, AI will analyze the document to determine the content'
           },
           imageIndexes: {
             type: 'array',
             items: { type: 'number' },
-            description: 'Array of indexes (0-based) of attached images/PDFs to analyze. Use [0] for first attachment, [0,1] for first two, etc. If user says "analyze this" or "from this document", use all attached files.'
+            description: 'Array of indexes (0-based) of attached images/PDFs to analyze. DEFAULT to [0] if only one file attached. Use [0,1,2...] for multiple files. When user says "create takeoff estimate" with files attached, use all files: get indexes from attachedFiles.length'
           }
         },
-        required: ['clientName', 'estimateName', 'documentDescription', 'imageIndexes']
+        required: ['clientName']
       }
     }
   },
@@ -1996,11 +1996,16 @@ async function executeToolCall(
     }
 
     case 'generate_takeoff_estimate': {
+      // Provide defaults for optional parameters
+      const estimateName = args.estimateName || `Takeoff Estimate - ${args.clientName}`;
+      const documentDescription = args.documentDescription || 'Construction document';
+      const imageIndexes = args.imageIndexes || (attachedFiles && attachedFiles.length > 0 ? Array.from({length: attachedFiles.length}, (_, i) => i) : []);
+
       console.log('[Tool] generate_takeoff_estimate called:', {
         clientName: args.clientName,
-        estimateName: args.estimateName,
-        documentDescription: args.documentDescription,
-        imageIndexes: args.imageIndexes,
+        estimateName,
+        documentDescription,
+        imageIndexes,
         attachedFilesCount: attachedFiles?.length || 0
       });
 
@@ -2014,7 +2019,7 @@ async function executeToolCall(
       }
 
       // Validate image indexes
-      const invalidIndexes = args.imageIndexes.filter((idx: number) =>
+      const invalidIndexes = imageIndexes.filter((idx: number) =>
         idx < 0 || idx >= attachedFiles.length
       );
       if (invalidIndexes.length > 0) {
@@ -2026,23 +2031,23 @@ async function executeToolCall(
       }
 
       // Get selected files
-      const selectedFiles = args.imageIndexes.map((idx: number) => attachedFiles[idx]);
+      const selectedFiles = imageIndexes.map((idx: number) => attachedFiles[idx]);
       console.log('[Tool] Analyzing files:', selectedFiles.map((f: any) => f.name));
 
       return {
         result: {
           success: true,
-          message: `Analyzing ${selectedFiles.length} document(s) for "${args.estimateName}"...`,
+          message: `Analyzing ${selectedFiles.length} document(s) for "${estimateName}"...`,
           clientName: args.clientName,
-          estimateName: args.estimateName,
-          documentDescription: args.documentDescription,
+          estimateName,
+          documentDescription,
           fileCount: selectedFiles.length
         },
         actionRequired: 'generate_takeoff_estimate',
         actionData: {
           clientName: args.clientName,
-          estimateName: args.estimateName,
-          documentDescription: args.documentDescription,
+          estimateName,
+          documentDescription,
           selectedFiles: selectedFiles.map((f: any) => ({
             uri: f.uri,
             name: f.name,
