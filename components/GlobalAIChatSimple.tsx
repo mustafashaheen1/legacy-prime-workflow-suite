@@ -14,6 +14,12 @@ import { useApp } from '@/contexts/AppContext';
 import { masterPriceList } from '@/mocks/priceList';
 import { sendEstimate } from '@/utils/sendEstimate';
 import { mockPhotos } from '@/mocks/data';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker (only on web)
+if (Platform.OS === 'web') {
+  (pdfjsLib as any).GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+}
 
 interface GlobalAIChatProps {
   currentPageContext?: string;
@@ -729,13 +735,55 @@ Generate appropriate line items from the price list that fit this scope of work$
               const { clientName, estimateName, documentDescription, selectedFiles } = pendingAction.data;
 
               try {
+                // Convert PDFs to images if needed (OpenAI vision API doesn't support PDFs)
+                const imageUrls: string[] = [];
+                for (const file of selectedFiles) {
+                  if (file.mimeType === 'application/pdf' && Platform.OS === 'web') {
+                    // Convert PDF to images
+                    console.log('[Takeoff] Converting PDF to images:', file.name);
+                    try {
+                      const response = await fetch(file.uri);
+                      const arrayBuffer = await response.arrayBuffer();
+                      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                      const pdf = await loadingTask.promise;
+
+                      const maxPages = Math.min(pdf.numPages, 10); // Limit to 10 pages
+                      console.log(`[Takeoff] PDF has ${pdf.numPages} pages, processing ${maxPages}`);
+
+                      // Convert each page to image
+                      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const viewport = page.getViewport({ scale: 1.5 });
+
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+
+                        if (context) {
+                          await page.render({ canvasContext: context, viewport }).promise;
+                          const dataUrl = canvas.toDataURL('image/png');
+                          imageUrls.push(dataUrl);
+                        }
+                      }
+                      console.log('[Takeoff] Converted PDF to', imageUrls.length, 'images');
+                    } catch (pdfError) {
+                      console.error('[Takeoff] Error converting PDF:', pdfError);
+                      throw new Error('Failed to convert PDF to images for analysis');
+                    }
+                  } else {
+                    // Already an image, use as-is
+                    imageUrls.push(file.uri);
+                  }
+                }
+
                 // Call document analysis API
                 const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
                 const analysisResponse = await fetch(`${apiUrl}/api/analyze-document`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    imageUrls: selectedFiles.map((f: any) => f.uri),
+                    imageUrls: imageUrls,
                     priceListItems: masterPriceList,
                     documentType: documentDescription,
                   })
