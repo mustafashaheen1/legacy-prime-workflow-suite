@@ -2218,26 +2218,13 @@ Important:
     setInput('');
     setAttachedFiles([]);
 
-    // Add user message to UI immediately with placeholder files
-    const tempUserMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      text: messageToBeSent,
-      files: filesToUpload.map(f => ({
-        ...f,
-        uploading: true // Mark as uploading
-      })),
-      parts: [{ type: 'text', text: messageToBeSent }],
-    };
-    addMessage(tempUserMessage);
-
     try {
       // Upload PDFs to S3 first if any are attached
       const filesWithS3Urls = [...filesToUpload];
       if (hasPDFs) {
-        // Add uploading status message
+        // Show uploading status
         const uploadingMessage = {
-          id: (Date.now() + 1).toString(),
+          id: Date.now().toString(),
           role: 'assistant',
           parts: [{ type: 'text', text: 'Uploading PDF...' }],
           text: 'Uploading PDF...',
