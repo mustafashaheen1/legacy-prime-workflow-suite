@@ -854,10 +854,26 @@ Generate appropriate line items from the price list that fit this scope of work$
                   };
                 });
 
-                // Find existing client
-                const client = clients.find((c: any) =>
-                  c.name.toLowerCase() === clientName.toLowerCase()
-                );
+                // Find existing client (flexible matching: exact match or partial name match)
+                const client = clients.find((c: any) => {
+                  const clientNameLower = clientName.toLowerCase().trim();
+                  const dbNameLower = c.name.toLowerCase().trim();
+
+                  // Exact match
+                  if (dbNameLower === clientNameLower) return true;
+
+                  // DB name contains the search term (e.g., "Claudia Gocan" contains "Claudia")
+                  if (dbNameLower.includes(clientNameLower)) return true;
+
+                  // Search term contains DB name
+                  if (clientNameLower.includes(dbNameLower)) return true;
+
+                  // Check if any word in DB name matches the search term
+                  const dbNameWords = dbNameLower.split(/\s+/);
+                  if (dbNameWords.some(word => word === clientNameLower)) return true;
+
+                  return false;
+                });
 
                 if (!client) {
                   throw new Error(`Client "${clientName}" not found. Please create the client first.`);
