@@ -412,6 +412,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
   const [generatedImages, setGeneratedImages] = useState<{ url: string; prompt: string }[]>([]);
+  const [isPdfUploading, setIsPdfUploading] = useState<boolean>(false);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -2219,6 +2220,7 @@ Important:
       if (hasPDFs) {
         const filesToUpload = [...attachedFiles];
         setAttachedFiles([]);
+        setIsPdfUploading(true);
 
         console.log('[Send] Uploading PDFs to S3 using presigned URLs...');
         const filesWithS3Urls = [...filesToUpload];
@@ -2298,8 +2300,12 @@ Important:
 
         // Don't proceed if upload failed
         if (uploadFailed) {
+          setIsPdfUploading(false);
           return;
         }
+
+        setIsPdfUploading(false);
+      }
 
       if (hasImages) {
         console.log('[Send] Processing with images');
@@ -2707,6 +2713,18 @@ Important:
                 <ActivityIndicator size="small" color="#10B981" />
                 <Text style={[styles.assistantMessageText, { marginLeft: 8, fontStyle: 'italic', color: '#059669' }]}>
                   Performing action...
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Loading indicator while PDF is uploading */}
+          {isPdfUploading && (
+            <View style={styles.assistantMessageContainer}>
+              <View style={[styles.assistantMessage, { backgroundColor: '#EFF6FF' }]}>
+                <ActivityIndicator size="small" color="#2563EB" />
+                <Text style={[styles.assistantMessageText, { marginLeft: 8, fontStyle: 'italic', color: '#1D4ED8' }]}>
+                  Uploading PDF...
                 </Text>
               </View>
             </View>

@@ -77,7 +77,8 @@
       "Bash(timeout 10 npx tsc:*)",
       "Bash(timeout 15 npx tsc:*)",
       "Bash(timeout 60 npx tsc:*)",
-      "Bash(mcp__ide__getDiagnostics)"
+      "Bash(mcp__ide__getDiagnostics)",
+      "Bash(for [client]\" with a PDF attached and it works automatically.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ],
     "deny": [],
     "ask": []
