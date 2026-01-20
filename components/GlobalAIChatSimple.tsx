@@ -860,12 +860,16 @@ Generate appropriate line items from the price list that fit this scope of work$
                 );
 
                 if (!client && addClient) {
-                  // Create new client
+                  // Create new client with placeholder email
                   const newClientId = `client-${Date.now()}`;
+                  // Generate placeholder email from client name
+                  const emailSafeName = clientName.toLowerCase().replace(/\s+/g, '.');
+                  const placeholderEmail = `${emailSafeName}@placeholder.local`;
+
                   const newClient = {
                     id: newClientId,
                     name: clientName,
-                    email: '',
+                    email: placeholderEmail,
                     phone: '',
                     status: 'lead' as const,
                     source: 'AI Assistant',
