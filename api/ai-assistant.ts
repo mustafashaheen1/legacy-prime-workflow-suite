@@ -3069,6 +3069,8 @@ The user has attached ${attachedFiles.length} file(s) to this conversation:
 ${attachedFiles.map((f: any, idx: number) => `${idx + 1}. ${f.name || 'Unknown'} (${f.mimeType || 'unknown type'})`).join('\n')}
 
 You can see these files in the conversation. When the user asks you to analyze documents, generate takeoff estimates, or work with attached files, use the appropriate tools with the correct file indexes.`;
+    }
+
     if (pageContext) {
       contextAwarePrompt += `
 
