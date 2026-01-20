@@ -2212,14 +2212,41 @@ Important:
       }
     }
 
+    // Clear input and attached files immediately
+    const messageToBeSent = userMessage;
+    const filesToUpload = [...attachedFiles];
     setInput('');
+    setAttachedFiles([]);
+
+    // Add user message to UI immediately with placeholder files
+    const tempUserMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      text: messageToBeSent,
+      files: filesToUpload.map(f => ({
+        ...f,
+        uploading: true // Mark as uploading
+      })),
+      parts: [{ type: 'text', text: messageToBeSent }],
+    };
+    addMessage(tempUserMessage);
 
     try {
-      // Upload PDFs to S3 first if any are attached using presigned URLs (direct upload)
-      const filesWithS3Urls = [...attachedFiles];
+      // Upload PDFs to S3 first if any are attached
+      const filesWithS3Urls = [...filesToUpload];
       if (hasPDFs) {
+        // Add uploading status message
+        const uploadingMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'Uploading PDF...' }],
+          text: 'Uploading PDF...',
+        };
+        addMessage(uploadingMessage);
+
         console.log('[Send] Uploading PDFs to S3 using presigned URLs...');
         let uploadFailed = false;
+
         for (let i = 0; i < filesWithS3Urls.length; i++) {
           const file = filesWithS3Urls[i];
           if (file.mimeType === 'application/pdf') {
@@ -2269,36 +2296,36 @@ Important:
                 filesWithS3Urls[i] = {
                   ...file,
                   uri: fileUrl,
+                  uploading: false,
                 };
                 console.log('[Send] PDF uploaded to S3:', fileUrl);
               } else {
                 console.error('[Send] Failed to upload PDF to S3:', uploadResponse.status);
                 uploadFailed = true;
-                addMessage({
-                  id: Date.now().toString(),
-                  role: 'assistant',
-                  parts: [{ type: 'text', text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.` }],
-                  text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.`,
-                });
+                updateLastMessage(`Sorry, I couldn't upload the PDF "${file.name}". Please try again.`);
               }
             } catch (uploadError: any) {
               console.error('[Send] Error uploading PDF:', uploadError);
               uploadFailed = true;
-              addMessage({
-                id: Date.now().toString(),
-                role: 'assistant',
-                parts: [{ type: 'text', text: `Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}` }],
-                text: `Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}`,
-              });
+              updateLastMessage(`Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}`);
             }
           }
         }
 
         // Don't proceed if upload failed
         if (uploadFailed) {
-          setAttachedFiles([]);
           return;
         }
+
+        // Remove uploading message and update user message with S3 URLs
+        setMessages(prev => {
+          const withoutUploading = prev.filter(m => m.id !== uploadingMessage.id);
+          return withoutUploading.map(m =>
+            m.id === tempUserMessage.id
+              ? { ...m, files: filesWithS3Urls.map(f => ({ ...f, uploading: false })) }
+              : m
+          );
+        });
       }
 
       if (hasImages) {
