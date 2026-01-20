@@ -274,7 +274,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function' as const,
     function: {
       name: 'generate_takeoff_estimate',
-      description: 'Analyze an attached construction document (image or PDF) to generate a detailed takeoff estimate. Extracts materials, quantities, and measurements from blueprints, plans, or material lists. AUTOMATICALLY use this tool when: user uploads a document AND asks to create/generate a takeoff estimate for a specific client. DO NOT ask for confirmation - if files are attached and client name is provided, call this tool immediately.',
+      description: 'CRITICAL: Use this tool IMMEDIATELY when user asks to create/generate a takeoff estimate AND has files attached. DO NOT ask for more information - just call this tool with the client name and all attached file indexes. The system will automatically analyze the attached documents (PDFs or images) to extract materials and quantities. NEVER ask user to "attach files" or "provide documents" - if they requested a takeoff estimate, the files are ALREADY attached.',
       parameters: {
         type: 'object',
         properties: {
@@ -3069,11 +3069,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (attachedFiles.length > 0) {
       contextAwarePrompt += `
 
-## ATTACHED FILES
+## ATTACHED FILES (IMPORTANT!)
 The user has attached ${attachedFiles.length} file(s) to this conversation:
-${attachedFiles.map((f: any, idx: number) => `${idx + 1}. ${f.name || 'Unknown'} (${f.mimeType || 'unknown type'})`).join('\n')}
+${attachedFiles.map((f: any, idx: number) => `File ${idx}: ${f.name || 'Unknown'} (${f.mimeType || 'unknown type'})`).join('\n')}
 
-You can see these files in the conversation. When the user asks you to analyze documents, generate takeoff estimates, or work with attached files, use the appropriate tools with the correct file indexes.`;
+**CRITICAL INSTRUCTIONS:**
+- These files are ALREADY attached - do NOT ask the user to attach files
+- When user says "create takeoff estimate" or "analyze this", they mean these attached files
+- For takeoff estimates: Call generate_takeoff_estimate with imageIndexes: [${Array.from({length: attachedFiles.length}, (_, i) => i).join(', ')}]
+- DO NOT ask for confirmation - the files are attached and ready to analyze
+- Example: If user says "create takeoff estimate for John", immediately call generate_takeoff_estimate(clientName: "John", imageIndexes: [${Array.from({length: attachedFiles.length}, (_, i) => i).join(', ')}])`;
     }
 
     if (pageContext) {
