@@ -41,11 +41,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const uniqueFileName = `${folder}/${timestamp}-${fileName}`;
 
-    // Create pre-signed URL for PUT operation
+    // Create pre-signed URL for PUT operation with public-read ACL
     const command = new PutObjectCommand({
       Bucket: bucketName,
       Key: uniqueFileName,
       ContentType: fileType || 'application/pdf',
+      ACL: 'public-read', // Make files publicly readable so OpenAI can access them
     });
 
     // URL expires in 10 minutes

@@ -2117,7 +2117,10 @@ Generate appropriate line items from the price list that fit this scope of work$
               uploadResponse = await fetch(uploadUrl, {
                 method: 'PUT',
                 body: blob,
-                headers: { 'Content-Type': 'application/pdf' },
+                headers: {
+                  'Content-Type': 'application/pdf',
+                  'x-amz-acl': 'public-read',
+                },
               });
             } else {
               const dataUri = await convertFileToDataUri(newFile);
@@ -2126,7 +2129,10 @@ Generate appropriate line items from the price list that fit this scope of work$
               uploadResponse = await fetch(uploadUrl, {
                 method: 'PUT',
                 body: buffer,
-                headers: { 'Content-Type': 'application/pdf' },
+                headers: {
+                  'Content-Type': 'application/pdf',
+                  'x-amz-acl': 'public-read',
+                },
               });
             }
 
