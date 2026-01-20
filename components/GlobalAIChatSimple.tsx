@@ -854,34 +854,17 @@ Generate appropriate line items from the price list that fit this scope of work$
                   };
                 });
 
-                // Find or create client
-                let client = clients.find((c: any) =>
+                // Find existing client
+                const client = clients.find((c: any) =>
                   c.name.toLowerCase() === clientName.toLowerCase()
                 );
 
-                if (!client && addClient) {
-                  // Create new client with placeholder email
-                  const newClientId = `client-${Date.now()}`;
-                  // Generate placeholder email from client name
-                  const emailSafeName = clientName.toLowerCase().replace(/\s+/g, '.');
-                  const placeholderEmail = `${emailSafeName}@placeholder.local`;
-
-                  const newClient = {
-                    id: newClientId,
-                    name: clientName,
-                    email: placeholderEmail,
-                    phone: '',
-                    status: 'lead' as const,
-                    source: 'AI Assistant',
-                    createdDate: new Date().toISOString(),
-                  };
-                  await addClient(newClient);
-                  client = newClient;
+                if (!client) {
+                  throw new Error(`Client "${clientName}" not found. Please create the client first.`);
                 }
 
-                if (client) {
-                  // Create estimate
-                  const subtotal = matchedItems.reduce((sum: number, item: any) => sum + item.total, 0);
+                // Create estimate
+                const subtotal = matchedItems.reduce((sum: number, item: any) => sum + item.total, 0);
                   const taxRate = 0.105; // 10.5% default
                   const taxAmount = subtotal * taxRate;
                   const total = subtotal + taxAmount;
