@@ -2509,18 +2509,9 @@ Generate appropriate line items from the price list that fit this scope of work$
         }
 
         // Update message with all uploaded PDFs at once (outside the loop)
-        const finalUpdateMessage = {
-          id: userMessageId,
-          role: 'user',
-          parts: [{ type: 'text', text: userMessage }],
-          text: userMessage,
+        updateMessageById(userMessageId, {
           files: uploadedFiles,
-        };
-
-        // Replace the old message with updated one
-        setMessages((prev: any[]) =>
-          prev.map((msg: any) => msg.id === userMessageId ? finalUpdateMessage : msg)
-        );
+        });
       }
 
       if (hasImages) {
