@@ -225,6 +225,9 @@ function useOpenAIChat(appData: {
     const messageText = typeof userMessage === 'string' ? userMessage : userMessage.text;
     const files = typeof userMessage === 'object' && 'files' in userMessage ? userMessage.files : [];
 
+    console.log('[sendMessage] Message text:', messageText);
+    console.log('[sendMessage] Files received:', files.length, files);
+
     // Add user message
     const userMsg = {
       id: Date.now().toString(),
@@ -2447,6 +2450,7 @@ Important:
           });
         }
 
+        console.log('[Send] Files being sent to AI:', filesForAI);
         setAttachedFiles([]);
 
         await sendMessage({

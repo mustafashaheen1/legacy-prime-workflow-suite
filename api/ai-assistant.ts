@@ -3055,10 +3055,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         attachedFiles.push(...msg.files);
       }
     }
-    console.log('[AI Assistant] Attached files:', attachedFiles.length);
+    console.log('[AI Assistant] Attached files:', attachedFiles.length, attachedFiles.map((f: any) => ({ name: f.name, mimeType: f.mimeType, uri: f.uri?.substring(0, 50) })));
 
     // Build context-aware system prompt
     let contextAwarePrompt = systemPrompt;
+
+    // Add file attachment context if files are present
+    if (attachedFiles.length > 0) {
+      contextAwarePrompt += `
+
+## ATTACHED FILES
+The user has attached ${attachedFiles.length} file(s) to this conversation:
+${attachedFiles.map((f: any, idx: number) => `${idx + 1}. ${f.name || 'Unknown'} (${f.mimeType || 'unknown type'})`).join('\n')}
+
+You can see these files in the conversation. When the user asks you to analyze documents, generate takeoff estimates, or work with attached files, use the appropriate tools with the correct file indexes.`;
     if (pageContext) {
       contextAwarePrompt += `
 
@@ -3071,11 +3081,48 @@ When the user says "this project", "this client", "this estimate", etc., they ar
     // Build OpenAI messages
     const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: contextAwarePrompt },
-      ...messages.map((msg: any) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.text || msg.content,
-      })),
     ];
+
+    // Add user/assistant messages with file support
+    for (const msg of messages) {
+      if (msg.role === 'user' && msg.files && msg.files.length > 0) {
+        // User message with attachments - build content array
+        const contentParts: any[] = [
+          { type: 'text', text: msg.text || msg.content }
+        ];
+
+        // Add file attachments
+        for (const file of msg.files) {
+          if (file.uri) {
+            // For images with data URIs, use image_url type
+            if (file.uri.startsWith('data:image')) {
+              contentParts.push({
+                type: 'image_url',
+                image_url: { url: file.uri }
+              });
+            }
+            // For S3 URLs (images or PDFs), include as image_url
+            else if (file.uri.startsWith('http')) {
+              contentParts.push({
+                type: 'image_url',
+                image_url: { url: file.uri }
+              });
+            }
+          }
+        }
+
+        openaiMessages.push({
+          role: 'user',
+          content: contentParts
+        });
+      } else {
+        // Regular text-only message
+        openaiMessages.push({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.text || msg.content,
+        });
+      }
+    }
 
     // First API call - let AI decide if it needs tools
     let completion = await openai.chat.completions.create({
