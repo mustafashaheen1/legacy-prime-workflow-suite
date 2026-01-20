@@ -2212,65 +2212,80 @@ Important:
     setInput('');
 
     try {
-      // Upload PDFs to S3 first if any are attached
+      // Upload PDFs to S3 first if any are attached using presigned URLs (direct upload)
       const filesWithS3Urls = [...attachedFiles];
       if (hasPDFs) {
-        console.log('[Send] Uploading PDFs to S3...');
+        console.log('[Send] Uploading PDFs to S3 using presigned URLs...');
         let uploadFailed = false;
         for (let i = 0; i < filesWithS3Urls.length; i++) {
           const file = filesWithS3Urls[i];
           if (file.mimeType === 'application/pdf') {
             try {
-              const dataUri = await convertFileToDataUri(file);
-              const uploadResponse = await fetch('/api/upload-to-s3', {
+              // Step 1: Get presigned upload URL
+              const urlResponse = await fetch('/api/get-s3-upload-url', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  fileData: dataUri,
                   fileName: file.name || `document-${Date.now()}.pdf`,
                   fileType: 'application/pdf',
-                  folder: 'ai-assistant-documents',
                 }),
               });
 
+              if (!urlResponse.ok) {
+                throw new Error('Failed to get upload URL');
+              }
+
+              const { uploadUrl, fileUrl } = await urlResponse.json();
+              console.log('[Send] Got presigned URL, uploading PDF directly to S3...');
+
+              // Step 2: Upload file directly to S3 using presigned URL
+              let uploadResponse;
+              if (Platform.OS === 'web') {
+                // Web: Upload the file blob directly
+                const response = await fetch(file.uri);
+                const blob = await response.blob();
+                uploadResponse = await fetch(uploadUrl, {
+                  method: 'PUT',
+                  body: blob,
+                  headers: { 'Content-Type': 'application/pdf' },
+                });
+              } else {
+                // Mobile: Convert to base64 then buffer
+                const dataUri = await convertFileToDataUri(file);
+                const base64Data = dataUri.replace(/^data:.+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                uploadResponse = await fetch(uploadUrl, {
+                  method: 'PUT',
+                  body: buffer,
+                  headers: { 'Content-Type': 'application/pdf' },
+                });
+              }
+
               if (uploadResponse.ok) {
-                const uploadResult = await uploadResponse.json();
                 // Replace local URI with S3 URL
                 filesWithS3Urls[i] = {
                   ...file,
-                  uri: uploadResult.url,
+                  uri: fileUrl,
                 };
-                console.log('[Send] PDF uploaded to S3:', uploadResult.url);
+                console.log('[Send] PDF uploaded to S3:', fileUrl);
               } else {
-                const error = await uploadResponse.json().catch(() => ({}));
-                console.error('[Send] Failed to upload PDF to S3:', uploadResponse.status, error);
+                console.error('[Send] Failed to upload PDF to S3:', uploadResponse.status);
                 uploadFailed = true;
-
-                // Show user-friendly error
-                if (uploadResponse.status === 413) {
-                  addMessage({
-                    id: Date.now().toString(),
-                    role: 'assistant',
-                    parts: [{ type: 'text', text: `Sorry, the PDF "${file.name}" is too large to upload. Please try a smaller file (under 35MB).` }],
-                    text: `Sorry, the PDF "${file.name}" is too large to upload. Please try a smaller file (under 35MB).`,
-                  });
-                } else {
-                  addMessage({
-                    id: Date.now().toString(),
-                    role: 'assistant',
-                    parts: [{ type: 'text', text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.` }],
-                    text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.`,
-                  });
-                }
+                addMessage({
+                  id: Date.now().toString(),
+                  role: 'assistant',
+                  parts: [{ type: 'text', text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.` }],
+                  text: `Sorry, I couldn't upload the PDF "${file.name}". Please try again.`,
+                });
               }
-            } catch (uploadError) {
+            } catch (uploadError: any) {
               console.error('[Send] Error uploading PDF:', uploadError);
               uploadFailed = true;
               addMessage({
                 id: Date.now().toString(),
                 role: 'assistant',
-                parts: [{ type: 'text', text: `Sorry, I encountered an error uploading "${file.name}". Please try again.` }],
-                text: `Sorry, I encountered an error uploading "${file.name}". Please try again.`,
+                parts: [{ type: 'text', text: `Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}` }],
+                text: `Sorry, I encountered an error uploading "${file.name}": ${uploadError.message}`,
               });
             }
           }
