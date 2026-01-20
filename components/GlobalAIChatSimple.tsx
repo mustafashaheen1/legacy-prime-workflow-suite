@@ -2417,6 +2417,7 @@ Generate appropriate line items from the price list that fit this scope of work$
       if (hasPDFs) {
         console.log('[Send] Uploading PDFs to S3 using presigned URLs...');
         let uploadFailed = false;
+        const uploadedFiles = [...filesForDisplay]; // Clone for updates
 
         for (let i = 0; i < filesWithS3Urls.length; i++) {
           const file = filesWithS3Urls[i];
@@ -2461,24 +2462,24 @@ Generate appropriate line items from the price list that fit this scope of work$
               }
 
               if (uploadResponse.ok) {
-                // Replace local URI with S3 URL
+                // Replace local URI with S3 URL in filesWithS3Urls
                 filesWithS3Urls[i] = {
                   ...file,
                   uri: fileUrl,
                 };
                 console.log('[Send] PDF uploaded to S3:', fileUrl);
 
-                // Create updated files array
-                const updatedFiles = filesForDisplay.map((f: any) =>
+                // Update the cloned array
+                const fileIndex = uploadedFiles.findIndex((f: any) =>
                   f.mimeType === 'application/pdf' && f.name === file.name
-                    ? { ...f, uri: fileUrl, uploading: false }
-                    : f
                 );
-
-                // Update the user message with uploaded PDF
-                updateMessageById(userMessageId, {
-                  files: updatedFiles,
-                });
+                if (fileIndex !== -1) {
+                  uploadedFiles[fileIndex] = {
+                    ...uploadedFiles[fileIndex],
+                    uri: fileUrl,
+                    uploading: false,
+                  };
+                }
               } else {
                 console.error('[Send] Failed to upload PDF to S3:', uploadResponse.status);
                 uploadFailed = true;
@@ -2506,6 +2507,20 @@ Generate appropriate line items from the price list that fit this scope of work$
         if (uploadFailed) {
           return;
         }
+
+        // Update message with all uploaded PDFs at once (outside the loop)
+        const finalUpdateMessage = {
+          id: userMessageId,
+          role: 'user',
+          parts: [{ type: 'text', text: userMessage }],
+          text: userMessage,
+          files: uploadedFiles,
+        };
+
+        // Replace the old message with updated one
+        setMessages((prev: any[]) =>
+          prev.map((msg: any) => msg.id === userMessageId ? finalUpdateMessage : msg)
+        );
       }
 
       if (hasImages) {
