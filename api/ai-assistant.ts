@@ -3087,57 +3087,71 @@ When the user says "this project", "this client", "this estimate", etc., they ar
 
     // Add user/assistant messages with file support
     for (const msg of messages) {
-      const messageText = msg.text || msg.content || '';
+      try {
+        const messageText = msg.text || msg.content || '';
 
-      if (msg.role === 'user' && msg.files && msg.files.length > 0) {
-        // User message with attachments - build content array
-        const contentParts: any[] = [
-          { type: 'text', text: messageText }
-        ];
+        if (msg.role === 'user' && msg.files && msg.files.length > 0) {
+          // User message with attachments - build content array
+          const contentParts: any[] = [
+            { type: 'text', text: messageText }
+          ];
 
-        // Add file attachments
-        for (const file of msg.files) {
-          if (file.uri) {
-            // For images with data URIs, use image_url type
-            if (file.uri.startsWith('data:image')) {
-              contentParts.push({
-                type: 'image_url',
-                image_url: { url: file.uri }
-              });
-            }
-            // For S3 URLs (images or PDFs), include as image_url
-            else if (file.uri.startsWith('http')) {
-              contentParts.push({
-                type: 'image_url',
-                image_url: { url: file.uri }
-              });
+          // Add file attachments
+          for (const file of msg.files) {
+            if (file.uri && typeof file.uri === 'string') {
+              // For images with data URIs, use image_url type
+              if (file.uri.startsWith('data:image')) {
+                contentParts.push({
+                  type: 'image_url',
+                  image_url: { url: file.uri }
+                });
+              }
+              // For S3 URLs (images or PDFs), include as image_url
+              else if (file.uri.startsWith('http')) {
+                contentParts.push({
+                  type: 'image_url',
+                  image_url: { url: file.uri }
+                });
+              }
             }
           }
-        }
 
-        console.log('[AI Assistant] Adding user message with', contentParts.length, 'content parts');
-        openaiMessages.push({
-          role: 'user',
-          content: contentParts
-        });
-      } else if (messageText) {
-        // Regular text-only message (skip empty messages)
-        openaiMessages.push({
-          role: msg.role as 'user' | 'assistant',
-          content: messageText,
-        });
+          console.log('[AI Assistant] Adding user message with', contentParts.length, 'content parts');
+          openaiMessages.push({
+            role: 'user',
+            content: contentParts
+          });
+        } else if (messageText) {
+          // Regular text-only message (skip empty messages)
+          openaiMessages.push({
+            role: msg.role as 'user' | 'assistant',
+            content: messageText,
+          });
+        }
+      } catch (msgError: any) {
+        console.error('[AI Assistant] Error processing message:', msgError);
+        // Skip problematic message and continue
       }
     }
 
+    console.log('[AI Assistant] Built', openaiMessages.length, 'messages for OpenAI');
+
     // First API call - let AI decide if it needs tools
-    let completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: openaiMessages,
-      tools,
-      tool_choice: 'auto',
-      temperature: 0.7,
-      max_tokens: 2000,
-    });
+    let completion;
+    try {
+      completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: openaiMessages,
+        tools,
+        tool_choice: 'auto',
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+    } catch (openaiError: any) {
+      console.error('[AI Assistant] OpenAI API error:', openaiError);
+      console.error('[AI Assistant] Messages sent:', JSON.stringify(openaiMessages, null, 2));
+      throw openaiError;
+    }
 
     let response = completion.choices[0]?.message;
     let actionRequired: string | undefined;
