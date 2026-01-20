@@ -3096,9 +3096,15 @@ When the user says "this project", "this client", "this estimate", etc., they ar
             { type: 'text', text: messageText }
           ];
 
-          // Add file attachments
+          // Add file attachments (only images, not PDFs)
           for (const file of msg.files) {
             if (file.uri && typeof file.uri === 'string') {
+              // Skip PDFs - they're handled via tools, not vision API
+              if (file.mimeType === 'application/pdf') {
+                console.log('[AI Assistant] Skipping PDF for vision API:', file.name);
+                continue;
+              }
+
               // For images with data URIs, use image_url type
               if (file.uri.startsWith('data:image')) {
                 contentParts.push({
@@ -3106,7 +3112,7 @@ When the user says "this project", "this client", "this estimate", etc., they ar
                   image_url: { url: file.uri }
                 });
               }
-              // For S3 URLs (images or PDFs), include as image_url
+              // For S3 URLs (images only), include as image_url
               else if (file.uri.startsWith('http')) {
                 contentParts.push({
                   type: 'image_url',
