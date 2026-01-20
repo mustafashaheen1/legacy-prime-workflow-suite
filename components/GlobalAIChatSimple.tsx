@@ -2317,15 +2317,8 @@ Important:
           return;
         }
 
-        // Remove uploading message and update user message with S3 URLs
-        setMessages(prev => {
-          const withoutUploading = prev.filter(m => m.id !== uploadingMessage.id);
-          return withoutUploading.map(m =>
-            m.id === tempUserMessage.id
-              ? { ...m, files: filesWithS3Urls.map(f => ({ ...f, uploading: false })) }
-              : m
-          );
-        });
+        // Update the uploading message to show success
+        updateLastMessage('✓ PDF uploaded successfully');
       }
 
       if (hasImages) {
