@@ -44,17 +44,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('[GetChatHistory] Found', data?.length || 0, 'messages');
 
     // Convert to frontend format
-    const messages = (data || []).map((msg: any) => ({
-      id: msg.id,
-      role: msg.role,
-      text: msg.content,
-      files: msg.files || [],
-      createdAt: msg.created_at,
-      parts: [{ type: 'text', text: msg.content }],
-      // Include metadata for estimate links and takeoff links
-      ...(msg.metadata?.estimateLink && { estimateLink: msg.metadata.estimateLink }),
-      ...(msg.metadata?.takeoffLink && { takeoffLink: msg.metadata.takeoffLink }),
-    }));
+    const messages = (data || []).map((msg: any) => {
+      // Parse metadata if it's a string (sometimes Supabase returns JSONB as string)
+      let metadata = msg.metadata;
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.error('[GetChatHistory] Failed to parse metadata:', e);
+          metadata = null;
+        }
+      }
+
+      return {
+        id: msg.id,
+        role: msg.role,
+        text: msg.content,
+        files: msg.files || [],
+        createdAt: msg.created_at,
+        parts: [{ type: 'text', text: msg.content }],
+        // Include metadata for estimate links and takeoff links
+        ...(metadata?.estimateLink && { estimateLink: metadata.estimateLink }),
+        ...(metadata?.takeoffLink && { takeoffLink: metadata.takeoffLink }),
+      };
+    });
 
     return res.status(200).json({
       success: true,
