@@ -3153,19 +3153,67 @@ Generate appropriate line items from the price list that fit this scope of work$
 
               {messages.map((message) => (
                 <View key={message.id} style={styles.messageWrapper}>
-                  {/* Show attached images for user messages */}
+                  {/* Show attached files for user messages */}
                   {message.role === 'user' && message.files && message.files.length > 0 && (
                     <View style={styles.userMessageContainer}>
-                      <View style={styles.attachedImagesContainer}>
-                        {message.files.filter((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image')).map((file: any, idx: number) => (
-                          <Image
-                            key={`${message.id}-img-${idx}`}
-                            source={{ uri: file.uri }}
-                            style={styles.attachedImage}
-                            resizeMode="cover"
-                          />
-                        ))}
-                      </View>
+                      {/* Images */}
+                      {message.files.filter((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image')).length > 0 && (
+                        <View style={styles.attachedImagesContainer}>
+                          {message.files.filter((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image')).map((file: any, idx: number) => (
+                            <Image
+                              key={`${message.id}-img-${idx}`}
+                              source={{ uri: file.uri }}
+                              style={styles.attachedImage}
+                              resizeMode="cover"
+                            />
+                          ))}
+                        </View>
+                      )}
+                      {/* PDFs */}
+                      {message.files.filter((f: any) => f.mimeType === 'application/pdf').map((file: any, idx: number) => {
+                        const fileName = file.name || file.uri?.split('/').pop() || 'Document.pdf';
+                        const fileSizeMB = file.size ? (file.size / 1024 / 1024).toFixed(2) : '0.00';
+                        const isUploading = file.uploading === true;
+                        return (
+                          <TouchableOpacity
+                            key={`${message.id}-pdf-${idx}`}
+                            onPress={() => {
+                              if (!isUploading && Platform.OS === 'web') {
+                                window.open(file.uri, '_blank');
+                              } else if (!isUploading) {
+                                Alert.alert('PDF', `${fileName}\nSize: ${fileSizeMB} MB`);
+                              }
+                            }}
+                            disabled={isUploading}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              backgroundColor: isUploading ? '#F3F4F6' : '#FEF3C7',
+                              padding: 12,
+                              borderRadius: 8,
+                              marginTop: 8,
+                              borderWidth: 1,
+                              borderColor: isUploading ? '#D1D5DB' : '#FCD34D',
+                              opacity: isUploading ? 0.7 : 1,
+                            }}
+                          >
+                            {isUploading ? (
+                              <ActivityIndicator size="small" color="#6B7280" />
+                            ) : (
+                              <FileText size={24} color="#D97706" />
+                            )}
+                            <View style={{ marginLeft: 12, flex: 1 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: isUploading ? '#6B7280' : '#92400E' }}>
+                                {fileName}
+                              </Text>
+                              <Text style={{ fontSize: 12, color: isUploading ? '#9CA3AF' : '#78350F', marginTop: 2 }}>
+                                {isUploading ? 'Uploading...' : `PDF • ${fileSizeMB} MB`}
+                              </Text>
+                            </View>
+                            {!isUploading && <Download size={18} color="#D97706" />}
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   )}
                   {message.parts.map((part, i) => {
