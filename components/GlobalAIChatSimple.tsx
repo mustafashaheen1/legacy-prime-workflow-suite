@@ -183,9 +183,14 @@ function useOpenAIChat(appData: {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.messages) {
-          setMessages(data.messages);
           console.log('[AI Chat] Loaded', data.messages.length, 'messages from history');
+          console.log('[AI Chat] Sample message:', data.messages[data.messages.length - 1]);
+          setMessages(data.messages);
+        } else {
+          console.log('[AI Chat] No messages in response:', data);
         }
+      } else {
+        console.error('[AI Chat] Failed to load chat history:', response.status, await response.text());
       }
       historyLoadedRef.current = true;
     } catch (error) {
