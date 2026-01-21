@@ -439,7 +439,12 @@ function useOpenAIChat(appData: {
     // Save to database if we have userId and message has content
     if (appData.userId && message.text) {
       try {
-        const metadata = message.estimateLink ? { estimateLink: message.estimateLink } : null;
+        const metadata: any = {};
+        if (message.estimateLink) metadata.estimateLink = message.estimateLink;
+        if (message.takeoffLink) metadata.takeoffLink = message.takeoffLink;
+
+        console.log('[AI Chat] Saving message to DB:', { role: message.role, hasMetadata: Object.keys(metadata).length > 0, metadata });
+
         await fetch('/api/save-chat-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -448,7 +453,7 @@ function useOpenAIChat(appData: {
             role: message.role || 'assistant',
             content: message.text,
             files: message.files || [],
-            metadata,
+            metadata: Object.keys(metadata).length > 0 ? metadata : null,
           }),
         });
       } catch (error) {
@@ -2826,7 +2831,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                         {message.takeoffLink && (
                           <TouchableOpacity
                             onPress={() => {
-                              router.push(`/project/new/takeoff?clientId=${message.takeoffLink.clientId}&estimateId=${message.takeoffLink.estimateId}`);
+                              router.push(`/project/new/estimate?clientId=${message.takeoffLink.clientId}&estimateId=${message.takeoffLink.estimateId}`);
                             }}
                             style={{
                               backgroundColor: '#10B981',
@@ -3241,7 +3246,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                             {message.takeoffLink && (
                               <TouchableOpacity
                                 onPress={() => {
-                                  router.push(`/project/new/takeoff?clientId=${message.takeoffLink.clientId}&estimateId=${message.takeoffLink.estimateId}`);
+                                  router.push(`/project/new/estimate?clientId=${message.takeoffLink.clientId}&estimateId=${message.takeoffLink.estimateId}`);
                                 }}
                                 style={{
                                   backgroundColor: '#10B981',

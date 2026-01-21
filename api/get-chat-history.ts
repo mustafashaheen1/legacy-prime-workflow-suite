@@ -51,8 +51,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       files: msg.files || [],
       createdAt: msg.created_at,
       parts: [{ type: 'text', text: msg.content }],
-      // Include metadata for estimate links etc.
+      // Include metadata for estimate links and takeoff links
       ...(msg.metadata?.estimateLink && { estimateLink: msg.metadata.estimateLink }),
+      ...(msg.metadata?.takeoffLink && { takeoffLink: msg.metadata.takeoffLink }),
     }));
 
     return res.status(200).json({
