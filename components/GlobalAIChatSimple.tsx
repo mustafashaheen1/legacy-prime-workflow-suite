@@ -2696,7 +2696,19 @@ Generate appropriate line items from the price list that fit this scope of work$
             return null;
           })()}
 
-          {messages.map((message) => (
+          {messages.map((message) => {
+            // Debug logging for every message
+            if (message.role === 'user') {
+              console.log('[Message Render]', {
+                id: message.id,
+                role: message.role,
+                hasFiles: !!message.files,
+                fileCount: message.files?.length || 0,
+                files: message.files,
+                text: message.text?.substring(0, 50),
+              });
+            }
+            return (
             <View key={message.id} style={styles.messageWrapper}>
               {/* Show attached files for user messages */}
               {message.role === 'user' && message.files && message.files.length > 0 && (
@@ -2715,11 +2727,14 @@ Generate appropriate line items from the price list that fit this scope of work$
                     </View>
                   )}
                   {/* PDFs */}
-                  {message.files.filter((f: any) => f.mimeType === 'application/pdf').map((file: any, idx: number) => {
-                    const fileName = file.name || file.uri?.split('/').pop() || 'Document.pdf';
-                    const fileSizeMB = file.size ? (file.size / 1024 / 1024).toFixed(2) : '0.00';
-                    const isUploading = file.uploading === true;
-                    console.log('[PDF Display]', { fileName, fileSizeMB, uri: file.uri, isUploading });
+                  {(() => {
+                    const pdfFiles = message.files.filter((f: any) => f.mimeType === 'application/pdf');
+                    console.log('[PDF Filter]', { messageId: message.id, totalFiles: message.files.length, pdfCount: pdfFiles.length, allFiles: message.files });
+                    return pdfFiles.map((file: any, idx: number) => {
+                      const fileName = file.name || file.uri?.split('/').pop() || 'Document.pdf';
+                      const fileSizeMB = file.size ? (file.size / 1024 / 1024).toFixed(2) : '0.00';
+                      const isUploading = file.uploading === true;
+                      console.log('[PDF Display]', { fileName, fileSizeMB, uri: file.uri, isUploading });
                     return (
                       <TouchableOpacity
                         key={`${message.id}-pdf-${idx}`}
@@ -2759,7 +2774,8 @@ Generate appropriate line items from the price list that fit this scope of work$
                         {!isUploading && <Download size={18} color="#D97706" />}
                       </TouchableOpacity>
                     );
-                  })}
+                    });
+                  })()}
                 </View>
               )}
               {message.parts.map((part, i) => {
@@ -2857,7 +2873,8 @@ Generate appropriate line items from the price list that fit this scope of work$
                 return null;
               })}
             </View>
-          ))}
+            );
+          })}
 
           {/* Loading indicator while AI is responding */}
           {isLoading && (
