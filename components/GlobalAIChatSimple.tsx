@@ -450,7 +450,7 @@ function useOpenAIChat(appData: {
 
         console.log('[AI Chat] Saving message to DB:', { role: message.role, hasMetadata: Object.keys(metadata).length > 0, metadata });
 
-        await fetch('/api/save-chat-message', {
+        const saveResponse = await fetch('/api/save-chat-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -461,6 +461,14 @@ function useOpenAIChat(appData: {
             metadata: Object.keys(metadata).length > 0 ? metadata : null,
           }),
         });
+
+        if (saveResponse.ok) {
+          const saveResult = await saveResponse.json();
+          console.log('[AI Chat] ✅ Message saved successfully to DB:', saveResult.id);
+        } else {
+          const errorText = await saveResponse.text();
+          console.error('[AI Chat] ❌ Failed to save message:', saveResponse.status, errorText);
+        }
       } catch (error) {
         console.error('[AI Chat] Error saving link message to DB:', error);
       }
