@@ -2710,8 +2710,20 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             return (
             <View key={message.id} style={styles.messageWrapper}>
+              {/* DEBUG: Show file info for all user messages */}
+              {message.role === 'user' && (
+                <Text style={{ color: 'blue', fontSize: 10, padding: 4, backgroundColor: '#EEF' }}>
+                  DEBUG: User message | Files: {message.files ? `YES (${message.files.length})` : 'NO'}
+                </Text>
+              )}
               {/* Show attached files for user messages */}
-              {message.role === 'user' && message.files && message.files.length > 0 && (
+              {(() => {
+                const shouldShowFiles = message.role === 'user' && message.files && message.files.length > 0;
+                if (message.role === 'user') {
+                  console.log('[Files Check]', { messageId: message.id, shouldShowFiles, hasFiles: !!message.files, fileCount: message.files?.length });
+                }
+                return shouldShowFiles;
+              })() && (
                 <View style={styles.userMessageContainer}>
                   {/* Images */}
                   {message.files.filter((f: any) => f.mimeType?.startsWith('image/') || f.uri?.startsWith('data:image')).length > 0 && (
@@ -2776,6 +2788,10 @@ Generate appropriate line items from the price list that fit this scope of work$
                     );
                     });
                   })()}
+                  {/* DEBUG: Show file count */}
+                  <Text style={{ color: 'red', fontSize: 10, marginTop: 4 }}>
+                    DEBUG: {message.files?.length || 0} files attached
+                  </Text>
                 </View>
               )}
               {message.parts.map((part, i) => {
