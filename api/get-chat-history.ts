@@ -29,11 +29,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[GetChatHistory] Fetching messages for user:', userId, 'limit:', messageLimit);
 
+    // Get the most recent messages (descending order) then reverse to show oldest-first
     const { data, error } = await supabase
       .from('ai_chat_messages')
       .select('*')
       .eq('user_id', userId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(messageLimit);
 
     if (error) {
@@ -43,8 +44,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[GetChatHistory] Found', data?.length || 0, 'messages');
 
+    // Reverse the array to show oldest messages first (they came back newest-first from DB)
+    const reversedData = (data || []).reverse();
+
     // Convert to frontend format
-    const messages = (data || []).map((msg: any) => {
+    const messages = reversedData.map((msg: any) => {
       // Parse metadata if it's a string (sometimes Supabase returns JSONB as string)
       let metadata = msg.metadata;
       if (typeof metadata === 'string') {
