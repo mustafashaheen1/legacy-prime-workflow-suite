@@ -2710,11 +2710,18 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             return (
             <View key={message.id} style={styles.messageWrapper}>
-              {/* DEBUG: Show file info for all user messages */}
+              {/* DEBUG BANNER - ALWAYS VISIBLE */}
               {message.role === 'user' && (
-                <Text style={{ color: 'blue', fontSize: 10, padding: 4, backgroundColor: '#EEF' }}>
-                  DEBUG: User message | Files: {message.files ? `YES (${message.files.length})` : 'NO'}
-                </Text>
+                <View style={{ backgroundColor: '#3B82F6', padding: 8, borderRadius: 4, marginBottom: 4 }}>
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                    🔍 DEBUG: Files in message = {message.files ? message.files.length : 'NONE'}
+                  </Text>
+                  {message.files && message.files.length > 0 && (
+                    <Text style={{ color: 'white', fontSize: 10, marginTop: 2 }}>
+                      File types: {message.files.map((f: any) => f.mimeType).join(', ')}
+                    </Text>
+                  )}
+                </View>
               )}
               {/* Show attached files for user messages */}
               {(() => {
