@@ -52,8 +52,8 @@ export default function ScheduleScreen() {
   const [workType, setWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
   const [notes, setNotes] = useState<string>('');
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
-  const [resizingTask, setResizingTask] = useState<{ id: string; type: 'right' | 'bottom' | 'corner' } | null>(null);
-  const [touchingHandle, setTouchingHandle] = useState<{ id: string; type: 'right' | 'bottom' | 'corner' } | null>(null);
+  const [resizingTask, setResizingTask] = useState<{ id: string; type: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' } | null>(null);
+  const [touchingHandle, setTouchingHandle] = useState<{ id: string; type: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' } | null>(null);
   const [quickEditTask, setQuickEditTask] = useState<string | null>(null);
   const [quickNoteText, setQuickNoteText] = useState<string>('');
   const [quickEditWorkType, setQuickEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
@@ -344,9 +344,11 @@ export default function ScheduleScreen() {
     });
   };
 
-  const createResizePanResponder = (task: ScheduledTask, resizeType: 'right' | 'bottom' | 'corner') => {
+  const createResizePanResponder = (task: ScheduledTask, resizeType: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => {
     let initialDuration = task.duration;
     let initialRowSpan = task.rowSpan || 1;
+    let initialStartDate = new Date(task.startDate);
+    let initialRow = task.row || 0;
 
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -359,44 +361,148 @@ export default function ScheduleScreen() {
         setTouchingHandle({ id: task.id, type: resizeType });
         initialDuration = task.duration;
         initialRowSpan = task.rowSpan || 1;
+        initialStartDate = new Date(task.startDate);
+        initialRow = task.row || 0;
       },
       onPanResponderMove: (_, gestureState) => {
         if (resizeType === 'right') {
+          // Extend/shrink right edge (change duration/end date)
           const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
           const newDuration = Math.max(1, initialDuration + daysDelta);
-          
+
           const newEndDate = new Date(task.startDate);
           newEndDate.setDate(newEndDate.getDate() + newDuration);
-          
-          const updatedTasks = scheduledTasks.map(t => 
-            t.id === task.id ? { 
-              ...t, 
+
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? {
+              ...t,
               duration: newDuration,
               endDate: newEndDate.toISOString(),
             } : t
           );
           setScheduledTasks(updatedTasks);
+        } else if (resizeType === 'left') {
+          // Extend/shrink left edge (change start date AND duration)
+          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
+          const newStartDate = new Date(initialStartDate);
+          newStartDate.setDate(initialStartDate.getDate() + daysDelta);
+
+          const newDuration = Math.max(1, initialDuration - daysDelta);
+          const newEndDate = new Date(newStartDate);
+          newEndDate.setDate(newStartDate.getDate() + newDuration);
+
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? {
+              ...t,
+              startDate: newStartDate.toISOString(),
+              duration: newDuration,
+              endDate: newEndDate.toISOString(),
+            } : t
+          );
+          setScheduledTasks(updatedTasks);
+        } else if (resizeType === 'top') {
+          // Extend/shrink top edge (change row AND rowSpan)
+          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
+          const newRow = Math.max(0, initialRow + rowsDelta);
+          const newRowSpan = Math.max(1, initialRowSpan - rowsDelta);
+
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? { ...t, row: newRow, rowSpan: newRowSpan } : t
+          );
+          setScheduledTasks(updatedTasks);
         } else if (resizeType === 'bottom') {
+          // Extend/shrink bottom edge (change rowSpan)
           const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
           const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
-          
-          const updatedTasks = scheduledTasks.map(t => 
+
+          const updatedTasks = scheduledTasks.map(t =>
             t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
           );
           setScheduledTasks(updatedTasks);
-        } else if (resizeType === 'corner') {
+        } else if (resizeType === 'top-left') {
+          // Resize from top-left corner
           const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
-          const newDuration = Math.max(1, initialDuration + daysDelta);
-          
           const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
-          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
-          
+
+          const newStartDate = new Date(initialStartDate);
+          newStartDate.setDate(initialStartDate.getDate() + daysDelta);
+          const newDuration = Math.max(1, initialDuration - daysDelta);
+          const newEndDate = new Date(newStartDate);
+          newEndDate.setDate(newStartDate.getDate() + newDuration);
+
+          const newRow = Math.max(0, initialRow + rowsDelta);
+          const newRowSpan = Math.max(1, initialRowSpan - rowsDelta);
+
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? {
+              ...t,
+              startDate: newStartDate.toISOString(),
+              duration: newDuration,
+              endDate: newEndDate.toISOString(),
+              row: newRow,
+              rowSpan: newRowSpan,
+            } : t
+          );
+          setScheduledTasks(updatedTasks);
+        } else if (resizeType === 'top-right') {
+          // Resize from top-right corner
+          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
+          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
+
+          const newDuration = Math.max(1, initialDuration + daysDelta);
           const newEndDate = new Date(task.startDate);
           newEndDate.setDate(newEndDate.getDate() + newDuration);
-          
-          const updatedTasks = scheduledTasks.map(t => 
-            t.id === task.id ? { 
-              ...t, 
+
+          const newRow = Math.max(0, initialRow + rowsDelta);
+          const newRowSpan = Math.max(1, initialRowSpan - rowsDelta);
+
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? {
+              ...t,
+              duration: newDuration,
+              endDate: newEndDate.toISOString(),
+              row: newRow,
+              rowSpan: newRowSpan,
+            } : t
+          );
+          setScheduledTasks(updatedTasks);
+        } else if (resizeType === 'bottom-left') {
+          // Resize from bottom-left corner
+          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
+          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
+
+          const newStartDate = new Date(initialStartDate);
+          newStartDate.setDate(initialStartDate.getDate() + daysDelta);
+          const newDuration = Math.max(1, initialDuration - daysDelta);
+          const newEndDate = new Date(newStartDate);
+          newEndDate.setDate(newStartDate.getDate() + newDuration);
+
+          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
+
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? {
+              ...t,
+              startDate: newStartDate.toISOString(),
+              duration: newDuration,
+              endDate: newEndDate.toISOString(),
+              rowSpan: newRowSpan,
+            } : t
+          );
+          setScheduledTasks(updatedTasks);
+        } else if (resizeType === 'bottom-right') {
+          // Resize from bottom-right corner (original behavior)
+          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
+          const newDuration = Math.max(1, initialDuration + daysDelta);
+
+          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
+          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
+
+          const newEndDate = new Date(task.startDate);
+          newEndDate.setDate(newEndDate.getDate() + newDuration);
+
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? {
+              ...t,
               duration: newDuration,
               endDate: newEndDate.toISOString(),
               rowSpan: newRowSpan,
@@ -540,15 +646,23 @@ export default function ScheduleScreen() {
                       const position = getTaskPosition(task);
                       if (!position) return null;
                       const panResponder = createPanResponder(task);
+
+                      // Create all 8 resize responders (4 edges + 4 corners)
+                      const leftResizeResponder = createResizePanResponder(task, 'left');
                       const rightResizeResponder = createResizePanResponder(task, 'right');
+                      const topResizeResponder = createResizePanResponder(task, 'top');
                       const bottomResizeResponder = createResizePanResponder(task, 'bottom');
-                      const cornerResizeResponder = createResizePanResponder(task, 'corner');
+                      const topLeftResizeResponder = createResizePanResponder(task, 'top-left');
+                      const topRightResizeResponder = createResizePanResponder(task, 'top-right');
+                      const bottomLeftResizeResponder = createResizePanResponder(task, 'bottom-left');
+                      const bottomRightResizeResponder = createResizePanResponder(task, 'bottom-right');
+
                       const isQuickEditing = quickEditTask === task.id;
 
                       const handleTaskTap = () => {
                         const now = Date.now();
                         const DOUBLE_TAP_DELAY = 300;
-                        
+
                         if (now - lastTap < DOUBLE_TAP_DELAY) {
                           setQuickEditTask(task.id);
                           setQuickNoteText(task.notes || '');
@@ -559,9 +673,14 @@ export default function ScheduleScreen() {
                         }
                       };
 
+                      const isTouchingLeftHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'left';
                       const isTouchingRightHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'right';
+                      const isTouchingTopHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'top';
                       const isTouchingBottomHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'bottom';
-                      const isTouchingCornerHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'corner';
+                      const isTouchingTopLeftHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'top-left';
+                      const isTouchingTopRightHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'top-right';
+                      const isTouchingBottomLeftHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'bottom-left';
+                      const isTouchingBottomRightHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'bottom-right';
 
                       return (
                         <View
