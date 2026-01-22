@@ -58,7 +58,8 @@ export default function ScheduleScreen() {
   const [quickNoteText, setQuickNoteText] = useState<string>('');
   const [quickEditWorkType, setQuickEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
   const [lastTap, setLastTap] = useState<number>(0);
-  
+  const gestureTypeRef = useRef<'drag' | 'resize' | null>(null);
+
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
   const [equipmentExpanded, setEquipmentExpanded] = useState<boolean>(false);
   const [materialExpanded, setMaterialExpanded] = useState<boolean>(false);
@@ -309,19 +310,20 @@ export default function ScheduleScreen() {
     let initialStartDate = new Date(task.startDate);
 
     return PanResponder.create({
-      onStartShouldSetPanResponder: () => !resizingTask, // Don't capture if we're resizing
+      onStartShouldSetPanResponder: () => gestureTypeRef.current !== 'resize', // Use ref instead of state
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        if (resizingTask) return false; // Don't interfere with resize
+        if (gestureTypeRef.current === 'resize') return false; // Use ref instead of state
         return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
       },
       onPanResponderGrant: () => {
-        if (resizingTask) return; // Don't drag if we're resizing
+        if (gestureTypeRef.current === 'resize') return; // Use ref instead of state
+        gestureTypeRef.current = 'drag'; // Set ref synchronously
         setDraggedTask(task.id);
         initialRow = task.row || 0;
         initialStartDate = new Date(task.startDate);
       },
       onPanResponderMove: (_, gestureState) => {
-        if (resizingTask) return; // Don't drag if we're resizing
+        if (gestureTypeRef.current === 'resize') return; // Use ref instead of state
         const newRow = Math.max(0, Math.floor((initialRow * (ROW_HEIGHT + 16) + gestureState.dy) / (ROW_HEIGHT + 16)));
         const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
 
@@ -342,6 +344,7 @@ export default function ScheduleScreen() {
         setScheduledTasks(updatedTasks);
       },
       onPanResponderRelease: () => {
+        gestureTypeRef.current = null; // Clear ref
         setDraggedTask(null);
       },
     });
@@ -361,6 +364,7 @@ export default function ScheduleScreen() {
         return Math.abs(gestureState.dx) > threshold || Math.abs(gestureState.dy) > threshold;
       },
       onPanResponderGrant: () => {
+        gestureTypeRef.current = 'resize'; // Set ref synchronously FIRST
         setResizingTask({ id: task.id, type: resizeType });
         setTouchingHandle({ id: task.id, type: resizeType });
         initialDuration = task.duration;
@@ -516,6 +520,7 @@ export default function ScheduleScreen() {
         }
       },
       onPanResponderRelease: () => {
+        gestureTypeRef.current = null; // Clear ref
         setResizingTask(null);
         setTouchingHandle(null);
       },
@@ -620,7 +625,7 @@ export default function ScheduleScreen() {
             <ScrollView
               style={styles.tasksArea}
               showsVerticalScrollIndicator={true}
-              scrollEnabled={!resizingTask && !draggedTask}
+              scrollEnabled={gestureTypeRef.current === null}
             >
               <View style={styles.tasksContainer}>
                 <View style={styles.hourLabels}>
@@ -639,7 +644,7 @@ export default function ScheduleScreen() {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={true}
-                  scrollEnabled={!resizingTask && !draggedTask}
+                  scrollEnabled={gestureTypeRef.current === null}
                   style={styles.tasksScrollView}
                 >
                   <View style={styles.tasksGrid}>
