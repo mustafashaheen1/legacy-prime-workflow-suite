@@ -353,73 +353,43 @@ export default function ScheduleScreen() {
   const createResizeGesture = (task: ScheduledTask, resizeType: 'right' | 'bottom') => {
     let initialDuration = task.duration;
     let initialRowSpan = task.rowSpan || 1;
-    let lastAppliedDaysDelta = 0;
-    let lastAppliedRowsDelta = 0;
 
     return Gesture.Pan()
+      .minDistance(DAY_WIDTH * 0.5) // Require dragging at least half a day width before gesture activates
       .onBegin(() => {
         setResizingTask({ id: task.id, type: resizeType });
         setTouchingHandle({ id: task.id, type: resizeType });
         initialDuration = task.duration;
         initialRowSpan = task.rowSpan || 1;
-        lastAppliedDaysDelta = 0;
-        lastAppliedRowsDelta = 0;
       })
-      .onUpdate((event) => {
+      .onChange((event) => {
+        // Use onChange instead of onUpdate - it fires less frequently
         if (resizeType === 'right') {
-          // Calculate delta - only trigger when crossing a full day threshold
-          const pixelThreshold = DAY_WIDTH * 0.6; // Need to drag 60% of a day width
-          const totalPixels = event.translationX;
+          // Round to nearest day based on total translation
+          const daysDelta = Math.round(event.translationX / DAY_WIDTH);
+          const newDuration = Math.max(1, initialDuration + daysDelta);
 
-          // Calculate which day boundary we're at
-          let daysDelta = 0;
-          if (totalPixels > pixelThreshold) {
-            daysDelta = Math.floor(totalPixels / DAY_WIDTH);
-          } else if (totalPixels < -pixelThreshold) {
-            daysDelta = Math.ceil(totalPixels / DAY_WIDTH);
-          }
+          const newEndDate = new Date(task.startDate);
+          newEndDate.setDate(newEndDate.getDate() + newDuration);
 
-          // Only update if the delta has changed
-          if (daysDelta !== lastAppliedDaysDelta) {
-            lastAppliedDaysDelta = daysDelta;
-            const newDuration = Math.max(1, initialDuration + daysDelta);
-
-            const newEndDate = new Date(task.startDate);
-            newEndDate.setDate(newEndDate.getDate() + newDuration);
-
-            const updatedTasks = scheduledTasks.map(t =>
-              t.id === task.id ? {
-                ...t,
-                duration: newDuration,
-                endDate: newEndDate.toISOString(),
-              } : t
-            );
-            setScheduledTasks(updatedTasks);
-          }
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? {
+              ...t,
+              duration: newDuration,
+              endDate: newEndDate.toISOString(),
+            } : t
+          );
+          setScheduledTasks(updatedTasks);
         } else if (resizeType === 'bottom') {
-          // Calculate delta - only trigger when crossing a full row threshold
+          // Round to nearest row based on total translation
           const rowHeight = ROW_HEIGHT + 16;
-          const pixelThreshold = rowHeight * 0.6; // Need to drag 60% of a row height
-          const totalPixels = event.translationY;
+          const rowsDelta = Math.round(event.translationY / rowHeight);
+          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
 
-          // Calculate which row boundary we're at
-          let rowsDelta = 0;
-          if (totalPixels > pixelThreshold) {
-            rowsDelta = Math.floor(totalPixels / rowHeight);
-          } else if (totalPixels < -pixelThreshold) {
-            rowsDelta = Math.ceil(totalPixels / rowHeight);
-          }
-
-          // Only update if the delta has changed
-          if (rowsDelta !== lastAppliedRowsDelta) {
-            lastAppliedRowsDelta = rowsDelta;
-            const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
-
-            const updatedTasks = scheduledTasks.map(t =>
-              t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
-            );
-            setScheduledTasks(updatedTasks);
-          }
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
+          );
+          setScheduledTasks(updatedTasks);
         }
       })
       .onFinalize(() => {
