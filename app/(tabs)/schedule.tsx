@@ -698,13 +698,14 @@ export default function ScheduleScreen() {
                             resizingTask?.id === task.id && styles.taskBlockResizing,
                           ]}
                         >
-                          <View
-                            {...panResponder.panHandlers}
+                          <TouchableOpacity
+                            onPress={handleTaskTap}
+                            activeOpacity={0.8}
                             style={styles.taskContent}
                           >
-                            <TouchableOpacity
-                              onPress={handleTaskTap}
-                              activeOpacity={0.8}
+                            <View
+                              {...panResponder.panHandlers}
+                              style={styles.taskDragArea}
                             >
                               <Text style={styles.taskTitle} numberOfLines={1}>
                                 {task.category}
@@ -720,8 +721,8 @@ export default function ScheduleScreen() {
                                   {task.notes}
                                 </Text>
                               )}
-                            </TouchableOpacity>
-                          </View>
+                            </View>
+                          </TouchableOpacity>
 
                           {isQuickEditing && (
                             <View style={styles.quickEditContainer}>
@@ -1624,6 +1625,14 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   taskContent: {
+    position: 'absolute',
+    top: 15,
+    left: 15,
+    right: 15,
+    bottom: 15,
+    zIndex: 1,
+  },
+  taskDragArea: {
     flex: 1,
   },
   taskTitle: {
