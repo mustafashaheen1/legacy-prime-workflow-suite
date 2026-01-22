@@ -782,6 +782,7 @@ export default function ScheduleScreen() {
                           {/* Right edge resize handle */}
                           <View
                             {...rightResizeResponder.panHandlers}
+                            onStartShouldSetResponderCapture={() => true}
                             style={[
                               styles.resizeHandleRight,
                               isTouchingRightHandle && styles.resizeHandleActive,
@@ -796,6 +797,7 @@ export default function ScheduleScreen() {
                           {/* Bottom edge resize handle */}
                           <View
                             {...bottomResizeResponder.panHandlers}
+                            onStartShouldSetResponderCapture={() => true}
                             style={[
                               styles.resizeHandleBottom,
                               isTouchingBottomHandle && styles.resizeHandleActive,
