@@ -687,33 +687,27 @@ export default function ScheduleScreen() {
                             resizingTask?.id === task.id && styles.taskBlockResizing,
                           ]}
                         >
-                          <View style={styles.taskContent} pointerEvents="box-none">
-                            <TouchableOpacity
-                              onPress={handleTaskTap}
-                              activeOpacity={0.8}
-                              style={{ flex: 1 }}
-                            >
-                              <View
-                                {...panResponder.panHandlers}
-                                style={styles.taskDragArea}
-                              >
-                              <Text style={styles.taskTitle} numberOfLines={1}>
-                                {task.category}
+                          <TouchableOpacity
+                            onPress={handleTaskTap}
+                            activeOpacity={0.8}
+                            style={styles.taskContent}
+                            {...panResponder.panHandlers}
+                          >
+                            <Text style={styles.taskTitle} numberOfLines={1}>
+                              {task.category}
+                            </Text>
+                            <Text style={styles.taskSubtitle} numberOfLines={1}>
+                              {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                            </Text>
+                            <Text style={styles.taskDuration}>
+                              {task.duration} days
+                            </Text>
+                            {task.notes && !isQuickEditing && (
+                              <Text style={styles.taskNotes} numberOfLines={2}>
+                                {task.notes}
                               </Text>
-                              <Text style={styles.taskSubtitle} numberOfLines={1}>
-                                {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                              </Text>
-                              <Text style={styles.taskDuration}>
-                                {task.duration} days
-                              </Text>
-                              {task.notes && !isQuickEditing && (
-                                <Text style={styles.taskNotes} numberOfLines={2}>
-                                  {task.notes}
-                                </Text>
-                              )}
-                              </View>
-                            </TouchableOpacity>
-                          </View>
+                            )}
+                          </TouchableOpacity>
 
                           {isQuickEditing && (
                             <View style={styles.quickEditContainer}>
@@ -1666,21 +1660,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     top: 0,
-    bottom: 0,
+    bottom: 20,
     width: 20,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+    backgroundColor: 'rgba(255, 0, 0, 0.3)',
   },
   resizeHandleBottom: {
     position: 'absolute',
     bottom: 0,
     left: 0,
-    right: 0,
+    right: 20,
     height: 20,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 255, 0.3)',
   },
   resizeHandleActive: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
