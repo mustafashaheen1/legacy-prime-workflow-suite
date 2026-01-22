@@ -614,9 +614,10 @@ export default function ScheduleScreen() {
               </ScrollView>
             </View>
 
-            <ScrollView 
+            <ScrollView
               style={styles.tasksArea}
               showsVerticalScrollIndicator={true}
+              scrollEnabled={!resizingTask && !draggedTask}
             >
               <View style={styles.tasksContainer}>
                 <View style={styles.hourLabels}>
@@ -632,10 +633,10 @@ export default function ScheduleScreen() {
                   })}
                 </View>
                 
-                <ScrollView 
-                  horizontal 
+                <ScrollView
+                  horizontal
                   showsHorizontalScrollIndicator={true}
-                  scrollEnabled={true}
+                  scrollEnabled={!resizingTask && !draggedTask}
                   style={styles.tasksScrollView}
                 >
                   <View style={styles.tasksGrid}>
