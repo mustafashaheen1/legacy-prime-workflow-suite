@@ -1384,6 +1384,7 @@ const styles = StyleSheet.create({
   },
   tasksContainer: {
     flexDirection: 'row',
+    overflow: 'visible',
   },
   hourLabels: {
     width: LEFT_MARGIN,
@@ -1410,6 +1411,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     minHeight: 900,
     position: 'relative',
+    overflow: 'visible',
   },
   dayGridColumn: {
     width: DAY_WIDTH,
@@ -1427,6 +1429,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    overflow: 'visible',
   },
   taskContent: {
     flex: 1,
