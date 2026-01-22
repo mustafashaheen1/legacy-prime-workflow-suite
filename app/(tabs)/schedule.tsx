@@ -355,7 +355,6 @@ export default function ScheduleScreen() {
     let initialRowSpan = task.rowSpan || 1;
     let lastAppliedDaysDelta = 0;
     let lastAppliedRowsDelta = 0;
-    let hasActivated = false;
 
     return Gesture.Pan()
       .onBegin(() => {
@@ -365,26 +364,22 @@ export default function ScheduleScreen() {
         initialRowSpan = task.rowSpan || 1;
         lastAppliedDaysDelta = 0;
         lastAppliedRowsDelta = 0;
-        hasActivated = false;
       })
       .onUpdate((event) => {
-        // Require minimum drag distance before activating (prevents accidental resize on tap)
-        const MIN_ACTIVATION_DISTANCE = 15;
-        const hasMovedEnough = resizeType === 'right'
-          ? Math.abs(event.translationX) > MIN_ACTIVATION_DISTANCE
-          : Math.abs(event.translationY) > MIN_ACTIVATION_DISTANCE;
-
-        if (!hasMovedEnough && !hasActivated) {
-          return; // Don't resize until user has dragged far enough
-        }
-
-        hasActivated = true;
-
         if (resizeType === 'right') {
-          // Extend/shrink right edge (change duration/end date)
-          const daysDelta = Math.round(event.translationX / DAY_WIDTH);
+          // Calculate delta - only trigger when crossing a full day threshold
+          const pixelThreshold = DAY_WIDTH * 0.6; // Need to drag 60% of a day width
+          const totalPixels = event.translationX;
 
-          // Only update if the delta has changed by at least 1 day
+          // Calculate which day boundary we're at
+          let daysDelta = 0;
+          if (totalPixels > pixelThreshold) {
+            daysDelta = Math.floor(totalPixels / DAY_WIDTH);
+          } else if (totalPixels < -pixelThreshold) {
+            daysDelta = Math.ceil(totalPixels / DAY_WIDTH);
+          }
+
+          // Only update if the delta has changed
           if (daysDelta !== lastAppliedDaysDelta) {
             lastAppliedDaysDelta = daysDelta;
             const newDuration = Math.max(1, initialDuration + daysDelta);
@@ -402,10 +397,20 @@ export default function ScheduleScreen() {
             setScheduledTasks(updatedTasks);
           }
         } else if (resizeType === 'bottom') {
-          // Extend/shrink bottom edge (change rowSpan)
-          const rowsDelta = Math.round(event.translationY / (ROW_HEIGHT + 16));
+          // Calculate delta - only trigger when crossing a full row threshold
+          const rowHeight = ROW_HEIGHT + 16;
+          const pixelThreshold = rowHeight * 0.6; // Need to drag 60% of a row height
+          const totalPixels = event.translationY;
 
-          // Only update if the delta has changed by at least 1 row
+          // Calculate which row boundary we're at
+          let rowsDelta = 0;
+          if (totalPixels > pixelThreshold) {
+            rowsDelta = Math.floor(totalPixels / rowHeight);
+          } else if (totalPixels < -pixelThreshold) {
+            rowsDelta = Math.ceil(totalPixels / rowHeight);
+          }
+
+          // Only update if the delta has changed
           if (rowsDelta !== lastAppliedRowsDelta) {
             lastAppliedRowsDelta = rowsDelta;
             const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
