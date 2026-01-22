@@ -1,17 +1,17 @@
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
   TextInput,
   Modal,
   Platform,
-  PanResponder,
   Alert,
   Image,
   Switch
 } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
@@ -58,7 +58,6 @@ export default function ScheduleScreen() {
   const [quickNoteText, setQuickNoteText] = useState<string>('');
   const [quickEditWorkType, setQuickEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
   const [lastTap, setLastTap] = useState<number>(0);
-  const gestureTypeRef = useRef<'drag' | 'resize' | null>(null);
 
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
   const [equipmentExpanded, setEquipmentExpanded] = useState<boolean>(false);
@@ -305,28 +304,19 @@ export default function ScheduleScreen() {
     };
   };
 
-  const createPanResponder = (task: ScheduledTask) => {
+  const createDragGesture = (task: ScheduledTask) => {
     let initialRow = task.row || 0;
     let initialStartDate = new Date(task.startDate);
 
-    return PanResponder.create({
-      onStartShouldSetPanResponderCapture: () => false, // Let resize handles capture first
-      onStartShouldSetPanResponder: () => gestureTypeRef.current !== 'resize', // Use ref instead of state
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        if (gestureTypeRef.current === 'resize') return false; // Use ref instead of state
-        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
-      },
-      onPanResponderGrant: () => {
-        if (gestureTypeRef.current === 'resize') return; // Use ref instead of state
-        gestureTypeRef.current = 'drag'; // Set ref synchronously
+    return Gesture.Pan()
+      .onBegin(() => {
         setDraggedTask(task.id);
         initialRow = task.row || 0;
         initialStartDate = new Date(task.startDate);
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureTypeRef.current === 'resize') return; // Use ref instead of state
-        const newRow = Math.max(0, Math.floor((initialRow * (ROW_HEIGHT + 16) + gestureState.dy) / (ROW_HEIGHT + 16)));
-        const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
+      })
+      .onUpdate((event) => {
+        const newRow = Math.max(0, Math.floor((initialRow * (ROW_HEIGHT + 16) + event.translationY) / (ROW_HEIGHT + 16)));
+        const daysDelta = Math.round(event.translationX / DAY_WIDTH);
 
         const newStartDate = new Date(initialStartDate);
         newStartDate.setDate(initialStartDate.getDate() + daysDelta);
@@ -343,40 +333,28 @@ export default function ScheduleScreen() {
           } : t
         );
         setScheduledTasks(updatedTasks);
-      },
-      onPanResponderRelease: () => {
-        gestureTypeRef.current = null; // Clear ref
+      })
+      .onFinalize(() => {
         setDraggedTask(null);
-      },
-    });
+      })
+      .runOnJS(true);
   };
 
-  const createResizePanResponder = (task: ScheduledTask, resizeType: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => {
+  const createResizeGesture = (task: ScheduledTask, resizeType: 'right' | 'bottom') => {
     let initialDuration = task.duration;
     let initialRowSpan = task.rowSpan || 1;
-    let initialStartDate = new Date(task.startDate);
-    let initialRow = task.row || 0;
 
-    return PanResponder.create({
-      onStartShouldSetPanResponderCapture: () => true,
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const threshold = 2;
-        return Math.abs(gestureState.dx) > threshold || Math.abs(gestureState.dy) > threshold;
-      },
-      onPanResponderGrant: () => {
-        gestureTypeRef.current = 'resize'; // Set ref synchronously FIRST
+    return Gesture.Pan()
+      .onBegin(() => {
         setResizingTask({ id: task.id, type: resizeType });
         setTouchingHandle({ id: task.id, type: resizeType });
         initialDuration = task.duration;
         initialRowSpan = task.rowSpan || 1;
-        initialStartDate = new Date(task.startDate);
-        initialRow = task.row || 0;
-      },
-      onPanResponderMove: (_, gestureState) => {
+      })
+      .onUpdate((event) => {
         if (resizeType === 'right') {
           // Extend/shrink right edge (change duration/end date)
-          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
+          const daysDelta = Math.round(event.translationX / DAY_WIDTH);
           const newDuration = Math.max(1, initialDuration + daysDelta);
 
           const newEndDate = new Date(task.startDate);
@@ -390,142 +368,22 @@ export default function ScheduleScreen() {
             } : t
           );
           setScheduledTasks(updatedTasks);
-        } else if (resizeType === 'left') {
-          // Extend/shrink left edge (change start date AND duration)
-          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
-          const newStartDate = new Date(initialStartDate);
-          newStartDate.setDate(initialStartDate.getDate() + daysDelta);
-
-          const newDuration = Math.max(1, initialDuration - daysDelta);
-          const newEndDate = new Date(newStartDate);
-          newEndDate.setDate(newStartDate.getDate() + newDuration);
-
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? {
-              ...t,
-              startDate: newStartDate.toISOString(),
-              duration: newDuration,
-              endDate: newEndDate.toISOString(),
-            } : t
-          );
-          setScheduledTasks(updatedTasks);
-        } else if (resizeType === 'top') {
-          // Extend/shrink top edge (change row AND rowSpan)
-          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
-          const newRow = Math.max(0, initialRow + rowsDelta);
-          const newRowSpan = Math.max(1, initialRowSpan - rowsDelta);
-
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? { ...t, row: newRow, rowSpan: newRowSpan } : t
-          );
-          setScheduledTasks(updatedTasks);
         } else if (resizeType === 'bottom') {
           // Extend/shrink bottom edge (change rowSpan)
-          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
+          const rowsDelta = Math.round(event.translationY / (ROW_HEIGHT + 16));
           const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
 
           const updatedTasks = scheduledTasks.map(t =>
             t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
           );
           setScheduledTasks(updatedTasks);
-        } else if (resizeType === 'top-left') {
-          // Resize from top-left corner
-          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
-          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
-
-          const newStartDate = new Date(initialStartDate);
-          newStartDate.setDate(initialStartDate.getDate() + daysDelta);
-          const newDuration = Math.max(1, initialDuration - daysDelta);
-          const newEndDate = new Date(newStartDate);
-          newEndDate.setDate(newStartDate.getDate() + newDuration);
-
-          const newRow = Math.max(0, initialRow + rowsDelta);
-          const newRowSpan = Math.max(1, initialRowSpan - rowsDelta);
-
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? {
-              ...t,
-              startDate: newStartDate.toISOString(),
-              duration: newDuration,
-              endDate: newEndDate.toISOString(),
-              row: newRow,
-              rowSpan: newRowSpan,
-            } : t
-          );
-          setScheduledTasks(updatedTasks);
-        } else if (resizeType === 'top-right') {
-          // Resize from top-right corner
-          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
-          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
-
-          const newDuration = Math.max(1, initialDuration + daysDelta);
-          const newEndDate = new Date(task.startDate);
-          newEndDate.setDate(newEndDate.getDate() + newDuration);
-
-          const newRow = Math.max(0, initialRow + rowsDelta);
-          const newRowSpan = Math.max(1, initialRowSpan - rowsDelta);
-
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? {
-              ...t,
-              duration: newDuration,
-              endDate: newEndDate.toISOString(),
-              row: newRow,
-              rowSpan: newRowSpan,
-            } : t
-          );
-          setScheduledTasks(updatedTasks);
-        } else if (resizeType === 'bottom-left') {
-          // Resize from bottom-left corner
-          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
-          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
-
-          const newStartDate = new Date(initialStartDate);
-          newStartDate.setDate(initialStartDate.getDate() + daysDelta);
-          const newDuration = Math.max(1, initialDuration - daysDelta);
-          const newEndDate = new Date(newStartDate);
-          newEndDate.setDate(newStartDate.getDate() + newDuration);
-
-          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
-
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? {
-              ...t,
-              startDate: newStartDate.toISOString(),
-              duration: newDuration,
-              endDate: newEndDate.toISOString(),
-              rowSpan: newRowSpan,
-            } : t
-          );
-          setScheduledTasks(updatedTasks);
-        } else if (resizeType === 'bottom-right') {
-          // Resize from bottom-right corner (original behavior)
-          const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
-          const newDuration = Math.max(1, initialDuration + daysDelta);
-
-          const rowsDelta = Math.round(gestureState.dy / (ROW_HEIGHT + 16));
-          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
-
-          const newEndDate = new Date(task.startDate);
-          newEndDate.setDate(newEndDate.getDate() + newDuration);
-
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? {
-              ...t,
-              duration: newDuration,
-              endDate: newEndDate.toISOString(),
-              rowSpan: newRowSpan,
-            } : t
-          );
-          setScheduledTasks(updatedTasks);
         }
-      },
-      onPanResponderRelease: () => {
-        gestureTypeRef.current = null; // Clear ref
+      })
+      .onFinalize(() => {
         setResizingTask(null);
         setTouchingHandle(null);
-      },
-    });
+      })
+      .runOnJS(true);
   };
 
   return (
@@ -656,11 +514,11 @@ export default function ScheduleScreen() {
                     {projectTasks.map((task) => {
                       const position = getTaskPosition(task);
                       if (!position) return null;
-                      const panResponder = createPanResponder(task);
 
-                      // Create resize responders for right and bottom edges only
-                      const rightResizeResponder = createResizePanResponder(task, 'right');
-                      const bottomResizeResponder = createResizePanResponder(task, 'bottom');
+                      // Create gestures for drag and resize
+                      const dragGesture = createDragGesture(task);
+                      const rightResizeGesture = createResizeGesture(task, 'right');
+                      const bottomResizeGesture = createResizeGesture(task, 'bottom');
 
                       const isQuickEditing = quickEditTask === task.id;
 
@@ -697,76 +555,65 @@ export default function ScheduleScreen() {
                             resizingTask?.id === task.id && styles.taskBlockResizing,
                           ]}
                         >
-                          {/* Right edge resize handle - FIRST so it captures touches before drag */}
-                          <View
-                            {...rightResizeResponder.panHandlers}
-                            onStartShouldSetResponderCapture={() => true}
-                            onMoveShouldSetResponderCapture={() => true}
-                            pointerEvents="box-only"
-                            style={[
-                              styles.resizeHandleRight,
-                              isTouchingRightHandle && styles.resizeHandleActive,
-                            ]}
-                          >
+                          {/* Right edge resize handle */}
+                          <GestureDetector gesture={rightResizeGesture}>
                             <View
-                              pointerEvents="none"
                               style={[
-                                styles.resizeIndicatorVertical,
-                                isTouchingRightHandle && styles.resizeIndicatorActive,
+                                styles.resizeHandleRight,
+                                isTouchingRightHandle && styles.resizeHandleActive,
                               ]}
-                            />
-                          </View>
-
-                          {/* Bottom edge resize handle - SECOND so it captures touches before drag */}
-                          <View
-                            {...bottomResizeResponder.panHandlers}
-                            onStartShouldSetResponderCapture={() => true}
-                            onMoveShouldSetResponderCapture={() => true}
-                            pointerEvents="box-only"
-                            style={[
-                              styles.resizeHandleBottom,
-                              isTouchingBottomHandle && styles.resizeHandleActive,
-                            ]}
-                          >
-                            <View
-                              pointerEvents="none"
-                              style={[
-                                styles.resizeIndicatorHorizontal,
-                                isTouchingBottomHandle && styles.resizeIndicatorActive,
-                              ]}
-                            />
-                          </View>
-
-                          {/* Main draggable content - THIRD so resize handles can intercept first */}
-                          <View
-                            style={styles.taskContent}
-                          >
-                            <View
-                              {...panResponder.panHandlers}
-                              style={{ flex: 1 }}
                             >
+                              <View
+                                style={[
+                                  styles.resizeIndicatorVertical,
+                                  isTouchingRightHandle && styles.resizeIndicatorActive,
+                                ]}
+                              />
+                            </View>
+                          </GestureDetector>
+
+                          {/* Bottom edge resize handle */}
+                          <GestureDetector gesture={bottomResizeGesture}>
+                            <View
+                              style={[
+                                styles.resizeHandleBottom,
+                                isTouchingBottomHandle && styles.resizeHandleActive,
+                              ]}
+                            >
+                              <View
+                                style={[
+                                  styles.resizeIndicatorHorizontal,
+                                  isTouchingBottomHandle && styles.resizeIndicatorActive,
+                                ]}
+                              />
+                            </View>
+                          </GestureDetector>
+
+                          {/* Main draggable content */}
+                          <GestureDetector gesture={dragGesture}>
+                            <View style={styles.taskContent}>
                               <TouchableOpacity
                                 onPress={handleTaskTap}
                                 activeOpacity={0.8}
                                 style={styles.taskContentInner}
                               >
-                              <Text style={styles.taskTitle} numberOfLines={1}>
-                                {task.category}
-                              </Text>
-                              <Text style={styles.taskSubtitle} numberOfLines={1}>
-                                {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                              </Text>
-                              <Text style={styles.taskDuration}>
-                                {task.duration} days
-                              </Text>
-                              {task.notes && !isQuickEditing && (
-                                <Text style={styles.taskNotes} numberOfLines={2}>
-                                  {task.notes}
+                                <Text style={styles.taskTitle} numberOfLines={1}>
+                                  {task.category}
                                 </Text>
-                              )}
+                                <Text style={styles.taskSubtitle} numberOfLines={1}>
+                                  {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                                </Text>
+                                <Text style={styles.taskDuration}>
+                                  {task.duration} days
+                                </Text>
+                                {task.notes && !isQuickEditing && (
+                                  <Text style={styles.taskNotes} numberOfLines={2}>
+                                    {task.notes}
+                                  </Text>
+                                )}
                               </TouchableOpacity>
                             </View>
-                          </View>
+                          </GestureDetector>
 
                           {isQuickEditing && (
                             <View style={styles.quickEditContainer}>
