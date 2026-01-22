@@ -310,6 +310,7 @@ export default function ScheduleScreen() {
     let initialStartDate = new Date(task.startDate);
 
     return PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => false, // Let resize handles capture first
       onStartShouldSetPanResponder: () => gestureTypeRef.current !== 'resize', // Use ref instead of state
       onMoveShouldSetPanResponder: (_, gestureState) => {
         if (gestureTypeRef.current === 'resize') return false; // Use ref instead of state
@@ -625,7 +626,7 @@ export default function ScheduleScreen() {
             <ScrollView
               style={styles.tasksArea}
               showsVerticalScrollIndicator={true}
-              scrollEnabled={gestureTypeRef.current === null}
+              scrollEnabled={!resizingTask && !draggedTask}
             >
               <View style={styles.tasksContainer}>
                 <View style={styles.hourLabels}>
@@ -644,7 +645,7 @@ export default function ScheduleScreen() {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={true}
-                  scrollEnabled={gestureTypeRef.current === null}
+                  scrollEnabled={!resizingTask && !draggedTask}
                   style={styles.tasksScrollView}
                 >
                   <View style={styles.tasksGrid}>
@@ -701,15 +702,19 @@ export default function ScheduleScreen() {
                             {...rightResizeResponder.panHandlers}
                             onStartShouldSetResponderCapture={() => true}
                             onMoveShouldSetResponderCapture={() => true}
+                            pointerEvents="box-only"
                             style={[
                               styles.resizeHandleRight,
                               isTouchingRightHandle && styles.resizeHandleActive,
                             ]}
                           >
-                            <View style={[
-                              styles.resizeIndicatorVertical,
-                              isTouchingRightHandle && styles.resizeIndicatorActive,
-                            ]} />
+                            <View
+                              pointerEvents="none"
+                              style={[
+                                styles.resizeIndicatorVertical,
+                                isTouchingRightHandle && styles.resizeIndicatorActive,
+                              ]}
+                            />
                           </View>
 
                           {/* Bottom edge resize handle - SECOND so it captures touches before drag */}
@@ -717,27 +722,34 @@ export default function ScheduleScreen() {
                             {...bottomResizeResponder.panHandlers}
                             onStartShouldSetResponderCapture={() => true}
                             onMoveShouldSetResponderCapture={() => true}
+                            pointerEvents="box-only"
                             style={[
                               styles.resizeHandleBottom,
                               isTouchingBottomHandle && styles.resizeHandleActive,
                             ]}
                           >
-                            <View style={[
-                              styles.resizeIndicatorHorizontal,
-                              isTouchingBottomHandle && styles.resizeIndicatorActive,
-                            ]} />
+                            <View
+                              pointerEvents="none"
+                              style={[
+                                styles.resizeIndicatorHorizontal,
+                                isTouchingBottomHandle && styles.resizeIndicatorActive,
+                              ]}
+                            />
                           </View>
 
                           {/* Main draggable content - THIRD so resize handles can intercept first */}
                           <View
                             style={styles.taskContent}
-                            {...panResponder.panHandlers}
                           >
-                            <TouchableOpacity
-                              onPress={handleTaskTap}
-                              activeOpacity={0.8}
-                              style={styles.taskContentInner}
+                            <View
+                              {...panResponder.panHandlers}
+                              style={{ flex: 1 }}
                             >
+                              <TouchableOpacity
+                                onPress={handleTaskTap}
+                                activeOpacity={0.8}
+                                style={styles.taskContentInner}
+                              >
                               <Text style={styles.taskTitle} numberOfLines={1}>
                                 {task.category}
                               </Text>
@@ -752,7 +764,8 @@ export default function ScheduleScreen() {
                                   {task.notes}
                                 </Text>
                               )}
-                            </TouchableOpacity>
+                              </TouchableOpacity>
+                            </View>
                           </View>
 
                           {isQuickEditing && (
