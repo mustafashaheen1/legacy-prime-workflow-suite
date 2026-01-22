@@ -792,7 +792,22 @@ export default function ScheduleScreen() {
                             </View>
                           )}
                           
-                          <View 
+                          {/* Left edge */}
+                          <View
+                            {...leftResizeResponder.panHandlers}
+                            style={[
+                              styles.resizeHandleLeft,
+                              isTouchingLeftHandle && styles.resizeHandleActive,
+                            ]}
+                          >
+                            <View style={[
+                              styles.resizeIndicatorVertical,
+                              isTouchingLeftHandle && styles.resizeIndicatorActive,
+                            ]} />
+                          </View>
+
+                          {/* Right edge */}
+                          <View
                             {...rightResizeResponder.panHandlers}
                             style={[
                               styles.resizeHandleRight,
@@ -800,12 +815,27 @@ export default function ScheduleScreen() {
                             ]}
                           >
                             <View style={[
-                              styles.resizeIndicator,
+                              styles.resizeIndicatorVertical,
                               isTouchingRightHandle && styles.resizeIndicatorActive,
                             ]} />
                           </View>
 
-                          <View 
+                          {/* Top edge */}
+                          <View
+                            {...topResizeResponder.panHandlers}
+                            style={[
+                              styles.resizeHandleTop,
+                              isTouchingTopHandle && styles.resizeHandleActive,
+                            ]}
+                          >
+                            <View style={[
+                              styles.resizeIndicatorHorizontal,
+                              isTouchingTopHandle && styles.resizeIndicatorActive,
+                            ]} />
+                          </View>
+
+                          {/* Bottom edge */}
+                          <View
                             {...bottomResizeResponder.panHandlers}
                             style={[
                               styles.resizeHandleBottom,
@@ -818,16 +848,59 @@ export default function ScheduleScreen() {
                             ]} />
                           </View>
 
-                          <View 
-                            {...cornerResizeResponder.panHandlers}
+                          {/* Top-left corner */}
+                          <View
+                            {...topLeftResizeResponder.panHandlers}
                             style={[
-                              styles.resizeHandleCorner,
-                              isTouchingCornerHandle && styles.resizeHandleActive,
+                              styles.resizeHandleTopLeft,
+                              isTouchingTopLeftHandle && styles.resizeHandleActive,
                             ]}
                           >
                             <View style={[
                               styles.resizeIndicatorCorner,
-                              isTouchingCornerHandle && styles.resizeIndicatorActive,
+                              isTouchingTopLeftHandle && styles.resizeIndicatorActive,
+                            ]} />
+                          </View>
+
+                          {/* Top-right corner */}
+                          <View
+                            {...topRightResizeResponder.panHandlers}
+                            style={[
+                              styles.resizeHandleTopRight,
+                              isTouchingTopRightHandle && styles.resizeHandleActive,
+                            ]}
+                          >
+                            <View style={[
+                              styles.resizeIndicatorCorner,
+                              isTouchingTopRightHandle && styles.resizeIndicatorActive,
+                            ]} />
+                          </View>
+
+                          {/* Bottom-left corner */}
+                          <View
+                            {...bottomLeftResizeResponder.panHandlers}
+                            style={[
+                              styles.resizeHandleBottomLeft,
+                              isTouchingBottomLeftHandle && styles.resizeHandleActive,
+                            ]}
+                          >
+                            <View style={[
+                              styles.resizeIndicatorCorner,
+                              isTouchingBottomLeftHandle && styles.resizeIndicatorActive,
+                            ]} />
+                          </View>
+
+                          {/* Bottom-right corner */}
+                          <View
+                            {...bottomRightResizeResponder.panHandlers}
+                            style={[
+                              styles.resizeHandleBottomRight,
+                              isTouchingBottomRightHandle && styles.resizeHandleActive,
+                            ]}
+                          >
+                            <View style={[
+                              styles.resizeIndicatorCorner,
+                              isTouchingBottomRightHandle && styles.resizeIndicatorActive,
                             ]} />
                           </View>
                           
@@ -1673,6 +1746,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700' as const,
   },
+  resizeHandleLeft: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
   resizeHandleRight: {
     position: 'absolute',
     right: 0,
@@ -1683,30 +1766,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
   },
+  resizeHandleTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
   resizeHandleBottom: {
     position: 'absolute',
     bottom: 0,
     left: 0,
-    right: 20,
+    right: 0,
     height: 20,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
   },
-  resizeHandleCorner: {
+  resizeHandleTopLeft: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 11,
+  },
+  resizeHandleTopRight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 11,
+  },
+  resizeHandleBottomLeft: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 11,
+  },
+  resizeHandleBottomRight: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
+    zIndex: 11,
   },
   resizeHandleActive: {
     backgroundColor: 'rgba(37, 99, 235, 0.2)',
   },
-  resizeIndicator: {
+  resizeIndicatorVertical: {
     width: 4,
     height: '80%',
     backgroundColor: 'rgba(255,255,255,0.9)',
