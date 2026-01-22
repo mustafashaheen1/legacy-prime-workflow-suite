@@ -647,15 +647,9 @@ export default function ScheduleScreen() {
                       if (!position) return null;
                       const panResponder = createPanResponder(task);
 
-                      // Create all 8 resize responders (4 edges + 4 corners)
-                      const leftResizeResponder = createResizePanResponder(task, 'left');
+                      // Create resize responders for right and bottom edges only
                       const rightResizeResponder = createResizePanResponder(task, 'right');
-                      const topResizeResponder = createResizePanResponder(task, 'top');
                       const bottomResizeResponder = createResizePanResponder(task, 'bottom');
-                      const topLeftResizeResponder = createResizePanResponder(task, 'top-left');
-                      const topRightResizeResponder = createResizePanResponder(task, 'top-right');
-                      const bottomLeftResizeResponder = createResizePanResponder(task, 'bottom-left');
-                      const bottomRightResizeResponder = createResizePanResponder(task, 'bottom-right');
 
                       const isQuickEditing = quickEditTask === task.id;
 
@@ -673,14 +667,8 @@ export default function ScheduleScreen() {
                         }
                       };
 
-                      const isTouchingLeftHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'left';
                       const isTouchingRightHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'right';
-                      const isTouchingTopHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'top';
                       const isTouchingBottomHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'bottom';
-                      const isTouchingTopLeftHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'top-left';
-                      const isTouchingTopRightHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'top-right';
-                      const isTouchingBottomLeftHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'bottom-left';
-                      const isTouchingBottomRightHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'bottom-right';
 
                       return (
                         <View
@@ -792,22 +780,8 @@ export default function ScheduleScreen() {
                               </View>
                             </View>
                           )}
-                          
-                          {/* Left edge */}
-                          <View
-                            {...leftResizeResponder.panHandlers}
-                            style={[
-                              styles.resizeHandleLeft,
-                              isTouchingLeftHandle && styles.resizeHandleActive,
-                            ]}
-                          >
-                            <View style={[
-                              styles.resizeIndicatorVertical,
-                              isTouchingLeftHandle && styles.resizeIndicatorActive,
-                            ]} />
-                          </View>
 
-                          {/* Right edge */}
+                          {/* Right edge resize handle */}
                           <View
                             {...rightResizeResponder.panHandlers}
                             style={[
@@ -821,21 +795,7 @@ export default function ScheduleScreen() {
                             ]} />
                           </View>
 
-                          {/* Top edge */}
-                          <View
-                            {...topResizeResponder.panHandlers}
-                            style={[
-                              styles.resizeHandleTop,
-                              isTouchingTopHandle && styles.resizeHandleActive,
-                            ]}
-                          >
-                            <View style={[
-                              styles.resizeIndicatorHorizontal,
-                              isTouchingTopHandle && styles.resizeIndicatorActive,
-                            ]} />
-                          </View>
-
-                          {/* Bottom edge */}
+                          {/* Bottom edge resize handle */}
                           <View
                             {...bottomResizeResponder.panHandlers}
                             style={[
@@ -849,62 +809,6 @@ export default function ScheduleScreen() {
                             ]} />
                           </View>
 
-                          {/* Top-left corner */}
-                          <View
-                            {...topLeftResizeResponder.panHandlers}
-                            style={[
-                              styles.resizeHandleTopLeft,
-                              isTouchingTopLeftHandle && styles.resizeHandleActive,
-                            ]}
-                          >
-                            <View style={[
-                              styles.resizeIndicatorCorner,
-                              isTouchingTopLeftHandle && styles.resizeIndicatorActive,
-                            ]} />
-                          </View>
-
-                          {/* Top-right corner */}
-                          <View
-                            {...topRightResizeResponder.panHandlers}
-                            style={[
-                              styles.resizeHandleTopRight,
-                              isTouchingTopRightHandle && styles.resizeHandleActive,
-                            ]}
-                          >
-                            <View style={[
-                              styles.resizeIndicatorCorner,
-                              isTouchingTopRightHandle && styles.resizeIndicatorActive,
-                            ]} />
-                          </View>
-
-                          {/* Bottom-left corner */}
-                          <View
-                            {...bottomLeftResizeResponder.panHandlers}
-                            style={[
-                              styles.resizeHandleBottomLeft,
-                              isTouchingBottomLeftHandle && styles.resizeHandleActive,
-                            ]}
-                          >
-                            <View style={[
-                              styles.resizeIndicatorCorner,
-                              isTouchingBottomLeftHandle && styles.resizeIndicatorActive,
-                            ]} />
-                          </View>
-
-                          {/* Bottom-right corner */}
-                          <View
-                            {...bottomRightResizeResponder.panHandlers}
-                            style={[
-                              styles.resizeHandleBottomRight,
-                              isTouchingBottomRightHandle && styles.resizeHandleActive,
-                            ]}
-                          >
-                            <View style={[
-                              styles.resizeIndicatorCorner,
-                              isTouchingBottomRightHandle && styles.resizeIndicatorActive,
-                            ]} />
-                          </View>
-                          
                           <TouchableOpacity
                             style={styles.deleteTaskButton}
                             onPress={() => handleDeleteTask(task.id)}
@@ -1626,10 +1530,10 @@ const styles = StyleSheet.create({
   },
   taskContent: {
     position: 'absolute',
-    top: 15,
-    left: 15,
-    right: 15,
-    bottom: 15,
+    top: 0,
+    left: 0,
+    right: 20,
+    bottom: 20,
     zIndex: 1,
   },
   taskDragArea: {
@@ -1755,138 +1659,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700' as const,
   },
-  resizeHandleLeft: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 15,
-    backgroundColor: 'rgba(37, 99, 235, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-    borderRightWidth: 2,
-    borderRightColor: '#2563EB',
-  },
   resizeHandleRight: {
     position: 'absolute',
     right: 0,
     top: 0,
     bottom: 0,
-    width: 15,
-    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+    width: 20,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
-    borderLeftWidth: 2,
-    borderLeftColor: '#2563EB',
-  },
-  resizeHandleTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 15,
-    backgroundColor: 'rgba(37, 99, 235, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: '#2563EB',
   },
   resizeHandleBottom: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 15,
-    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
-    borderTopWidth: 2,
-    borderTopColor: '#2563EB',
-  },
-  resizeHandleTopLeft: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 24,
-    height: 24,
-    backgroundColor: 'rgba(37, 99, 235, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 11,
-    borderBottomRightRadius: 8,
-    borderWidth: 2,
-    borderColor: '#2563EB',
-  },
-  resizeHandleTopRight: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    backgroundColor: 'rgba(37, 99, 235, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 11,
-    borderBottomLeftRadius: 8,
-    borderWidth: 2,
-    borderColor: '#2563EB',
-  },
-  resizeHandleBottomLeft: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: 24,
-    height: 24,
-    backgroundColor: 'rgba(37, 99, 235, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 11,
-    borderTopRightRadius: 8,
-    borderWidth: 2,
-    borderColor: '#2563EB',
-  },
-  resizeHandleBottomRight: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    backgroundColor: 'rgba(37, 99, 235, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 11,
-    borderTopLeftRadius: 8,
-    borderWidth: 2,
-    borderColor: '#2563EB',
   },
   resizeHandleActive: {
-    backgroundColor: 'rgba(37, 99, 235, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   resizeIndicatorVertical: {
-    width: 3,
-    height: 30,
-    backgroundColor: '#2563EB',
+    width: 4,
+    height: 40,
+    backgroundColor: '#FFFFFF',
     borderRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
   resizeIndicatorHorizontal: {
-    height: 3,
-    width: 30,
-    backgroundColor: '#2563EB',
+    height: 4,
+    width: 40,
+    backgroundColor: '#FFFFFF',
     borderRadius: 2,
-  },
-  resizeIndicatorCorner: {
-    width: 12,
-    height: 12,
-    backgroundColor: '#2563EB',
-    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
   resizeIndicatorActive: {
-    backgroundColor: '#1D4ED8',
-    transform: [{ scale: 1.3 }],
+    backgroundColor: '#F3F4F6',
+    transform: [{ scale: 1.1 }],
   },
   modalOverlay: {
     flex: 1,
