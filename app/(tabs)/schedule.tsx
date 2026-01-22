@@ -351,6 +351,7 @@ export default function ScheduleScreen() {
     let initialRow = task.row || 0;
 
     return PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => true,
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const threshold = 2;
@@ -686,15 +687,16 @@ export default function ScheduleScreen() {
                             resizingTask?.id === task.id && styles.taskBlockResizing,
                           ]}
                         >
-                          <TouchableOpacity
-                            onPress={handleTaskTap}
-                            activeOpacity={0.8}
-                            style={styles.taskContent}
-                          >
-                            <View
-                              {...panResponder.panHandlers}
-                              style={styles.taskDragArea}
+                          <View style={styles.taskContent} pointerEvents="box-none">
+                            <TouchableOpacity
+                              onPress={handleTaskTap}
+                              activeOpacity={0.8}
+                              style={{ flex: 1 }}
                             >
+                              <View
+                                {...panResponder.panHandlers}
+                                style={styles.taskDragArea}
+                              >
                               <Text style={styles.taskTitle} numberOfLines={1}>
                                 {task.category}
                               </Text>
@@ -709,8 +711,9 @@ export default function ScheduleScreen() {
                                   {task.notes}
                                 </Text>
                               )}
-                            </View>
-                          </TouchableOpacity>
+                              </View>
+                            </TouchableOpacity>
+                          </View>
 
                           {isQuickEditing && (
                             <View style={styles.quickEditContainer}>
