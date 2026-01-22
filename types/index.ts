@@ -424,6 +424,18 @@ export interface Payment {
   createdAt: string;
 }
 
+export interface ChangeOrderHistoryEntry {
+  id: string;
+  changeOrderId: string;
+  action: 'created' | 'approved' | 'rejected' | 'updated';
+  previousStatus?: 'pending' | 'approved' | 'rejected';
+  newStatus?: 'pending' | 'approved' | 'rejected';
+  userId: string;
+  userName: string;
+  timestamp: string;
+  notes?: string;
+}
+
 export interface ChangeOrder {
   id: string;
   projectId: string;
@@ -435,6 +447,7 @@ export interface ChangeOrder {
   approvedDate?: string;
   notes?: string;
   createdAt: string;
+  history?: ChangeOrderHistoryEntry[];
 }
 
 export type Permission =

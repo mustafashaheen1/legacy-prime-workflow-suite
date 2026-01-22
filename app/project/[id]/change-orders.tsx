@@ -1,20 +1,27 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Modal, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Plus, X, DollarSign, FileText, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
+import { ArrowLeft, Plus, X, DollarSign, FileText, Clock, CheckCircle, XCircle, AlertCircle, Download, History } from 'lucide-react-native';
 import { useState, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { ChangeOrder } from '@/types';
+import { useApp } from '@/contexts/AppContext';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as MailComposer from 'expo-mail-composer';
+import { generateChangeOrderHtml } from '@/utils/generateChangeOrderPdf';
 
 export default function ChangeOrdersScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
+  const { company, projects, clients } = useApp();
+
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [description, setDescription] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [selectedChangeOrderForHistory, setSelectedChangeOrderForHistory] = useState<ChangeOrder | null>(null);
   
   const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
   const addChangeOrderMutation = trpc.changeOrders.addChangeOrder.useMutation({
@@ -33,6 +40,17 @@ export default function ChangeOrdersScreen() {
       const errorMessage = error.message || 'Failed to add change order. Please try again.';
       Alert.alert('Error', errorMessage);
     }
+  });
+
+  const updateChangeOrderMutation = trpc.changeOrders.updateChangeOrder.useMutation({
+    onSuccess: () => {
+      changeOrdersQuery.refetch();
+      Alert.alert('Success', 'Change order updated successfully!');
+    },
+    onError: (error) => {
+      console.error('[Change Order] Update error:', error);
+      Alert.alert('Error', error.message || 'Failed to update change order');
+    },
   });
   
   const changeOrders = useMemo<ChangeOrder[]>(() => {
@@ -62,14 +80,20 @@ export default function ChangeOrdersScreen() {
       Alert.alert('Error', 'Please enter a description');
       return;
     }
-    
+
     const amountValue = parseFloat(amount);
     if (isNaN(amountValue) || amountValue <= 0) {
       Alert.alert('Error', 'Please enter a valid amount');
       return;
     }
-    
+
+    if (!company?.id) {
+      Alert.alert('Error', 'Company information not found');
+      return;
+    }
+
     const mutationData = {
+      companyId: company.id,
       projectId: id as string,
       description: description.trim(),
       amount: amountValue,
@@ -77,11 +101,118 @@ export default function ChangeOrdersScreen() {
       status: 'pending' as const,
       notes: notes.trim() || undefined,
     };
-    
+
     console.log('[Change Order] Submitting mutation with data:', mutationData);
     addChangeOrderMutation.mutate(mutationData);
   };
-  
+
+  const handleApprove = (changeOrder: ChangeOrder) => {
+    Alert.alert(
+      'Approve Change Order',
+      `Approve "${changeOrder.description}" for $${changeOrder.amount.toLocaleString()}? This will increase the project budget.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          style: 'default',
+          onPress: () => {
+            updateChangeOrderMutation.mutate({
+              id: changeOrder.id,
+              status: 'approved',
+              approvedDate: new Date().toISOString(),
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReject = (changeOrder: ChangeOrder) => {
+    Alert.alert(
+      'Reject Change Order',
+      `Reject "${changeOrder.description}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: () => {
+            updateChangeOrderMutation.mutate({
+              id: changeOrder.id,
+              status: 'rejected',
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  const handleExportPdf = async (changeOrder: ChangeOrder) => {
+    try {
+      const project = projects.find(p => p.id === changeOrder.projectId);
+      const client = clients.find(c => c.id === project?.clientId);
+
+      const html = generateChangeOrderHtml({
+        changeOrder,
+        project,
+        client,
+        company,
+      });
+
+      if (Platform.OS === 'web') {
+        // Web: Open print dialog
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(html);
+          printWindow.document.close();
+          printWindow.onload = () => {
+            printWindow.focus();
+            printWindow.print();
+          };
+        }
+      } else {
+        // Mobile: Generate PDF and share
+        const { uri } = await Print.printToFileAsync({ html });
+
+        Alert.alert(
+          'Export Options',
+          'How would you like to share this change order?',
+          [
+            {
+              text: 'Email',
+              onPress: async () => {
+                const canSendMail = await MailComposer.isAvailableAsync();
+                if (canSendMail) {
+                  await MailComposer.composeAsync({
+                    recipients: client?.email ? [client.email] : [],
+                    subject: `Change Order - ${project?.name}`,
+                    body: `Please find attached the change order for ${changeOrder.description}.`,
+                    attachments: [uri],
+                  });
+                } else {
+                  Alert.alert('Error', 'Email is not available on this device');
+                }
+              },
+            },
+            {
+              text: 'Share',
+              onPress: async () => {
+                const canShare = await Sharing.isAvailableAsync();
+                if (canShare) {
+                  await Sharing.shareAsync(uri);
+                }
+              },
+            },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      Alert.alert('Error', 'Failed to export PDF');
+    }
+  };
+
   const getStatusIcon = (status: ChangeOrder['status']) => {
     switch (status) {
       case 'approved':
@@ -201,26 +332,67 @@ export default function ChangeOrdersScreen() {
                   )}
                   
                   <View style={styles.changeOrderFooter}>
-                    <View style={styles.changeOrderDate}>
-                      <Clock size={14} color="#9CA3AF" />
-                      <Text style={styles.changeOrderDateText}>
-                        {new Date(changeOrder.date).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </Text>
+                    <View style={styles.changeOrderFooterLeft}>
+                      <View style={styles.changeOrderDate}>
+                        <Clock size={14} color="#9CA3AF" />
+                        <Text style={styles.changeOrderDateText}>
+                          {new Date(changeOrder.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </Text>
+                      </View>
+
+                      {changeOrder.status === 'approved' && changeOrder.approvedDate && (
+                        <Text style={styles.approvedDateText}>
+                          Approved {new Date(changeOrder.approvedDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </Text>
+                      )}
                     </View>
-                    
-                    {changeOrder.status === 'approved' && changeOrder.approvedDate && (
-                      <Text style={styles.approvedDateText}>
-                        Approved {new Date(changeOrder.approvedDate).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric'
-                        })}
-                      </Text>
-                    )}
+
+                    <TouchableOpacity
+                      style={styles.exportButton}
+                      onPress={() => handleExportPdf(changeOrder)}
+                    >
+                      <Download size={16} color="#2563EB" />
+                      <Text style={styles.exportButtonText}>Export PDF</Text>
+                    </TouchableOpacity>
                   </View>
+
+                  {changeOrder.status === 'pending' && (
+                    <View style={styles.approvalActions}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.approveButton]}
+                        onPress={() => handleApprove(changeOrder)}
+                        disabled={updateChangeOrderMutation.isPending}
+                      >
+                        <CheckCircle size={16} color="#FFFFFF" />
+                        <Text style={styles.actionButtonText}>Approve</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.rejectButton]}
+                        onPress={() => handleReject(changeOrder)}
+                        disabled={updateChangeOrderMutation.isPending}
+                      >
+                        <XCircle size={16} color="#FFFFFF" />
+                        <Text style={styles.actionButtonText}>Reject</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {changeOrder.history && changeOrder.history.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.historyButton}
+                      onPress={() => setSelectedChangeOrderForHistory(changeOrder)}
+                    >
+                      <History size={14} color="#6B7280" />
+                      <Text style={styles.historyButtonText}>View History ({changeOrder.history.length})</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
             </View>
@@ -310,6 +482,112 @@ export default function ChangeOrdersScreen() {
               </ScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
+        </Modal>
+
+        <Modal
+          visible={selectedChangeOrderForHistory !== null}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSelectedChangeOrderForHistory(null)}
+        >
+          <View style={styles.historyModalOverlay}>
+            <View style={styles.historyModalContent}>
+              <View style={styles.historyModalHeader}>
+                <Text style={styles.historyModalTitle}>Change Order History</Text>
+                <TouchableOpacity onPress={() => setSelectedChangeOrderForHistory(null)}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              {selectedChangeOrderForHistory && (
+                <>
+                  <View style={styles.historyOrderInfo}>
+                    <Text style={styles.historyOrderDescription}>
+                      {selectedChangeOrderForHistory.description}
+                    </Text>
+                    <Text style={styles.historyOrderAmount}>
+                      ${selectedChangeOrderForHistory.amount.toLocaleString()}
+                    </Text>
+                  </View>
+
+                  <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
+                    {selectedChangeOrderForHistory.history && selectedChangeOrderForHistory.history.length > 0 ? (
+                      selectedChangeOrderForHistory.history.map((entry, index) => (
+                        <View key={entry.id} style={styles.historyEntry}>
+                          <View style={styles.historyEntryHeader}>
+                            <View style={styles.historyEntryLeft}>
+                              {entry.action === 'created' && <Plus size={16} color="#6B7280" />}
+                              {entry.action === 'approved' && <CheckCircle size={16} color="#10B981" />}
+                              {entry.action === 'rejected' && <XCircle size={16} color="#EF4444" />}
+                              {entry.action === 'updated' && <Clock size={16} color="#F59E0B" />}
+                              <Text style={[styles.historyAction, {
+                                color: entry.action === 'approved' ? '#10B981' :
+                                       entry.action === 'rejected' ? '#EF4444' :
+                                       entry.action === 'created' ? '#6B7280' : '#F59E0B'
+                              }]}>
+                                {entry.action.charAt(0).toUpperCase() + entry.action.slice(1)}
+                              </Text>
+                            </View>
+                            <Text style={styles.historyTimestamp}>
+                              {new Date(entry.timestamp).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
+                            </Text>
+                          </View>
+
+                          <Text style={styles.historyUser}>By {entry.userName}</Text>
+
+                          {entry.previousStatus && entry.newStatus && (
+                            <View style={styles.historyStatusChange}>
+                              <View style={[styles.historyStatusBadge, {
+                                backgroundColor: entry.previousStatus === 'pending' ? '#FEF3C7' :
+                                                entry.previousStatus === 'approved' ? '#D1FAE5' : '#FEE2E2'
+                              }]}>
+                                <Text style={[styles.historyStatusText, {
+                                  color: entry.previousStatus === 'pending' ? '#92400E' :
+                                        entry.previousStatus === 'approved' ? '#065F46' : '#991B1B'
+                                }]}>
+                                  {entry.previousStatus}
+                                </Text>
+                              </View>
+                              <ArrowLeft size={12} color="#9CA3AF" style={{ transform: [{ rotate: '180deg' }] }} />
+                              <View style={[styles.historyStatusBadge, {
+                                backgroundColor: entry.newStatus === 'pending' ? '#FEF3C7' :
+                                                entry.newStatus === 'approved' ? '#D1FAE5' : '#FEE2E2'
+                              }]}>
+                                <Text style={[styles.historyStatusText, {
+                                  color: entry.newStatus === 'pending' ? '#92400E' :
+                                        entry.newStatus === 'approved' ? '#065F46' : '#991B1B'
+                                }]}>
+                                  {entry.newStatus}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+
+                          {entry.notes && (
+                            <Text style={styles.historyNotes}>{entry.notes}</Text>
+                          )}
+
+                          {index < selectedChangeOrderForHistory.history!.length - 1 && (
+                            <View style={styles.historyDivider} />
+                          )}
+                        </View>
+                      ))
+                    ) : (
+                      <View style={styles.historyEmpty}>
+                        <History size={32} color="#D1D5DB" />
+                        <Text style={styles.historyEmptyText}>No history available</Text>
+                      </View>
+                    )}
+                  </ScrollView>
+                </>
+              )}
+            </View>
+          </View>
         </Modal>
       </View>
     </>
@@ -507,6 +785,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
   },
+  changeOrderFooterLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
   changeOrderDate: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -520,6 +804,45 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#10B981',
     fontWeight: '500' as const,
+  },
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 6,
+  },
+  exportButtonText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+  },
+  approvalActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  approveButton: {
+    backgroundColor: '#10B981',
+  },
+  rejectButton: {
+    backgroundColor: '#EF4444',
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   modalOverlay: {
     flex: 1,
@@ -623,5 +946,138 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  historyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignSelf: 'flex-start',
+  },
+  historyButtonText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500' as const,
+  },
+  historyModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  historyModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    ...Platform.select({
+      web: {
+        marginHorizontal: 'auto',
+        maxWidth: 600,
+        width: '100%',
+      },
+    }),
+  },
+  historyModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  historyModalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  historyOrderInfo: {
+    padding: 20,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  historyOrderDescription: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  historyOrderAmount: {
+    fontSize: 14,
+    color: '#10B981',
+    fontWeight: '600' as const,
+  },
+  historyList: {
+    padding: 20,
+  },
+  historyEntry: {
+    marginBottom: 16,
+  },
+  historyEntryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  historyEntryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyAction: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  historyTimestamp: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  historyUser: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  historyStatusChange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  historyStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  historyStatusText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    textTransform: 'uppercase',
+  },
+  historyNotes: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  historyDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginTop: 16,
+  },
+  historyEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  historyEmptyText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 12,
   },
 });

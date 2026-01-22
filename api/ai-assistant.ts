@@ -523,6 +523,81 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'create_change_order',
+      description: 'Create a new change order for a project. Use when client requests additional work or scope changes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: {
+            type: 'string',
+            description: 'The name of the project',
+          },
+          description: {
+            type: 'string',
+            description: 'Description of the additional work',
+          },
+          amount: {
+            type: 'number',
+            description: 'Dollar amount for the change order',
+          },
+          notes: {
+            type: 'string',
+            description: 'Optional additional notes',
+          },
+        },
+        required: ['projectName', 'description', 'amount'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'approve_change_order',
+      description: 'Approve a pending change order. This will update the project budget.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: {
+            type: 'string',
+            description: 'The project name',
+          },
+          changeOrderId: {
+            type: 'string',
+            description: 'The ID of the change order to approve',
+          },
+        },
+        required: ['projectName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'reject_change_order',
+      description: 'Reject a pending change order.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: {
+            type: 'string',
+            description: 'The project name',
+          },
+          changeOrderId: {
+            type: 'string',
+            description: 'The ID of the change order to reject',
+          },
+          reason: {
+            type: 'string',
+            description: 'Optional reason for rejection',
+          },
+        },
+        required: ['projectName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'query_subcontractors',
       description: 'Query subcontractors. Use for "available subs", "plumbing subcontractors".',
       parameters: {
@@ -2875,6 +2950,119 @@ Based on the store and items, intelligently categorize this expense:
             projectId: co.projectId,
             date: co.date,
           })),
+        },
+      };
+    }
+
+    case 'create_change_order': {
+      const project = projects.find((p: any) =>
+        p.name.toLowerCase() === args.projectName.toLowerCase()
+      );
+
+      if (!project) {
+        return {
+          result: { error: `Project "${args.projectName}" not found` },
+        };
+      }
+
+      return {
+        result: {
+          actionRequired: 'create_change_order',
+          projectId: project.id,
+          projectName: project.name,
+          description: args.description,
+          amount: args.amount,
+          notes: args.notes,
+        },
+      };
+    }
+
+    case 'approve_change_order': {
+      const project = projects.find((p: any) =>
+        p.name.toLowerCase() === args.projectName.toLowerCase()
+      );
+
+      if (!project) {
+        return {
+          result: { error: `Project "${args.projectName}" not found` },
+        };
+      }
+
+      const { changeOrders = [] } = appData;
+      const pendingChangeOrders = changeOrders.filter(
+        (co: any) => co.projectId === project.id && co.status === 'pending'
+      );
+
+      if (pendingChangeOrders.length === 0) {
+        return {
+          result: {
+            error: `No pending change orders found for ${project.name}`,
+          },
+        };
+      }
+
+      const changeOrder = args.changeOrderId
+        ? pendingChangeOrders.find((co: any) => co.id === args.changeOrderId)
+        : pendingChangeOrders[0];
+
+      if (!changeOrder) {
+        return {
+          result: { error: 'Change order not found' },
+        };
+      }
+
+      return {
+        result: {
+          actionRequired: 'approve_change_order',
+          changeOrderId: changeOrder.id,
+          projectId: project.id,
+          description: changeOrder.description,
+          amount: changeOrder.amount,
+        },
+      };
+    }
+
+    case 'reject_change_order': {
+      const project = projects.find((p: any) =>
+        p.name.toLowerCase() === args.projectName.toLowerCase()
+      );
+
+      if (!project) {
+        return {
+          result: { error: `Project "${args.projectName}" not found` },
+        };
+      }
+
+      const { changeOrders = [] } = appData;
+      const pendingChangeOrders = changeOrders.filter(
+        (co: any) => co.projectId === project.id && co.status === 'pending'
+      );
+
+      if (pendingChangeOrders.length === 0) {
+        return {
+          result: {
+            error: `No pending change orders found for ${project.name}`,
+          },
+        };
+      }
+
+      const changeOrder = args.changeOrderId
+        ? pendingChangeOrders.find((co: any) => co.id === args.changeOrderId)
+        : pendingChangeOrders[0];
+
+      if (!changeOrder) {
+        return {
+          result: { error: 'Change order not found' },
+        };
+      }
+
+      return {
+        result: {
+          actionRequired: 'reject_change_order',
+          changeOrderId: changeOrder.id,
+          projectId: project.id,
+          description: changeOrder.description,
+          reason: args.reason,
         },
       };
     }

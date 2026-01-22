@@ -1314,6 +1314,125 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             break;
 
+          case 'create_change_order':
+            if (pendingAction.data && addChangeOrder) {
+              const { projectId, description, amount, notes } = pendingAction.data;
+
+              try {
+                const newChangeOrder = {
+                  id: `change-order-${Date.now()}`,
+                  projectId,
+                  description,
+                  amount,
+                  date: new Date().toISOString(),
+                  status: 'pending' as const,
+                  notes,
+                  createdAt: new Date().toISOString(),
+                };
+
+                await addChangeOrder(newChangeOrder);
+
+                const successMessage = {
+                  id: `msg-${Date.now()}-success`,
+                  role: 'assistant',
+                  text: `Change order created successfully for "${description}" - $${amount.toFixed(2)}. Status: Pending approval.`,
+                  parts: [{
+                    type: 'text',
+                    text: `Change order created successfully for "${description}" - $${amount.toFixed(2)}. Status: Pending approval.`,
+                  }],
+                };
+                addMessage(successMessage);
+              } catch (error) {
+                console.error('[AI Action] Error creating change order:', error);
+                const errorMessage = {
+                  id: `msg-${Date.now()}-error`,
+                  role: 'assistant',
+                  text: 'Sorry, I encountered an error creating the change order.',
+                  parts: [{
+                    type: 'text',
+                    text: 'Sorry, I encountered an error creating the change order.',
+                  }],
+                };
+                addMessage(errorMessage);
+              }
+            }
+            break;
+
+          case 'approve_change_order':
+            if (pendingAction.data && updateChangeOrder) {
+              const { changeOrderId, projectId } = pendingAction.data;
+
+              try {
+                await updateChangeOrder(changeOrderId, {
+                  status: 'approved',
+                  approvedBy: appData.userId,
+                  approvedDate: new Date().toISOString(),
+                });
+
+                const changeOrder = changeOrders.find((co: any) => co.id === changeOrderId);
+                const successMessage = {
+                  id: `msg-${Date.now()}-success`,
+                  role: 'assistant',
+                  text: `Change order "${changeOrder?.description}" has been approved. Project budget increased by $${changeOrder?.amount.toFixed(2)}.`,
+                  parts: [{
+                    type: 'text',
+                    text: `Change order "${changeOrder?.description}" has been approved. Project budget increased by $${changeOrder?.amount.toFixed(2)}.`,
+                  }],
+                };
+                addMessage(successMessage);
+              } catch (error) {
+                console.error('[AI Action] Error approving change order:', error);
+                const errorMessage = {
+                  id: `msg-${Date.now()}-error`,
+                  role: 'assistant',
+                  text: 'Sorry, I encountered an error approving the change order.',
+                  parts: [{
+                    type: 'text',
+                    text: 'Sorry, I encountered an error approving the change order.',
+                  }],
+                };
+                addMessage(errorMessage);
+              }
+            }
+            break;
+
+          case 'reject_change_order':
+            if (pendingAction.data && updateChangeOrder) {
+              const { changeOrderId, projectId, reason } = pendingAction.data;
+
+              try {
+                await updateChangeOrder(changeOrderId, {
+                  status: 'rejected',
+                  notes: reason,
+                });
+
+                const changeOrder = changeOrders.find((co: any) => co.id === changeOrderId);
+                const successMessage = {
+                  id: `msg-${Date.now()}-success`,
+                  role: 'assistant',
+                  text: `Change order "${changeOrder?.description}" has been rejected${reason ? `. Reason: ${reason}` : ''}.`,
+                  parts: [{
+                    type: 'text',
+                    text: `Change order "${changeOrder?.description}" has been rejected${reason ? `. Reason: ${reason}` : ''}.`,
+                  }],
+                };
+                addMessage(successMessage);
+              } catch (error) {
+                console.error('[AI Action] Error rejecting change order:', error);
+                const errorMessage = {
+                  id: `msg-${Date.now()}-error`,
+                  role: 'assistant',
+                  text: 'Sorry, I encountered an error rejecting the change order.',
+                  parts: [{
+                    type: 'text',
+                    text: 'Sorry, I encountered an error rejecting the change order.',
+                  }],
+                };
+                addMessage(errorMessage);
+              }
+            }
+            break;
+
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }
