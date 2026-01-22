@@ -355,6 +355,7 @@ export default function ScheduleScreen() {
     let initialRowSpan = task.rowSpan || 1;
     let lastAppliedDaysDelta = 0;
     let lastAppliedRowsDelta = 0;
+    let hasActivated = false;
 
     return Gesture.Pan()
       .onBegin(() => {
@@ -364,8 +365,21 @@ export default function ScheduleScreen() {
         initialRowSpan = task.rowSpan || 1;
         lastAppliedDaysDelta = 0;
         lastAppliedRowsDelta = 0;
+        hasActivated = false;
       })
       .onUpdate((event) => {
+        // Require minimum drag distance before activating (prevents accidental resize on tap)
+        const MIN_ACTIVATION_DISTANCE = 15;
+        const hasMovedEnough = resizeType === 'right'
+          ? Math.abs(event.translationX) > MIN_ACTIVATION_DISTANCE
+          : Math.abs(event.translationY) > MIN_ACTIVATION_DISTANCE;
+
+        if (!hasMovedEnough && !hasActivated) {
+          return; // Don't resize until user has dragged far enough
+        }
+
+        hasActivated = true;
+
         if (resizeType === 'right') {
           // Extend/shrink right edge (change duration/end date)
           const daysDelta = Math.round(event.translationX / DAY_WIDTH);
