@@ -307,32 +307,42 @@ export default function ScheduleScreen() {
   const createDragGesture = (task: ScheduledTask) => {
     let initialRow = task.row || 0;
     let initialStartDate = new Date(task.startDate);
+    let lastAppliedRow = initialRow;
+    let lastAppliedDaysDelta = 0;
 
     return Gesture.Pan()
       .onBegin(() => {
         setDraggedTask(task.id);
         initialRow = task.row || 0;
         initialStartDate = new Date(task.startDate);
+        lastAppliedRow = initialRow;
+        lastAppliedDaysDelta = 0;
       })
       .onUpdate((event) => {
         const newRow = Math.max(0, Math.floor((initialRow * (ROW_HEIGHT + 16) + event.translationY) / (ROW_HEIGHT + 16)));
         const daysDelta = Math.round(event.translationX / DAY_WIDTH);
 
-        const newStartDate = new Date(initialStartDate);
-        newStartDate.setDate(initialStartDate.getDate() + daysDelta);
+        // Only update if row or day has changed
+        if (newRow !== lastAppliedRow || daysDelta !== lastAppliedDaysDelta) {
+          lastAppliedRow = newRow;
+          lastAppliedDaysDelta = daysDelta;
 
-        const newEndDate = new Date(newStartDate);
-        newEndDate.setDate(newStartDate.getDate() + task.duration);
+          const newStartDate = new Date(initialStartDate);
+          newStartDate.setDate(initialStartDate.getDate() + daysDelta);
 
-        const updatedTasks = scheduledTasks.map(t =>
-          t.id === task.id ? {
-            ...t,
-            row: newRow,
-            startDate: newStartDate.toISOString(),
-            endDate: newEndDate.toISOString(),
-          } : t
-        );
-        setScheduledTasks(updatedTasks);
+          const newEndDate = new Date(newStartDate);
+          newEndDate.setDate(newStartDate.getDate() + task.duration);
+
+          const updatedTasks = scheduledTasks.map(t =>
+            t.id === task.id ? {
+              ...t,
+              row: newRow,
+              startDate: newStartDate.toISOString(),
+              endDate: newEndDate.toISOString(),
+            } : t
+          );
+          setScheduledTasks(updatedTasks);
+        }
       })
       .onFinalize(() => {
         setDraggedTask(null);
@@ -343,6 +353,8 @@ export default function ScheduleScreen() {
   const createResizeGesture = (task: ScheduledTask, resizeType: 'right' | 'bottom') => {
     let initialDuration = task.duration;
     let initialRowSpan = task.rowSpan || 1;
+    let lastAppliedDaysDelta = 0;
+    let lastAppliedRowsDelta = 0;
 
     return Gesture.Pan()
       .onBegin(() => {
@@ -350,33 +362,45 @@ export default function ScheduleScreen() {
         setTouchingHandle({ id: task.id, type: resizeType });
         initialDuration = task.duration;
         initialRowSpan = task.rowSpan || 1;
+        lastAppliedDaysDelta = 0;
+        lastAppliedRowsDelta = 0;
       })
       .onUpdate((event) => {
         if (resizeType === 'right') {
           // Extend/shrink right edge (change duration/end date)
           const daysDelta = Math.round(event.translationX / DAY_WIDTH);
-          const newDuration = Math.max(1, initialDuration + daysDelta);
 
-          const newEndDate = new Date(task.startDate);
-          newEndDate.setDate(newEndDate.getDate() + newDuration);
+          // Only update if the delta has changed by at least 1 day
+          if (daysDelta !== lastAppliedDaysDelta) {
+            lastAppliedDaysDelta = daysDelta;
+            const newDuration = Math.max(1, initialDuration + daysDelta);
 
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? {
-              ...t,
-              duration: newDuration,
-              endDate: newEndDate.toISOString(),
-            } : t
-          );
-          setScheduledTasks(updatedTasks);
+            const newEndDate = new Date(task.startDate);
+            newEndDate.setDate(newEndDate.getDate() + newDuration);
+
+            const updatedTasks = scheduledTasks.map(t =>
+              t.id === task.id ? {
+                ...t,
+                duration: newDuration,
+                endDate: newEndDate.toISOString(),
+              } : t
+            );
+            setScheduledTasks(updatedTasks);
+          }
         } else if (resizeType === 'bottom') {
           // Extend/shrink bottom edge (change rowSpan)
           const rowsDelta = Math.round(event.translationY / (ROW_HEIGHT + 16));
-          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
 
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
-          );
-          setScheduledTasks(updatedTasks);
+          // Only update if the delta has changed by at least 1 row
+          if (rowsDelta !== lastAppliedRowsDelta) {
+            lastAppliedRowsDelta = rowsDelta;
+            const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
+
+            const updatedTasks = scheduledTasks.map(t =>
+              t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
+            );
+            setScheduledTasks(updatedTasks);
+          }
         }
       })
       .onFinalize(() => {
