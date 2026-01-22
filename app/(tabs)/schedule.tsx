@@ -309,28 +309,31 @@ export default function ScheduleScreen() {
     let initialStartDate = new Date(task.startDate);
 
     return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !resizingTask, // Don't capture if we're resizing
       onMoveShouldSetPanResponder: (_, gestureState) => {
+        if (resizingTask) return false; // Don't interfere with resize
         return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
       },
       onPanResponderGrant: () => {
+        if (resizingTask) return; // Don't drag if we're resizing
         setDraggedTask(task.id);
         initialRow = task.row || 0;
         initialStartDate = new Date(task.startDate);
       },
       onPanResponderMove: (_, gestureState) => {
+        if (resizingTask) return; // Don't drag if we're resizing
         const newRow = Math.max(0, Math.floor((initialRow * (ROW_HEIGHT + 16) + gestureState.dy) / (ROW_HEIGHT + 16)));
         const daysDelta = Math.round(gestureState.dx / DAY_WIDTH);
-        
+
         const newStartDate = new Date(initialStartDate);
         newStartDate.setDate(initialStartDate.getDate() + daysDelta);
-        
+
         const newEndDate = new Date(newStartDate);
         newEndDate.setDate(newStartDate.getDate() + task.duration);
-        
-        const updatedTasks = scheduledTasks.map(t => 
-          t.id === task.id ? { 
-            ...t, 
+
+        const updatedTasks = scheduledTasks.map(t =>
+          t.id === task.id ? {
+            ...t,
             row: newRow,
             startDate: newStartDate.toISOString(),
             endDate: newEndDate.toISOString(),
@@ -688,27 +691,64 @@ export default function ScheduleScreen() {
                             resizingTask?.id === task.id && styles.taskBlockResizing,
                           ]}
                         >
-                          <TouchableOpacity
-                            onPress={handleTaskTap}
-                            activeOpacity={0.8}
+                          {/* Right edge resize handle - FIRST so it captures touches before drag */}
+                          <View
+                            {...rightResizeResponder.panHandlers}
+                            onStartShouldSetResponderCapture={() => true}
+                            onMoveShouldSetResponderCapture={() => true}
+                            style={[
+                              styles.resizeHandleRight,
+                              isTouchingRightHandle && styles.resizeHandleActive,
+                            ]}
+                          >
+                            <View style={[
+                              styles.resizeIndicatorVertical,
+                              isTouchingRightHandle && styles.resizeIndicatorActive,
+                            ]} />
+                          </View>
+
+                          {/* Bottom edge resize handle - SECOND so it captures touches before drag */}
+                          <View
+                            {...bottomResizeResponder.panHandlers}
+                            onStartShouldSetResponderCapture={() => true}
+                            onMoveShouldSetResponderCapture={() => true}
+                            style={[
+                              styles.resizeHandleBottom,
+                              isTouchingBottomHandle && styles.resizeHandleActive,
+                            ]}
+                          >
+                            <View style={[
+                              styles.resizeIndicatorHorizontal,
+                              isTouchingBottomHandle && styles.resizeIndicatorActive,
+                            ]} />
+                          </View>
+
+                          {/* Main draggable content - THIRD so resize handles can intercept first */}
+                          <View
                             style={styles.taskContent}
                             {...panResponder.panHandlers}
                           >
-                            <Text style={styles.taskTitle} numberOfLines={1}>
-                              {task.category}
-                            </Text>
-                            <Text style={styles.taskSubtitle} numberOfLines={1}>
-                              {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                            </Text>
-                            <Text style={styles.taskDuration}>
-                              {task.duration} days
-                            </Text>
-                            {task.notes && !isQuickEditing && (
-                              <Text style={styles.taskNotes} numberOfLines={2}>
-                                {task.notes}
+                            <TouchableOpacity
+                              onPress={handleTaskTap}
+                              activeOpacity={0.8}
+                              style={styles.taskContentInner}
+                            >
+                              <Text style={styles.taskTitle} numberOfLines={1}>
+                                {task.category}
                               </Text>
-                            )}
-                          </TouchableOpacity>
+                              <Text style={styles.taskSubtitle} numberOfLines={1}>
+                                {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                              </Text>
+                              <Text style={styles.taskDuration}>
+                                {task.duration} days
+                              </Text>
+                              {task.notes && !isQuickEditing && (
+                                <Text style={styles.taskNotes} numberOfLines={2}>
+                                  {task.notes}
+                                </Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
 
                           {isQuickEditing && (
                             <View style={styles.quickEditContainer}>
@@ -756,7 +796,7 @@ export default function ScheduleScreen() {
                                 <TouchableOpacity
                                   style={styles.quickEditButton}
                                   onPress={() => {
-                                    const updatedTasks = scheduledTasks.map(t => 
+                                    const updatedTasks = scheduledTasks.map(t =>
                                       t.id === task.id ? { ...t, notes: quickNoteText, workType: quickEditWorkType } : t
                                     );
                                     setScheduledTasks(updatedTasks);
@@ -778,36 +818,6 @@ export default function ScheduleScreen() {
                               </View>
                             </View>
                           )}
-
-                          {/* Right edge resize handle */}
-                          <View
-                            {...rightResizeResponder.panHandlers}
-                            onStartShouldSetResponderCapture={() => true}
-                            style={[
-                              styles.resizeHandleRight,
-                              isTouchingRightHandle && styles.resizeHandleActive,
-                            ]}
-                          >
-                            <View style={[
-                              styles.resizeIndicatorVertical,
-                              isTouchingRightHandle && styles.resizeIndicatorActive,
-                            ]} />
-                          </View>
-
-                          {/* Bottom edge resize handle */}
-                          <View
-                            {...bottomResizeResponder.panHandlers}
-                            onStartShouldSetResponderCapture={() => true}
-                            style={[
-                              styles.resizeHandleBottom,
-                              isTouchingBottomHandle && styles.resizeHandleActive,
-                            ]}
-                          >
-                            <View style={[
-                              styles.resizeIndicatorHorizontal,
-                              isTouchingBottomHandle && styles.resizeIndicatorActive,
-                            ]} />
-                          </View>
 
                           <TouchableOpacity
                             style={styles.deleteTaskButton}
@@ -1536,6 +1546,11 @@ const styles = StyleSheet.create({
     bottom: 20,
     zIndex: 1,
   },
+  taskContentInner: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
   taskDragArea: {
     flex: 1,
   },
@@ -1667,8 +1682,8 @@ const styles = StyleSheet.create({
     width: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
-    backgroundColor: 'rgba(255, 0, 0, 0.3)',
+    zIndex: 100,
+    backgroundColor: 'transparent',
   },
   resizeHandleBottom: {
     position: 'absolute',
@@ -1678,11 +1693,11 @@ const styles = StyleSheet.create({
     height: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
-    backgroundColor: 'rgba(0, 0, 255, 0.3)',
+    zIndex: 100,
+    backgroundColor: 'transparent',
   },
   resizeHandleActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   resizeIndicatorVertical: {
     width: 4,
