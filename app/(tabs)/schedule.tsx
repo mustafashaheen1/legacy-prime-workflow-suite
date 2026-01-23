@@ -353,43 +353,53 @@ export default function ScheduleScreen() {
   const createResizeGesture = (task: ScheduledTask, resizeType: 'right' | 'bottom') => {
     let initialDuration = task.duration;
     let initialRowSpan = task.rowSpan || 1;
+    let lastAppliedDelta = 0;
 
     return Gesture.Pan()
-      .minDistance(DAY_WIDTH * 0.5) // Require dragging at least half a day width before gesture activates
       .onBegin(() => {
         setResizingTask({ id: task.id, type: resizeType });
         setTouchingHandle({ id: task.id, type: resizeType });
         initialDuration = task.duration;
         initialRowSpan = task.rowSpan || 1;
+        lastAppliedDelta = 0;
       })
-      .onChange((event) => {
-        // Use onChange instead of onUpdate - it fires less frequently
+      .onUpdate((event) => {
         if (resizeType === 'right') {
-          // Round to nearest day based on total translation
-          const daysDelta = Math.round(event.translationX / DAY_WIDTH);
-          const newDuration = Math.max(1, initialDuration + daysDelta);
+          // Calculate how many complete day-widths have been dragged
+          const currentDelta = Math.floor(event.translationX / DAY_WIDTH);
 
-          const newEndDate = new Date(task.startDate);
-          newEndDate.setDate(newEndDate.getDate() + newDuration);
+          // Only apply update if we've crossed a full day boundary since last update
+          if (currentDelta !== lastAppliedDelta) {
+            lastAppliedDelta = currentDelta;
+            const newDuration = Math.max(1, initialDuration + currentDelta);
 
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? {
-              ...t,
-              duration: newDuration,
-              endDate: newEndDate.toISOString(),
-            } : t
-          );
-          setScheduledTasks(updatedTasks);
+            const newEndDate = new Date(task.startDate);
+            newEndDate.setDate(newEndDate.getDate() + newDuration);
+
+            const updatedTasks = scheduledTasks.map(t =>
+              t.id === task.id ? {
+                ...t,
+                duration: newDuration,
+                endDate: newEndDate.toISOString(),
+              } : t
+            );
+            setScheduledTasks(updatedTasks);
+          }
         } else if (resizeType === 'bottom') {
-          // Round to nearest row based on total translation
+          // Calculate how many complete row-heights have been dragged
           const rowHeight = ROW_HEIGHT + 16;
-          const rowsDelta = Math.round(event.translationY / rowHeight);
-          const newRowSpan = Math.max(1, initialRowSpan + rowsDelta);
+          const currentDelta = Math.floor(event.translationY / rowHeight);
 
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
-          );
-          setScheduledTasks(updatedTasks);
+          // Only apply update if we've crossed a full row boundary since last update
+          if (currentDelta !== lastAppliedDelta) {
+            lastAppliedDelta = currentDelta;
+            const newRowSpan = Math.max(1, initialRowSpan + currentDelta);
+
+            const updatedTasks = scheduledTasks.map(t =>
+              t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
+            );
+            setScheduledTasks(updatedTasks);
+          }
         }
       })
       .onFinalize(() => {
