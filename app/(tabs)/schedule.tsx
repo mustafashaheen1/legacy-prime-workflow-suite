@@ -1490,8 +1490,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    right: 20,
-    bottom: 20,
+    right: 24,
+    bottom: 24,
     zIndex: 1,
   },
   taskContentInner: {
