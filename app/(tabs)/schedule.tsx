@@ -12,7 +12,7 @@ import {
   Switch
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Calendar, X, GripVertical, BookOpen, Plus, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronRight, FileText } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto } from '@/types';
@@ -406,13 +406,6 @@ export default function ScheduleScreen() {
       initialStartDate: taskStartDate,
       initialDayIndex: initialDayIndex,
     });
-
-    if (Platform.OS === 'web') {
-      document.addEventListener('pointermove', handleDragMove as any);
-      document.addEventListener('pointerup', handleDragEnd as any);
-      document.body.style.cursor = 'grabbing';
-      document.body.style.userSelect = 'none';
-    }
   };
 
   const handleDragMove = (e: any) => {
@@ -464,28 +457,8 @@ export default function ScheduleScreen() {
   const handleDragEnd = () => {
     setActiveDrag(null);
     setDraggedTask(null);
-
-    if (Platform.OS === 'web') {
-      document.removeEventListener('pointermove', handleDragMove as any);
-      document.removeEventListener('pointerup', handleDragEnd as any);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
   };
 
-  // Cleanup event listeners on unmount
-  useEffect(() => {
-    return () => {
-      if (Platform.OS === 'web') {
-        document.removeEventListener('pointermove', handleDragMove as any);
-        document.removeEventListener('pointerup', handleDragEnd as any);
-        document.removeEventListener('pointermove', handleResizeMove as any);
-        document.removeEventListener('pointerup', handleResizeEnd as any);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      }
-    };
-  }, []);
 
 
   return (
@@ -674,6 +647,28 @@ export default function ScheduleScreen() {
                                 handleResizeEnd();
                               }
                             }}
+                            {...(Platform.OS === 'web' ? {
+                              onPointerDown: (e: any) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                const clientX = e.clientX;
+                                const clientY = e.clientY;
+                                handleResizeStart(task, 'right', clientX, clientY);
+
+                                const onMove = (moveEvent: PointerEvent) => {
+                                  handleResizeMove(moveEvent.clientX, moveEvent.clientY);
+                                };
+                                const onUp = () => {
+                                  handleResizeEnd();
+                                  document.removeEventListener('pointermove', onMove);
+                                  document.removeEventListener('pointerup', onUp);
+                                  document.body.style.cursor = '';
+                                };
+                                document.addEventListener('pointermove', onMove);
+                                document.addEventListener('pointerup', onUp);
+                                document.body.style.cursor = 'ew-resize';
+                              },
+                            } : {})}
                           >
                             <View
                               style={[
@@ -705,6 +700,28 @@ export default function ScheduleScreen() {
                                 handleResizeEnd();
                               }
                             }}
+                            {...(Platform.OS === 'web' ? {
+                              onPointerDown: (e: any) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                const clientX = e.clientX;
+                                const clientY = e.clientY;
+                                handleResizeStart(task, 'bottom', clientX, clientY);
+
+                                const onMove = (moveEvent: PointerEvent) => {
+                                  handleResizeMove(moveEvent.clientX, moveEvent.clientY);
+                                };
+                                const onUp = () => {
+                                  handleResizeEnd();
+                                  document.removeEventListener('pointermove', onMove);
+                                  document.removeEventListener('pointerup', onUp);
+                                  document.body.style.cursor = '';
+                                };
+                                document.addEventListener('pointermove', onMove);
+                                document.addEventListener('pointerup', onUp);
+                                document.body.style.cursor = 'ns-resize';
+                              },
+                            } : {})}
                           >
                             <View
                               style={[
@@ -720,38 +737,60 @@ export default function ScheduleScreen() {
                               styles.taskContentWrapper,
                               activeDrag?.taskId === task.id && styles.taskDragging,
                             ]}
-                            onTouchStart={(e) => handleDragStart(e, task)}
-                            onTouchMove={(e) => {
+                            onStartShouldSetResponder={() => true}
+                            onResponderGrant={(e) => {
+                              if (Platform.OS !== 'web') {
+                                handleDragStart(e, task);
+                              }
+                            }}
+                            onResponderMove={(e) => {
                               if (Platform.OS !== 'web' && activeDrag) {
                                 const { pageX, pageY } = e.nativeEvent;
                                 handleDragMove({ clientX: pageX, clientY: pageY });
                               }
                             }}
-                            onTouchEnd={handleDragEnd}
+                            onResponderRelease={() => {
+                              if (Platform.OS !== 'web') {
+                                handleDragEnd();
+                              }
+                            }}
                             {...(Platform.OS === 'web' ? {
-                              onPointerDown: (e: any) => handleDragStart(e, task),
+                              onPointerDown: (e: any) => {
+                                e.stopPropagation();
+                                const clientX = e.clientX;
+                                const clientY = e.clientY;
+                                handleDragStart({ clientX, clientY, stopPropagation: () => {} }, task);
+
+                                const onMove = (moveEvent: PointerEvent) => {
+                                  handleDragMove({ clientX: moveEvent.clientX, clientY: moveEvent.clientY });
+                                };
+                                const onUp = () => {
+                                  handleDragEnd();
+                                  document.removeEventListener('pointermove', onMove);
+                                  document.removeEventListener('pointerup', onUp);
+                                  document.body.style.cursor = '';
+                                };
+                                document.addEventListener('pointermove', onMove);
+                                document.addEventListener('pointerup', onUp);
+                                document.body.style.cursor = 'grabbing';
+                              },
+                              onClick: handleTaskTap,
                             } : {})}
                           >
-                            <TouchableOpacity
-                              onPress={handleTaskTap}
-                              activeOpacity={0.8}
-                              style={styles.taskContentInner}
-                            >
-                              <Text style={styles.taskTitle} numberOfLines={1}>
-                                {task.category}
+                            <Text style={styles.taskTitle} numberOfLines={1}>
+                              {task.category}
+                            </Text>
+                            <Text style={styles.taskSubtitle} numberOfLines={1}>
+                              {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                            </Text>
+                            <Text style={styles.taskDuration}>
+                              {task.duration} days
+                            </Text>
+                            {task.notes && !isQuickEditing && (
+                              <Text style={styles.taskNotes} numberOfLines={2}>
+                                {task.notes}
                               </Text>
-                              <Text style={styles.taskSubtitle} numberOfLines={1}>
-                                {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                              </Text>
-                              <Text style={styles.taskDuration}>
-                                {task.duration} days
-                              </Text>
-                              {task.notes && !isQuickEditing && (
-                                <Text style={styles.taskNotes} numberOfLines={2}>
-                                  {task.notes}
-                                </Text>
-                              )}
-                            </TouchableOpacity>
+                            )}
                           </View>
 
                           {isQuickEditing && (
