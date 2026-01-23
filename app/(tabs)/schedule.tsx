@@ -625,6 +625,68 @@ export default function ScheduleScreen() {
                             activeResize?.taskId === task.id && styles.taskBlockResizing,
                           ]}
                         >
+                          {/* Main draggable content */}
+                          <View
+                            style={[
+                              styles.taskContentWrapper,
+                              activeDrag?.taskId === task.id && styles.taskDragging,
+                            ]}
+                            onStartShouldSetResponder={() => true}
+                            onResponderGrant={(e) => {
+                              if (Platform.OS !== 'web') {
+                                handleDragStart(e, task);
+                              }
+                            }}
+                            onResponderMove={(e) => {
+                              if (Platform.OS !== 'web' && activeDrag) {
+                                const { pageX, pageY } = e.nativeEvent;
+                                handleDragMove({ clientX: pageX, clientY: pageY });
+                              }
+                            }}
+                            onResponderRelease={() => {
+                              if (Platform.OS !== 'web') {
+                                handleDragEnd();
+                              }
+                            }}
+                            {...(Platform.OS === 'web' ? {
+                              onPointerDown: (e: any) => {
+                                e.stopPropagation();
+                                const clientX = e.clientX;
+                                const clientY = e.clientY;
+                                handleDragStart({ clientX, clientY, stopPropagation: () => {} }, task);
+
+                                const onMove = (moveEvent: PointerEvent) => {
+                                  handleDragMove({ clientX: moveEvent.clientX, clientY: moveEvent.clientY });
+                                };
+                                const onUp = () => {
+                                  handleDragEnd();
+                                  document.removeEventListener('pointermove', onMove);
+                                  document.removeEventListener('pointerup', onUp);
+                                  document.body.style.cursor = '';
+                                };
+                                document.addEventListener('pointermove', onMove);
+                                document.addEventListener('pointerup', onUp);
+                                document.body.style.cursor = 'grabbing';
+                              },
+                              onClick: handleTaskTap,
+                            } : {})}
+                          >
+                            <Text style={styles.taskTitle} numberOfLines={1}>
+                              {task.category}
+                            </Text>
+                            <Text style={styles.taskSubtitle} numberOfLines={1}>
+                              {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                            </Text>
+                            <Text style={styles.taskDuration}>
+                              {task.duration} days
+                            </Text>
+                            {task.notes && !isQuickEditing && (
+                              <Text style={styles.taskNotes} numberOfLines={2}>
+                                {task.notes}
+                              </Text>
+                            )}
+                          </View>
+
                           {/* Right edge resize handle */}
                           <View
                             style={[
@@ -729,68 +791,6 @@ export default function ScheduleScreen() {
                                 isTouchingBottomHandle && styles.resizeIndicatorActive,
                               ]}
                             />
-                          </View>
-
-                          {/* Main draggable content */}
-                          <View
-                            style={[
-                              styles.taskContentWrapper,
-                              activeDrag?.taskId === task.id && styles.taskDragging,
-                            ]}
-                            onStartShouldSetResponder={() => true}
-                            onResponderGrant={(e) => {
-                              if (Platform.OS !== 'web') {
-                                handleDragStart(e, task);
-                              }
-                            }}
-                            onResponderMove={(e) => {
-                              if (Platform.OS !== 'web' && activeDrag) {
-                                const { pageX, pageY } = e.nativeEvent;
-                                handleDragMove({ clientX: pageX, clientY: pageY });
-                              }
-                            }}
-                            onResponderRelease={() => {
-                              if (Platform.OS !== 'web') {
-                                handleDragEnd();
-                              }
-                            }}
-                            {...(Platform.OS === 'web' ? {
-                              onPointerDown: (e: any) => {
-                                e.stopPropagation();
-                                const clientX = e.clientX;
-                                const clientY = e.clientY;
-                                handleDragStart({ clientX, clientY, stopPropagation: () => {} }, task);
-
-                                const onMove = (moveEvent: PointerEvent) => {
-                                  handleDragMove({ clientX: moveEvent.clientX, clientY: moveEvent.clientY });
-                                };
-                                const onUp = () => {
-                                  handleDragEnd();
-                                  document.removeEventListener('pointermove', onMove);
-                                  document.removeEventListener('pointerup', onUp);
-                                  document.body.style.cursor = '';
-                                };
-                                document.addEventListener('pointermove', onMove);
-                                document.addEventListener('pointerup', onUp);
-                                document.body.style.cursor = 'grabbing';
-                              },
-                              onClick: handleTaskTap,
-                            } : {})}
-                          >
-                            <Text style={styles.taskTitle} numberOfLines={1}>
-                              {task.category}
-                            </Text>
-                            <Text style={styles.taskSubtitle} numberOfLines={1}>
-                              {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                            </Text>
-                            <Text style={styles.taskDuration}>
-                              {task.duration} days
-                            </Text>
-                            {task.notes && !isQuickEditing && (
-                              <Text style={styles.taskNotes} numberOfLines={2}>
-                                {task.notes}
-                              </Text>
-                            )}
                           </View>
 
                           {isQuickEditing && (
@@ -1577,14 +1577,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    overflow: 'hidden',
     padding: 10,
     minHeight: 70,
   },
   taskContentWrapper: {
-    flex: 1,
-    paddingRight: 24,
-    paddingBottom: 20,
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 34,
+    bottom: 34,
     cursor: 'grab' as any,
   },
   taskDragging: {
@@ -1633,6 +1634,7 @@ const styles = StyleSheet.create({
     height: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 300,
   },
   taskBlockDragging: {
     opacity: 0.85,
@@ -1730,12 +1732,12 @@ const styles = StyleSheet.create({
   resizeHandleRight: {
     position: 'absolute',
     right: 0,
-    top: 28,
+    top: 0,
     bottom: 24,
-    width: 24,
+    width: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 100,
+    zIndex: 200,
     backgroundColor: 'transparent',
     cursor: 'ew-resize' as any,
   },
@@ -1743,11 +1745,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     left: 0,
-    right: 24,
-    height: 24,
+    right: 28,
+    height: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 100,
+    zIndex: 200,
     backgroundColor: 'transparent',
     cursor: 'ns-resize' as any,
   },
