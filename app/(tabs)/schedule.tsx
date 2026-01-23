@@ -75,6 +75,7 @@ export default function ScheduleScreen() {
     startY: number;
     initialRow: number;
     initialStartDate: Date;
+    initialDayIndex: number;
   } | null>(null);
 
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
@@ -384,79 +385,107 @@ export default function ScheduleScreen() {
   };
 
   // Drag handlers
-  const handleDragStart = (task: ScheduledTask, clientX: number, clientY: number) => {
+  const handleDragStart = (e: any, task: ScheduledTask) => {
+    e.stopPropagation?.();
+
+    const clientX = e.clientX ?? e.nativeEvent?.pageX ?? 0;
+    const clientY = e.clientY ?? e.nativeEvent?.pageY ?? 0;
+
+    // Find the initial day index
+    const taskStartDate = new Date(task.startDate);
+    const initialDayIndex = dates.findIndex(d =>
+      d.toDateString() === taskStartDate.toDateString()
+    );
+
     setDraggedTask(task.id);
     setActiveDrag({
       taskId: task.id,
       startX: clientX,
       startY: clientY,
       initialRow: task.row || 0,
-      initialStartDate: new Date(task.startDate),
+      initialStartDate: taskStartDate,
+      initialDayIndex: initialDayIndex,
     });
+
+    if (Platform.OS === 'web') {
+      document.addEventListener('pointermove', handleDragMove as any);
+      document.addEventListener('pointerup', handleDragEnd as any);
+      document.body.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+    }
   };
 
-  const handleDragMove = (clientX: number, clientY: number) => {
+  const handleDragMove = (e: any) => {
     if (!activeDrag) return;
+
+    const clientX = e.clientX ?? e.pageX ?? 0;
+    const clientY = e.clientY ?? e.pageY ?? 0;
+
     const task = scheduledTasks.find(t => t.id === activeDrag.taskId);
     if (!task) return;
 
+    // Calculate horizontal movement (days)
     const deltaX = clientX - activeDrag.startX;
+    const deltaDays = Math.round(deltaX / DAY_WIDTH);
+
+    // Calculate vertical movement (rows)
     const deltaY = clientY - activeDrag.startY;
-
     const rowHeight = ROW_HEIGHT + 16;
-    const newRow = Math.max(0, Math.floor((activeDrag.initialRow * rowHeight + deltaY) / rowHeight));
-    const daysDelta = Math.round(deltaX / DAY_WIDTH);
+    const deltaRows = Math.round(deltaY / rowHeight);
+    const newRow = Math.max(0, activeDrag.initialRow + deltaRows);
 
+    // Calculate new start date
     const newStartDate = new Date(activeDrag.initialStartDate);
-    newStartDate.setDate(activeDrag.initialStartDate.getDate() + daysDelta);
+    newStartDate.setDate(activeDrag.initialStartDate.getDate() + deltaDays);
 
+    // Calculate new end date based on duration
     const newEndDate = new Date(newStartDate);
     newEndDate.setDate(newStartDate.getDate() + task.duration);
 
-    const updatedTasks = scheduledTasks.map(t =>
-      t.id === task.id ? {
-        ...t,
-        row: newRow,
-        startDate: newStartDate.toISOString(),
-        endDate: newEndDate.toISOString(),
-      } : t
-    );
-    setScheduledTasks(updatedTasks);
+    // Only update if something changed
+    const currentRow = task.row || 0;
+    const currentStartDate = new Date(task.startDate).toDateString();
+    const newStartDateString = newStartDate.toDateString();
+
+    if (newRow !== currentRow || currentStartDate !== newStartDateString) {
+      setScheduledTasks(prev => prev.map(t =>
+        t.id === activeDrag.taskId
+          ? {
+              ...t,
+              row: newRow,
+              startDate: newStartDate.toISOString(),
+              endDate: newEndDate.toISOString(),
+            }
+          : t
+      ));
+    }
   };
 
   const handleDragEnd = () => {
     setActiveDrag(null);
     setDraggedTask(null);
+
+    if (Platform.OS === 'web') {
+      document.removeEventListener('pointermove', handleDragMove as any);
+      document.removeEventListener('pointerup', handleDragEnd as any);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
   };
 
-  // Global pointer event listeners for web
+  // Cleanup event listeners on unmount
   useEffect(() => {
-    if (Platform.OS === 'web' && (activeResize || activeDrag)) {
-      const handlePointerMove = (e: PointerEvent) => {
-        if (activeResize) {
-          handleResizeMove(e.clientX, e.clientY);
-        } else if (activeDrag) {
-          handleDragMove(e.clientX, e.clientY);
-        }
-      };
-
-      const handlePointerUp = () => {
-        if (activeResize) {
-          handleResizeEnd();
-        } else if (activeDrag) {
-          handleDragEnd();
-        }
-      };
-
-      document.addEventListener('pointermove', handlePointerMove);
-      document.addEventListener('pointerup', handlePointerUp);
-
-      return () => {
-        document.removeEventListener('pointermove', handlePointerMove);
-        document.removeEventListener('pointerup', handlePointerUp);
-      };
-    }
-  }, [activeResize, activeDrag]);
+    return () => {
+      if (Platform.OS === 'web') {
+        document.removeEventListener('pointermove', handleDragMove as any);
+        document.removeEventListener('pointerup', handleDragEnd as any);
+        document.removeEventListener('pointermove', handleResizeMove as any);
+        document.removeEventListener('pointerup', handleResizeEnd as any);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    };
+  }, []);
 
 
   return (
@@ -619,8 +648,8 @@ export default function ScheduleScreen() {
                               height: position.height,
                               backgroundColor: task.color,
                             },
-                            draggedTask === task.id && styles.taskBlockDragging,
-                            resizingTask?.id === task.id && styles.taskBlockResizing,
+                            activeDrag?.taskId === task.id && styles.taskBlockDragging,
+                            activeResize?.taskId === task.id && styles.taskBlockResizing,
                           ]}
                         >
                           {/* Right edge resize handle */}
@@ -687,23 +716,21 @@ export default function ScheduleScreen() {
 
                           {/* Main draggable content */}
                           <View
-                            style={styles.taskContentWrapper}
-                            onStartShouldSetResponder={() => !activeResize}
-                            onResponderGrant={(event) => {
-                              const { pageX, pageY } = event.nativeEvent;
-                              handleDragStart(task, pageX, pageY);
-                            }}
-                            onResponderMove={(event) => {
-                              if (Platform.OS !== 'web' && !activeResize) {
-                                const { pageX, pageY } = event.nativeEvent;
-                                handleDragMove(pageX, pageY);
+                            style={[
+                              styles.taskContentWrapper,
+                              activeDrag?.taskId === task.id && styles.taskDragging,
+                            ]}
+                            onTouchStart={(e) => handleDragStart(e, task)}
+                            onTouchMove={(e) => {
+                              if (Platform.OS !== 'web' && activeDrag) {
+                                const { pageX, pageY } = e.nativeEvent;
+                                handleDragMove({ clientX: pageX, clientY: pageY });
                               }
                             }}
-                            onResponderRelease={() => {
-                              if (Platform.OS !== 'web') {
-                                handleDragEnd();
-                              }
-                            }}
+                            onTouchEnd={handleDragEnd}
+                            {...(Platform.OS === 'web' ? {
+                              onPointerDown: (e: any) => handleDragStart(e, task),
+                            } : {})}
                           >
                             <TouchableOpacity
                               onPress={handleTaskTap}
@@ -1516,8 +1543,13 @@ const styles = StyleSheet.create({
     minHeight: 70,
   },
   taskContentWrapper: {
+    flex: 1,
     paddingRight: 24,
     paddingBottom: 20,
+    cursor: 'grab' as any,
+  },
+  taskDragging: {
+    cursor: 'grabbing' as any,
   },
   taskContent: {
     position: 'absolute',
@@ -1564,8 +1596,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   taskBlockDragging: {
-    opacity: 0.8,
-    transform: [{ scale: 1.05 }],
+    opacity: 0.85,
+    transform: [{ scale: 1.02 }],
+    zIndex: 1000,
   },
   taskBlockResizing: {
     opacity: 0.9,
