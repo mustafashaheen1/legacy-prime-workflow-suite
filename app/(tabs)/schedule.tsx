@@ -35,8 +35,8 @@ const CONSTRUCTION_CATEGORIES = [
 ];
 
 const DAY_WIDTH = 80;
-const ROW_HEIGHT = 60;
-const HOUR_HEIGHT = 60;
+const ROW_HEIGHT = 80;
+const HOUR_HEIGHT = 80;
 const LEFT_MARGIN = 60;
 
 export default function ScheduleScreen() {
@@ -1511,13 +1511,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    overflow: 'visible',
-    padding: 8,
+    overflow: 'hidden',
+    padding: 10,
+    minHeight: 70,
   },
   taskContentWrapper: {
-    flex: 1,
-    marginRight: 24,
-    marginBottom: 24,
+    paddingRight: 24,
+    paddingBottom: 20,
   },
   taskContent: {
     position: 'absolute',
@@ -1536,19 +1536,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   taskTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700' as const,
     color: '#FFFFFF',
-    marginBottom: 2,
+    marginBottom: 1,
   },
   taskSubtitle: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#FFFFFF',
     opacity: 0.9,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   taskDuration: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#FFFFFF',
     opacity: 0.8,
   },
