@@ -11,7 +11,6 @@ import {
   Image,
   Switch
 } from 'react-native';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
@@ -67,6 +66,15 @@ export default function ScheduleScreen() {
     startY: number;
     initialDuration: number;
     initialRowSpan: number;
+  } | null>(null);
+
+  // Drag tracking state
+  const [activeDrag, setActiveDrag] = useState<{
+    taskId: string;
+    startX: number;
+    startY: number;
+    initialRow: number;
+    initialStartDate: Date;
   } | null>(null);
 
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
@@ -375,15 +383,69 @@ export default function ScheduleScreen() {
     setTouchingHandle(null);
   };
 
+  // Drag handlers
+  const handleDragStart = (task: ScheduledTask, clientX: number, clientY: number) => {
+    setDraggedTask(task.id);
+    setActiveDrag({
+      taskId: task.id,
+      startX: clientX,
+      startY: clientY,
+      initialRow: task.row || 0,
+      initialStartDate: new Date(task.startDate),
+    });
+  };
+
+  const handleDragMove = (clientX: number, clientY: number) => {
+    if (!activeDrag) return;
+    const task = scheduledTasks.find(t => t.id === activeDrag.taskId);
+    if (!task) return;
+
+    const deltaX = clientX - activeDrag.startX;
+    const deltaY = clientY - activeDrag.startY;
+
+    const rowHeight = ROW_HEIGHT + 16;
+    const newRow = Math.max(0, Math.floor((activeDrag.initialRow * rowHeight + deltaY) / rowHeight));
+    const daysDelta = Math.round(deltaX / DAY_WIDTH);
+
+    const newStartDate = new Date(activeDrag.initialStartDate);
+    newStartDate.setDate(activeDrag.initialStartDate.getDate() + daysDelta);
+
+    const newEndDate = new Date(newStartDate);
+    newEndDate.setDate(newStartDate.getDate() + task.duration);
+
+    const updatedTasks = scheduledTasks.map(t =>
+      t.id === task.id ? {
+        ...t,
+        row: newRow,
+        startDate: newStartDate.toISOString(),
+        endDate: newEndDate.toISOString(),
+      } : t
+    );
+    setScheduledTasks(updatedTasks);
+  };
+
+  const handleDragEnd = () => {
+    setActiveDrag(null);
+    setDraggedTask(null);
+  };
+
   // Global pointer event listeners for web
   useEffect(() => {
-    if (Platform.OS === 'web' && activeResize) {
+    if (Platform.OS === 'web' && (activeResize || activeDrag)) {
       const handlePointerMove = (e: PointerEvent) => {
-        handleResizeMove(e.clientX, e.clientY);
+        if (activeResize) {
+          handleResizeMove(e.clientX, e.clientY);
+        } else if (activeDrag) {
+          handleDragMove(e.clientX, e.clientY);
+        }
       };
 
       const handlePointerUp = () => {
-        handleResizeEnd();
+        if (activeResize) {
+          handleResizeEnd();
+        } else if (activeDrag) {
+          handleDragEnd();
+        }
       };
 
       document.addEventListener('pointermove', handlePointerMove);
@@ -394,54 +456,8 @@ export default function ScheduleScreen() {
         document.removeEventListener('pointerup', handlePointerUp);
       };
     }
-  }, [activeResize]);
+  }, [activeResize, activeDrag]);
 
-  // Drag gesture - keep using GestureDetector for drag since it works fine
-  const createDragGesture = (task: ScheduledTask) => {
-    let initialRow = task.row || 0;
-    let initialStartDate = new Date(task.startDate);
-    let lastAppliedRow = initialRow;
-    let lastAppliedDaysDelta = 0;
-
-    return Gesture.Pan()
-      .onBegin(() => {
-        setDraggedTask(task.id);
-        initialRow = task.row || 0;
-        initialStartDate = new Date(task.startDate);
-        lastAppliedRow = initialRow;
-        lastAppliedDaysDelta = 0;
-      })
-      .onUpdate((event) => {
-        const newRow = Math.max(0, Math.floor((initialRow * (ROW_HEIGHT + 16) + event.translationY) / (ROW_HEIGHT + 16)));
-        const daysDelta = Math.round(event.translationX / DAY_WIDTH);
-
-        // Only update if row or day has changed
-        if (newRow !== lastAppliedRow || daysDelta !== lastAppliedDaysDelta) {
-          lastAppliedRow = newRow;
-          lastAppliedDaysDelta = daysDelta;
-
-          const newStartDate = new Date(initialStartDate);
-          newStartDate.setDate(initialStartDate.getDate() + daysDelta);
-
-          const newEndDate = new Date(newStartDate);
-          newEndDate.setDate(newStartDate.getDate() + task.duration);
-
-          const updatedTasks = scheduledTasks.map(t =>
-            t.id === task.id ? {
-              ...t,
-              row: newRow,
-              startDate: newStartDate.toISOString(),
-              endDate: newEndDate.toISOString(),
-            } : t
-          );
-          setScheduledTasks(updatedTasks);
-        }
-      })
-      .onFinalize(() => {
-        setDraggedTask(null);
-      })
-      .runOnJS(true);
-  };
 
   return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -572,9 +588,6 @@ export default function ScheduleScreen() {
                       const position = getTaskPosition(task);
                       if (!position) return null;
 
-                      // Create drag gesture
-                      const dragGesture = createDragGesture(task);
-
                       const isQuickEditing = quickEditTask === task.id;
 
                       const handleTaskTap = () => {
@@ -673,30 +686,46 @@ export default function ScheduleScreen() {
                           </View>
 
                           {/* Main draggable content */}
-                          <GestureDetector gesture={dragGesture}>
-                            <View style={styles.taskContent}>
-                              <TouchableOpacity
-                                onPress={handleTaskTap}
-                                activeOpacity={0.8}
-                                style={styles.taskContentInner}
-                              >
-                                <Text style={styles.taskTitle} numberOfLines={1}>
-                                  {task.category}
+                          <View
+                            style={styles.taskContentWrapper}
+                            onStartShouldSetResponder={() => !activeResize}
+                            onResponderGrant={(event) => {
+                              const { pageX, pageY } = event.nativeEvent;
+                              handleDragStart(task, pageX, pageY);
+                            }}
+                            onResponderMove={(event) => {
+                              if (Platform.OS !== 'web' && !activeResize) {
+                                const { pageX, pageY } = event.nativeEvent;
+                                handleDragMove(pageX, pageY);
+                              }
+                            }}
+                            onResponderRelease={() => {
+                              if (Platform.OS !== 'web') {
+                                handleDragEnd();
+                              }
+                            }}
+                          >
+                            <TouchableOpacity
+                              onPress={handleTaskTap}
+                              activeOpacity={0.8}
+                              style={styles.taskContentInner}
+                            >
+                              <Text style={styles.taskTitle} numberOfLines={1}>
+                                {task.category}
+                              </Text>
+                              <Text style={styles.taskSubtitle} numberOfLines={1}>
+                                {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                              </Text>
+                              <Text style={styles.taskDuration}>
+                                {task.duration} days
+                              </Text>
+                              {task.notes && !isQuickEditing && (
+                                <Text style={styles.taskNotes} numberOfLines={2}>
+                                  {task.notes}
                                 </Text>
-                                <Text style={styles.taskSubtitle} numberOfLines={1}>
-                                  {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                                </Text>
-                                <Text style={styles.taskDuration}>
-                                  {task.duration} days
-                                </Text>
-                                {task.notes && !isQuickEditing && (
-                                  <Text style={styles.taskNotes} numberOfLines={2}>
-                                    {task.notes}
-                                  </Text>
-                                )}
-                              </TouchableOpacity>
-                            </View>
-                          </GestureDetector>
+                              )}
+                            </TouchableOpacity>
+                          </View>
 
                           {isQuickEditing && (
                             <View style={styles.quickEditContainer}>
@@ -1483,6 +1512,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     overflow: 'visible',
+    padding: 8,
+  },
+  taskContentWrapper: {
+    flex: 1,
+    marginRight: 24,
+    marginBottom: 24,
   },
   taskContent: {
     position: 'absolute',
@@ -1496,8 +1531,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
   },
   taskDragArea: {
     flex: 1,
