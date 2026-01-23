@@ -1477,8 +1477,6 @@ const styles = StyleSheet.create({
   taskBlock: {
     position: 'absolute',
     borderRadius: 8,
-    padding: 8,
-    marginVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1505,21 +1503,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   taskTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700' as const,
     color: '#FFFFFF',
+    marginBottom: 2,
   },
   taskSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FFFFFF',
     opacity: 0.9,
-    marginTop: 2,
+    marginBottom: 2,
   },
   taskDuration: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#FFFFFF',
     opacity: 0.8,
-    marginTop: 2,
   },
   deleteTaskButton: {
     position: 'absolute',
