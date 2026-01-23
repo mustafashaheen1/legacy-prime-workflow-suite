@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Calendar, X, GripVertical, BookOpen, Plus, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronRight, FileText } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto } from '@/types';
@@ -58,6 +58,16 @@ export default function ScheduleScreen() {
   const [quickNoteText, setQuickNoteText] = useState<string>('');
   const [quickEditWorkType, setQuickEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
   const [lastTap, setLastTap] = useState<number>(0);
+
+  // Resize tracking state
+  const [activeResize, setActiveResize] = useState<{
+    taskId: string;
+    type: 'right' | 'bottom';
+    startX: number;
+    startY: number;
+    initialDuration: number;
+    initialRowSpan: number;
+  } | null>(null);
 
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
   const [equipmentExpanded, setEquipmentExpanded] = useState<boolean>(false);
@@ -304,6 +314,89 @@ export default function ScheduleScreen() {
     };
   };
 
+  // Resize handler functions
+  const handleResizeStart = (task: ScheduledTask, resizeType: 'right' | 'bottom', clientX: number, clientY: number) => {
+    setResizingTask({ id: task.id, type: resizeType });
+    setTouchingHandle({ id: task.id, type: resizeType });
+    setActiveResize({
+      taskId: task.id,
+      type: resizeType,
+      startX: clientX,
+      startY: clientY,
+      initialDuration: task.duration,
+      initialRowSpan: task.rowSpan || 1,
+    });
+  };
+
+  const handleResizeMove = (clientX: number, clientY: number) => {
+    if (!activeResize) return;
+
+    const task = scheduledTasks.find(t => t.id === activeResize.taskId);
+    if (!task) return;
+
+    if (activeResize.type === 'right') {
+      // Calculate delta from initial position
+      const deltaX = clientX - activeResize.startX;
+      const deltaDays = Math.round(deltaX / DAY_WIDTH);
+      const newDuration = Math.max(1, activeResize.initialDuration + deltaDays);
+
+      if (newDuration !== task.duration) {
+        const newEndDate = new Date(task.startDate);
+        newEndDate.setDate(newEndDate.getDate() + newDuration);
+
+        const updatedTasks = scheduledTasks.map(t =>
+          t.id === task.id ? {
+            ...t,
+            duration: newDuration,
+            endDate: newEndDate.toISOString(),
+          } : t
+        );
+        setScheduledTasks(updatedTasks);
+      }
+    } else if (activeResize.type === 'bottom') {
+      // Calculate delta from initial position
+      const deltaY = clientY - activeResize.startY;
+      const rowHeight = ROW_HEIGHT + 16;
+      const deltaRows = Math.round(deltaY / rowHeight);
+      const newRowSpan = Math.max(1, activeResize.initialRowSpan + deltaRows);
+
+      if (newRowSpan !== task.rowSpan) {
+        const updatedTasks = scheduledTasks.map(t =>
+          t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
+        );
+        setScheduledTasks(updatedTasks);
+      }
+    }
+  };
+
+  const handleResizeEnd = () => {
+    setActiveResize(null);
+    setResizingTask(null);
+    setTouchingHandle(null);
+  };
+
+  // Global pointer event listeners for web
+  useEffect(() => {
+    if (Platform.OS === 'web' && activeResize) {
+      const handlePointerMove = (e: PointerEvent) => {
+        handleResizeMove(e.clientX, e.clientY);
+      };
+
+      const handlePointerUp = () => {
+        handleResizeEnd();
+      };
+
+      document.addEventListener('pointermove', handlePointerMove);
+      document.addEventListener('pointerup', handlePointerUp);
+
+      return () => {
+        document.removeEventListener('pointermove', handlePointerMove);
+        document.removeEventListener('pointerup', handlePointerUp);
+      };
+    }
+  }, [activeResize]);
+
+  // Drag gesture - keep using GestureDetector for drag since it works fine
   const createDragGesture = (task: ScheduledTask) => {
     let initialRow = task.row || 0;
     let initialStartDate = new Date(task.startDate);
@@ -346,65 +439,6 @@ export default function ScheduleScreen() {
       })
       .onFinalize(() => {
         setDraggedTask(null);
-      })
-      .runOnJS(true);
-  };
-
-  const createResizeGesture = (task: ScheduledTask, resizeType: 'right' | 'bottom') => {
-    let initialDuration = task.duration;
-    let initialRowSpan = task.rowSpan || 1;
-    let lastAppliedDelta = 0;
-
-    return Gesture.Pan()
-      .onBegin(() => {
-        setResizingTask({ id: task.id, type: resizeType });
-        setTouchingHandle({ id: task.id, type: resizeType });
-        initialDuration = task.duration;
-        initialRowSpan = task.rowSpan || 1;
-        lastAppliedDelta = 0;
-      })
-      .onUpdate((event) => {
-        if (resizeType === 'right') {
-          // Calculate how many complete day-widths have been dragged
-          const currentDelta = Math.floor(event.translationX / DAY_WIDTH);
-
-          // Only apply update if we've crossed a full day boundary since last update
-          if (currentDelta !== lastAppliedDelta) {
-            lastAppliedDelta = currentDelta;
-            const newDuration = Math.max(1, initialDuration + currentDelta);
-
-            const newEndDate = new Date(task.startDate);
-            newEndDate.setDate(newEndDate.getDate() + newDuration);
-
-            const updatedTasks = scheduledTasks.map(t =>
-              t.id === task.id ? {
-                ...t,
-                duration: newDuration,
-                endDate: newEndDate.toISOString(),
-              } : t
-            );
-            setScheduledTasks(updatedTasks);
-          }
-        } else if (resizeType === 'bottom') {
-          // Calculate how many complete row-heights have been dragged
-          const rowHeight = ROW_HEIGHT + 16;
-          const currentDelta = Math.floor(event.translationY / rowHeight);
-
-          // Only apply update if we've crossed a full row boundary since last update
-          if (currentDelta !== lastAppliedDelta) {
-            lastAppliedDelta = currentDelta;
-            const newRowSpan = Math.max(1, initialRowSpan + currentDelta);
-
-            const updatedTasks = scheduledTasks.map(t =>
-              t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
-            );
-            setScheduledTasks(updatedTasks);
-          }
-        }
-      })
-      .onFinalize(() => {
-        setResizingTask(null);
-        setTouchingHandle(null);
       })
       .runOnJS(true);
   };
@@ -538,10 +572,8 @@ export default function ScheduleScreen() {
                       const position = getTaskPosition(task);
                       if (!position) return null;
 
-                      // Create gestures for drag and resize
+                      // Create drag gesture
                       const dragGesture = createDragGesture(task);
-                      const rightResizeGesture = createResizeGesture(task, 'right');
-                      const bottomResizeGesture = createResizeGesture(task, 'bottom');
 
                       const isQuickEditing = quickEditTask === task.id;
 
@@ -579,38 +611,66 @@ export default function ScheduleScreen() {
                           ]}
                         >
                           {/* Right edge resize handle */}
-                          <GestureDetector gesture={rightResizeGesture}>
+                          <View
+                            style={[
+                              styles.resizeHandleRight,
+                              isTouchingRightHandle && styles.resizeHandleActive,
+                            ]}
+                            onStartShouldSetResponder={() => true}
+                            onResponderGrant={(event) => {
+                              const { pageX, pageY } = event.nativeEvent;
+                              handleResizeStart(task, 'right', pageX, pageY);
+                            }}
+                            onResponderMove={(event) => {
+                              if (Platform.OS !== 'web') {
+                                const { pageX, pageY } = event.nativeEvent;
+                                handleResizeMove(pageX, pageY);
+                              }
+                            }}
+                            onResponderRelease={() => {
+                              if (Platform.OS !== 'web') {
+                                handleResizeEnd();
+                              }
+                            }}
+                          >
                             <View
                               style={[
-                                styles.resizeHandleRight,
-                                isTouchingRightHandle && styles.resizeHandleActive,
+                                styles.resizeIndicatorVertical,
+                                isTouchingRightHandle && styles.resizeIndicatorActive,
                               ]}
-                            >
-                              <View
-                                style={[
-                                  styles.resizeIndicatorVertical,
-                                  isTouchingRightHandle && styles.resizeIndicatorActive,
-                                ]}
-                              />
-                            </View>
-                          </GestureDetector>
+                            />
+                          </View>
 
                           {/* Bottom edge resize handle */}
-                          <GestureDetector gesture={bottomResizeGesture}>
+                          <View
+                            style={[
+                              styles.resizeHandleBottom,
+                              isTouchingBottomHandle && styles.resizeHandleActive,
+                            ]}
+                            onStartShouldSetResponder={() => true}
+                            onResponderGrant={(event) => {
+                              const { pageX, pageY } = event.nativeEvent;
+                              handleResizeStart(task, 'bottom', pageX, pageY);
+                            }}
+                            onResponderMove={(event) => {
+                              if (Platform.OS !== 'web') {
+                                const { pageX, pageY } = event.nativeEvent;
+                                handleResizeMove(pageX, pageY);
+                              }
+                            }}
+                            onResponderRelease={() => {
+                              if (Platform.OS !== 'web') {
+                                handleResizeEnd();
+                              }
+                            }}
+                          >
                             <View
                               style={[
-                                styles.resizeHandleBottom,
-                                isTouchingBottomHandle && styles.resizeHandleActive,
+                                styles.resizeIndicatorHorizontal,
+                                isTouchingBottomHandle && styles.resizeIndicatorActive,
                               ]}
-                            >
-                              <View
-                                style={[
-                                  styles.resizeIndicatorHorizontal,
-                                  isTouchingBottomHandle && styles.resizeIndicatorActive,
-                                ]}
-                              />
-                            </View>
-                          </GestureDetector>
+                            />
+                          </View>
 
                           {/* Main draggable content */}
                           <GestureDetector gesture={dragGesture}>
@@ -1566,23 +1626,25 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     top: 0,
-    bottom: 20,
-    width: 20,
+    bottom: 24,
+    width: 24,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 100,
     backgroundColor: 'transparent',
+    cursor: 'ew-resize' as any,
   },
   resizeHandleBottom: {
     position: 'absolute',
     bottom: 0,
     left: 0,
-    right: 20,
-    height: 20,
+    right: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 100,
     backgroundColor: 'transparent',
+    cursor: 'ns-resize' as any,
   },
   resizeHandleActive: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
