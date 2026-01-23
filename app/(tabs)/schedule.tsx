@@ -1626,7 +1626,7 @@ const styles = StyleSheet.create({
   resizeHandleRight: {
     position: 'absolute',
     right: 0,
-    top: 0,
+    top: 28,
     bottom: 24,
     width: 24,
     justifyContent: 'center',
