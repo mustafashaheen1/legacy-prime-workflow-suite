@@ -37,55 +37,14 @@ export const addScheduledTaskProcedure = publicProcedure
         rowSpan: input.rowSpan || 1,
       };
 
-      // Save to in-memory store for backward compatibility
+      // Save to in-memory store
       scheduledTasksStore.push(scheduledTask);
       console.log('[Backend] Scheduled task added to memory store');
-
-      // Return success immediately - save to Supabase in background
       console.log('[Backend] Scheduled task created:', scheduledTask);
       console.log('[Backend] Total scheduled tasks in store:', scheduledTasksStore.length);
 
-      // Save to Supabase database asynchronously (don't await)
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-      if (supabaseUrl && supabaseKey) {
-        // Fire and forget - don't block the response
-        (async () => {
-          try {
-            console.log('[Backend] Starting async Supabase save...');
-            const supabase = createClient(supabaseUrl, supabaseKey);
-
-            const { data, error } = await supabase
-              .from('scheduled_tasks')
-              .insert({
-                id: scheduledTask.id,
-                project_id: input.projectId,
-                category: input.category,
-                start_date: input.startDate,
-                end_date: input.endDate,
-                duration: input.duration,
-                work_type: input.workType,
-                notes: input.notes,
-                color: input.color,
-                row: scheduledTask.row,
-                row_span: scheduledTask.rowSpan,
-              })
-              .select()
-              .single();
-
-            if (error) {
-              console.error('[Backend] Supabase error adding scheduled task:', error);
-            } else {
-              console.log('[Backend] Scheduled task saved to Supabase:', data);
-            }
-          } catch (dbError) {
-            console.error('[Backend] Database operation failed:', dbError);
-          }
-        })();
-      } else {
-        console.warn('[Backend] Supabase not configured - scheduled task saved to memory only');
-      }
+      // TODO: Add Supabase persistence later - for now just use in-memory
+      // The in-memory store works within a single serverless function instance
 
       return { success: true, scheduledTask };
     } catch (error) {
