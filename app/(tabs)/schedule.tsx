@@ -78,6 +78,25 @@ export default function ScheduleScreen() {
     initialDayIndex: number;
   } | null>(null);
 
+  // Refs to track current state inside event listeners (prevents stale closure issues)
+  const activeResizeRef = useRef<{
+    taskId: string;
+    type: 'right' | 'bottom';
+    startX: number;
+    startY: number;
+    initialDuration: number;
+    initialRowSpan: number;
+  } | null>(null);
+
+  const activeDragRef = useRef<{
+    taskId: string;
+    startX: number;
+    startY: number;
+    initialRow: number;
+    initialStartDate: Date;
+    initialDayIndex: number;
+  } | null>(null);
+
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
   const [equipmentExpanded, setEquipmentExpanded] = useState<boolean>(false);
   const [materialExpanded, setMaterialExpanded] = useState<boolean>(false);
@@ -325,136 +344,154 @@ export default function ScheduleScreen() {
 
   // Resize handler functions
   const handleResizeStart = (task: ScheduledTask, resizeType: 'right' | 'bottom', clientX: number, clientY: number) => {
-    setResizingTask({ id: task.id, type: resizeType });
-    setTouchingHandle({ id: task.id, type: resizeType });
-    setActiveResize({
+    const resizeState = {
       taskId: task.id,
       type: resizeType,
       startX: clientX,
       startY: clientY,
       initialDuration: task.duration,
       initialRowSpan: task.rowSpan || 1,
-    });
+    };
+
+    // Store in ref for event listeners
+    activeResizeRef.current = resizeState;
+
+    // Also update state for UI
+    setActiveResize(resizeState);
+    setResizingTask({ id: task.id, type: resizeType });
+    setTouchingHandle({ id: task.id, type: resizeType });
   };
 
   const handleResizeMove = (clientX: number, clientY: number) => {
-    if (!activeResize) return;
+    // Read from ref to avoid stale closure
+    const resize = activeResizeRef.current;
+    if (!resize) return;
 
-    const task = scheduledTasks.find(t => t.id === activeResize.taskId);
-    if (!task) return;
+    // Use functional setState to always get latest tasks
+    setScheduledTasks(prevTasks => {
+      const task = prevTasks.find(t => t.id === resize.taskId);
+      if (!task) return prevTasks;
 
-    if (activeResize.type === 'right') {
-      // Calculate delta from initial position
-      const deltaX = clientX - activeResize.startX;
-      const deltaDays = Math.round(deltaX / DAY_WIDTH);
-      const newDuration = Math.max(1, activeResize.initialDuration + deltaDays);
+      if (resize.type === 'right') {
+        // Calculate delta from initial position
+        const deltaX = clientX - resize.startX;
+        const deltaDays = Math.round(deltaX / DAY_WIDTH);
+        const newDuration = Math.max(1, resize.initialDuration + deltaDays);
 
-      if (newDuration !== task.duration) {
-        const newEndDate = new Date(task.startDate);
-        newEndDate.setDate(newEndDate.getDate() + newDuration);
+        if (newDuration !== task.duration) {
+          const newEndDate = new Date(task.startDate);
+          newEndDate.setDate(newEndDate.getDate() + newDuration);
 
-        const updatedTasks = scheduledTasks.map(t =>
-          t.id === task.id ? {
-            ...t,
-            duration: newDuration,
-            endDate: newEndDate.toISOString(),
-          } : t
-        );
-        setScheduledTasks(updatedTasks);
+          return prevTasks.map(t =>
+            t.id === resize.taskId ? {
+              ...t,
+              duration: newDuration,
+              endDate: newEndDate.toISOString(),
+            } : t
+          );
+        }
+      } else if (resize.type === 'bottom') {
+        // Calculate delta from initial position
+        const deltaY = clientY - resize.startY;
+        const rowHeight = ROW_HEIGHT + 16;
+        const deltaRows = Math.round(deltaY / rowHeight);
+        const newRowSpan = Math.max(1, resize.initialRowSpan + deltaRows);
+
+        if (newRowSpan !== (task.rowSpan || 1)) {
+          return prevTasks.map(t =>
+            t.id === resize.taskId ? { ...t, rowSpan: newRowSpan } : t
+          );
+        }
       }
-    } else if (activeResize.type === 'bottom') {
-      // Calculate delta from initial position
-      const deltaY = clientY - activeResize.startY;
-      const rowHeight = ROW_HEIGHT + 16;
-      const deltaRows = Math.round(deltaY / rowHeight);
-      const newRowSpan = Math.max(1, activeResize.initialRowSpan + deltaRows);
 
-      if (newRowSpan !== task.rowSpan) {
-        const updatedTasks = scheduledTasks.map(t =>
-          t.id === task.id ? { ...t, rowSpan: newRowSpan } : t
-        );
-        setScheduledTasks(updatedTasks);
-      }
-    }
+      return prevTasks;
+    });
   };
 
   const handleResizeEnd = () => {
+    activeResizeRef.current = null;
     setActiveResize(null);
     setResizingTask(null);
     setTouchingHandle(null);
   };
 
   // Drag handlers
-  const handleDragStart = (e: any, task: ScheduledTask) => {
-    e.stopPropagation?.();
-
-    const clientX = e.clientX ?? e.nativeEvent?.pageX ?? 0;
-    const clientY = e.clientY ?? e.nativeEvent?.pageY ?? 0;
-
+  const handleDragStart = (task: ScheduledTask, clientX: number, clientY: number) => {
     // Find the initial day index
     const taskStartDate = new Date(task.startDate);
     const initialDayIndex = dates.findIndex(d =>
       d.toDateString() === taskStartDate.toDateString()
     );
 
-    setDraggedTask(task.id);
-    setActiveDrag({
+    const dragState = {
       taskId: task.id,
       startX: clientX,
       startY: clientY,
       initialRow: task.row || 0,
       initialStartDate: taskStartDate,
       initialDayIndex: initialDayIndex,
+    };
+
+    // Store in ref for event listeners
+    activeDragRef.current = dragState;
+
+    // Also update state for UI
+    setDraggedTask(task.id);
+    setActiveDrag(dragState);
+  };
+
+  const handleDragMove = (clientX: number, clientY: number) => {
+    // Read from ref to avoid stale closure
+    const drag = activeDragRef.current;
+    if (!drag) return;
+
+    // Use functional setState to always get latest tasks
+    setScheduledTasks(prevTasks => {
+      const task = prevTasks.find(t => t.id === drag.taskId);
+      if (!task) return prevTasks;
+
+      // Calculate horizontal movement (days)
+      const deltaX = clientX - drag.startX;
+      const deltaDays = Math.round(deltaX / DAY_WIDTH);
+
+      // Calculate vertical movement (rows)
+      const deltaY = clientY - drag.startY;
+      const rowHeight = ROW_HEIGHT + 16;
+      const deltaRows = Math.round(deltaY / rowHeight);
+      const newRow = Math.max(0, drag.initialRow + deltaRows);
+
+      // Calculate new start date
+      const newStartDate = new Date(drag.initialStartDate);
+      newStartDate.setDate(drag.initialStartDate.getDate() + deltaDays);
+
+      // Calculate new end date based on duration
+      const newEndDate = new Date(newStartDate);
+      newEndDate.setDate(newStartDate.getDate() + task.duration);
+
+      // Only update if something changed
+      const currentRow = task.row || 0;
+      const currentStartDate = new Date(task.startDate).toDateString();
+      const newStartDateString = newStartDate.toDateString();
+
+      if (newRow !== currentRow || currentStartDate !== newStartDateString) {
+        return prevTasks.map(t =>
+          t.id === drag.taskId
+            ? {
+                ...t,
+                row: newRow,
+                startDate: newStartDate.toISOString(),
+                endDate: newEndDate.toISOString(),
+              }
+            : t
+        );
+      }
+
+      return prevTasks;
     });
   };
 
-  const handleDragMove = (e: any) => {
-    if (!activeDrag) return;
-
-    const clientX = e.clientX ?? e.pageX ?? 0;
-    const clientY = e.clientY ?? e.pageY ?? 0;
-
-    const task = scheduledTasks.find(t => t.id === activeDrag.taskId);
-    if (!task) return;
-
-    // Calculate horizontal movement (days)
-    const deltaX = clientX - activeDrag.startX;
-    const deltaDays = Math.round(deltaX / DAY_WIDTH);
-
-    // Calculate vertical movement (rows)
-    const deltaY = clientY - activeDrag.startY;
-    const rowHeight = ROW_HEIGHT + 16;
-    const deltaRows = Math.round(deltaY / rowHeight);
-    const newRow = Math.max(0, activeDrag.initialRow + deltaRows);
-
-    // Calculate new start date
-    const newStartDate = new Date(activeDrag.initialStartDate);
-    newStartDate.setDate(activeDrag.initialStartDate.getDate() + deltaDays);
-
-    // Calculate new end date based on duration
-    const newEndDate = new Date(newStartDate);
-    newEndDate.setDate(newStartDate.getDate() + task.duration);
-
-    // Only update if something changed
-    const currentRow = task.row || 0;
-    const currentStartDate = new Date(task.startDate).toDateString();
-    const newStartDateString = newStartDate.toDateString();
-
-    if (newRow !== currentRow || currentStartDate !== newStartDateString) {
-      setScheduledTasks(prev => prev.map(t =>
-        t.id === activeDrag.taskId
-          ? {
-              ...t,
-              row: newRow,
-              startDate: newStartDate.toISOString(),
-              endDate: newEndDate.toISOString(),
-            }
-          : t
-      ));
-    }
-  };
-
   const handleDragEnd = () => {
+    activeDragRef.current = null;
     setActiveDrag(null);
     setDraggedTask(null);
   };
@@ -634,13 +671,14 @@ export default function ScheduleScreen() {
                             onStartShouldSetResponder={() => true}
                             onResponderGrant={(e) => {
                               if (Platform.OS !== 'web') {
-                                handleDragStart(e, task);
+                                const { pageX, pageY } = e.nativeEvent;
+                                handleDragStart(task, pageX, pageY);
                               }
                             }}
                             onResponderMove={(e) => {
                               if (Platform.OS !== 'web' && activeDrag) {
                                 const { pageX, pageY } = e.nativeEvent;
-                                handleDragMove({ clientX: pageX, clientY: pageY });
+                                handleDragMove(pageX, pageY);
                               }
                             }}
                             onResponderRelease={() => {
@@ -653,10 +691,10 @@ export default function ScheduleScreen() {
                                 e.stopPropagation();
                                 const clientX = e.clientX;
                                 const clientY = e.clientY;
-                                handleDragStart({ clientX, clientY, stopPropagation: () => {} }, task);
+                                handleDragStart(task, clientX, clientY);
 
                                 const onMove = (moveEvent: PointerEvent) => {
-                                  handleDragMove({ clientX: moveEvent.clientX, clientY: moveEvent.clientY });
+                                  handleDragMove(moveEvent.clientX, moveEvent.clientY);
                                 };
                                 const onUp = () => {
                                   handleDragEnd();
