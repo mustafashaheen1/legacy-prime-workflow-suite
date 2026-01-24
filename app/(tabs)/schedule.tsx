@@ -495,9 +495,21 @@ export default function ScheduleScreen() {
   const handleResizeEnd = async () => {
     const resize = activeResizeRef.current;
     if (resize) {
-      // Find the updated task
-      const task = scheduledTasks.find(t => t.id === resize.taskId);
-      if (task) {
+      // Use functional setState to get the latest task data
+      let taskToSave: ScheduledTask | null = null;
+
+      setScheduledTasks(prevTasks => {
+        taskToSave = prevTasks.find(t => t.id === resize.taskId) || null;
+        return prevTasks; // Don't modify state, just read it
+      });
+
+      if (taskToSave) {
+        console.log('[Schedule] Saving task after resize:', {
+          id: taskToSave.id,
+          duration: taskToSave.duration,
+          rowSpan: taskToSave.rowSpan,
+        });
+
         // Save changes to database
         try {
           const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -505,11 +517,11 @@ export default function ScheduleScreen() {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              id: task.id,
-              startDate: task.startDate,
-              endDate: task.endDate,
-              duration: task.duration,
-              rowSpan: task.rowSpan,
+              id: taskToSave.id,
+              startDate: taskToSave.startDate,
+              endDate: taskToSave.endDate,
+              duration: taskToSave.duration,
+              rowSpan: taskToSave.rowSpan,
             }),
           });
 
@@ -517,7 +529,8 @@ export default function ScheduleScreen() {
             throw new Error(`HTTP ${response.status}`);
           }
 
-          console.log('[Schedule] Task updated after resize');
+          const result = await response.json();
+          console.log('[Schedule] Task updated after resize - response:', result);
         } catch (error: any) {
           console.error('[Schedule] Error updating task:', error);
           // Refresh to restore correct state
@@ -610,9 +623,21 @@ export default function ScheduleScreen() {
   const handleDragEnd = async () => {
     const drag = activeDragRef.current;
     if (drag) {
-      // Find the updated task
-      const task = scheduledTasks.find(t => t.id === drag.taskId);
-      if (task) {
+      // Use functional setState to get the latest task data
+      let taskToSave: ScheduledTask | null = null;
+
+      setScheduledTasks(prevTasks => {
+        taskToSave = prevTasks.find(t => t.id === drag.taskId) || null;
+        return prevTasks; // Don't modify state, just read it
+      });
+
+      if (taskToSave) {
+        console.log('[Schedule] Saving task after drag:', {
+          id: taskToSave.id,
+          row: taskToSave.row,
+          startDate: taskToSave.startDate,
+        });
+
         // Save all drag-related changes to database
         try {
           const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -620,11 +645,11 @@ export default function ScheduleScreen() {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              id: task.id,
-              startDate: task.startDate,
-              endDate: task.endDate,
-              duration: task.duration,
-              row: task.row,
+              id: taskToSave.id,
+              startDate: taskToSave.startDate,
+              endDate: taskToSave.endDate,
+              duration: taskToSave.duration,
+              row: taskToSave.row,
             }),
           });
 
@@ -632,7 +657,8 @@ export default function ScheduleScreen() {
             throw new Error(`HTTP ${response.status}`);
           }
 
-          console.log('[Schedule] Task updated after drag - saved row:', task.row);
+          const result = await response.json();
+          console.log('[Schedule] Task updated after drag - response:', result);
         } catch (error: any) {
           console.error('[Schedule] Error updating task:', error);
           // Refresh to restore correct state
