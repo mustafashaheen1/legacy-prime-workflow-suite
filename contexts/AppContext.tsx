@@ -89,6 +89,7 @@ interface AppState {
   markNotificationRead: (id: string) => Promise<void>;
   refreshClients: () => Promise<void>;
   refreshEstimates: () => Promise<void>;
+  refreshDailyLogs: () => Promise<void>;
   logout: () => void;
 }
 
@@ -980,6 +981,42 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.error('[App] ❌ Error refreshing estimates:', error);
     }
   }, [company?.id]);
+
+  const refreshDailyLogs = useCallback(async () => {
+    if (!company?.id) {
+      console.log('[App] ⚠️ Cannot refresh daily logs - no company ID');
+      return;
+    }
+
+    console.log('[App] 🔄 Refreshing daily logs...');
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/get-daily-logs?companyId=${company.id}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[App] 📦 Daily logs result:', data);
+
+      if (data.success && data.dailyLogs) {
+        setDailyLogs(data.dailyLogs);
+        console.log('[App] ✅ Refreshed', data.dailyLogs.length, 'daily logs');
+      } else {
+        console.log('[App] ⚠️ Query succeeded but no daily logs returned');
+      }
+    } catch (error) {
+      console.error('[App] ❌ Error refreshing daily logs:', error);
+    }
+  }, [company?.id]);
+
+  // Load daily logs when company is available
+  useEffect(() => {
+    if (company?.id) {
+      refreshDailyLogs();
+    }
+  }, [company?.id, refreshDailyLogs]);
 
   const addExpense = useCallback(async (expense: Expense) => {
     // Optimistically update UI
@@ -2026,6 +2063,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     markNotificationRead,
     refreshClients,
     refreshEstimates,
+    refreshDailyLogs,
     logout,
   }), [
     user,
@@ -2107,6 +2145,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     markNotificationRead,
     refreshClients,
     refreshEstimates,
+    refreshDailyLogs,
     logout,
   ]);
 });
