@@ -1,7 +1,6 @@
 import { publicProcedure } from '../../../create-context.js';
 import { z } from 'zod';
 import { ScheduledTask } from '../../../../../types/index';
-import { createClient } from '@supabase/supabase-js';
 
 const scheduledTasksStore: ScheduledTask[] = [];
 

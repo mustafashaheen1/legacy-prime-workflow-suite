@@ -1,7 +1,6 @@
 import { publicProcedure } from '../../../create-context.js';
 import { z } from 'zod';
 import { scheduledTasksStore } from '../get-scheduled-tasks/route.js';
-import { createClient } from '@supabase/supabase-js';
 
 export const addScheduledTaskProcedure = publicProcedure
   .input(
