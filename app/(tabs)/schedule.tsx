@@ -621,6 +621,7 @@ export default function ScheduleScreen() {
   };
 
   const handleDragEnd = async () => {
+    console.log('[Schedule] ✅ NEW handleDragEnd called - version b828f4b');
     const drag = activeDragRef.current;
     if (drag) {
       // Use functional setState to get the latest task data
