@@ -137,6 +137,10 @@ export default function ScheduleScreen() {
 
       if (data.success && data.scheduledTasks) {
         console.log('[Schedule] Fetched tasks from database:', data.scheduledTasks);
+        // Log each task's row value
+        data.scheduledTasks.forEach((task: any) => {
+          console.log(`[Schedule] Task ${task.category}: row=${task.row}, rowSpan=${task.rowSpan}`);
+        });
         setScheduledTasks(data.scheduledTasks);
       }
     } catch (error: any) {
@@ -628,7 +632,7 @@ export default function ScheduleScreen() {
             throw new Error(`HTTP ${response.status}`);
           }
 
-          console.log('[Schedule] Task updated after drag');
+          console.log('[Schedule] Task updated after drag - saved row:', task.row);
         } catch (error: any) {
           console.error('[Schedule] Error updating task:', error);
           // Refresh to restore correct state
