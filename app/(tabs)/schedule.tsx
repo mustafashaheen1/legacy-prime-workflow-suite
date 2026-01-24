@@ -604,6 +604,7 @@ export default function ScheduleScreen() {
       const newStartDateString = newStartDate.toDateString();
 
       if (newRow !== currentRow || currentStartDate !== newStartDateString) {
+        console.log('[Schedule] Drag move - updating row from', currentRow, 'to', newRow);
         return prevTasks.map(t =>
           t.id === drag.taskId
             ? {
