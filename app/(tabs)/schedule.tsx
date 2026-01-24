@@ -12,10 +12,11 @@ import {
   Switch
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Calendar, X, GripVertical, BookOpen, Plus, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronRight, FileText } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto } from '@/types';
+import { trpc } from '@/lib/trpc';
 
 const CONSTRUCTION_CATEGORIES = [
   { name: 'Pre-Construction', color: '#8B5CF6' },
@@ -119,7 +120,50 @@ export default function ScheduleScreen() {
   const [sharedWith, setSharedWith] = useState<string[]>([]);
   const [shareEmail, setShareEmail] = useState<string>('');
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
-  
+
+  // tRPC queries and mutations for scheduled tasks
+  const scheduledTasksQuery = trpc.scheduledTasks.getScheduledTasks.useQuery(
+    { projectId: selectedProject || undefined },
+    { enabled: !!selectedProject }
+  );
+
+  const addScheduledTaskMutation = trpc.scheduledTasks.addScheduledTask.useMutation({
+    onSuccess: () => {
+      scheduledTasksQuery.refetch();
+    },
+    onError: (error) => {
+      console.error('[Scheduled Task] Error adding task:', error);
+      Alert.alert('Error', 'Failed to add task to schedule');
+    },
+  });
+
+  const updateScheduledTaskMutation = trpc.scheduledTasks.updateScheduledTask.useMutation({
+    onSuccess: () => {
+      scheduledTasksQuery.refetch();
+    },
+    onError: (error) => {
+      console.error('[Scheduled Task] Error updating task:', error);
+      Alert.alert('Error', 'Failed to update task');
+    },
+  });
+
+  const deleteScheduledTaskMutation = trpc.scheduledTasks.deleteScheduledTask.useMutation({
+    onSuccess: () => {
+      scheduledTasksQuery.refetch();
+    },
+    onError: (error) => {
+      console.error('[Scheduled Task] Error deleting task:', error);
+      Alert.alert('Error', 'Failed to delete task');
+    },
+  });
+
+  // Sync scheduled tasks from database to local state
+  useEffect(() => {
+    if (scheduledTasksQuery.data?.scheduledTasks) {
+      setScheduledTasks(scheduledTasksQuery.data.scheduledTasks);
+    }
+  }, [scheduledTasksQuery.data]);
+
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
   const projectDailyLogs = (dailyLogs && Array.isArray(dailyLogs)) ? dailyLogs.filter(log => log.projectId === selectedProject) : [];
@@ -151,21 +195,28 @@ export default function ScheduleScreen() {
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 7);
 
-    const newTask: ScheduledTask = {
-      id: Date.now().toString(),
+    const newTask = {
       projectId: selectedProject,
       category: category,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       duration: 7,
-      workType: 'in-house',
+      workType: 'in-house' as const,
       notes: '',
       color: categoryData.color,
       row: projectTasks.length,
       rowSpan: 1,
     };
 
-    setScheduledTasks([...scheduledTasks, newTask]);
+    // Save to database via tRPC
+    addScheduledTaskMutation.mutate(newTask);
+
+    // Also update local state optimistically
+    const localTask: ScheduledTask = {
+      id: `temp-${Date.now()}`,
+      ...newTask,
+    };
+    setScheduledTasks([...scheduledTasks, localTask]);
   };
 
   const handleSaveTask = () => {
@@ -184,6 +235,10 @@ export default function ScheduleScreen() {
   };
 
   const handleDeleteTask = (taskId: string) => {
+    // Delete from database
+    deleteScheduledTaskMutation.mutate({ id: taskId });
+
+    // Also remove from local state optimistically
     setScheduledTasks(prev => prev.filter(t => t.id !== taskId));
   };
 
@@ -409,6 +464,22 @@ export default function ScheduleScreen() {
   };
 
   const handleResizeEnd = () => {
+    const resize = activeResizeRef.current;
+    if (resize) {
+      // Find the updated task
+      const task = scheduledTasks.find(t => t.id === resize.taskId);
+      if (task) {
+        // Save changes to database
+        updateScheduledTaskMutation.mutate({
+          id: task.id,
+          startDate: task.startDate,
+          endDate: task.endDate,
+          duration: task.duration,
+          rowSpan: task.rowSpan,
+        });
+      }
+    }
+
     activeResizeRef.current = null;
     setActiveResize(null);
     setResizingTask(null);
@@ -491,6 +562,22 @@ export default function ScheduleScreen() {
   };
 
   const handleDragEnd = () => {
+    const drag = activeDragRef.current;
+    if (drag) {
+      // Find the updated task
+      const task = scheduledTasks.find(t => t.id === drag.taskId);
+      if (task) {
+        // Save all drag-related changes to database
+        updateScheduledTaskMutation.mutate({
+          id: task.id,
+          startDate: task.startDate,
+          endDate: task.endDate,
+          duration: task.duration,
+          row: task.row,
+        });
+      }
+    }
+
     activeDragRef.current = null;
     setActiveDrag(null);
     setDraggedTask(null);
@@ -877,10 +964,19 @@ export default function ScheduleScreen() {
                                 <TouchableOpacity
                                   style={styles.quickEditButton}
                                   onPress={() => {
+                                    // Update local state
                                     const updatedTasks = scheduledTasks.map(t =>
                                       t.id === task.id ? { ...t, notes: quickNoteText, workType: quickEditWorkType } : t
                                     );
                                     setScheduledTasks(updatedTasks);
+
+                                    // Save to database
+                                    updateScheduledTaskMutation.mutate({
+                                      id: task.id,
+                                      notes: quickNoteText,
+                                      workType: quickEditWorkType,
+                                    });
+
                                     setQuickEditTask(null);
                                     setQuickNoteText('');
                                   }}

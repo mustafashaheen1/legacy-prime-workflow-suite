@@ -85,6 +85,10 @@ import { getPhotoCategoriesProcedure } from "./routes/photo-categories/get-photo
 import { addPhotoCategoryProcedure } from "./routes/photo-categories/add-photo-category/route.js";
 import { updatePhotoCategoryProcedure } from "./routes/photo-categories/update-photo-category/route.js";
 import { deletePhotoCategoryProcedure } from "./routes/photo-categories/delete-photo-category/route.js";
+import { getScheduledTasksProcedure } from "./routes/scheduled-tasks/get-scheduled-tasks/route.js";
+import { addScheduledTaskProcedure } from "./routes/scheduled-tasks/add-scheduled-task/route.js";
+import { updateScheduledTaskProcedure } from "./routes/scheduled-tasks/update-scheduled-task/route.js";
+import { deleteScheduledTaskProcedure } from "./routes/scheduled-tasks/delete-scheduled-task/route.js";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -213,6 +217,12 @@ export const appRouter = createTRPCRouter({
     addPhotoCategory: addPhotoCategoryProcedure,
     updatePhotoCategory: updatePhotoCategoryProcedure,
     deletePhotoCategory: deletePhotoCategoryProcedure,
+  }),
+  scheduledTasks: createTRPCRouter({
+    getScheduledTasks: getScheduledTasksProcedure,
+    addScheduledTask: addScheduledTaskProcedure,
+    updateScheduledTask: updateScheduledTaskProcedure,
+    deleteScheduledTask: deleteScheduledTaskProcedure,
   }),
 });
 
