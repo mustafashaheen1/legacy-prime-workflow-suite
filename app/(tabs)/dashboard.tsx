@@ -410,7 +410,7 @@ export default function DashboardScreen() {
         const projectExpenses = expenses.filter(e => e.projectId === project.id);
         const projectClockEntries = clockEntries.filter(c => c.projectId === project.id);
         const projectLogs = Array.isArray(dailyLogs) ? dailyLogs.filter(log => log.projectId === project.id) : [];
-        
+
         return {
           name: project.name,
           budget: project.budget,
@@ -423,6 +423,18 @@ export default function DashboardScreen() {
           startDate: project.startDate,
           endDate: project.endDate,
           dailyLogsCount: projectLogs.length,
+          dailyLogs: projectLogs.map(log => ({
+            date: log.logDate,
+            workPerformed: log.workPerformed,
+            issues: log.issues,
+            notes: log.notes,
+            equipmentNotes: log.equipmentNotes,
+            materialNotes: log.materialNotes,
+            subsNotes: log.subsNotes,
+            employeesNotes: log.employeesNotes,
+            tasksCount: log.tasks?.length || 0,
+            photosCount: log.photos?.length || 0,
+          })),
         };
       });
 
