@@ -121,58 +121,33 @@ export default function ScheduleScreen() {
   const [shareEmail, setShareEmail] = useState<string>('');
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
 
-  // tRPC queries and mutations for scheduled tasks
-  const scheduledTasksQuery = trpc.scheduledTasks.getScheduledTasks.useQuery(
-    { projectId: selectedProject || undefined },
-    {
-      enabled: !!selectedProject,
-      onSuccess: (data) => {
-        console.log('[Schedule] Fetched tasks from database:', data);
-      },
-      onError: (error) => {
-        console.error('[Schedule] Error fetching tasks:', error);
+  // Fetch scheduled tasks from API
+  const fetchScheduledTasks = useCallback(async () => {
+    if (!selectedProject) return;
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/get-scheduled-tasks?projectId=${selectedProject}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
+
+      const data = await response.json();
+
+      if (data.success && data.scheduledTasks) {
+        console.log('[Schedule] Fetched tasks from database:', data.scheduledTasks);
+        setScheduledTasks(data.scheduledTasks);
+      }
+    } catch (error: any) {
+      console.error('[Schedule] Error fetching tasks:', error);
     }
-  );
+  }, [selectedProject]);
 
-  const addScheduledTaskMutation = trpc.scheduledTasks.addScheduledTask.useMutation({
-    onSuccess: (data) => {
-      console.log('[Schedule] Task successfully added to database:', data);
-      scheduledTasksQuery.refetch();
-    },
-    onError: (error) => {
-      console.error('[Schedule] Error adding task:', error);
-      Alert.alert('Error', 'Failed to add task to schedule: ' + error.message);
-    },
-  });
-
-  const updateScheduledTaskMutation = trpc.scheduledTasks.updateScheduledTask.useMutation({
-    onSuccess: () => {
-      scheduledTasksQuery.refetch();
-    },
-    onError: (error) => {
-      console.error('[Scheduled Task] Error updating task:', error);
-      Alert.alert('Error', 'Failed to update task');
-    },
-  });
-
-  const deleteScheduledTaskMutation = trpc.scheduledTasks.deleteScheduledTask.useMutation({
-    onSuccess: () => {
-      scheduledTasksQuery.refetch();
-    },
-    onError: (error) => {
-      console.error('[Scheduled Task] Error deleting task:', error);
-      Alert.alert('Error', 'Failed to delete task');
-    },
-  });
-
-  // Sync scheduled tasks from database to local state
+  // Load tasks when project changes
   useEffect(() => {
-    if (scheduledTasksQuery.data?.scheduledTasks) {
-      console.log('[Schedule] Syncing tasks from database:', scheduledTasksQuery.data.scheduledTasks);
-      setScheduledTasks(scheduledTasksQuery.data.scheduledTasks);
-    }
-  }, [scheduledTasksQuery.data]);
+    fetchScheduledTasks();
+  }, [fetchScheduledTasks]);
 
   const timelineRef = useRef<ScrollView>(null);
   const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
@@ -197,7 +172,7 @@ export default function ScheduleScreen() {
     return `${month} ${day}`;
   };
 
-  const handleCategoryClick = (category: string) => {
+  const handleCategoryClick = async (category: string) => {
     const categoryData = CONSTRUCTION_CATEGORIES.find(c => c.name === category);
     if (!categoryData || !selectedProject) return;
 
@@ -227,8 +202,30 @@ export default function ScheduleScreen() {
     // Update local state optimistically first
     setScheduledTasks(prev => [...prev, newTask]);
 
-    // Save to database via tRPC
-    addScheduledTaskMutation.mutate(newTask);
+    // Save to database via API
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/save-scheduled-task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTask),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[Schedule] Task saved successfully:', data);
+
+      // Refresh tasks from database
+      await fetchScheduledTasks();
+    } catch (error: any) {
+      console.error('[Schedule] Error saving task:', error);
+      Alert.alert('Error', 'Failed to save task to database');
+      // Remove optimistic update on error
+      setScheduledTasks(prev => prev.filter(t => t.id !== taskId));
+    }
   };
 
   const handleSaveTask = () => {
@@ -246,12 +243,28 @@ export default function ScheduleScreen() {
     setEditingTask(null);
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    // Delete from database
-    deleteScheduledTaskMutation.mutate({ id: taskId });
-
-    // Also remove from local state optimistically
+  const handleDeleteTask = async (taskId: string) => {
+    // Remove from local state optimistically
     setScheduledTasks(prev => prev.filter(t => t.id !== taskId));
+
+    // Delete from database via API
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/delete-scheduled-task?id=${taskId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      console.log('[Schedule] Task deleted successfully');
+    } catch (error: any) {
+      console.error('[Schedule] Error deleting task:', error);
+      Alert.alert('Error', 'Failed to delete task from database');
+      // Refresh to restore correct state
+      await fetchScheduledTasks();
+    }
   };
 
   const handleOpenDailyLogs = () => {
@@ -475,20 +488,37 @@ export default function ScheduleScreen() {
     });
   };
 
-  const handleResizeEnd = () => {
+  const handleResizeEnd = async () => {
     const resize = activeResizeRef.current;
     if (resize) {
       // Find the updated task
       const task = scheduledTasks.find(t => t.id === resize.taskId);
       if (task) {
         // Save changes to database
-        updateScheduledTaskMutation.mutate({
-          id: task.id,
-          startDate: task.startDate,
-          endDate: task.endDate,
-          duration: task.duration,
-          rowSpan: task.rowSpan,
-        });
+        try {
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: task.id,
+              startDate: task.startDate,
+              endDate: task.endDate,
+              duration: task.duration,
+              rowSpan: task.rowSpan,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          console.log('[Schedule] Task updated after resize');
+        } catch (error: any) {
+          console.error('[Schedule] Error updating task:', error);
+          // Refresh to restore correct state
+          await fetchScheduledTasks();
+        }
       }
     }
 
@@ -573,20 +603,37 @@ export default function ScheduleScreen() {
     });
   };
 
-  const handleDragEnd = () => {
+  const handleDragEnd = async () => {
     const drag = activeDragRef.current;
     if (drag) {
       // Find the updated task
       const task = scheduledTasks.find(t => t.id === drag.taskId);
       if (task) {
         // Save all drag-related changes to database
-        updateScheduledTaskMutation.mutate({
-          id: task.id,
-          startDate: task.startDate,
-          endDate: task.endDate,
-          duration: task.duration,
-          row: task.row,
-        });
+        try {
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: task.id,
+              startDate: task.startDate,
+              endDate: task.endDate,
+              duration: task.duration,
+              row: task.row,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          console.log('[Schedule] Task updated after drag');
+        } catch (error: any) {
+          console.error('[Schedule] Error updating task:', error);
+          // Refresh to restore correct state
+          await fetchScheduledTasks();
+        }
       }
     }
 
@@ -975,19 +1022,35 @@ export default function ScheduleScreen() {
                               <View style={styles.quickEditButtons}>
                                 <TouchableOpacity
                                   style={styles.quickEditButton}
-                                  onPress={() => {
+                                  onPress={async () => {
                                     // Update local state
                                     const updatedTasks = scheduledTasks.map(t =>
                                       t.id === task.id ? { ...t, notes: quickNoteText, workType: quickEditWorkType } : t
                                     );
                                     setScheduledTasks(updatedTasks);
 
-                                    // Save to database
-                                    updateScheduledTaskMutation.mutate({
-                                      id: task.id,
-                                      notes: quickNoteText,
-                                      workType: quickEditWorkType,
-                                    });
+                                    // Save to database via API
+                                    try {
+                                      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                                      const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          id: task.id,
+                                          notes: quickNoteText,
+                                          workType: quickEditWorkType,
+                                        }),
+                                      });
+
+                                      if (!response.ok) {
+                                        throw new Error(`HTTP ${response.status}`);
+                                      }
+
+                                      console.log('[Schedule] Task notes updated');
+                                    } catch (error: any) {
+                                      console.error('[Schedule] Error updating task notes:', error);
+                                      Alert.alert('Error', 'Failed to update task notes');
+                                    }
 
                                     setQuickEditTask(null);
                                     setQuickNoteText('');
