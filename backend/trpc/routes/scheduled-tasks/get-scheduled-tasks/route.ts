@@ -31,32 +31,39 @@ export const getScheduledTasksProcedure = publicProcedure
           query = query.eq('project_id', input.projectId);
         }
 
-        const { data, error } = await query;
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Query timed out after 8s')), 8000);
+        });
+
+        const { data, error } = await Promise.race([query, timeoutPromise]) as any;
 
         if (error) {
           console.error('[Backend] Supabase error fetching scheduled tasks:', error);
-          throw new Error(`Failed to fetch from database: ${error.message}`);
+          console.warn('[Backend] Falling back to in-memory store');
+          // Fall back to in-memory instead of throwing
+        } else {
+          // Convert snake_case to camelCase
+          const scheduledTasks: ScheduledTask[] = (data || []).map((row: any) => ({
+            id: row.id,
+            projectId: row.project_id,
+            category: row.category,
+            startDate: row.start_date,
+            endDate: row.end_date,
+            duration: row.duration,
+            workType: row.work_type,
+            notes: row.notes,
+            color: row.color,
+            row: row.row,
+            rowSpan: row.row_span,
+          }));
+
+          console.log('[Backend] Fetched', scheduledTasks.length, 'scheduled tasks from Supabase');
+          return { scheduledTasks };
         }
-
-        // Convert snake_case to camelCase
-        const scheduledTasks: ScheduledTask[] = (data || []).map((row: any) => ({
-          id: row.id,
-          projectId: row.project_id,
-          category: row.category,
-          startDate: row.start_date,
-          endDate: row.end_date,
-          duration: row.duration,
-          workType: row.work_type,
-          notes: row.notes,
-          color: row.color,
-          row: row.row,
-          rowSpan: row.row_span,
-        }));
-
-        console.log('[Backend] Fetched', scheduledTasks.length, 'scheduled tasks from Supabase');
-        return { scheduledTasks };
       } catch (error) {
         console.error('[Backend] Error querying Supabase:', error);
+        console.warn('[Backend] Falling back to in-memory store');
         // Fall back to in-memory store on error
       }
     }
