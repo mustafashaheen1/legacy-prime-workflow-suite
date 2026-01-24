@@ -124,16 +124,25 @@ export default function ScheduleScreen() {
   // tRPC queries and mutations for scheduled tasks
   const scheduledTasksQuery = trpc.scheduledTasks.getScheduledTasks.useQuery(
     { projectId: selectedProject || undefined },
-    { enabled: !!selectedProject }
+    {
+      enabled: !!selectedProject,
+      onSuccess: (data) => {
+        console.log('[Schedule] Fetched tasks from database:', data);
+      },
+      onError: (error) => {
+        console.error('[Schedule] Error fetching tasks:', error);
+      }
+    }
   );
 
   const addScheduledTaskMutation = trpc.scheduledTasks.addScheduledTask.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('[Schedule] Task successfully added to database:', data);
       scheduledTasksQuery.refetch();
     },
     onError: (error) => {
-      console.error('[Scheduled Task] Error adding task:', error);
-      Alert.alert('Error', 'Failed to add task to schedule');
+      console.error('[Schedule] Error adding task:', error);
+      Alert.alert('Error', 'Failed to add task to schedule: ' + error.message);
     },
   });
 
@@ -160,6 +169,7 @@ export default function ScheduleScreen() {
   // Sync scheduled tasks from database to local state
   useEffect(() => {
     if (scheduledTasksQuery.data?.scheduledTasks) {
+      console.log('[Schedule] Syncing tasks from database:', scheduledTasksQuery.data.scheduledTasks);
       setScheduledTasks(scheduledTasksQuery.data.scheduledTasks);
     }
   }, [scheduledTasksQuery.data]);
@@ -195,7 +205,11 @@ export default function ScheduleScreen() {
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 7);
 
+    // Generate ID that matches backend format
+    const taskId = `scheduled-task-${Date.now()}`;
+
     const newTask = {
+      id: taskId,
       projectId: selectedProject,
       category: category,
       startDate: startDate.toISOString(),
@@ -208,15 +222,13 @@ export default function ScheduleScreen() {
       rowSpan: 1,
     };
 
+    console.log('[Schedule] Adding task to database:', newTask);
+
+    // Update local state optimistically first
+    setScheduledTasks(prev => [...prev, newTask]);
+
     // Save to database via tRPC
     addScheduledTaskMutation.mutate(newTask);
-
-    // Also update local state optimistically
-    const localTask: ScheduledTask = {
-      id: `temp-${Date.now()}`,
-      ...newTask,
-    };
-    setScheduledTasks([...scheduledTasks, localTask]);
   };
 
   const handleSaveTask = () => {

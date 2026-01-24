@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 export const addScheduledTaskProcedure = publicProcedure
   .input(
     z.object({
+      id: z.string().optional(),
       projectId: z.string(),
       category: z.string(),
       startDate: z.string(),
@@ -23,7 +24,7 @@ export const addScheduledTaskProcedure = publicProcedure
       console.log('[Backend] Adding scheduled task with input:', input);
 
       const scheduledTask = {
-        id: `scheduled-task-${Date.now()}`,
+        id: input.id || `scheduled-task-${Date.now()}`,
         projectId: input.projectId,
         category: input.category,
         startDate: input.startDate,
