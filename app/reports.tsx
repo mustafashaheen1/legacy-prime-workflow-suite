@@ -123,13 +123,18 @@ export default function ReportsScreen() {
             
             data.dailyLogs.forEach(projectLogs => {
               csvContent += `\nPROJECT: ${projectLogs.projectName}\n`;
-              csvContent += 'Date,Work Performed,Issues,Notes\n';
+              csvContent += 'Date,Work Performed,Issues,Equipment Notes,Material Notes,Official Notes,Subs Notes,Employees Notes,General Notes\n';
               projectLogs.logs.forEach(log => {
                 const date = new Date(log.logDate).toLocaleDateString();
                 const work = (log.workPerformed || '').replace(/,/g, ';');
                 const issues = (log.issues || '').replace(/,/g, ';');
-                const notes = (log.generalNotes || '').replace(/,/g, ';');
-                csvContent += `${date},"${work}","${issues}","${notes}"\n`;
+                const equipmentNote = (log.equipmentNote || '').replace(/,/g, ';');
+                const materialNote = (log.materialNote || '').replace(/,/g, ';');
+                const officialNote = (log.officialNote || '').replace(/,/g, ';');
+                const subsNote = (log.subsNote || '').replace(/,/g, ';');
+                const employeesNote = (log.employeesNote || '').replace(/,/g, ';');
+                const generalNotes = (log.generalNotes || '').replace(/,/g, ';');
+                csvContent += `${date},"${work}","${issues}","${equipmentNote}","${materialNote}","${officialNote}","${subsNote}","${employeesNote}","${generalNotes}"\n`;
               });
             });
           } else {
@@ -550,6 +555,31 @@ export default function ReportsScreen() {
     <div class="daily-log">
       <h4>${logDate}</h4>
 `;
+                if (log.equipmentNote) {
+                  htmlContent += `
+      <p><strong style="color: #92400E;">🚜 Equipment Notes:</strong><br>${log.equipmentNote.replace(/\n/g, '<br>')}</p>
+`;
+                }
+                if (log.materialNote) {
+                  htmlContent += `
+      <p><strong style="color: #92400E;">📦 Material Notes:</strong><br>${log.materialNote.replace(/\n/g, '<br>')}</p>
+`;
+                }
+                if (log.officialNote) {
+                  htmlContent += `
+      <p><strong style="color: #92400E;">📋 Official Notes:</strong><br>${log.officialNote.replace(/\n/g, '<br>')}</p>
+`;
+                }
+                if (log.subsNote) {
+                  htmlContent += `
+      <p><strong style="color: #92400E;">👷 Subs Notes:</strong><br>${log.subsNote.replace(/\n/g, '<br>')}</p>
+`;
+                }
+                if (log.employeesNote) {
+                  htmlContent += `
+      <p><strong style="color: #92400E;">👥 Employees Notes:</strong><br>${log.employeesNote.replace(/\n/g, '<br>')}</p>
+`;
+                }
                 if (log.workPerformed) {
                   htmlContent += `
       <p><strong style="color: #92400E;">Work Performed:</strong><br>${log.workPerformed.replace(/\n/g, '<br>')}</p>
@@ -557,12 +587,12 @@ export default function ReportsScreen() {
                 }
                 if (log.issues) {
                   htmlContent += `
-      <p><strong style="color: #92400E;">Issues/Notes:</strong><br>${log.issues.replace(/\n/g, '<br>')}</p>
+      <p><strong style="color: #92400E;">Issues:</strong><br>${log.issues.replace(/\n/g, '<br>')}</p>
 `;
                 }
                 if (log.generalNotes) {
                   htmlContent += `
-      <p><strong style="color: #92400E;">Additional Notes:</strong><br>${log.generalNotes.replace(/\n/g, '<br>')}</p>
+      <p><strong style="color: #92400E;">General Notes:</strong><br>${log.generalNotes.replace(/\n/g, '<br>')}</p>
 `;
                 }
                 if (log.tasks && log.tasks.length > 0) {

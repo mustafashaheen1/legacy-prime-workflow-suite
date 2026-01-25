@@ -24,7 +24,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const dataContext = projectsData ? JSON.stringify(projectsData, null, 2) : 'No project data provided';
 
-    const systemPrompt = `You are a professional construction project report generator. Generate detailed, professional reports based on the user's requirements and the project data provided. Use clear sections, bullet points, and summaries. Include relevant metrics, insights, and actionable recommendations.`;
+    const systemPrompt = `You are a professional construction project report generator. Generate detailed, professional reports based on the user's requirements and the project data provided. Use clear sections, bullet points, and summaries. Include relevant metrics, insights, and actionable recommendations.
+
+When reporting on daily logs, always clearly label the category for each note:
+- Equipment Notes
+- Material Notes
+- Official Notes
+- Subs Notes (Subcontractor notes)
+- Employees Notes
+- General Notes
+
+Format each category with its proper heading so it's clear what type of note it is.`;
 
     const userPrompt = `User Request: ${prompt}
 

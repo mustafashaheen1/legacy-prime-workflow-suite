@@ -1462,7 +1462,7 @@ export default function ScheduleScreen() {
                             })}
                           </Text>
                           <Text style={styles.historyCreatedBy}>
-                            By {log.createdBy} • {new Date(log.createdAt).toLocaleTimeString('en-US', {
+                            By {user?.id === log.createdBy ? user.name : 'Team Member'} • {new Date(log.createdAt).toLocaleTimeString('en-US', {
                               hour: 'numeric',
                               minute: '2-digit',
                               hour12: true
@@ -1509,7 +1509,7 @@ export default function ScheduleScreen() {
                                         // CSV format
                                         let csvContent = 'DAILY LOG\n\n';
                                         csvContent += `Date,${new Date(log.logDate).toLocaleDateString()}\n`;
-                                        csvContent += `Created By,${log.createdBy}\n\n`;
+                                        csvContent += `Created By,${user?.id === log.createdBy ? user.name : 'Team Member'}\n\n`;
 
                                         if (log.equipmentNote) csvContent += `Equipment,"${log.equipmentNote.replace(/"/g, '""')}"\n`;
                                         if (log.materialNote) csvContent += `Material,"${log.materialNote.replace(/"/g, '""')}"\n`;
@@ -1583,7 +1583,7 @@ export default function ScheduleScreen() {
                                               </div>
                                               <div class="section">
                                                 <div class="label">Created By:</div>
-                                                <div class="value">${log.createdBy}</div>
+                                                <div class="value">${user?.id === log.createdBy ? user.name : 'Team Member'}</div>
                                               </div>
                                               ${log.equipmentNote ? `
                                               <div class="section">
@@ -1780,7 +1780,7 @@ export default function ScheduleScreen() {
                               sortedLogs.forEach(log => {
                                 const tasks = log.tasks.map(t => `${t.completed ? 'Done' : 'Pending'}: ${t.description}`).join('; ');
                                 csvContent += `"${new Date(log.logDate).toLocaleDateString()}",`;
-                                csvContent += `"${log.createdBy}",`;
+                                csvContent += `"${user?.id === log.createdBy ? user.name : 'Team Member'}",`;
                                 csvContent += `"${(log.equipmentNote || '').replace(/"/g, '""')}",`;
                                 csvContent += `"${(log.materialNote || '').replace(/"/g, '""')}",`;
                                 csvContent += `"${(log.officialNote || '').replace(/"/g, '""')}",`;
@@ -1851,7 +1851,7 @@ export default function ScheduleScreen() {
                                       <div class="log-entry">
                                         <div class="log-header">
                                           <h2 style="margin: 0; color: white;">Daily Log - ${new Date(log.logDate).toLocaleDateString()}</h2>
-                                          <div style="font-size: 14px; margin-top: 5px;">Created by: ${log.createdBy}</div>
+                                          <div style="font-size: 14px; margin-top: 5px;">Created by: ${user?.id === log.createdBy ? user.name : 'Team Member'}</div>
                                         </div>
                                         ${log.equipmentNote ? `
                                         <div class="section">
