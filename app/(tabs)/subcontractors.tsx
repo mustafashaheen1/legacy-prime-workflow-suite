@@ -25,6 +25,11 @@ export default function SubcontractorsScreen() {
   const [formError, setFormError] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<{[key: string]: string}>({});
   const [sendingInvitation, setSendingInvitation] = useState<boolean>(false);
+  const [showInviteModal, setShowInviteModal] = useState<boolean>(false);
+  const [inviteEmail, setInviteEmail] = useState<string>('');
+  const [inviteName, setInviteName] = useState<string>('');
+  const [invitePhone, setInvitePhone] = useState<string>('');
+  const [inviteTrade, setInviteTrade] = useState<string>('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -182,25 +187,14 @@ export default function SubcontractorsScreen() {
   };
 
   const handleSendInvite = async () => {
-    // Clear previous errors
-    setFormError('');
-    const errors: {[key: string]: string} = {};
-
     // Only email is required for sending invitation
-    if (!formData.email) {
-      errors.email = 'Email is required to send invitation';
-    } else if (!isValidEmail(formData.email)) {
-      errors.email = 'Please enter a valid email (e.g., name@company.com)';
+    if (!inviteEmail) {
+      Alert.alert('Error', 'Email is required to send invitation');
+      return;
     }
 
-    // If there are any errors, set them and show alert for mobile
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      const errorMessage = Object.values(errors).join('\n');
-      setFormError(errorMessage);
-      if (Platform.OS !== 'web') {
-        Alert.alert('Validation Error', errorMessage);
-      }
+    if (!isValidEmail(inviteEmail)) {
+      Alert.alert('Error', 'Please enter a valid email (e.g., name@company.com)');
       return;
     }
 
@@ -218,10 +212,10 @@ export default function SubcontractorsScreen() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: formData.name || undefined,
-          email: formData.email,
-          phone: formData.phone || undefined,
-          trade: formData.trade || undefined,
+          name: inviteName || undefined,
+          email: inviteEmail,
+          phone: invitePhone || undefined,
+          trade: inviteTrade || undefined,
           companyId: user.companyId,
           invitedBy: user.id,
         }),
@@ -234,7 +228,7 @@ export default function SubcontractorsScreen() {
       }
 
       // Open email client with pre-filled content
-      const mailtoUrl = `mailto:${formData.email}?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
+      const mailtoUrl = `mailto:${inviteEmail}?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
 
       if (Platform.OS === 'web') {
         window.location.href = mailtoUrl;
@@ -242,8 +236,11 @@ export default function SubcontractorsScreen() {
         await Linking.openURL(mailtoUrl);
       }
 
-      setShowAddModal(false);
-      resetForm();
+      setShowInviteModal(false);
+      setInviteEmail('');
+      setInviteName('');
+      setInvitePhone('');
+      setInviteTrade('');
 
       Alert.alert(
         'Email Client Opened',
@@ -411,6 +408,10 @@ export default function SubcontractorsScreen() {
             <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Subcontractor</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.inviteHeaderButton} onPress={() => setShowInviteModal(true)}>
+              <Mail size={20} color="#FFFFFF" />
+              <Text style={styles.inviteHeaderButtonText}>Send Invite</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -769,29 +770,80 @@ export default function SubcontractorsScreen() {
               numberOfLines={4}
             />
 
-            <View style={styles.modalButtonGroup}>
-              <TouchableOpacity style={styles.submitButton} onPress={handleAddSubcontractor}>
-                <Text style={styles.submitButtonText}>Add Subcontractor</Text>
-              </TouchableOpacity>
+            <TouchableOpacity style={styles.submitButton} onPress={handleAddSubcontractor}>
+              <Text style={styles.submitButtonText}>Add Subcontractor</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
 
-              <TouchableOpacity
-                style={[styles.inviteButton, sendingInvitation && styles.inviteButtonDisabled]}
-                onPress={handleSendInvite}
-                disabled={sendingInvitation}
-              >
-                {sendingInvitation ? (
-                  <>
-                    <ActivityIndicator size="small" color="#FFF" />
-                    <Text style={styles.inviteButtonText}>Sending...</Text>
-                  </>
-                ) : (
-                  <>
-                    <Mail size={20} color="#FFF" />
-                    <Text style={styles.inviteButtonText}>Send Invite</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+      {/* Send Invite Modal */}
+      <Modal visible={showInviteModal} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Send Invitation</Text>
+            <TouchableOpacity onPress={() => {
+              setShowInviteModal(false);
+              setInviteEmail('');
+              setInviteName('');
+              setInvitePhone('');
+              setInviteTrade('');
+            }}>
+              <X size={24} color="#1F2937" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.inviteDescription}>
+              Send an invitation email to a subcontractor. They will receive a unique link to complete their profile and upload business documents.
+            </Text>
+
+            <Text style={styles.label}>Email *</Text>
+            <TextInput
+              style={styles.input}
+              value={inviteEmail}
+              onChangeText={setInviteEmail}
+              placeholder="john@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <Text style={styles.label}>Name (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={inviteName}
+              onChangeText={setInviteName}
+              placeholder="John Doe"
+            />
+
+            <Text style={styles.label}>Phone (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={invitePhone}
+              onChangeText={setInvitePhone}
+              placeholder="(555) 123-4567"
+              keyboardType="phone-pad"
+            />
+
+            <Text style={styles.label}>Trade (Optional)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tradeSelector}>
+              {trades.map((trade) => (
+                <TouchableOpacity
+                  key={trade}
+                  style={[styles.tradeOption, inviteTrade === trade && styles.tradeOptionActive]}
+                  onPress={() => setInviteTrade(trade)}
+                >
+                  <Text style={[styles.tradeOptionText, inviteTrade === trade && styles.tradeOptionTextActive]}>
+                    {trade}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.submitButton} onPress={handleSendInvite}>
+              <Mail size={20} color="#FFFFFF" />
+              <Text style={styles.submitButtonText}>Send Invitation</Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
@@ -1100,6 +1152,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600' as const,
+  },
+  inviteHeaderButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#059669',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  inviteHeaderButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  inviteDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+    lineHeight: 20,
   },
   searchSection: {
     paddingHorizontal: 20,
@@ -1558,10 +1630,13 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     flex: 1,
+    flexDirection: 'row' as const,
     backgroundColor: '#2563EB',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
   },
   submitButtonText: {
     fontSize: 16,
