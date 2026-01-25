@@ -518,6 +518,7 @@ export interface Subcontractor {
   certifications?: string[];
   address?: string;
   insuranceExpiry?: string;
+  licenseNumber?: string;
   notes?: string;
   avatar?: string;
   createdAt: string;
@@ -527,7 +528,10 @@ export interface Subcontractor {
   approvedDate?: string;
   businessFiles?: BusinessFile[];
   registrationToken?: string;
+  registrationTokenExpiry?: string;
   registrationCompleted?: boolean;
+  invitedBy?: string;
+  invitedAt?: string;
 }
 
 export interface EstimateRequest {

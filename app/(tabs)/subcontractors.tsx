@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Linking, ActivityIndicator } from 'react-native';
 import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Subcontractor, Project, ProjectFile, EstimateRequest } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { Stack, router } from 'expo-router';
@@ -23,6 +24,9 @@ export default function SubcontractorsScreen() {
   const [customTrade, setCustomTrade] = useState<string>('');
   const [formError, setFormError] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<{[key: string]: string}>({});
+  const [showInvitationPrompt, setShowInvitationPrompt] = useState<boolean>(false);
+  const [newlyAddedSubcontractor, setNewlyAddedSubcontractor] = useState<Subcontractor | null>(null);
+  const [sendingInvitation, setSendingInvitation] = useState<boolean>(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -165,11 +169,10 @@ export default function SubcontractorsScreen() {
 
     try {
       await addSubcontractor(newSubcontractor);
+      setNewlyAddedSubcontractor(newSubcontractor);
       setShowAddModal(false);
+      setShowInvitationPrompt(true);
       resetForm();
-      if (Platform.OS !== 'web') {
-        Alert.alert('Success', 'Subcontractor added successfully');
-      }
     } catch (error) {
       const errorMsg = 'Failed to save subcontractor. Please try again.';
       setFormError(errorMsg);
@@ -194,6 +197,66 @@ export default function SubcontractorsScreen() {
     });
     setFormError('');
     setFieldErrors({});
+  };
+
+  const handleSendInvitation = async () => {
+    if (!newlyAddedSubcontractor || !user) {
+      return;
+    }
+
+    setSendingInvitation(true);
+
+    try {
+      const response = await fetch('/api/send-subcontractor-invitation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newlyAddedSubcontractor.name,
+          email: newlyAddedSubcontractor.email,
+          phone: newlyAddedSubcontractor.phone,
+          trade: newlyAddedSubcontractor.trade,
+          companyId: user.companyId,
+          invitedBy: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate invitation');
+      }
+
+      // Open email client with pre-filled content
+      const mailtoUrl = `mailto:${newlyAddedSubcontractor.email}?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
+
+      if (Platform.OS === 'web') {
+        window.location.href = mailtoUrl;
+      } else {
+        await Linking.openURL(mailtoUrl);
+      }
+
+      setShowInvitationPrompt(false);
+      setNewlyAddedSubcontractor(null);
+
+      Alert.alert(
+        'Email Client Opened',
+        'Your email client has been opened with a pre-filled invitation. Please review and send the email to complete the invitation process.',
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('[Send Invitation] Error:', error);
+      Alert.alert('Error', error.message || 'Failed to send invitation. Please try again.');
+    } finally {
+      setSendingInvitation(false);
+    }
+  };
+
+  const handleSkipInvitation = () => {
+    setShowInvitationPrompt(false);
+    setNewlyAddedSubcontractor(null);
+    Alert.alert('Success', 'Subcontractor added successfully');
   };
 
   const handleImportFromContacts = async () => {
@@ -957,6 +1020,49 @@ export default function SubcontractorsScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Invitation Prompt Modal */}
+      <Modal visible={showInvitationPrompt} animationType="fade" transparent={true}>
+        <View style={styles.invitationModalOverlay}>
+          <View style={styles.invitationModalContent}>
+            <View style={styles.invitationModalHeader}>
+              <Ionicons name="mail-outline" size={48} color="#007AFF" />
+              <Text style={styles.invitationModalTitle}>Send Invitation Email?</Text>
+              <Text style={styles.invitationModalSubtitle}>
+                Would you like to send an email invitation to {newlyAddedSubcontractor?.name}? They can complete their profile and upload required documents.
+              </Text>
+            </View>
+
+            <View style={styles.invitationModalButtons}>
+              <TouchableOpacity
+                style={styles.invitationSkipButton}
+                onPress={handleSkipInvitation}
+                disabled={sendingInvitation}
+              >
+                <Text style={styles.invitationSkipButtonText}>Skip</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.invitationSendButton, sendingInvitation && styles.invitationSendButtonDisabled]}
+                onPress={handleSendInvitation}
+                disabled={sendingInvitation}
+              >
+                {sendingInvitation ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFF" />
+                    <Text style={styles.invitationSendButtonText}>Opening...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="send" size={20} color="#FFF" />
+                    <Text style={styles.invitationSendButtonText}>Send Invitation</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1636,5 +1742,79 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#16A34A',
+  },
+  invitationModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    padding: 20,
+  },
+  invitationModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  invitationModalHeader: {
+    alignItems: 'center' as const,
+    marginBottom: 24,
+  },
+  invitationModalTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center' as const,
+  },
+  invitationModalSubtitle: {
+    fontSize: 15,
+    color: '#8E8E93',
+    textAlign: 'center' as const,
+    lineHeight: 22,
+  },
+  invitationModalButtons: {
+    flexDirection: 'row' as const,
+    gap: 12,
+  },
+  invitationSkipButton: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  invitationSkipButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#8E8E93',
+  },
+  invitationSendButton: {
+    flex: 2,
+    flexDirection: 'row' as const,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+  },
+  invitationSendButtonDisabled: {
+    backgroundColor: '#8E8E93',
+  },
+  invitationSendButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
 });
