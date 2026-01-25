@@ -9,7 +9,8 @@ import {
   Platform,
   Alert,
   Image,
-  Switch
+  Switch,
+  Share
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
@@ -17,6 +18,8 @@ import { useApp } from '@/contexts/AppContext';
 import { Calendar, X, GripVertical, BookOpen, Plus, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronRight, FileText } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto } from '@/types';
 import { trpc } from '@/lib/trpc';
+import { Paths, File as FSFile } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const CONSTRUCTION_CATEGORIES = [
   { name: 'Pre-Construction', color: '#8B5CF6' },
@@ -1495,19 +1498,174 @@ export default function ScheduleScreen() {
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => {
-                              const logText = `Daily Log - ${new Date(log.logDate).toLocaleDateString()}\n` +
-                                `Created by: ${log.createdBy}\n\n` +
-                                (log.equipmentNote ? `Equipment: ${log.equipmentNote}\n` : '') +
-                                (log.materialNote ? `Material: ${log.materialNote}\n` : '') +
-                                (log.officialNote ? `Official: ${log.officialNote}\n` : '') +
-                                (log.subsNote ? `Subs: ${log.subsNote}\n` : '') +
-                                (log.employeesNote ? `Employees: ${log.employeesNote}\n` : '') +
-                                `\nWork Performed:\n${log.workPerformed}\n` +
-                                `\nIssues:\n${log.issues}\n` +
-                                `\nGeneral Notes:\n${log.generalNotes}\n` +
-                                (log.tasks.length > 0 ? `\nTasks:\n${log.tasks.map(t => `${t.completed ? '✓' : '○'} ${t.description}`).join('\n')}\n` : '');
-                              console.log('[Export] Daily log:', logText);
-                              alert('Export functionality: This will be available to share via email/SMS in production.');
+                              Alert.alert(
+                                'Export Daily Log',
+                                'Choose export format',
+                                [
+                                  {
+                                    text: 'CSV',
+                                    onPress: async () => {
+                                      try {
+                                        // CSV format
+                                        let csvContent = 'DAILY LOG\n\n';
+                                        csvContent += `Date,${new Date(log.logDate).toLocaleDateString()}\n`;
+                                        csvContent += `Created By,${log.createdBy}\n\n`;
+
+                                        if (log.equipmentNote) csvContent += `Equipment,"${log.equipmentNote.replace(/"/g, '""')}"\n`;
+                                        if (log.materialNote) csvContent += `Material,"${log.materialNote.replace(/"/g, '""')}"\n`;
+                                        if (log.officialNote) csvContent += `Official,"${log.officialNote.replace(/"/g, '""')}"\n`;
+                                        if (log.subsNote) csvContent += `Subs,"${log.subsNote.replace(/"/g, '""')}"\n`;
+                                        if (log.employeesNote) csvContent += `Employees,"${log.employeesNote.replace(/"/g, '""')}"\n`;
+
+                                        csvContent += `\nWork Performed,"${(log.workPerformed || '').replace(/"/g, '""')}"\n`;
+                                        csvContent += `Issues,"${(log.issues || '').replace(/"/g, '""')}"\n`;
+                                        csvContent += `General Notes,"${(log.generalNotes || '').replace(/"/g, '""')}"\n`;
+
+                                        if (log.tasks.length > 0) {
+                                          csvContent += `\nTasks\n`;
+                                          csvContent += 'Status,Description\n';
+                                          log.tasks.forEach(t => {
+                                            csvContent += `${t.completed ? 'Completed' : 'Pending'},"${t.description.replace(/"/g, '""')}"\n`;
+                                          });
+                                        }
+
+                                        if (Platform.OS === 'web') {
+                                          const blob = new Blob([csvContent], { type: 'text/csv' });
+                                          const url = URL.createObjectURL(blob);
+                                          const link = document.createElement('a');
+                                          link.href = url;
+                                          link.download = `daily-log-${new Date(log.logDate).toISOString().split('T')[0]}.csv`;
+                                          link.click();
+                                          URL.revokeObjectURL(url);
+                                        } else {
+                                          const fileName = `daily-log-${new Date(log.logDate).toISOString().split('T')[0]}.csv`;
+                                          const file = new FSFile(Paths.cache, fileName);
+                                          await file.write(csvContent);
+
+                                          if (await Sharing.isAvailableAsync()) {
+                                            await Sharing.shareAsync(file.uri);
+                                          } else {
+                                            await Share.share({ message: csvContent });
+                                          }
+                                        }
+                                      } catch (error) {
+                                        console.error('[Export CSV] Error:', error);
+                                        Alert.alert('Export Error', 'Failed to export daily log as CSV');
+                                      }
+                                    }
+                                  },
+                                  {
+                                    text: 'PDF',
+                                    onPress: async () => {
+                                      try {
+                                        // Generate PDF using Print API
+                                        const htmlContent = `
+                                          <!DOCTYPE html>
+                                          <html>
+                                            <head>
+                                              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+                                              <style>
+                                                body { font-family: Arial, sans-serif; padding: 20px; }
+                                                h1 { color: #2563EB; border-bottom: 2px solid #2563EB; padding-bottom: 10px; }
+                                                .section { margin-bottom: 20px; }
+                                                .label { font-weight: bold; color: #555; }
+                                                .value { margin-top: 5px; }
+                                                .task { padding: 5px 0; }
+                                                .completed { color: green; }
+                                                .pending { color: orange; }
+                                              </style>
+                                            </head>
+                                            <body>
+                                              <h1>Daily Log</h1>
+                                              <div class="section">
+                                                <div class="label">Date:</div>
+                                                <div class="value">${new Date(log.logDate).toLocaleDateString()}</div>
+                                              </div>
+                                              <div class="section">
+                                                <div class="label">Created By:</div>
+                                                <div class="value">${log.createdBy}</div>
+                                              </div>
+                                              ${log.equipmentNote ? `
+                                              <div class="section">
+                                                <div class="label">Equipment:</div>
+                                                <div class="value">${log.equipmentNote}</div>
+                                              </div>` : ''}
+                                              ${log.materialNote ? `
+                                              <div class="section">
+                                                <div class="label">Material:</div>
+                                                <div class="value">${log.materialNote}</div>
+                                              </div>` : ''}
+                                              ${log.officialNote ? `
+                                              <div class="section">
+                                                <div class="label">Official:</div>
+                                                <div class="value">${log.officialNote}</div>
+                                              </div>` : ''}
+                                              ${log.subsNote ? `
+                                              <div class="section">
+                                                <div class="label">Subs:</div>
+                                                <div class="value">${log.subsNote}</div>
+                                              </div>` : ''}
+                                              ${log.employeesNote ? `
+                                              <div class="section">
+                                                <div class="label">Employees:</div>
+                                                <div class="value">${log.employeesNote}</div>
+                                              </div>` : ''}
+                                              <div class="section">
+                                                <div class="label">Work Performed:</div>
+                                                <div class="value">${log.workPerformed || 'N/A'}</div>
+                                              </div>
+                                              <div class="section">
+                                                <div class="label">Issues:</div>
+                                                <div class="value">${log.issues || 'None'}</div>
+                                              </div>
+                                              <div class="section">
+                                                <div class="label">General Notes:</div>
+                                                <div class="value">${log.generalNotes || 'N/A'}</div>
+                                              </div>
+                                              ${log.tasks.length > 0 ? `
+                                              <div class="section">
+                                                <div class="label">Tasks:</div>
+                                                ${log.tasks.map(t => `
+                                                  <div class="task ${t.completed ? 'completed' : 'pending'}">
+                                                    ${t.completed ? '✓' : '○'} ${t.description}
+                                                  </div>
+                                                `).join('')}
+                                              </div>` : ''}
+                                            </body>
+                                          </html>
+                                        `;
+
+                                        if (Platform.OS === 'web') {
+                                          // Web: Open print dialog
+                                          const printWindow = window.open('', '_blank');
+                                          if (printWindow) {
+                                            printWindow.document.write(htmlContent);
+                                            printWindow.document.close();
+                                            printWindow.print();
+                                          }
+                                        } else {
+                                          // Mobile: Use expo-print
+                                          const Print = await import('expo-print');
+                                          const { uri } = await Print.printToFileAsync({ html: htmlContent });
+
+                                          if (await Sharing.isAvailableAsync()) {
+                                            await Sharing.shareAsync(uri);
+                                          } else {
+                                            Alert.alert('PDF Generated', 'PDF saved to device');
+                                          }
+                                        }
+                                      } catch (error) {
+                                        console.error('[Export PDF] Error:', error);
+                                        Alert.alert('Export Error', 'Failed to export daily log as PDF');
+                                      }
+                                    }
+                                  },
+                                  {
+                                    text: 'Cancel',
+                                    style: 'cancel'
+                                  }
+                                ]
+                              );
                             }}
                             style={styles.exportButton}
                           >
@@ -1602,26 +1760,182 @@ export default function ScheduleScreen() {
                 <Text style={styles.closeButtonText}>Close</Text>
               </TouchableOpacity>
               {projectDailyLogs.length > 0 && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.exportAllButton}
                   onPress={() => {
-                    const allLogsText = projectDailyLogs
-                      .sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime())
-                      .map(log => {
-                        return `Daily Log - ${new Date(log.logDate).toLocaleDateString()}\n` +
-                          `Created by: ${log.createdBy}\n\n` +
-                          (log.equipmentNote ? `Equipment: ${log.equipmentNote}\n` : '') +
-                          (log.materialNote ? `Material: ${log.materialNote}\n` : '') +
-                          (log.officialNote ? `Official: ${log.officialNote}\n` : '') +
-                          (log.subsNote ? `Subs: ${log.subsNote}\n` : '') +
-                          (log.employeesNote ? `Employees: ${log.employeesNote}\n` : '') +
-                          `\nWork Performed:\n${log.workPerformed}\n` +
-                          `\nIssues:\n${log.issues}\n` +
-                          `\nGeneral Notes:\n${log.generalNotes}\n\n---\n\n`;
-                      })
-                      .join('');
-                    console.log('[Export All] Daily logs:', allLogsText);
-                    alert('Export All functionality: This will be available to share via email/SMS in production.');
+                    Alert.alert(
+                      'Export All Daily Logs',
+                      'Choose export format',
+                      [
+                        {
+                          text: 'CSV',
+                          onPress: async () => {
+                            try {
+                              const sortedLogs = projectDailyLogs.sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime());
+
+                              // CSV format with all logs
+                              let csvContent = 'DAILY LOGS REPORT\n\n';
+                              csvContent += 'Date,Created By,Equipment,Material,Official,Subs,Employees,Work Performed,Issues,General Notes,Tasks\n';
+
+                              sortedLogs.forEach(log => {
+                                const tasks = log.tasks.map(t => `${t.completed ? 'Done' : 'Pending'}: ${t.description}`).join('; ');
+                                csvContent += `"${new Date(log.logDate).toLocaleDateString()}",`;
+                                csvContent += `"${log.createdBy}",`;
+                                csvContent += `"${(log.equipmentNote || '').replace(/"/g, '""')}",`;
+                                csvContent += `"${(log.materialNote || '').replace(/"/g, '""')}",`;
+                                csvContent += `"${(log.officialNote || '').replace(/"/g, '""')}",`;
+                                csvContent += `"${(log.subsNote || '').replace(/"/g, '""')}",`;
+                                csvContent += `"${(log.employeesNote || '').replace(/"/g, '""')}",`;
+                                csvContent += `"${(log.workPerformed || '').replace(/"/g, '""')}",`;
+                                csvContent += `"${(log.issues || '').replace(/"/g, '""')}",`;
+                                csvContent += `"${(log.generalNotes || '').replace(/"/g, '""')}",`;
+                                csvContent += `"${tasks.replace(/"/g, '""')}"\n`;
+                              });
+
+                              if (Platform.OS === 'web') {
+                                const blob = new Blob([csvContent], { type: 'text/csv' });
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `daily-logs-all-${new Date().toISOString().split('T')[0]}.csv`;
+                                link.click();
+                                URL.revokeObjectURL(url);
+                              } else {
+                                const fileName = `daily-logs-all-${new Date().toISOString().split('T')[0]}.csv`;
+                                const file = new FSFile(Paths.cache, fileName);
+                                await file.write(csvContent);
+
+                                if (await Sharing.isAvailableAsync()) {
+                                  await Sharing.shareAsync(file.uri);
+                                } else {
+                                  await Share.share({ message: csvContent });
+                                }
+                              }
+                            } catch (error) {
+                              console.error('[Export All CSV] Error:', error);
+                              Alert.alert('Export Error', 'Failed to export daily logs as CSV');
+                            }
+                          }
+                        },
+                        {
+                          text: 'PDF',
+                          onPress: async () => {
+                            try {
+                              const sortedLogs = projectDailyLogs.sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime());
+
+                              // Generate PDF with all logs
+                              const htmlContent = `
+                                <!DOCTYPE html>
+                                <html>
+                                  <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+                                    <style>
+                                      body { font-family: Arial, sans-serif; padding: 20px; }
+                                      h1 { color: #2563EB; border-bottom: 3px solid #2563EB; padding-bottom: 10px; margin-bottom: 30px; }
+                                      .log-entry { margin-bottom: 40px; page-break-inside: avoid; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
+                                      .log-header { background: #2563EB; color: white; padding: 10px; margin: -15px -15px 15px -15px; border-radius: 8px 8px 0 0; }
+                                      .section { margin-bottom: 15px; }
+                                      .label { font-weight: bold; color: #555; display: inline-block; min-width: 150px; }
+                                      .value { display: inline-block; }
+                                      .task { padding: 5px 0; margin-left: 20px; }
+                                      .completed { color: green; }
+                                      .pending { color: orange; }
+                                    </style>
+                                  </head>
+                                  <body>
+                                    <h1>Daily Logs Report</h1>
+                                    <p><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
+                                    <p><strong>Total Logs:</strong> ${sortedLogs.length}</p>
+                                    <hr style="margin: 30px 0;" />
+                                    ${sortedLogs.map(log => `
+                                      <div class="log-entry">
+                                        <div class="log-header">
+                                          <h2 style="margin: 0; color: white;">Daily Log - ${new Date(log.logDate).toLocaleDateString()}</h2>
+                                          <div style="font-size: 14px; margin-top: 5px;">Created by: ${log.createdBy}</div>
+                                        </div>
+                                        ${log.equipmentNote ? `
+                                        <div class="section">
+                                          <span class="label">Equipment:</span>
+                                          <span class="value">${log.equipmentNote}</span>
+                                        </div>` : ''}
+                                        ${log.materialNote ? `
+                                        <div class="section">
+                                          <span class="label">Material:</span>
+                                          <span class="value">${log.materialNote}</span>
+                                        </div>` : ''}
+                                        ${log.officialNote ? `
+                                        <div class="section">
+                                          <span class="label">Official:</span>
+                                          <span class="value">${log.officialNote}</span>
+                                        </div>` : ''}
+                                        ${log.subsNote ? `
+                                        <div class="section">
+                                          <span class="label">Subs:</span>
+                                          <span class="value">${log.subsNote}</span>
+                                        </div>` : ''}
+                                        ${log.employeesNote ? `
+                                        <div class="section">
+                                          <span class="label">Employees:</span>
+                                          <span class="value">${log.employeesNote}</span>
+                                        </div>` : ''}
+                                        <div class="section">
+                                          <div class="label">Work Performed:</div>
+                                          <div class="value">${log.workPerformed || 'N/A'}</div>
+                                        </div>
+                                        <div class="section">
+                                          <div class="label">Issues:</div>
+                                          <div class="value">${log.issues || 'None'}</div>
+                                        </div>
+                                        <div class="section">
+                                          <div class="label">General Notes:</div>
+                                          <div class="value">${log.generalNotes || 'N/A'}</div>
+                                        </div>
+                                        ${log.tasks.length > 0 ? `
+                                        <div class="section">
+                                          <div class="label">Tasks:</div>
+                                          ${log.tasks.map(t => `
+                                            <div class="task ${t.completed ? 'completed' : 'pending'}">
+                                              ${t.completed ? '✓' : '○'} ${t.description}
+                                            </div>
+                                          `).join('')}
+                                        </div>` : ''}
+                                      </div>
+                                    `).join('')}
+                                  </body>
+                                </html>
+                              `;
+
+                              if (Platform.OS === 'web') {
+                                // Web: Open print dialog
+                                const printWindow = window.open('', '_blank');
+                                if (printWindow) {
+                                  printWindow.document.write(htmlContent);
+                                  printWindow.document.close();
+                                  printWindow.print();
+                                }
+                              } else {
+                                // Mobile: Use expo-print
+                                const Print = await import('expo-print');
+                                const { uri } = await Print.printToFileAsync({ html: htmlContent });
+
+                                if (await Sharing.isAvailableAsync()) {
+                                  await Sharing.shareAsync(uri);
+                                } else {
+                                  Alert.alert('PDF Generated', 'PDF saved to device');
+                                }
+                              }
+                            } catch (error) {
+                              console.error('[Export All PDF] Error:', error);
+                              Alert.alert('Export Error', 'Failed to export daily logs as PDF');
+                            }
+                          }
+                        },
+                        {
+                          text: 'Cancel',
+                          style: 'cancel'
+                        }
+                      ]
+                    );
                   }}
                 >
                   <Download size={18} color="#FFFFFF" />
