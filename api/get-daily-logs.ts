@@ -60,12 +60,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       createdBy: row.created_by,
       workPerformed: row.work_performed,
       issues: row.issues,
-      generalNotes: row.notes, // Map 'notes' from DB to 'generalNotes' for DailyLog type
-      equipmentNote: row.equipment_notes,
-      materialNote: row.material_notes,
-      officialNote: row.official_notes,
-      subsNote: row.subs_notes,
-      employeesNote: row.employees_notes,
+      generalNotes: row.general_notes, // Map 'general_notes' from DB to 'generalNotes' for DailyLog type
+      equipmentNote: row.equipment_note,
+      materialNote: row.material_note,
+      officialNote: row.official_note,
+      subsNote: row.subs_note,
+      employeesNote: row.employees_note,
       tasks: row.tasks || [],
       photos: row.photos || [],
       sharedWith: row.shared_with || [],
