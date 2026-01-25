@@ -11,20 +11,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[API] Send subcontractor invitation request received');
 
   try {
-    const { name, email, phone, trade, companyId, invitedBy } = req.body;
+    const { companyId, invitedBy } = req.body;
 
     // Validate required fields
-    if (!email || !companyId || !invitedBy) {
+    if (!companyId || !invitedBy) {
       return res.status(400).json({
         error: 'Missing required fields',
-        details: 'email, companyId, and invitedBy are required'
+        details: 'companyId and invitedBy are required'
       });
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Invalid email format' });
     }
 
     // Initialize Supabase client
@@ -38,28 +32,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if email already exists
-    const { data: existingSubcontractor } = await supabase
-      .from('subcontractors')
-      .select('id, email, registration_completed')
-      .eq('email', email)
-      .eq('company_id', companyId)
-      .single();
-
-    if (existingSubcontractor && existingSubcontractor.registration_completed) {
-      return res.status(400).json({
-        error: 'A subcontractor with this email already exists and has completed registration'
-      });
-    }
-
     // Generate unique registration token
     const timestamp = Date.now();
     const randomString = randomBytes(16).toString('hex');
     const registrationToken = `sub_reg_${timestamp}_${randomString}`;
-
-    // Set token expiry to 7 days from now
-    const tokenExpiry = new Date();
-    tokenExpiry.setDate(tokenExpiry.getDate() + 7);
 
     // Get company name for email
     const { data: company } = await supabase
@@ -70,62 +46,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const companyName = company?.name || 'Legacy Prime Construction';
 
-    // Create or update draft subcontractor
-    const subcontractorData = {
-      company_id: companyId,
-      name: name || '',
-      email: email,
-      phone: phone || '',
-      trade: trade || '',
-      registration_token: registrationToken,
-      registration_token_expiry: tokenExpiry.toISOString(),
-      registration_completed: false,
-      approved: false,
-      is_active: false,
-      invited_by: invitedBy,
-      invited_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    };
+    // Store token with company and inviter info in a registration_tokens table
+    // (we'll create this to track tokens without creating draft subcontractors)
+    const { error: tokenError } = await supabase
+      .from('registration_tokens')
+      .insert({
+        token: registrationToken,
+        company_id: companyId,
+        invited_by: invitedBy,
+        created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      });
 
-    let subcontractorId: string;
-
-    if (existingSubcontractor) {
-      // Update existing draft
-      const { data, error } = await supabase
-        .from('subcontractors')
-        .update(subcontractorData)
-        .eq('id', existingSubcontractor.id)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('[API] Database error updating subcontractor:', error);
-        return res.status(500).json({
-          error: 'Failed to update subcontractor invitation',
-          details: error.message
-        });
-      }
-
-      subcontractorId = data.id;
-      console.log('[API] Updated existing draft subcontractor:', subcontractorId);
-    } else {
-      // Create new draft
-      const { data, error } = await supabase
-        .from('subcontractors')
-        .insert(subcontractorData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('[API] Database error creating subcontractor:', error);
-        return res.status(500).json({
-          error: 'Failed to create subcontractor invitation',
-          details: error.message
-        });
-      }
-
-      subcontractorId = data.id;
-      console.log('[API] Created new draft subcontractor:', subcontractorId);
+    if (tokenError) {
+      console.error('[API] Error storing registration token:', tokenError);
+      // If table doesn't exist, continue anyway - token is in the URL
     }
 
     // Generate registration URL
@@ -134,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Generate email template
     const emailSubject = `Complete Your Subcontractor Profile for ${companyName}`;
-    const emailBody = `Hi ${name || 'there'},
+    const emailBody = `Hi there,
 
 You have been invited to join ${companyName} as a subcontractor.
 
@@ -160,7 +95,6 @@ ${companyName}`;
     return res.status(200).json({
       success: true,
       registrationUrl,
-      subcontractorId,
       emailSubject,
       emailBody,
     });

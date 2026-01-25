@@ -31,26 +31,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Validate token
-    const { data: existingSubcontractor, error: lookupError } = await supabase
-      .from('subcontractors')
-      .select('id, registration_token_expiry, registration_completed, company_id, invited_by')
-      .eq('registration_token', token)
+    // Validate token in registration_tokens table
+    const { data: tokenData, error: lookupError } = await supabase
+      .from('registration_tokens')
+      .select('*')
+      .eq('token', token)
       .single();
 
-    if (lookupError || !existingSubcontractor) {
+    if (lookupError || !tokenData) {
       console.error('[API] Token not found:', token);
       return res.status(400).json({ error: 'Invalid registration token' });
     }
 
-    // Check if already completed
-    if (existingSubcontractor.registration_completed) {
-      console.error('[API] Registration already completed');
-      return res.status(400).json({ error: 'Registration has already been completed' });
+    // Check if already used
+    if (tokenData.used) {
+      console.error('[API] Token already used');
+      return res.status(400).json({ error: 'Registration link has already been used' });
     }
 
     // Check if token expired
-    const expiryDate = new Date(existingSubcontractor.registration_token_expiry);
+    const expiryDate = new Date(tokenData.expires_at);
     const now = new Date();
 
     if (now > expiryDate) {
@@ -58,8 +58,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Registration link has expired' });
     }
 
-    // Update subcontractor with complete data
-    const updateData = {
+    // Create new subcontractor with complete data
+    const newSubcontractorData = {
+      company_id: tokenData.company_id,
       name: subcontractor.name,
       company_name: subcontractor.companyName,
       email: subcontractor.email,
@@ -73,35 +74,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       registration_completed: true,
       approved: false,
       is_active: true,
-      updated_at: new Date().toISOString(),
+      invited_by: tokenData.invited_by,
+      created_at: new Date().toISOString(),
     };
 
-    const { data: updatedSubcontractor, error: updateError } = await supabase
+    const { data: newSubcontractor, error: createError } = await supabase
       .from('subcontractors')
-      .update(updateData)
-      .eq('id', existingSubcontractor.id)
+      .insert(newSubcontractorData)
       .select()
       .single();
 
-    if (updateError) {
-      console.error('[API] Database error updating subcontractor:', updateError);
+    if (createError) {
+      console.error('[API] Database error creating subcontractor:', createError);
       return res.status(500).json({
         error: 'Failed to complete registration',
-        details: updateError.message
+        details: createError.message
       });
     }
 
-    console.log('[API] Registration completed successfully:', existingSubcontractor.id);
+    // Link uploaded files to the new subcontractor
+    await supabase
+      .from('business_files')
+      .update({ subcontractor_id: newSubcontractor.id, registration_token: null })
+      .eq('registration_token', token);
+
+    // Mark token as used
+    await supabase
+      .from('registration_tokens')
+      .update({ used: true, used_at: new Date().toISOString() })
+      .eq('token', token);
+
+    console.log('[API] Registration completed successfully:', newSubcontractor.id);
 
     // Create notification for user who sent invitation
-    if (existingSubcontractor.invited_by) {
+    if (tokenData.invited_by) {
       const notificationData = {
-        user_id: existingSubcontractor.invited_by,
+        user_id: tokenData.invited_by,
         type: 'subcontractor_registered',
         title: 'Subcontractor Registration Completed',
         message: `${subcontractor.name} has completed their registration`,
         data: JSON.stringify({
-          subcontractorId: existingSubcontractor.id,
+          subcontractorId: newSubcontractor.id,
           subcontractorName: subcontractor.name,
         }),
         read: false,
@@ -116,30 +129,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error('[API] Failed to create notification:', notificationError);
         // Don't fail the request if notification creation fails
       } else {
-        console.log('[API] Notification created for user:', existingSubcontractor.invited_by);
+        console.log('[API] Notification created for user:', tokenData.invited_by);
       }
     }
 
-    // Return the updated subcontractor
+    // Return the created subcontractor
     return res.status(200).json({
       success: true,
       subcontractor: {
-        id: updatedSubcontractor.id,
-        companyId: updatedSubcontractor.company_id,
-        name: updatedSubcontractor.name,
-        companyName: updatedSubcontractor.company_name,
-        email: updatedSubcontractor.email,
-        phone: updatedSubcontractor.phone,
-        trade: updatedSubcontractor.trade,
-        licenseNumber: updatedSubcontractor.license_number,
-        address: updatedSubcontractor.address,
-        insuranceExpiry: updatedSubcontractor.insurance_expiry,
-        notes: updatedSubcontractor.notes,
-        rating: updatedSubcontractor.rating,
-        approved: updatedSubcontractor.approved,
-        isActive: updatedSubcontractor.is_active,
-        registrationCompleted: updatedSubcontractor.registration_completed,
-        createdAt: updatedSubcontractor.created_at,
+        id: newSubcontractor.id,
+        companyId: newSubcontractor.company_id,
+        name: newSubcontractor.name,
+        companyName: newSubcontractor.company_name,
+        email: newSubcontractor.email,
+        phone: newSubcontractor.phone,
+        trade: newSubcontractor.trade,
+        licenseNumber: newSubcontractor.license_number,
+        address: newSubcontractor.address,
+        insuranceExpiry: newSubcontractor.insurance_expiry,
+        notes: newSubcontractor.notes,
+        rating: newSubcontractor.rating,
+        approved: newSubcontractor.approved,
+        isActive: newSubcontractor.is_active,
+        registrationCompleted: newSubcontractor.registration_completed,
+        createdAt: newSubcontractor.created_at,
       },
     });
   } catch (error: any) {

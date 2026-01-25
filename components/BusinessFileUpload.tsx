@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { BusinessFileType } from '@/types';
 
 interface BusinessFileUploadProps {
-  subcontractorId: string;
+  subcontractorId?: string;
   token?: string;
   type: BusinessFileType;
   label: string;

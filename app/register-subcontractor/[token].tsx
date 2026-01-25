@@ -45,7 +45,6 @@ export default function SubcontractorRegistrationPage() {
   const [tokenExpired, setTokenExpired] = useState(false);
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
   const [step, setStep] = useState(1);
-  const [subcontractorId, setSubcontractorId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -103,23 +102,7 @@ export default function SubcontractorRegistrationPage() {
       }
 
       setTokenValid(true);
-      setSubcontractorId(data.subcontractor.id);
-
-      // Pre-fill data if available
-      if (data.subcontractor) {
-        setFormData({
-          name: data.subcontractor.name || '',
-          companyName: '',
-          email: data.subcontractor.email || '',
-          phone: data.subcontractor.phone || '',
-          trade: data.subcontractor.trade || '',
-          licenseNumber: '',
-          address: '',
-          insuranceExpiry: '',
-          notes: '',
-          rating: 0,
-        });
-      }
+      // No pre-filled data - receiver fills everything from scratch
     } catch (error: any) {
       console.error('[Registration] Token validation error:', error);
       Alert.alert('Error', error.message || 'Failed to validate registration link');
@@ -376,7 +359,6 @@ export default function SubcontractorRegistrationPage() {
       <Text style={styles.stepSubtitle}>Upload required documents for verification</Text>
 
       <BusinessFileUpload
-        subcontractorId={subcontractorId}
         token={token}
         type="license"
         label="Business License"
@@ -386,7 +368,6 @@ export default function SubcontractorRegistrationPage() {
       />
 
       <BusinessFileUpload
-        subcontractorId={subcontractorId}
         token={token}
         type="insurance"
         label="Insurance Certificate"
@@ -397,7 +378,6 @@ export default function SubcontractorRegistrationPage() {
       />
 
       <BusinessFileUpload
-        subcontractorId={subcontractorId}
         token={token}
         type="w9"
         label="W-9 Form"
@@ -407,7 +387,6 @@ export default function SubcontractorRegistrationPage() {
       />
 
       <BusinessFileUpload
-        subcontractorId={subcontractorId}
         token={token}
         type="certificate"
         label="Other Certificates"
@@ -418,7 +397,6 @@ export default function SubcontractorRegistrationPage() {
       />
 
       <BusinessFileUpload
-        subcontractorId={subcontractorId}
         token={token}
         type="other"
         label="Other Documents"

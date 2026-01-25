@@ -25,11 +25,6 @@ export default function SubcontractorsScreen() {
   const [formError, setFormError] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<{[key: string]: string}>({});
   const [sendingInvitation, setSendingInvitation] = useState<boolean>(false);
-  const [showInviteModal, setShowInviteModal] = useState<boolean>(false);
-  const [inviteEmail, setInviteEmail] = useState<string>('');
-  const [inviteName, setInviteName] = useState<string>('');
-  const [invitePhone, setInvitePhone] = useState<string>('');
-  const [inviteTrade, setInviteTrade] = useState<string>('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -187,17 +182,6 @@ export default function SubcontractorsScreen() {
   };
 
   const handleSendInvite = async () => {
-    // Only email is required for sending invitation
-    if (!inviteEmail) {
-      Alert.alert('Error', 'Email is required to send invitation');
-      return;
-    }
-
-    if (!isValidEmail(inviteEmail)) {
-      Alert.alert('Error', 'Please enter a valid email (e.g., name@company.com)');
-      return;
-    }
-
     if (!user) {
       Alert.alert('Error', 'User information not found');
       return;
@@ -212,10 +196,6 @@ export default function SubcontractorsScreen() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: inviteName || undefined,
-          email: inviteEmail,
-          phone: invitePhone || undefined,
-          trade: inviteTrade || undefined,
           companyId: user.companyId,
           invitedBy: user.id,
         }),
@@ -227,8 +207,8 @@ export default function SubcontractorsScreen() {
         throw new Error(data.error || 'Failed to generate invitation');
       }
 
-      // Open email client with pre-filled content
-      const mailtoUrl = `mailto:${inviteEmail}?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
+      // Open email client with pre-filled subject and body, but NO recipient
+      const mailtoUrl = `mailto:?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
 
       if (Platform.OS === 'web') {
         window.location.href = mailtoUrl;
@@ -236,20 +216,14 @@ export default function SubcontractorsScreen() {
         await Linking.openURL(mailtoUrl);
       }
 
-      setShowInviteModal(false);
-      setInviteEmail('');
-      setInviteName('');
-      setInvitePhone('');
-      setInviteTrade('');
-
       Alert.alert(
         'Email Client Opened',
-        'Your email client has been opened with a pre-filled invitation. Please review and send the email to complete the invitation process.',
+        'Your email client has been opened with the invitation link. Enter the recipient\'s email address and send.',
         [{ text: 'OK' }]
       );
     } catch (error: any) {
       console.error('[Send Invitation] Error:', error);
-      Alert.alert('Error', error.message || 'Failed to send invitation. Please try again.');
+      Alert.alert('Error', error.message || 'Failed to generate invitation. Please try again.');
     } finally {
       setSendingInvitation(false);
     }
@@ -409,7 +383,7 @@ export default function SubcontractorsScreen() {
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Subcontractor</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.inviteHeaderButton} onPress={() => setShowInviteModal(true)}>
+            <TouchableOpacity style={styles.inviteHeaderButton} onPress={handleSendInvite}>
               <Mail size={20} color="#FFFFFF" />
               <Text style={styles.inviteHeaderButtonText}>Send Invite</Text>
             </TouchableOpacity>
@@ -772,77 +746,6 @@ export default function SubcontractorsScreen() {
 
             <TouchableOpacity style={styles.submitButton} onPress={handleAddSubcontractor}>
               <Text style={styles.submitButtonText}>Add Subcontractor</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Send Invite Modal */}
-      <Modal visible={showInviteModal} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Send Invitation</Text>
-            <TouchableOpacity onPress={() => {
-              setShowInviteModal(false);
-              setInviteEmail('');
-              setInviteName('');
-              setInvitePhone('');
-              setInviteTrade('');
-            }}>
-              <X size={24} color="#1F2937" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            <Text style={styles.inviteDescription}>
-              Send an invitation email to a subcontractor. They will receive a unique link to complete their profile and upload business documents.
-            </Text>
-
-            <Text style={styles.label}>Email *</Text>
-            <TextInput
-              style={styles.input}
-              value={inviteEmail}
-              onChangeText={setInviteEmail}
-              placeholder="john@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <Text style={styles.label}>Name (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={inviteName}
-              onChangeText={setInviteName}
-              placeholder="John Doe"
-            />
-
-            <Text style={styles.label}>Phone (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={invitePhone}
-              onChangeText={setInvitePhone}
-              placeholder="(555) 123-4567"
-              keyboardType="phone-pad"
-            />
-
-            <Text style={styles.label}>Trade (Optional)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tradeSelector}>
-              {trades.map((trade) => (
-                <TouchableOpacity
-                  key={trade}
-                  style={[styles.tradeOption, inviteTrade === trade && styles.tradeOptionActive]}
-                  onPress={() => setInviteTrade(trade)}
-                >
-                  <Text style={[styles.tradeOptionText, inviteTrade === trade && styles.tradeOptionTextActive]}>
-                    {trade}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <TouchableOpacity style={styles.submitButton} onPress={handleSendInvite}>
-              <Mail size={20} color="#FFFFFF" />
-              <Text style={styles.submitButtonText}>Send Invitation</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>

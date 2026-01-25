@@ -23,10 +23,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       notes,
     } = req.body;
 
-    // Validate required fields
-    if (!subcontractorId || !type || !name || !fileType) {
+    // Validate required fields - either subcontractorId OR token must be provided
+    if (!subcontractorId && !token) {
       return res.status(400).json({
-        error: 'Missing required fields: subcontractorId, type, name, fileType',
+        error: 'Either subcontractorId or token is required',
+      });
+    }
+
+    if (!type || !name || !fileType) {
+      return res.status(400).json({
+        error: 'Missing required fields: type, name, fileType',
       });
     }
 
@@ -57,28 +63,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Validate token if provided (during registration)
-    if (token) {
-      const { data: subcontractor, error: tokenError } = await supabase
-        .from('subcontractors')
-        .select('id, registration_token_expiry, registration_completed')
-        .eq('registration_token', token)
-        .eq('id', subcontractorId)
+    let actualSubcontractorId = subcontractorId;
+
+    // Validate token if provided (during registration without subcontractorId)
+    if (token && !subcontractorId) {
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('registration_tokens')
+        .select('*')
+        .eq('token', token)
         .single();
 
-      if (tokenError || !subcontractor) {
+      if (tokenError || !tokenData) {
         console.error('[Upload Subcontractor Business File] Invalid token');
         return res.status(401).json({ error: 'Invalid registration token' });
       }
 
       // Check if token expired
-      const expiryDate = new Date(subcontractor.registration_token_expiry);
+      const expiry = new Date(tokenData.expires_at);
       const now = new Date();
 
-      if (now > expiryDate) {
+      if (now > expiry) {
         console.error('[Upload Subcontractor Business File] Token expired');
         return res.status(401).json({ error: 'Registration link has expired' });
       }
+
+      // Use special temporary ID pattern for files uploaded during registration
+      actualSubcontractorId = `temp_${token}`;
     }
 
     // Create S3 client
@@ -100,7 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
     const sanitizedFileName = name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const s3Key = `subcontractors/${subcontractorId}/business-files/${timestamp}-${random}-${sanitizedFileName}`;
+    const s3Key = `subcontractors/${actualSubcontractorId}/business-files/${timestamp}-${random}-${sanitizedFileName}`;
 
     console.log('[Upload Subcontractor Business File] Generating presigned URL for:', s3Key);
 
@@ -119,10 +129,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('[Upload Subcontractor Business File] Presigned URL generated in', Date.now() - startTime, 'ms');
 
     // Save file metadata to database
-    const { data, error } = await supabase
+    // If uploading during registration (temp ID), store with token reference
+    const { data, error} = await supabase
       .from('business_files')
       .insert({
-        subcontractor_id: subcontractorId,
+        subcontractor_id: actualSubcontractorId.startsWith('temp_') ? null : actualSubcontractorId,
+        registration_token: token || null,
         type,
         name,
         file_type: fileType,

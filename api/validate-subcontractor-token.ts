@@ -27,14 +27,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Look up token in database
-    const { data: subcontractor, error } = await supabase
-      .from('subcontractors')
-      .select('id, name, email, phone, trade, registration_token_expiry, registration_completed')
-      .eq('registration_token', token)
+    // Look up token in registration_tokens table
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('registration_tokens')
+      .select('*')
+      .eq('token', token)
       .single();
 
-    if (error || !subcontractor) {
+    if (tokenError || !tokenData) {
       console.log('[API] Token not found:', token);
       return res.status(200).json({
         valid: false,
@@ -43,9 +43,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Check if registration is already completed
-    if (subcontractor.registration_completed) {
-      console.log('[API] Registration already completed for token:', token);
+    // Check if token has already been used
+    if (tokenData.used) {
+      console.log('[API] Token already used:', token);
       return res.status(200).json({
         valid: false,
         expired: false,
@@ -54,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Check if token has expired
-    const expiryDate = new Date(subcontractor.registration_token_expiry);
+    const expiryDate = new Date(tokenData.expires_at);
     const now = new Date();
 
     if (now > expiryDate) {
@@ -68,18 +68,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[API] Token is valid:', token);
 
-    // Return valid token with subcontractor draft data
+    // Return valid token
     return res.status(200).json({
       valid: true,
       expired: false,
       alreadyCompleted: false,
-      subcontractor: {
-        id: subcontractor.id,
-        name: subcontractor.name || '',
-        email: subcontractor.email,
-        phone: subcontractor.phone || '',
-        trade: subcontractor.trade || '',
-      },
+      token: tokenData.token,
+      companyId: tokenData.company_id,
     });
   } catch (error: any) {
     console.error('[API] Error validating subcontractor token:', error);

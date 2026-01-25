@@ -21,7 +21,12 @@ END $$;
 -- Add s3_key column to business_files table if it doesn't exist
 -- (table already exists, just ensuring s3_key column is present for file deletion)
 ALTER TABLE business_files
-ADD COLUMN IF NOT EXISTS s3_key TEXT;
+ADD COLUMN IF NOT EXISTS s3_key TEXT,
+ADD COLUMN IF NOT EXISTS registration_token TEXT;
+
+-- Allow null subcontractor_id for files uploaded during registration
+ALTER TABLE business_files
+ALTER COLUMN subcontractor_id DROP NOT NULL;
 
 -- Create index on registration_token for faster lookups
 CREATE INDEX IF NOT EXISTS idx_subcontractors_registration_token ON subcontractors(registration_token) WHERE registration_token IS NOT NULL;
