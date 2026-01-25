@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import BusinessFileUpload from '@/components/BusinessFileUpload';
 import RegistrationProgressIndicator from '@/components/RegistrationProgressIndicator';
 
@@ -76,8 +75,6 @@ export default function SubcontractorRegistrationPage() {
     other: [],
   });
 
-  const [showInsuranceDatePicker, setShowInsuranceDatePicker] = useState(false);
-  const [insuranceDate, setInsuranceDate] = useState(new Date());
 
   useEffect(() => {
     validateToken();
@@ -344,30 +341,13 @@ export default function SubcontractorRegistrationPage() {
 
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Insurance Expiry Date</Text>
-        <TouchableOpacity
-          style={styles.dateInput}
-          onPress={() => setShowInsuranceDatePicker(true)}
-        >
-          <Text style={formData.insuranceExpiry ? styles.dateText : styles.datePlaceholder}>
-            {formData.insuranceExpiry || 'Select Date'}
-          </Text>
-          <Ionicons name="calendar-outline" size={20} color="#007AFF" />
-        </TouchableOpacity>
-        {showInsuranceDatePicker && (
-          <DateTimePicker
-            value={insuranceDate}
-            mode="date"
-            display="default"
-            minimumDate={new Date()}
-            onChange={(event, date) => {
-              setShowInsuranceDatePicker(false);
-              if (date) {
-                setInsuranceDate(date);
-                setFormData({ ...formData, insuranceExpiry: date.toISOString().split('T')[0] });
-              }
-            }}
-          />
-        )}
+        <TextInput
+          style={styles.input}
+          value={formData.insuranceExpiry}
+          onChangeText={(text) => setFormData({ ...formData, insuranceExpiry: text })}
+          placeholder="YYYY-MM-DD (e.g., 2025-12-31)"
+          placeholderTextColor="#8E8E93"
+        />
       </View>
 
       <View style={styles.inputGroup}>
@@ -657,25 +637,6 @@ const styles = StyleSheet.create({
   textArea: {
     height: 100,
     textAlignVertical: 'top',
-  },
-  dateInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  datePlaceholder: {
-    fontSize: 16,
-    color: '#8E8E93',
   },
   tradeSelector: {
     marginTop: 8,

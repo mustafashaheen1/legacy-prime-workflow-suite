@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert, TextInput, Platform } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import type { BusinessFileType } from '@/types';
 
 interface BusinessFileUploadProps {
@@ -30,8 +29,8 @@ export default function BusinessFileUpload({
 }: BusinessFileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showExpiryInput, setShowExpiryInput] = useState(false);
+  const [expiryDate, setExpiryDate] = useState('');
   const [pendingFile, setPendingFile] = useState<any>(null);
 
   const pickDocument = async () => {
@@ -55,10 +54,10 @@ export default function BusinessFileUpload({
         return;
       }
 
-      // If expiry date is required, show date picker first
+      // If expiry date is required, show date input first
       if (requireExpiryDate) {
         setPendingFile(file);
-        setShowDatePicker(true);
+        setShowExpiryInput(true);
       } else {
         await uploadFile(file);
       }
@@ -140,10 +139,29 @@ export default function BusinessFileUpload({
   };
 
   const handleDateConfirm = () => {
-    setShowDatePicker(false);
-    if (pendingFile) {
-      uploadFile(pendingFile, selectedDate);
+    if (!expiryDate) {
+      Alert.alert('Error', 'Please enter an expiry date');
+      return;
     }
+
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(expiryDate)) {
+      Alert.alert('Error', 'Please enter date in YYYY-MM-DD format (e.g., 2025-12-31)');
+      return;
+    }
+
+    const date = new Date(expiryDate);
+    if (isNaN(date.getTime())) {
+      Alert.alert('Error', 'Please enter a valid date');
+      return;
+    }
+
+    setShowExpiryInput(false);
+    if (pendingFile) {
+      uploadFile(pendingFile, date);
+    }
+    setExpiryDate('');
   };
 
   const handleDeleteFile = async (fileId: string) => {
@@ -257,27 +275,24 @@ export default function BusinessFileUpload({
         </View>
       ))}
 
-      {/* Date Picker for Expiry Date */}
-      {showDatePicker && (
+      {/* Expiry Date Input */}
+      {showExpiryInput && (
         <View style={styles.datePickerContainer}>
-          <Text style={styles.datePickerLabel}>Select Expiry Date</Text>
-          <DateTimePicker
-            value={selectedDate}
-            mode="date"
-            display="default"
-            onChange={(event, date) => {
-              if (date) {
-                setSelectedDate(date);
-              }
-            }}
-            minimumDate={new Date()}
+          <Text style={styles.datePickerLabel}>Enter Expiry Date</Text>
+          <TextInput
+            style={styles.dateInput}
+            value={expiryDate}
+            onChangeText={setExpiryDate}
+            placeholder="YYYY-MM-DD (e.g., 2025-12-31)"
+            placeholderTextColor="#8E8E93"
           />
           <View style={styles.datePickerButtons}>
             <TouchableOpacity
               style={[styles.datePickerButton, styles.cancelButton]}
               onPress={() => {
-                setShowDatePicker(false);
+                setShowExpiryInput(false);
                 setPendingFile(null);
+                setExpiryDate('');
               }}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -382,6 +397,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 10,
     color: '#333',
+  },
+  dateInput: {
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 10,
   },
   datePickerButtons: {
     flexDirection: 'row',
