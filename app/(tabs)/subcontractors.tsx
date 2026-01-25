@@ -24,8 +24,6 @@ export default function SubcontractorsScreen() {
   const [customTrade, setCustomTrade] = useState<string>('');
   const [formError, setFormError] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<{[key: string]: string}>({});
-  const [showInvitationPrompt, setShowInvitationPrompt] = useState<boolean>(false);
-  const [newlyAddedSubcontractor, setNewlyAddedSubcontractor] = useState<Subcontractor | null>(null);
   const [sendingInvitation, setSendingInvitation] = useState<boolean>(false);
 
   const [formData, setFormData] = useState({
@@ -122,7 +120,7 @@ export default function SubcontractorsScreen() {
     setFormError('');
     const errors: {[key: string]: string} = {};
 
-    // Check required fields
+    // Check required fields (original validation)
     if (!formData.name) {
       errors.name = 'Name is required';
     }
@@ -169,16 +167,94 @@ export default function SubcontractorsScreen() {
 
     try {
       await addSubcontractor(newSubcontractor);
-      setNewlyAddedSubcontractor(newSubcontractor);
       setShowAddModal(false);
-      setShowInvitationPrompt(true);
       resetForm();
+      if (Platform.OS !== 'web') {
+        Alert.alert('Success', 'Subcontractor added successfully');
+      }
     } catch (error) {
       const errorMsg = 'Failed to save subcontractor. Please try again.';
       setFormError(errorMsg);
       if (Platform.OS !== 'web') {
         Alert.alert('Error', errorMsg);
       }
+    }
+  };
+
+  const handleSendInvite = async () => {
+    // Clear previous errors
+    setFormError('');
+    const errors: {[key: string]: string} = {};
+
+    // Only email is required for sending invitation
+    if (!formData.email) {
+      errors.email = 'Email is required to send invitation';
+    } else if (!isValidEmail(formData.email)) {
+      errors.email = 'Please enter a valid email (e.g., name@company.com)';
+    }
+
+    // If there are any errors, set them and show alert for mobile
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const errorMessage = Object.values(errors).join('\n');
+      setFormError(errorMessage);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Validation Error', errorMessage);
+      }
+      return;
+    }
+
+    if (!user) {
+      Alert.alert('Error', 'User information not found');
+      return;
+    }
+
+    setSendingInvitation(true);
+
+    try {
+      const response = await fetch('/api/send-subcontractor-invitation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name || undefined,
+          email: formData.email,
+          phone: formData.phone || undefined,
+          trade: formData.trade || undefined,
+          companyId: user.companyId,
+          invitedBy: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate invitation');
+      }
+
+      // Open email client with pre-filled content
+      const mailtoUrl = `mailto:${formData.email}?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
+
+      if (Platform.OS === 'web') {
+        window.location.href = mailtoUrl;
+      } else {
+        await Linking.openURL(mailtoUrl);
+      }
+
+      setShowAddModal(false);
+      resetForm();
+
+      Alert.alert(
+        'Email Client Opened',
+        'Your email client has been opened with a pre-filled invitation. Please review and send the email to complete the invitation process.',
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('[Send Invitation] Error:', error);
+      Alert.alert('Error', error.message || 'Failed to send invitation. Please try again.');
+    } finally {
+      setSendingInvitation(false);
     }
   };
 
@@ -199,65 +275,6 @@ export default function SubcontractorsScreen() {
     setFieldErrors({});
   };
 
-  const handleSendInvitation = async () => {
-    if (!newlyAddedSubcontractor || !user) {
-      return;
-    }
-
-    setSendingInvitation(true);
-
-    try {
-      const response = await fetch('/api/send-subcontractor-invitation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newlyAddedSubcontractor.name,
-          email: newlyAddedSubcontractor.email,
-          phone: newlyAddedSubcontractor.phone,
-          trade: newlyAddedSubcontractor.trade,
-          companyId: user.companyId,
-          invitedBy: user.id,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate invitation');
-      }
-
-      // Open email client with pre-filled content
-      const mailtoUrl = `mailto:${newlyAddedSubcontractor.email}?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
-
-      if (Platform.OS === 'web') {
-        window.location.href = mailtoUrl;
-      } else {
-        await Linking.openURL(mailtoUrl);
-      }
-
-      setShowInvitationPrompt(false);
-      setNewlyAddedSubcontractor(null);
-
-      Alert.alert(
-        'Email Client Opened',
-        'Your email client has been opened with a pre-filled invitation. Please review and send the email to complete the invitation process.',
-        [{ text: 'OK' }]
-      );
-    } catch (error: any) {
-      console.error('[Send Invitation] Error:', error);
-      Alert.alert('Error', error.message || 'Failed to send invitation. Please try again.');
-    } finally {
-      setSendingInvitation(false);
-    }
-  };
-
-  const handleSkipInvitation = () => {
-    setShowInvitationPrompt(false);
-    setNewlyAddedSubcontractor(null);
-    Alert.alert('Success', 'Subcontractor added successfully');
-  };
 
   const handleImportFromContacts = async () => {
     if (Platform.OS === 'web') {
@@ -752,9 +769,29 @@ export default function SubcontractorsScreen() {
               numberOfLines={4}
             />
 
-            <TouchableOpacity style={styles.submitButton} onPress={handleAddSubcontractor}>
-              <Text style={styles.submitButtonText}>Add Subcontractor</Text>
-            </TouchableOpacity>
+            <View style={styles.modalButtonGroup}>
+              <TouchableOpacity style={styles.submitButton} onPress={handleAddSubcontractor}>
+                <Text style={styles.submitButtonText}>Add Subcontractor</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.inviteButton, sendingInvitation && styles.inviteButtonDisabled]}
+                onPress={handleSendInvite}
+                disabled={sendingInvitation}
+              >
+                {sendingInvitation ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFF" />
+                    <Text style={styles.inviteButtonText}>Sending...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Mail size={20} color="#FFF" />
+                    <Text style={styles.inviteButtonText}>Send Invite</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         </View>
       </Modal>
@@ -1021,48 +1058,6 @@ export default function SubcontractorsScreen() {
         </View>
       </Modal>
 
-      {/* Invitation Prompt Modal */}
-      <Modal visible={showInvitationPrompt} animationType="fade" transparent={true}>
-        <View style={styles.invitationModalOverlay}>
-          <View style={styles.invitationModalContent}>
-            <View style={styles.invitationModalHeader}>
-              <Ionicons name="mail-outline" size={48} color="#007AFF" />
-              <Text style={styles.invitationModalTitle}>Send Invitation Email?</Text>
-              <Text style={styles.invitationModalSubtitle}>
-                Would you like to send an email invitation to {newlyAddedSubcontractor?.name}? They can complete their profile and upload required documents.
-              </Text>
-            </View>
-
-            <View style={styles.invitationModalButtons}>
-              <TouchableOpacity
-                style={styles.invitationSkipButton}
-                onPress={handleSkipInvitation}
-                disabled={sendingInvitation}
-              >
-                <Text style={styles.invitationSkipButtonText}>Skip</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.invitationSendButton, sendingInvitation && styles.invitationSendButtonDisabled]}
-                onPress={handleSendInvitation}
-                disabled={sendingInvitation}
-              >
-                {sendingInvitation ? (
-                  <>
-                    <ActivityIndicator size="small" color="#FFF" />
-                    <Text style={styles.invitationSendButtonText}>Opening...</Text>
-                  </>
-                ) : (
-                  <>
-                    <Ionicons name="send" size={20} color="#FFF" />
-                    <Text style={styles.invitationSendButtonText}>Send Invitation</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -1494,6 +1489,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 4,
   },
+  infoBanner: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  infoBannerText: {
+    color: '#1E40AF',
+    fontSize: 14,
+    lineHeight: 20,
+  },
   errorBanner: {
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
@@ -1542,15 +1550,38 @@ const styles = StyleSheet.create({
   tradeOptionTextActive: {
     color: '#FFFFFF',
   },
+  modalButtonGroup: {
+    flexDirection: 'row' as const,
+    gap: 12,
+    marginTop: 24,
+    marginBottom: 40,
+  },
   submitButton: {
+    flex: 1,
     backgroundColor: '#2563EB',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center' as const,
-    marginTop: 24,
-    marginBottom: 40,
   },
   submitButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  inviteButton: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    backgroundColor: '#059669',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+  },
+  inviteButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  inviteButtonText: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
@@ -1742,79 +1773,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#16A34A',
-  },
-  invitationModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-    padding: 20,
-  },
-  invitationModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  invitationModalHeader: {
-    alignItems: 'center' as const,
-    marginBottom: 24,
-  },
-  invitationModalTitle: {
-    fontSize: 22,
-    fontWeight: '700' as const,
-    color: '#333',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center' as const,
-  },
-  invitationModalSubtitle: {
-    fontSize: 15,
-    color: '#8E8E93',
-    textAlign: 'center' as const,
-    lineHeight: 22,
-  },
-  invitationModalButtons: {
-    flexDirection: 'row' as const,
-    gap: 12,
-  },
-  invitationSkipButton: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  invitationSkipButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#8E8E93',
-  },
-  invitationSendButton: {
-    flex: 2,
-    flexDirection: 'row' as const,
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    gap: 8,
-  },
-  invitationSendButtonDisabled: {
-    backgroundColor: '#8E8E93',
-  },
-  invitationSendButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
   },
 });
