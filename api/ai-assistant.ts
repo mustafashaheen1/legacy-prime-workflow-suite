@@ -973,6 +973,572 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+
+  // ============================================
+  // PAYMENT TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'add_payment',
+      description: 'Record a payment received from a client. Use when user receives payment, records payment, or logs an invoice payment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Client name who made the payment' },
+          amount: { type: 'number', description: 'Payment amount in dollars' },
+          method: { type: 'string', enum: ['cash', 'check', 'credit_card', 'bank_transfer', 'other'], description: 'Payment method' },
+          projectName: { type: 'string', description: 'Project name to link payment to (optional)' },
+          notes: { type: 'string', description: 'Payment notes (optional)' },
+        },
+        required: ['clientName', 'amount', 'method'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_payment_summary',
+      description: 'Get payment summary showing total payments received. Use for payment reports, revenue summaries, or payment totals.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Filter by client name (optional)' },
+          projectName: { type: 'string', description: 'Filter by project name (optional)' },
+          startDate: { type: 'string', description: 'Start date YYYY-MM-DD (optional)' },
+          endDate: { type: 'string', description: 'End date YYYY-MM-DD (optional)' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_payment_request',
+      description: 'Send a payment request or invoice reminder to a client via email or SMS. Use when user wants to request payment or send invoice reminder.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Client name to send request to' },
+          amount: { type: 'number', description: 'Amount requested in dollars' },
+          method: { type: 'string', enum: ['email', 'sms', 'both'], description: 'Delivery method (default: email)' },
+          dueDate: { type: 'string', description: 'Payment due date YYYY-MM-DD (optional)' },
+          message: { type: 'string', description: 'Custom message to include (optional)' },
+        },
+        required: ['clientName', 'amount'],
+      },
+    },
+  },
+
+  // ============================================
+  // DAILY LOG TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'create_daily_log',
+      description: 'Create a daily log entry for project work. Use when user wants to log daily activities, record site notes, or document daily progress.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string', description: 'Project name for the log' },
+          date: { type: 'string', description: 'Log date YYYY-MM-DD (defaults to today)' },
+          weather: { type: 'string', description: 'Weather conditions (optional)' },
+          temperature: { type: 'string', description: 'Temperature (optional)' },
+          workPerformed: { type: 'string', description: 'Description of work performed' },
+          crew: { type: 'string', description: 'Crew members present (optional)' },
+          equipment: { type: 'string', description: 'Equipment used (optional)' },
+          materials: { type: 'string', description: 'Materials delivered/used (optional)' },
+          visitors: { type: 'string', description: 'Site visitors (optional)' },
+          issues: { type: 'string', description: 'Issues or concerns (optional)' },
+          notes: { type: 'string', description: 'Additional notes (optional)' },
+        },
+        required: ['projectName', 'workPerformed'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_daily_log',
+      description: 'Update an existing daily log entry. Use when user wants to add to or modify a daily log.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string', description: 'Project name for the log' },
+          date: { type: 'string', description: 'Log date YYYY-MM-DD (defaults to today)' },
+          workPerformed: { type: 'string', description: 'Updated work description (optional)' },
+          issues: { type: 'string', description: 'Updated issues (optional)' },
+          notes: { type: 'string', description: 'Additional notes to append (optional)' },
+        },
+        required: ['projectName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_daily_log_photo',
+      description: 'Add a photo to today\'s daily log. Use when user wants to attach photos to the daily log or document site conditions visually.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string', description: 'Project name for the log' },
+          photoDescription: { type: 'string', description: 'Description of what the photo shows' },
+        },
+        required: ['projectName', 'photoDescription'],
+      },
+    },
+  },
+
+  // ============================================
+  // TASK MANAGEMENT TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'create_task',
+      description: 'Create a new task or to-do item. Use when user wants to add a task, create a to-do, or assign work.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Task title/description' },
+          projectName: { type: 'string', description: 'Project name to link task to (optional)' },
+          assignedTo: { type: 'string', description: 'Person assigned to task (optional)' },
+          dueDate: { type: 'string', description: 'Due date YYYY-MM-DD (optional)' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Task priority (optional)' },
+          notes: { type: 'string', description: 'Additional task notes (optional)' },
+        },
+        required: ['title'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'complete_task',
+      description: 'Mark a task as completed. Use when user finishes a task, completes a to-do, or marks something as done.',
+      parameters: {
+        type: 'object',
+        properties: {
+          taskTitle: { type: 'string', description: 'Task title or keywords to find the task' },
+        },
+        required: ['taskTitle'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_task',
+      description: 'Delete a task. Use when user wants to remove or delete a task.',
+      parameters: {
+        type: 'object',
+        properties: {
+          taskTitle: { type: 'string', description: 'Task title or keywords to find the task' },
+        },
+        required: ['taskTitle'],
+      },
+    },
+  },
+
+  // ============================================
+  // COMMUNICATION TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'send_sms',
+      description: 'Send an SMS text message to a client or contact. Use when user wants to text, message, or SMS someone.',
+      parameters: {
+        type: 'object',
+        properties: {
+          recipientName: { type: 'string', description: 'Client or contact name to send SMS to' },
+          message: { type: 'string', description: 'SMS message content' },
+        },
+        required: ['recipientName', 'message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_email',
+      description: 'Send an email to a client or contact. Use when user wants to email someone or send a message via email.',
+      parameters: {
+        type: 'object',
+        properties: {
+          recipientName: { type: 'string', description: 'Client or contact name to send email to' },
+          subject: { type: 'string', description: 'Email subject line' },
+          message: { type: 'string', description: 'Email message body' },
+          attachProject: { type: 'string', description: 'Project name to attach info/photos from (optional)' },
+        },
+        required: ['recipientName', 'subject', 'message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_bulk_sms',
+      description: 'Send SMS to multiple clients at once. Use when user wants to text multiple people, send mass text, or broadcast SMS.',
+      parameters: {
+        type: 'object',
+        properties: {
+          recipients: { type: 'string', description: 'Comma-separated list of client names, or "all clients"' },
+          message: { type: 'string', description: 'SMS message content' },
+        },
+        required: ['recipients', 'message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'call_client',
+      description: 'Initiate a phone call to a client. Use when user wants to call or phone a client.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Client name to call' },
+          purpose: { type: 'string', description: 'Purpose/reason for the call (optional)' },
+        },
+        required: ['clientName'],
+      },
+    },
+  },
+
+  // ============================================
+  // PHOTO MANAGEMENT TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'attach_photo_to_project',
+      description: 'Attach or upload a photo to a project. Use when user wants to add photos, upload images, or attach pictures to a project.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string', description: 'Project name to attach photo to' },
+          description: { type: 'string', description: 'Photo description or caption (optional)' },
+          category: { type: 'string', description: 'Photo category like "progress", "issues", "completed" (optional)' },
+        },
+        required: ['projectName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'view_project_photos',
+      description: 'View or list photos for a project. Use when user wants to see photos, view images, or browse project pictures.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string', description: 'Project name to view photos from' },
+          category: { type: 'string', description: 'Filter by category (optional)' },
+        },
+        required: ['projectName'],
+      },
+    },
+  },
+
+  // ============================================
+  // CLIENT MANAGEMENT TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'update_client_info',
+      description: 'Update client contact information like phone, email, or address. Use when user wants to change or update client details.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Client name to update' },
+          phone: { type: 'string', description: 'New phone number (optional)' },
+          email: { type: 'string', description: 'New email address (optional)' },
+          address: { type: 'string', description: 'New address (optional)' },
+        },
+        required: ['clientName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_client',
+      description: 'Delete a client from the system. Use when user wants to remove or delete a client.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Client name to delete' },
+        },
+        required: ['clientName'],
+      },
+    },
+  },
+
+  // ============================================
+  // NAVIGATION TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'navigate_to',
+      description: 'Navigate to a specific screen or page in the app. Use when user wants to go to, open, or view a specific section.',
+      parameters: {
+        type: 'object',
+        properties: {
+          destination: {
+            type: 'string',
+            enum: ['dashboard', 'projects', 'clients', 'expenses', 'estimates', 'timecard', 'daily-logs', 'tasks', 'photos', 'schedule', 'reports', 'settings'],
+            description: 'The screen/page to navigate to'
+          },
+          itemName: { type: 'string', description: 'Specific item name (e.g., project name, client name) to open (optional)' },
+        },
+        required: ['destination'],
+      },
+    },
+  },
+
+  // ============================================
+  // SUBCONTRACTOR TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'add_subcontractor',
+      description: 'Add a new subcontractor to the system. Use when user wants to add, create, or register a subcontractor.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Subcontractor name or company name' },
+          trade: { type: 'string', description: 'Trade/specialty (e.g., "Plumbing", "Electrical")' },
+          phone: { type: 'string', description: 'Phone number (optional)' },
+          email: { type: 'string', description: 'Email address (optional)' },
+          rate: { type: 'number', description: 'Hourly or daily rate (optional)' },
+        },
+        required: ['name', 'trade'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'assign_subcontractor',
+      description: 'Assign a subcontractor to a project. Use when user wants to assign, link, or add a subcontractor to project work.',
+      parameters: {
+        type: 'object',
+        properties: {
+          subcontractorName: { type: 'string', description: 'Subcontractor name to assign' },
+          projectName: { type: 'string', description: 'Project name to assign to' },
+          startDate: { type: 'string', description: 'Start date YYYY-MM-DD (optional)' },
+          notes: { type: 'string', description: 'Assignment notes (optional)' },
+        },
+        required: ['subcontractorName', 'projectName'],
+      },
+    },
+  },
+
+  // ============================================
+  // EXPENSE MANAGEMENT TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'update_expense',
+      description: 'Update expense details like amount, category, or description. Use when user wants to modify or change an expense.',
+      parameters: {
+        type: 'object',
+        properties: {
+          expenseDescription: { type: 'string', description: 'Keywords to find the expense' },
+          amount: { type: 'number', description: 'New amount (optional)' },
+          category: { type: 'string', description: 'New category (optional)' },
+          description: { type: 'string', description: 'New description (optional)' },
+          date: { type: 'string', description: 'New date YYYY-MM-DD (optional)' },
+        },
+        required: ['expenseDescription'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_expense',
+      description: 'Delete an expense. Use when user wants to remove or delete an expense entry.',
+      parameters: {
+        type: 'object',
+        properties: {
+          expenseDescription: { type: 'string', description: 'Keywords to find the expense to delete' },
+        },
+        required: ['expenseDescription'],
+      },
+    },
+  },
+
+  // ============================================
+  // ESTIMATE MANAGEMENT TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'update_estimate',
+      description: 'Update estimate details. Use when user wants to modify or change an estimate.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Client name whose estimate to update' },
+          status: { type: 'string', enum: ['draft', 'sent', 'approved', 'rejected'], description: 'New status (optional)' },
+          notes: { type: 'string', description: 'New notes (optional)' },
+        },
+        required: ['clientName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_estimate',
+      description: 'Delete an estimate. Use when user wants to remove or delete an estimate.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Client name whose estimate to delete' },
+        },
+        required: ['clientName'],
+      },
+    },
+  },
+
+  // ============================================
+  // PHOTO MANAGEMENT TOOLS (EXTENDED)
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'delete_photo',
+      description: 'Delete a photo. Use when user wants to remove or delete a photo.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string', description: 'Project name the photo belongs to' },
+          photoDescription: { type: 'string', description: 'Keywords to find the photo' },
+        },
+        required: ['projectName', 'photoDescription'],
+      },
+    },
+  },
+
+  // ============================================
+  // SCHEDULE/CALENDAR TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'add_appointment',
+      description: 'Add a calendar appointment or schedule event. Use when user wants to schedule, add to calendar, or book an appointment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Appointment title' },
+          date: { type: 'string', description: 'Date YYYY-MM-DD' },
+          time: { type: 'string', description: 'Time HH:MM (optional)' },
+          location: { type: 'string', description: 'Location (optional)' },
+          notes: { type: 'string', description: 'Notes (optional)' },
+          projectName: { type: 'string', description: 'Related project (optional)' },
+        },
+        required: ['title', 'date'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'view_schedule',
+      description: 'View schedule for a specific date or date range. Use when user wants to see schedule, check calendar, or view appointments.',
+      parameters: {
+        type: 'object',
+        properties: {
+          startDate: { type: 'string', description: 'Start date YYYY-MM-DD (optional, defaults to today)' },
+          endDate: { type: 'string', description: 'End date YYYY-MM-DD (optional, defaults to startDate)' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_appointment',
+      description: 'Delete an appointment from the schedule. Use when user wants to cancel or remove an appointment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          appointmentTitle: { type: 'string', description: 'Keywords to find the appointment' },
+        },
+        required: ['appointmentTitle'],
+      },
+    },
+  },
+
+  // ============================================
+  // TEAM MANAGEMENT TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'add_team_member',
+      description: 'Add a new team member or employee. Use when user wants to add staff, hire employee, or register team member.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Team member name' },
+          role: { type: 'string', description: 'Job role/position' },
+          phone: { type: 'string', description: 'Phone number (optional)' },
+          email: { type: 'string', description: 'Email address (optional)' },
+          hourlyRate: { type: 'number', description: 'Hourly rate (optional)' },
+        },
+        required: ['name', 'role'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'assign_team_to_project',
+      description: 'Assign team members to a project. Use when user wants to staff a project or assign workers.',
+      parameters: {
+        type: 'object',
+        properties: {
+          teamMemberName: { type: 'string', description: 'Team member name to assign' },
+          projectName: { type: 'string', description: 'Project name to assign to' },
+          startDate: { type: 'string', description: 'Start date YYYY-MM-DD (optional)' },
+        },
+        required: ['teamMemberName', 'projectName'],
+      },
+    },
+  },
+
+  // ============================================
+  // NOTIFICATION TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'send_notification',
+      description: 'Send an in-app notification to user or team. Use when user wants to send alert, notify, or send message.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Notification title' },
+          message: { type: 'string', description: 'Notification message' },
+          type: { type: 'string', enum: ['info', 'success', 'warning', 'error'], description: 'Notification type (optional)' },
+        },
+        required: ['title', 'message'],
+      },
+    },
+  },
 ];
 
 // Price list categories for expense categorization
@@ -3732,6 +4298,1060 @@ Based on the store and items, intelligently categorize this expense:
             startTime: startTime.toISOString(),
             endTime: endTime.toISOString()
           }],
+        },
+      };
+    }
+
+    // ============================================
+    // PAYMENT TOOLS
+    // ============================================
+    case 'add_payment': {
+      const { clients = [], projects = [] } = appData;
+
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
+      );
+
+      if (!client) {
+        const clientNames = clients.map((c: any) => c.name).join(', ');
+        return { result: { error: `Client "${args.clientName}" not found. Available clients: ${clientNames || 'none'}` } };
+      }
+
+      // Find project if specified
+      let projectId = null;
+      if (args.projectName) {
+        const project = findProjectByNameOrClient(projects, clients, args.projectName);
+        if (project) {
+          projectId = project.id;
+        }
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Recording $${args.amount} payment from ${client.name} via ${args.method}`
+        },
+        actionRequired: 'add_payment',
+        actionData: {
+          clientId: client.id,
+          clientName: client.name,
+          projectId,
+          projectName: args.projectName,
+          amount: args.amount,
+          method: args.method,
+          notes: args.notes || '',
+          date: new Date().toISOString(),
+        },
+      };
+    }
+
+    case 'get_payment_summary': {
+      const { payments = [], clients = [], projects = [] } = appData;
+
+      // Calculate date range (default to current month)
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const startDate = args.startDate ? new Date(args.startDate) : startOfMonth;
+      const endDate = args.endDate ? new Date(args.endDate) : now;
+
+      // Filter payments
+      let filtered = payments.filter((p: any) => {
+        const paymentDate = new Date(p.date);
+        const dateMatch = paymentDate >= startDate && paymentDate <= endDate;
+
+        if (args.clientName) {
+          const client = clients.find((c: any) => c.id === p.clientId);
+          return dateMatch && client?.name?.toLowerCase().includes(args.clientName.toLowerCase());
+        }
+
+        if (args.projectName) {
+          const project = projects.find((pr: any) => pr.id === p.projectId);
+          return dateMatch && project?.name?.toLowerCase().includes(args.projectName.toLowerCase());
+        }
+
+        return dateMatch;
+      });
+
+      // Calculate totals
+      const totalAmount = filtered.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+      const byMethod: { [key: string]: number } = {};
+      const byClient: { [key: string]: number } = {};
+
+      filtered.forEach((p: any) => {
+        byMethod[p.method] = (byMethod[p.method] || 0) + p.amount;
+
+        const client = clients.find((c: any) => c.id === p.clientId);
+        if (client) {
+          byClient[client.name] = (byClient[client.name] || 0) + p.amount;
+        }
+      });
+
+      return {
+        result: {
+          success: true,
+          totalAmount,
+          paymentCount: filtered.length,
+          byMethod,
+          byClient,
+          dateRange: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+        }
+      };
+    }
+
+    case 'send_payment_request': {
+      const { clients = [] } = appData;
+
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
+      );
+
+      if (!client) {
+        const clientNames = clients.map((c: any) => c.name).join(', ');
+        return { result: { error: `Client "${args.clientName}" not found. Available clients: ${clientNames || 'none'}` } };
+      }
+
+      // Validate contact method
+      const method = args.method || 'email';
+      if (method === 'email' || method === 'both') {
+        if (!client.email) {
+          return { result: { error: `Client ${client.name} has no email address on file` } };
+        }
+      }
+      if (method === 'sms' || method === 'both') {
+        if (!client.phone) {
+          return { result: { error: `Client ${client.name} has no phone number on file` } };
+        }
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Sending $${args.amount} payment request to ${client.name} via ${method}`
+        },
+        actionRequired: 'send_payment_request',
+        actionData: {
+          clientId: client.id,
+          clientName: client.name,
+          clientEmail: client.email,
+          clientPhone: client.phone,
+          amount: args.amount,
+          method,
+          dueDate: args.dueDate || null,
+          message: args.message || '',
+        },
+      };
+    }
+
+    // ============================================
+    // DAILY LOG TOOLS
+    // ============================================
+    case 'create_daily_log': {
+      const { projects = [], clients = [] } = appData;
+
+      // Find project
+      const project = findProjectByNameOrClient(projects, clients, args.projectName);
+
+      if (!project) {
+        const projectNames = projects.map((p: any) => p.name).join(', ');
+        return { result: { error: `Project "${args.projectName}" not found. Available projects: ${projectNames || 'none'}` } };
+      }
+
+      const logDate = args.date || new Date().toISOString().split('T')[0];
+
+      return {
+        result: {
+          success: true,
+          message: `Creating daily log for ${project.name} on ${logDate}`
+        },
+        actionRequired: 'create_daily_log',
+        actionData: {
+          projectId: project.id,
+          projectName: project.name,
+          date: logDate,
+          weather: args.weather || '',
+          temperature: args.temperature || '',
+          workPerformed: args.workPerformed,
+          crew: args.crew || '',
+          equipment: args.equipment || '',
+          materials: args.materials || '',
+          visitors: args.visitors || '',
+          issues: args.issues || '',
+          notes: args.notes || '',
+        },
+      };
+    }
+
+    case 'update_daily_log': {
+      const { projects = [], clients = [], dailyLogs = [] } = appData;
+
+      // Find project
+      const project = findProjectByNameOrClient(projects, clients, args.projectName);
+
+      if (!project) {
+        const projectNames = projects.map((p: any) => p.name).join(', ');
+        return { result: { error: `Project "${args.projectName}" not found. Available projects: ${projectNames || 'none'}` } };
+      }
+
+      const logDate = args.date || new Date().toISOString().split('T')[0];
+
+      // Find existing log
+      const existingLog = dailyLogs.find((log: any) =>
+        log.projectId === project.id && log.date === logDate
+      );
+
+      if (!existingLog) {
+        return { result: { error: `No daily log found for ${project.name} on ${logDate}. Create one first.` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Updating daily log for ${project.name} on ${logDate}`
+        },
+        actionRequired: 'update_daily_log',
+        actionData: {
+          logId: existingLog.id,
+          projectName: project.name,
+          workPerformed: args.workPerformed || existingLog.workPerformed,
+          issues: args.issues || existingLog.issues,
+          notes: existingLog.notes ? `${existingLog.notes}\n${args.notes || ''}` : (args.notes || ''),
+        },
+      };
+    }
+
+    case 'add_daily_log_photo': {
+      const { projects = [], clients = [], dailyLogs = [] } = appData;
+
+      // Find project
+      const project = findProjectByNameOrClient(projects, clients, args.projectName);
+
+      if (!project) {
+        const projectNames = projects.map((p: any) => p.name).join(', ');
+        return { result: { error: `Project "${args.projectName}" not found. Available projects: ${projectNames || 'none'}` } };
+      }
+
+      const logDate = new Date().toISOString().split('T')[0];
+
+      // Find or suggest creating log
+      const existingLog = dailyLogs.find((log: any) =>
+        log.projectId === project.id && log.date === logDate
+      );
+
+      return {
+        result: {
+          success: true,
+          message: `Ready to add photo to ${project.name} daily log. Please upload the photo.`
+        },
+        actionRequired: 'add_daily_log_photo',
+        actionData: {
+          projectId: project.id,
+          projectName: project.name,
+          logId: existingLog?.id,
+          date: logDate,
+          description: args.photoDescription,
+        },
+      };
+    }
+
+    // ============================================
+    // TASK MANAGEMENT TOOLS
+    // ============================================
+    case 'create_task': {
+      const { projects = [], clients = [] } = appData;
+
+      let projectId = null;
+      let projectName = null;
+
+      // Find project if specified
+      if (args.projectName) {
+        const project = findProjectByNameOrClient(projects, clients, args.projectName);
+        if (project) {
+          projectId = project.id;
+          projectName = project.name;
+        }
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Creating task: ${args.title}`
+        },
+        actionRequired: 'create_task',
+        actionData: {
+          title: args.title,
+          projectId,
+          projectName,
+          assignedTo: args.assignedTo || '',
+          dueDate: args.dueDate || '',
+          priority: args.priority || 'medium',
+          notes: args.notes || '',
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    case 'complete_task': {
+      const { tasks = [] } = appData;
+
+      // Find task by title match
+      const task = tasks.find((t: any) =>
+        t.title?.toLowerCase().includes(args.taskTitle.toLowerCase()) &&
+        t.status !== 'completed'
+      );
+
+      if (!task) {
+        const pendingTasks = tasks
+          .filter((t: any) => t.status !== 'completed')
+          .map((t: any) => t.title)
+          .join(', ');
+        return { result: { error: `Task "${args.taskTitle}" not found. Pending tasks: ${pendingTasks || 'none'}` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Marking task as complete: ${task.title}`
+        },
+        actionRequired: 'complete_task',
+        actionData: {
+          taskId: task.id,
+          status: 'completed',
+          completedAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    case 'delete_task': {
+      const { tasks = [] } = appData;
+
+      // Find task by title match
+      const task = tasks.find((t: any) =>
+        t.title?.toLowerCase().includes(args.taskTitle.toLowerCase())
+      );
+
+      if (!task) {
+        const taskTitles = tasks.map((t: any) => t.title).join(', ');
+        return { result: { error: `Task "${args.taskTitle}" not found. Available tasks: ${taskTitles || 'none'}` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Deleting task: ${task.title}`
+        },
+        actionRequired: 'delete_task',
+        actionData: {
+          taskId: task.id,
+        },
+      };
+    }
+
+    // ============================================
+    // COMMUNICATION TOOLS
+    // ============================================
+    case 'send_sms': {
+      const { clients = [] } = appData;
+
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.recipientName.toLowerCase())
+      );
+
+      if (!client) {
+        const clientNames = clients.map((c: any) => c.name).join(', ');
+        return { result: { error: `Client "${args.recipientName}" not found. Available clients: ${clientNames || 'none'}` } };
+      }
+
+      if (!client.phone) {
+        return { result: { error: `Client ${client.name} has no phone number on file` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Sending SMS to ${client.name} at ${client.phone}`
+        },
+        actionRequired: 'send_sms',
+        actionData: {
+          clientId: client.id,
+          clientName: client.name,
+          phone: client.phone,
+          message: args.message,
+        },
+      };
+    }
+
+    case 'send_email': {
+      const { clients = [], projects = [] } = appData;
+
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.recipientName.toLowerCase())
+      );
+
+      if (!client) {
+        const clientNames = clients.map((c: any) => c.name).join(', ');
+        return { result: { error: `Client "${args.recipientName}" not found. Available clients: ${clientNames || 'none'}` } };
+      }
+
+      if (!client.email) {
+        return { result: { error: `Client ${client.name} has no email address on file` } };
+      }
+
+      // Find project if specified
+      let projectData = null;
+      if (args.attachProject) {
+        const project = findProjectByNameOrClient(projects, clients, args.attachProject);
+        if (project) {
+          projectData = {
+            projectId: project.id,
+            projectName: project.name,
+          };
+        }
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Sending email to ${client.name} at ${client.email}`
+        },
+        actionRequired: 'send_email',
+        actionData: {
+          clientId: client.id,
+          clientName: client.name,
+          email: client.email,
+          subject: args.subject,
+          message: args.message,
+          projectData,
+        },
+      };
+    }
+
+    case 'send_bulk_sms': {
+      const { clients = [] } = appData;
+
+      let recipientClients = [];
+
+      if (args.recipients.toLowerCase() === 'all clients') {
+        recipientClients = clients.filter((c: any) => c.phone);
+      } else {
+        // Parse comma-separated names
+        const names = args.recipients.split(',').map((n: string) => n.trim().toLowerCase());
+        recipientClients = clients.filter((c: any) =>
+          c.phone && names.some((name: string) => c.name?.toLowerCase().includes(name))
+        );
+      }
+
+      if (recipientClients.length === 0) {
+        return { result: { error: `No clients found with phone numbers matching: ${args.recipients}` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Sending SMS to ${recipientClients.length} clients`
+        },
+        actionRequired: 'send_bulk_sms',
+        actionData: {
+          recipients: recipientClients.map((c: any) => ({
+            clientId: c.id,
+            clientName: c.name,
+            phone: c.phone,
+          })),
+          message: args.message,
+        },
+      };
+    }
+
+    case 'call_client': {
+      const { clients = [] } = appData;
+
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
+      );
+
+      if (!client) {
+        const clientNames = clients.map((c: any) => c.name).join(', ');
+        return { result: { error: `Client "${args.clientName}" not found. Available clients: ${clientNames || 'none'}` } };
+      }
+
+      if (!client.phone) {
+        return { result: { error: `Client ${client.name} has no phone number on file` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Calling ${client.name} at ${client.phone}`
+        },
+        actionRequired: 'call_client',
+        actionData: {
+          clientId: client.id,
+          clientName: client.name,
+          phone: client.phone,
+          purpose: args.purpose || '',
+        },
+      };
+    }
+
+    // ============================================
+    // PHOTO MANAGEMENT TOOLS
+    // ============================================
+    case 'attach_photo_to_project': {
+      const { projects = [], clients = [] } = appData;
+
+      // Find project
+      const project = findProjectByNameOrClient(projects, clients, args.projectName);
+
+      if (!project) {
+        const projectNames = projects.map((p: any) => p.name).join(', ');
+        return { result: { error: `Project "${args.projectName}" not found. Available projects: ${projectNames || 'none'}` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Ready to attach photo to ${project.name}. Please upload the photo.`
+        },
+        actionRequired: 'attach_photo',
+        actionData: {
+          projectId: project.id,
+          projectName: project.name,
+          description: args.description || '',
+          category: args.category || 'general',
+        },
+      };
+    }
+
+    case 'view_project_photos': {
+      const { projects = [], clients = [], photos = [] } = appData;
+
+      // Find project
+      const project = findProjectByNameOrClient(projects, clients, args.projectName);
+
+      if (!project) {
+        const projectNames = projects.map((p: any) => p.name).join(', ');
+        return { result: { error: `Project "${args.projectName}" not found. Available projects: ${projectNames || 'none'}` } };
+      }
+
+      // Filter photos by project
+      let projectPhotos = photos.filter((photo: any) => photo.projectId === project.id);
+
+      if (args.category) {
+        projectPhotos = projectPhotos.filter((photo: any) =>
+          photo.category?.toLowerCase() === args.category.toLowerCase()
+        );
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Found ${projectPhotos.length} photos for ${project.name}`,
+          photos: projectPhotos.map((p: any) => ({
+            id: p.id,
+            description: p.description,
+            category: p.category,
+            date: p.createdAt || p.date,
+            url: p.url || p.uri,
+          })),
+        }
+      };
+    }
+
+    // ============================================
+    // CLIENT MANAGEMENT TOOLS
+    // ============================================
+    case 'update_client_info': {
+      const { clients = [] } = appData;
+
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
+      );
+
+      if (!client) {
+        const clientNames = clients.map((c: any) => c.name).join(', ');
+        return { result: { error: `Client "${args.clientName}" not found. Available clients: ${clientNames || 'none'}` } };
+      }
+
+      const updates: any = {};
+      if (args.phone) updates.phone = args.phone;
+      if (args.email) updates.email = args.email;
+      if (args.address) updates.address = args.address;
+
+      if (Object.keys(updates).length === 0) {
+        return { result: { error: 'No updates provided. Specify phone, email, or address to update.' } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Updating ${client.name}'s information`
+        },
+        actionRequired: 'update_client_info',
+        actionData: {
+          clientId: client.id,
+          clientName: client.name,
+          updates,
+        },
+      };
+    }
+
+    case 'delete_client': {
+      const { clients = [] } = appData;
+
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
+      );
+
+      if (!client) {
+        const clientNames = clients.map((c: any) => c.name).join(', ');
+        return { result: { error: `Client "${args.clientName}" not found. Available clients: ${clientNames || 'none'}` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Deleting client: ${client.name}`
+        },
+        actionRequired: 'delete_client',
+        actionData: {
+          clientId: client.id,
+          clientName: client.name,
+        },
+      };
+    }
+
+    // ============================================
+    // NAVIGATION TOOLS
+    // ============================================
+    case 'navigate_to': {
+      const { projects = [], clients = [] } = appData;
+
+      let itemData = null;
+
+      // If specific item requested, find it
+      if (args.itemName) {
+        if (args.destination === 'projects') {
+          const project = findProjectByNameOrClient(projects, clients, args.itemName);
+          if (project) {
+            itemData = { itemId: project.id, itemName: project.name };
+          }
+        } else if (args.destination === 'clients') {
+          const client = clients.find((c: any) =>
+            c.name?.toLowerCase().includes(args.itemName.toLowerCase())
+          );
+          if (client) {
+            itemData = { itemId: client.id, itemName: client.name };
+          }
+        }
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Navigating to ${args.destination}${itemData ? ` - ${itemData.itemName}` : ''}`
+        },
+        actionRequired: 'navigate_to',
+        actionData: {
+          destination: args.destination,
+          itemData,
+        },
+      };
+    }
+
+    // ============================================
+    // SUBCONTRACTOR TOOLS
+    // ============================================
+    case 'add_subcontractor': {
+      return {
+        result: {
+          success: true,
+          message: `Adding subcontractor: ${args.name} (${args.trade})`
+        },
+        actionRequired: 'add_subcontractor',
+        actionData: {
+          name: args.name,
+          trade: args.trade,
+          phone: args.phone || '',
+          email: args.email || '',
+          rate: args.rate || 0,
+          status: 'active',
+        },
+      };
+    }
+
+    case 'assign_subcontractor': {
+      const { projects = [], clients = [], subcontractors = [] } = appData;
+
+      // Find subcontractor
+      const subcontractor = subcontractors.find((sub: any) =>
+        sub.name?.toLowerCase().includes(args.subcontractorName.toLowerCase())
+      );
+
+      if (!subcontractor) {
+        const subNames = subcontractors.map((s: any) => s.name).join(', ');
+        return { result: { error: `Subcontractor "${args.subcontractorName}" not found. Available: ${subNames || 'none'}` } };
+      }
+
+      // Find project
+      const project = findProjectByNameOrClient(projects, clients, args.projectName);
+
+      if (!project) {
+        const projectNames = projects.map((p: any) => p.name).join(', ');
+        return { result: { error: `Project "${args.projectName}" not found. Available projects: ${projectNames || 'none'}` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Assigning ${subcontractor.name} to ${project.name}`
+        },
+        actionRequired: 'assign_subcontractor',
+        actionData: {
+          subcontractorId: subcontractor.id,
+          subcontractorName: subcontractor.name,
+          projectId: project.id,
+          projectName: project.name,
+          startDate: args.startDate || '',
+          notes: args.notes || '',
+        },
+      };
+    }
+
+    // ============================================
+    // EXPENSE MANAGEMENT TOOLS
+    // ============================================
+    case 'update_expense': {
+      const { expenses = [] } = appData;
+
+      // Find expense
+      const expense = expenses.find((e: any) =>
+        e.description?.toLowerCase().includes(args.expenseDescription.toLowerCase()) ||
+        e.category?.toLowerCase().includes(args.expenseDescription.toLowerCase())
+      );
+
+      if (!expense) {
+        return { result: { error: `Expense matching "${args.expenseDescription}" not found` } };
+      }
+
+      const updates: any = {};
+      if (args.amount) updates.amount = args.amount;
+      if (args.category) updates.category = args.category;
+      if (args.description) updates.description = args.description;
+      if (args.date) updates.date = args.date;
+
+      if (Object.keys(updates).length === 0) {
+        return { result: { error: 'No updates provided' } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Updating expense: ${expense.description}`
+        },
+        actionRequired: 'update_expense',
+        actionData: {
+          expenseId: expense.id,
+          updates,
+        },
+      };
+    }
+
+    case 'delete_expense': {
+      const { expenses = [] } = appData;
+
+      // Find expense
+      const expense = expenses.find((e: any) =>
+        e.description?.toLowerCase().includes(args.expenseDescription.toLowerCase()) ||
+        e.category?.toLowerCase().includes(args.expenseDescription.toLowerCase())
+      );
+
+      if (!expense) {
+        return { result: { error: `Expense matching "${args.expenseDescription}" not found` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Deleting expense: ${expense.description}`
+        },
+        actionRequired: 'delete_expense',
+        actionData: {
+          expenseId: expense.id,
+        },
+      };
+    }
+
+    // ============================================
+    // ESTIMATE MANAGEMENT TOOLS
+    // ============================================
+    case 'update_estimate': {
+      const { estimates = [], clients = [] } = appData;
+
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
+      );
+
+      if (!client) {
+        const clientNames = clients.map((c: any) => c.name).join(', ');
+        return { result: { error: `Client "${args.clientName}" not found. Available clients: ${clientNames || 'none'}` } };
+      }
+
+      // Find estimate for client
+      const estimate = estimates.find((est: any) => est.clientId === client.id);
+
+      if (!estimate) {
+        return { result: { error: `No estimate found for ${client.name}` } };
+      }
+
+      const updates: any = {};
+      if (args.status) updates.status = args.status;
+      if (args.notes) updates.notes = args.notes;
+
+      if (Object.keys(updates).length === 0) {
+        return { result: { error: 'No updates provided' } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Updating estimate for ${client.name}`
+        },
+        actionRequired: 'update_estimate',
+        actionData: {
+          estimateId: estimate.id,
+          updates,
+        },
+      };
+    }
+
+    case 'delete_estimate': {
+      const { estimates = [], clients = [] } = appData;
+
+      // Find client
+      const client = clients.find((c: any) =>
+        c.name?.toLowerCase().includes(args.clientName.toLowerCase())
+      );
+
+      if (!client) {
+        const clientNames = clients.map((c: any) => c.name).join(', ');
+        return { result: { error: `Client "${args.clientName}" not found. Available clients: ${clientNames || 'none'}` } };
+      }
+
+      // Find estimate for client
+      const estimate = estimates.find((est: any) => est.clientId === client.id);
+
+      if (!estimate) {
+        return { result: { error: `No estimate found for ${client.name}` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Deleting estimate for ${client.name}`
+        },
+        actionRequired: 'delete_estimate',
+        actionData: {
+          estimateId: estimate.id,
+        },
+      };
+    }
+
+    // ============================================
+    // PHOTO MANAGEMENT TOOLS (EXTENDED)
+    // ============================================
+    case 'delete_photo': {
+      const { projects = [], clients = [], photos = [] } = appData;
+
+      // Find project
+      const project = findProjectByNameOrClient(projects, clients, args.projectName);
+
+      if (!project) {
+        const projectNames = projects.map((p: any) => p.name).join(', ');
+        return { result: { error: `Project "${args.projectName}" not found. Available projects: ${projectNames || 'none'}` } };
+      }
+
+      // Find photo
+      const photo = photos.find((p: any) =>
+        p.projectId === project.id &&
+        (p.description?.toLowerCase().includes(args.photoDescription.toLowerCase()) ||
+         p.category?.toLowerCase().includes(args.photoDescription.toLowerCase()))
+      );
+
+      if (!photo) {
+        return { result: { error: `Photo matching "${args.photoDescription}" not found for ${project.name}` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Deleting photo from ${project.name}`
+        },
+        actionRequired: 'delete_photo',
+        actionData: {
+          photoId: photo.id,
+        },
+      };
+    }
+
+    // ============================================
+    // SCHEDULE/CALENDAR TOOLS
+    // ============================================
+    case 'add_appointment': {
+      const { projects = [], clients = [] } = appData;
+
+      let projectId = null;
+      if (args.projectName) {
+        const project = findProjectByNameOrClient(projects, clients, args.projectName);
+        if (project) projectId = project.id;
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Adding appointment: ${args.title} on ${args.date}`
+        },
+        actionRequired: 'add_appointment',
+        actionData: {
+          title: args.title,
+          date: args.date,
+          time: args.time || '',
+          location: args.location || '',
+          notes: args.notes || '',
+          projectId,
+        },
+      };
+    }
+
+    case 'view_schedule': {
+      const { appointments = [] } = appData;
+
+      const today = new Date().toISOString().split('T')[0];
+      const startDate = args.startDate || today;
+      const endDate = args.endDate || startDate;
+
+      const filtered = appointments.filter((apt: any) => {
+        const aptDate = apt.date;
+        return aptDate >= startDate && aptDate <= endDate;
+      });
+
+      return {
+        result: {
+          success: true,
+          message: `Found ${filtered.length} appointments`,
+          appointments: filtered.map((a: any) => ({
+            title: a.title,
+            date: a.date,
+            time: a.time,
+            location: a.location,
+          })),
+        }
+      };
+    }
+
+    case 'delete_appointment': {
+      const { appointments = [] } = appData;
+
+      const appointment = appointments.find((a: any) =>
+        a.title?.toLowerCase().includes(args.appointmentTitle.toLowerCase())
+      );
+
+      if (!appointment) {
+        return { result: { error: `Appointment matching "${args.appointmentTitle}" not found` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Deleting appointment: ${appointment.title}`
+        },
+        actionRequired: 'delete_appointment',
+        actionData: {
+          appointmentId: appointment.id,
+        },
+      };
+    }
+
+    // ============================================
+    // TEAM MANAGEMENT TOOLS
+    // ============================================
+    case 'add_team_member': {
+      return {
+        result: {
+          success: true,
+          message: `Adding team member: ${args.name} (${args.role})`
+        },
+        actionRequired: 'add_team_member',
+        actionData: {
+          name: args.name,
+          role: args.role,
+          phone: args.phone || '',
+          email: args.email || '',
+          hourlyRate: args.hourlyRate || 0,
+          status: 'active',
+        },
+      };
+    }
+
+    case 'assign_team_to_project': {
+      const { projects = [], clients = [], teamMembers = [] } = appData;
+
+      // Find team member
+      const member = teamMembers.find((tm: any) =>
+        tm.name?.toLowerCase().includes(args.teamMemberName.toLowerCase())
+      );
+
+      if (!member) {
+        const memberNames = teamMembers.map((tm: any) => tm.name).join(', ');
+        return { result: { error: `Team member "${args.teamMemberName}" not found. Available: ${memberNames || 'none'}` } };
+      }
+
+      // Find project
+      const project = findProjectByNameOrClient(projects, clients, args.projectName);
+
+      if (!project) {
+        const projectNames = projects.map((p: any) => p.name).join(', ');
+        return { result: { error: `Project "${args.projectName}" not found. Available projects: ${projectNames || 'none'}` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Assigning ${member.name} to ${project.name}`
+        },
+        actionRequired: 'assign_team_to_project',
+        actionData: {
+          teamMemberId: member.id,
+          teamMemberName: member.name,
+          projectId: project.id,
+          projectName: project.name,
+          startDate: args.startDate || '',
+        },
+      };
+    }
+
+    // ============================================
+    // NOTIFICATION TOOLS
+    // ============================================
+    case 'send_notification': {
+      return {
+        result: {
+          success: true,
+          message: `Sending notification: ${args.title}`
+        },
+        actionRequired: 'send_notification',
+        actionData: {
+          title: args.title,
+          message: args.message,
+          type: args.type || 'info',
         },
       };
     }

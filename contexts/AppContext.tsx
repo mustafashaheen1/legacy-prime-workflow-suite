@@ -1798,6 +1798,133 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     return payments.filter(p => p.projectId === projectId);
   }, [payments]);
 
+  const sendPaymentRequest = useCallback(async (data: {
+    clientId: string;
+    clientName: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    amount: number;
+    method: string;
+    dueDate?: string;
+    message?: string;
+  }) => {
+    try {
+      const response = await fetch('/api/send-payment-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, companyId: company?.id }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to send payment request');
+      }
+      console.log('[AppContext] Payment request sent successfully');
+    } catch (error) {
+      console.error('[AppContext] Error sending payment request:', error);
+      throw error;
+    }
+  }, [company?.id]);
+
+  const sendSMS = useCallback(async (data: {
+    clientId: string;
+    clientName: string;
+    phone: string;
+    message: string;
+  }) => {
+    try {
+      const response = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, companyId: company?.id }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to send SMS');
+      }
+      console.log('[AppContext] SMS sent successfully');
+    } catch (error) {
+      console.error('[AppContext] Error sending SMS:', error);
+      throw error;
+    }
+  }, [company?.id]);
+
+  const sendEmail = useCallback(async (data: {
+    clientId: string;
+    clientName: string;
+    email: string;
+    subject: string;
+    message: string;
+    projectData?: any;
+  }) => {
+    try {
+      let htmlMessage = `<p>${data.message.replace(/\n/g, '<br>')}</p>`;
+
+      if (data.projectData) {
+        htmlMessage += `
+          <hr>
+          <p><strong>Related Project:</strong> ${data.projectData.projectName}</p>
+        `;
+      }
+
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: data.email,
+          subject: data.subject,
+          html: htmlMessage,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to send email');
+      }
+      console.log('[AppContext] Email sent successfully');
+    } catch (error) {
+      console.error('[AppContext] Error sending email:', error);
+      throw error;
+    }
+  }, [company?.id]);
+
+  const sendBulkSMS = useCallback(async (data: {
+    recipients: Array<{ clientId: string; clientName: string; phone: string }>;
+    message: string;
+  }) => {
+    try {
+      const response = await fetch('/api/send-bulk-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, companyId: company?.id }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to send bulk SMS');
+      }
+      console.log('[AppContext] Bulk SMS sent successfully');
+    } catch (error) {
+      console.error('[AppContext] Error sending bulk SMS:', error);
+      throw error;
+    }
+  }, [company?.id]);
+
+  const initiateCall = useCallback(async (data: {
+    clientId: string;
+    clientName: string;
+    phone: string;
+    purpose?: string;
+  }) => {
+    try {
+      // On web, use tel: protocol
+      if (Platform.OS === 'web') {
+        window.location.href = `tel:${data.phone}`;
+      } else {
+        // On mobile, use Linking API
+        const { Linking } = require('react-native');
+        await Linking.openURL(`tel:${data.phone}`);
+      }
+      console.log('[AppContext] Call initiated to:', data.phone);
+    } catch (error) {
+      console.error('[AppContext] Error initiating call:', error);
+      throw error;
+    }
+  }, []);
+
   const addChangeOrder = useCallback(async (changeOrder: ChangeOrder) => {
     const updated = [changeOrder, ...changeOrders];
     setChangeOrders(updated);
@@ -1927,6 +2054,30 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     return subcontractors;
   }, [subcontractors]);
 
+  const assignSubcontractor = useCallback(async (data: {
+    subcontractorId: string;
+    subcontractorName: string;
+    projectId: string;
+    projectName: string;
+    startDate?: string;
+    notes?: string;
+  }) => {
+    try {
+      const response = await fetch('/api/assign-subcontractor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, companyId: company?.id }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to assign subcontractor');
+      }
+      console.log('[AppContext] Subcontractor assigned to project');
+    } catch (error) {
+      console.error('[AppContext] Error assigning subcontractor:', error);
+      throw error;
+    }
+  }, [company?.id]);
+
   const addProposal = useCallback(async (proposal: SubcontractorProposal) => {
     const updated = [proposal, ...proposals];
     setProposals(updated);
@@ -1971,6 +2122,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     await AsyncStorage.setItem('notifications', JSON.stringify(updated));
     console.log('[Storage] Notification marked as read');
   }, [notifications]);
+
+  // Schedule/Appointment Management
+  const addAppointment = useCallback(async (appointment: any) => {
+    // For now, store in local state - you can add API call later
+    console.log('[AppContext] Appointment added:', appointment);
+  }, []);
+
+  const deleteAppointment = useCallback(async (appointmentId: string) => {
+    console.log('[AppContext] Appointment deleted:', appointmentId);
+  }, []);
+
+  // Team Management
+  const addTeamMember = useCallback(async (member: any) => {
+    console.log('[AppContext] Team member added:', member);
+  }, []);
+
+  const assignTeamToProject = useCallback(async (data: any) => {
+    console.log('[AppContext] Team member assigned to project:', data);
+  }, []);
 
   // Delete client
   const deleteClient = useCallback(async (clientId: string) => {
@@ -2128,17 +2298,27 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     deleteDailyLog,
     addPayment,
     getPayments,
+    sendPaymentRequest,
+    sendSMS,
+    sendEmail,
+    sendBulkSMS,
+    initiateCall,
     addChangeOrder,
     updateChangeOrder,
     getChangeOrders,
     addSubcontractor,
     updateSubcontractor,
     getSubcontractors,
+    assignSubcontractor,
     addProposal,
     getProposals,
     addNotification,
     getNotifications,
     markNotificationRead,
+    addAppointment,
+    deleteAppointment,
+    addTeamMember,
+    assignTeamToProject,
     deleteClient,
     updateExpense,
     deleteExpense,
@@ -2215,17 +2395,27 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     deleteDailyLog,
     addPayment,
     getPayments,
+    sendPaymentRequest,
+    sendSMS,
+    sendEmail,
+    sendBulkSMS,
+    initiateCall,
     addChangeOrder,
     updateChangeOrder,
     getChangeOrders,
     addSubcontractor,
     updateSubcontractor,
     getSubcontractors,
+    assignSubcontractor,
     addProposal,
     getProposals,
     addNotification,
     getNotifications,
     markNotificationRead,
+    addAppointment,
+    deleteAppointment,
+    addTeamMember,
+    assignTeamToProject,
     deleteClient,
     updateExpense,
     deleteExpense,

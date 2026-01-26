@@ -598,6 +598,29 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     addChangeOrder,
     addClockEntry,
     updateClockEntry,
+    addPayment,
+    sendPaymentRequest,
+    addDailyLog,
+    updateDailyLog,
+    addTask,
+    updateTask,
+    deleteTask,
+    sendSMS,
+    sendEmail,
+    sendBulkSMS,
+    initiateCall,
+    deleteClient,
+    addSubcontractor,
+    assignSubcontractor,
+    updateExpense,
+    deleteExpense,
+    deleteEstimate,
+    deletePhoto,
+    addAppointment,
+    deleteAppointment,
+    addTeamMember,
+    assignTeamToProject,
+    addNotification,
     refreshEstimates,
     // Additional data for complete business intelligence
     customPriceListItems,
@@ -1531,6 +1554,287 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             break;
 
+          // ============================================
+          // PAYMENT HANDLERS
+          // ============================================
+          case 'add_payment':
+            if (addPayment && pendingAction.data) {
+              const payment = {
+                id: `payment-${Date.now()}`,
+                ...pendingAction.data,
+              };
+              await addPayment(payment);
+              console.log('[AI Action] Payment recorded:', payment.amount);
+            }
+            break;
+
+          case 'send_payment_request':
+            if (sendPaymentRequest && pendingAction.data) {
+              await sendPaymentRequest(pendingAction.data);
+              console.log('[AI Action] Payment request sent to:', pendingAction.data.clientName);
+            }
+            break;
+
+          // ============================================
+          // DAILY LOG HANDLERS
+          // ============================================
+          case 'create_daily_log':
+            if (addDailyLog && pendingAction.data) {
+              const dailyLog = {
+                id: `log-${Date.now()}`,
+                ...pendingAction.data,
+              };
+              await addDailyLog(dailyLog);
+              console.log('[AI Action] Daily log created for:', pendingAction.data.projectName);
+            }
+            break;
+
+          case 'update_daily_log':
+            if (updateDailyLog && pendingAction.data) {
+              const { logId, ...updates } = pendingAction.data;
+              await updateDailyLog(logId, updates);
+              console.log('[AI Action] Daily log updated');
+            }
+            break;
+
+          case 'add_daily_log_photo':
+            if (pendingAction.data) {
+              // Store the data for when user uploads photo
+              console.log('[AI Action] Ready for daily log photo upload:', pendingAction.data);
+            }
+            break;
+
+          // ============================================
+          // TASK HANDLERS
+          // ============================================
+          case 'create_task':
+            if (addTask && pendingAction.data) {
+              const task = {
+                id: `task-${Date.now()}`,
+                ...pendingAction.data,
+              };
+              await addTask(task);
+              console.log('[AI Action] Task created:', task.title);
+            }
+            break;
+
+          case 'complete_task':
+            if (updateTask && pendingAction.data) {
+              const { taskId, ...updates } = pendingAction.data;
+              await updateTask(taskId, updates);
+              console.log('[AI Action] Task completed');
+            }
+            break;
+
+          case 'delete_task':
+            if (deleteTask && pendingAction.data) {
+              await deleteTask(pendingAction.data.taskId);
+              console.log('[AI Action] Task deleted');
+            }
+            break;
+
+          // ============================================
+          // COMMUNICATION HANDLERS
+          // ============================================
+          case 'send_sms':
+            if (sendSMS && pendingAction.data) {
+              await sendSMS(pendingAction.data);
+              console.log('[AI Action] SMS sent to:', pendingAction.data.clientName);
+            }
+            break;
+
+          case 'send_email':
+            if (sendEmail && pendingAction.data) {
+              await sendEmail(pendingAction.data);
+              console.log('[AI Action] Email sent to:', pendingAction.data.clientName);
+            }
+            break;
+
+          case 'send_bulk_sms':
+            if (sendBulkSMS && pendingAction.data) {
+              await sendBulkSMS(pendingAction.data);
+              console.log('[AI Action] Bulk SMS sent to:', pendingAction.data.recipients.length, 'recipients');
+            }
+            break;
+
+          case 'call_client':
+            if (initiateCall && pendingAction.data) {
+              await initiateCall(pendingAction.data);
+              console.log('[AI Action] Calling:', pendingAction.data.clientName);
+            }
+            break;
+
+          // ============================================
+          // PHOTO MANAGEMENT HANDLERS
+          // ============================================
+          case 'attach_photo':
+            if (pendingAction.data) {
+              // Store the data for when user uploads photo
+              console.log('[AI Action] Ready for photo upload to project:', pendingAction.data.projectName);
+            }
+            break;
+
+          // ============================================
+          // CLIENT MANAGEMENT HANDLERS
+          // ============================================
+          case 'update_client_info':
+            if (updateClient && pendingAction.data) {
+              const { clientId, updates } = pendingAction.data;
+              await updateClient(clientId, updates);
+              console.log('[AI Action] Client info updated:', pendingAction.data.clientName);
+            }
+            break;
+
+          case 'delete_client':
+            if (deleteClient && pendingAction.data) {
+              await deleteClient(pendingAction.data.clientId);
+              console.log('[AI Action] Client deleted:', pendingAction.data.clientName);
+            }
+            break;
+
+          // ============================================
+          // NAVIGATION HANDLERS
+          // ============================================
+          case 'navigate_to':
+            if (pendingAction.data) {
+              const { destination, itemData } = pendingAction.data;
+              let path = `/${destination}`;
+
+              if (itemData) {
+                path += `/${itemData.itemId}`;
+              }
+
+              router.push(path);
+              console.log('[AI Action] Navigating to:', path);
+            }
+            break;
+
+          // ============================================
+          // SUBCONTRACTOR HANDLERS
+          // ============================================
+          case 'add_subcontractor':
+            if (addSubcontractor && pendingAction.data) {
+              const subcontractor = {
+                id: `sub-${Date.now()}`,
+                ...pendingAction.data,
+              };
+              await addSubcontractor(subcontractor);
+              console.log('[AI Action] Subcontractor added:', subcontractor.name);
+            }
+            break;
+
+          case 'assign_subcontractor':
+            if (assignSubcontractor && pendingAction.data) {
+              await assignSubcontractor(pendingAction.data);
+              console.log('[AI Action] Subcontractor assigned to project');
+            }
+            break;
+
+          // ============================================
+          // EXPENSE MANAGEMENT HANDLERS
+          // ============================================
+          case 'update_expense':
+            if (updateExpense && pendingAction.data) {
+              const { expenseId, updates } = pendingAction.data;
+              await updateExpense(expenseId, updates);
+              console.log('[AI Action] Expense updated');
+            }
+            break;
+
+          case 'delete_expense':
+            if (deleteExpense && pendingAction.data) {
+              await deleteExpense(pendingAction.data.expenseId);
+              console.log('[AI Action] Expense deleted');
+            }
+            break;
+
+          // ============================================
+          // ESTIMATE MANAGEMENT HANDLERS
+          // ============================================
+          case 'update_estimate':
+            if (updateEstimate && pendingAction.data) {
+              const { estimateId, updates } = pendingAction.data;
+              await updateEstimate(estimateId, updates);
+              console.log('[AI Action] Estimate updated');
+            }
+            break;
+
+          case 'delete_estimate':
+            if (deleteEstimate && pendingAction.data) {
+              await deleteEstimate(pendingAction.data.estimateId);
+              console.log('[AI Action] Estimate deleted');
+            }
+            break;
+
+          // ============================================
+          // PHOTO MANAGEMENT HANDLERS (EXTENDED)
+          // ============================================
+          case 'delete_photo':
+            if (deletePhoto && pendingAction.data) {
+              await deletePhoto(pendingAction.data.photoId);
+              console.log('[AI Action] Photo deleted');
+            }
+            break;
+
+          // ============================================
+          // SCHEDULE/CALENDAR HANDLERS
+          // ============================================
+          case 'add_appointment':
+            if (addAppointment && pendingAction.data) {
+              const appointment = {
+                id: `apt-${Date.now()}`,
+                ...pendingAction.data,
+              };
+              await addAppointment(appointment);
+              console.log('[AI Action] Appointment added:', appointment.title);
+            }
+            break;
+
+          case 'delete_appointment':
+            if (deleteAppointment && pendingAction.data) {
+              await deleteAppointment(pendingAction.data.appointmentId);
+              console.log('[AI Action] Appointment deleted');
+            }
+            break;
+
+          // ============================================
+          // TEAM MANAGEMENT HANDLERS
+          // ============================================
+          case 'add_team_member':
+            if (addTeamMember && pendingAction.data) {
+              const member = {
+                id: `member-${Date.now()}`,
+                ...pendingAction.data,
+              };
+              await addTeamMember(member);
+              console.log('[AI Action] Team member added:', member.name);
+            }
+            break;
+
+          case 'assign_team_to_project':
+            if (assignTeamToProject && pendingAction.data) {
+              await assignTeamToProject(pendingAction.data);
+              console.log('[AI Action] Team member assigned to project');
+            }
+            break;
+
+          // ============================================
+          // NOTIFICATION HANDLERS
+          // ============================================
+          case 'send_notification':
+            if (addNotification && pendingAction.data) {
+              const notification = {
+                id: `notif-${Date.now()}`,
+                userId: user?.id || '',
+                read: false,
+                createdAt: new Date().toISOString(),
+                ...pendingAction.data,
+              };
+              await addNotification(notification);
+              console.log('[AI Action] Notification sent');
+            }
+            break;
+
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }
@@ -1552,7 +1856,7 @@ Generate appropriate line items from the price list that fit this scope of work$
     };
 
     handlePendingAction();
-  }, [pendingAction, updateClient, addReport, addClient, addProject, updateProject, addEstimate, addExpense, addChangeOrder, refreshEstimates, clearPendingAction, updateLastMessage, addCustomPriceListItem, addCustomCategory, updateEstimate, addClockEntry, updateClockEntry]);
+  }, [pendingAction, updateClient, addReport, addClient, addProject, updateProject, addEstimate, addExpense, addChangeOrder, refreshEstimates, clearPendingAction, updateLastMessage, addCustomPriceListItem, addCustomCategory, updateEstimate, addClockEntry, updateClockEntry, addPayment, sendPaymentRequest, addDailyLog, updateDailyLog, addTask, updateTask, deleteTask, sendSMS, sendEmail, sendBulkSMS, initiateCall, deleteClient, addSubcontractor, assignSubcontractor, updateExpense, deleteExpense, deleteEstimate, deletePhoto, addAppointment, deleteAppointment, addTeamMember, assignTeamToProject, addNotification]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {
