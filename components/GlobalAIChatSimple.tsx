@@ -1442,8 +1442,8 @@ Generate appropriate line items from the price list that fit this scope of work$
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  companyId: appData.company?.id,
-                  invitedBy: appData.userId,
+                  companyId: company?.id,
+                  invitedBy: user?.id,
                 }),
               });
 
