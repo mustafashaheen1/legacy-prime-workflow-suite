@@ -1433,6 +1433,43 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             break;
 
+          case 'open_email_client':
+            // Generate subcontractor invitation and open email client
+            console.log('[AI Action] Opening email client for subcontractor invitation');
+            try {
+              // Call the invitation API
+              const response = await fetch('/api/send-subcontractor-invitation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  companyId: appData.company?.id,
+                  invitedBy: appData.userId,
+                }),
+              });
+
+              if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to generate invitation');
+              }
+
+              const data = await response.json();
+
+              // Open email client with pre-filled content
+              const mailtoUrl = `mailto:?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
+
+              if (Platform.OS === 'web') {
+                window.location.href = mailtoUrl;
+              } else {
+                await Linking.openURL(mailtoUrl);
+              }
+
+              console.log('[AI Action] Email client opened successfully');
+            } catch (error: any) {
+              console.error('[AI Action] Error opening email client:', error);
+              throw error; // Re-throw to show error message
+            }
+            break;
+
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }

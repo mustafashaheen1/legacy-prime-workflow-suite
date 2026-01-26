@@ -624,6 +624,18 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'send_subcontractor_invitation',
+      description: 'Send an invitation email to a subcontractor with a registration link. Use when user wants to "send an invite to a subcontractor", "invite a new sub", or "send subcontractor registration link".',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'query_call_logs',
       description: 'Query call logs. Use for "call history", "qualified leads from calls".',
       parameters: {
@@ -3100,6 +3112,17 @@ Based on the store and items, intelligently categorize this expense:
             approved: s.approved,
           })),
         },
+      };
+    }
+
+    case 'send_subcontractor_invitation': {
+      // This function returns a special action that tells the frontend to open the email client
+      return {
+        result: {
+          message: 'Opening your email client to send subcontractor invitation...',
+        },
+        actionRequired: 'open_email_client',
+        actionData: {},
       };
     }
 
