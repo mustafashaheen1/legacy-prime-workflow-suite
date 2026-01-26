@@ -1914,9 +1914,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (Platform.OS === 'web') {
         window.location.href = `tel:${data.phone}`;
       } else {
-        // On mobile, use Linking API
-        const ReactNative = require('react-native');
-        await ReactNative.Linking.openURL(`tel:${data.phone}`);
+        // On mobile, use Linking API - inline require to avoid declaration issues
+        await require('react-native').Linking.openURL(`tel:${data.phone}`);
       }
       console.log('[AppContext] Call initiated to:', data.phone);
     } catch (error) {
