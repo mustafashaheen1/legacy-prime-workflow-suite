@@ -87,6 +87,11 @@ interface AppState {
   addNotification: (notification: Notification) => Promise<void>;
   getNotifications: (unreadOnly?: boolean) => Notification[];
   markNotificationRead: (id: string) => Promise<void>;
+  deleteClient: (clientId: string) => Promise<void>;
+  updateExpense: (expenseId: string, updates: Partial<Expense>) => Promise<void>;
+  deleteExpense: (expenseId: string) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
+  deletePhoto: (photoId: string) => Promise<void>;
   refreshClients: () => Promise<void>;
   refreshEstimates: () => Promise<void>;
   refreshDailyLogs: () => Promise<void>;
@@ -1967,6 +1972,79 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log('[Storage] Notification marked as read');
   }, [notifications]);
 
+  // Delete client
+  const deleteClient = useCallback(async (clientId: string) => {
+    try {
+      const response = await fetch('/api/delete-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, companyId: company?.id }),
+      });
+      if (response.ok) {
+        setClients(prev => prev.filter(c => c.id !== clientId));
+      }
+    } catch (error) {
+      console.error('[AppContext] Error deleting client:', error);
+      setClients(prev => prev.filter(c => c.id !== clientId));
+    }
+  }, [company?.id]);
+
+  // Update expense
+  const updateExpense = useCallback(async (expenseId: string, updates: Partial<Expense>) => {
+    try {
+      const response = await fetch('/api/update-expense', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expenseId, updates, companyId: company?.id }),
+      });
+      if (response.ok) {
+        setExpenses(prev => prev.map(e => e.id === expenseId ? { ...e, ...updates } : e));
+      }
+    } catch (error) {
+      console.error('[AppContext] Error updating expense:', error);
+      setExpenses(prev => prev.map(e => e.id === expenseId ? { ...e, ...updates } : e));
+    }
+  }, [company?.id]);
+
+  // Delete expense
+  const deleteExpense = useCallback(async (expenseId: string) => {
+    try {
+      const response = await fetch('/api/delete-expense', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expenseId, companyId: company?.id }),
+      });
+      if (response.ok) {
+        setExpenses(prev => prev.filter(e => e.id !== expenseId));
+      }
+    } catch (error) {
+      console.error('[AppContext] Error deleting expense:', error);
+      setExpenses(prev => prev.filter(e => e.id !== expenseId));
+    }
+  }, [company?.id]);
+
+  // Delete task
+  const deleteTask = useCallback(async (taskId: string) => {
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+  }, []);
+
+  // Delete photo
+  const deletePhoto = useCallback(async (photoId: string) => {
+    try {
+      const response = await fetch('/api/delete-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photoId, companyId: company?.id }),
+      });
+      if (response.ok) {
+        setPhotos(prev => prev.filter(p => p.id !== photoId));
+      }
+    } catch (error) {
+      console.error('[AppContext] Error deleting photo:', error);
+      setPhotos(prev => prev.filter(p => p.id !== photoId));
+    }
+  }, [company?.id]);
+
   const logout = useCallback(async () => {
     await AsyncStorage.multiRemove(['user', 'company', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders', 'subcontractors', 'proposals', 'notifications']);
     setUserState(null);
@@ -2061,6 +2139,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addNotification,
     getNotifications,
     markNotificationRead,
+    deleteClient,
+    updateExpense,
+    deleteExpense,
+    deleteTask,
+    deletePhoto,
     refreshClients,
     refreshEstimates,
     refreshDailyLogs,
@@ -2143,6 +2226,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addNotification,
     getNotifications,
     markNotificationRead,
+    deleteClient,
+    updateExpense,
+    deleteExpense,
+    deleteTask,
+    deletePhoto,
     refreshClients,
     refreshEstimates,
     refreshDailyLogs,

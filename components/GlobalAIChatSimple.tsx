@@ -592,8 +592,12 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     addReport,
     addClient,
     addProject,
+    updateProject,
     addEstimate,
     addExpense,
+    addChangeOrder,
+    addClockEntry,
+    updateClockEntry,
     refreshEstimates,
     // Additional data for complete business intelligence
     customPriceListItems,
@@ -1470,6 +1474,63 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             break;
 
+          // ============================================
+          // PROJECT MANAGEMENT HANDLERS
+          // ============================================
+          case 'create_project':
+            if (addProject && pendingAction.data) {
+              const newProject = {
+                id: `project-${Date.now()}`,
+                expenses: 0,
+                progress: 0,
+                hoursWorked: 0,
+                image: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800',
+                ...pendingAction.data,
+              };
+              await addProject(newProject);
+              console.log('[AI Action] Project created:', newProject.name);
+            }
+            break;
+
+          case 'update_project':
+            if (updateProject && pendingAction.data) {
+              const { projectId, updates } = pendingAction.data;
+              await updateProject(projectId, updates);
+              console.log('[AI Action] Project updated:', pendingAction.data.projectName);
+            }
+            break;
+
+          // ============================================
+          // CLOCK / TIME TRACKING HANDLERS
+          // ============================================
+          case 'clock_in':
+            if (addClockEntry && pendingAction.data) {
+              const entry = {
+                id: `clock-${Date.now()}`,
+                employeeId: user?.id || 'unknown',
+                ...pendingAction.data,
+              };
+              await addClockEntry(entry);
+              console.log('[AI Action] Clocked in to:', pendingAction.data.projectName);
+            }
+            break;
+
+          case 'clock_out':
+            if (updateClockEntry && pendingAction.data) {
+              const { entryId, ...updates } = pendingAction.data;
+              await updateClockEntry(entryId, updates);
+              console.log('[AI Action] Clocked out');
+            }
+            break;
+
+          case 'update_clock_entry':
+            if (updateClockEntry && pendingAction.data) {
+              const { entryId, ...updates } = pendingAction.data;
+              await updateClockEntry(entryId, updates);
+              console.log('[AI Action] Clock entry updated (lunch break added)');
+            }
+            break;
+
           default:
             console.log('[AI Action] Unknown action type:', pendingAction.type);
         }
@@ -1491,7 +1552,7 @@ Generate appropriate line items from the price list that fit this scope of work$
     };
 
     handlePendingAction();
-  }, [pendingAction, updateClient, addReport, addClient, addProject, addEstimate, addExpense, refreshEstimates, clearPendingAction, updateLastMessage, addCustomPriceListItem, addCustomCategory, updateEstimate]);
+  }, [pendingAction, updateClient, addReport, addClient, addProject, updateProject, addEstimate, addExpense, addChangeOrder, refreshEstimates, clearPendingAction, updateLastMessage, addCustomPriceListItem, addCustomCategory, updateEstimate, addClockEntry, updateClockEntry]);
 
   // Complete cleanup function for conversation mode
   const cleanupConversationMode = useCallback(async () => {

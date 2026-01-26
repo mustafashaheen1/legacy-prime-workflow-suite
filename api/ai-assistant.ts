@@ -842,6 +842,137 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  // ============================================
+  // PROJECT MANAGEMENT TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'create_project',
+      description: 'Create a new project. Use when user wants to start a new project, create a project, or set up a new job.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Project name (required)' },
+          budget: { type: 'number', description: 'Project budget in dollars (required)' },
+          clientName: { type: 'string', description: 'Client name to link (optional)' },
+          address: { type: 'string', description: 'Project address (optional)' },
+          startDate: { type: 'string', description: 'Start date YYYY-MM-DD (optional)' },
+        },
+        required: ['name', 'budget'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_project',
+      description: 'Update project details like budget, status, progress, or dates. Use when user wants to modify a project.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string', description: 'Project name to update' },
+          budget: { type: 'number', description: 'New budget (optional)' },
+          status: { type: 'string', enum: ['active', 'completed', 'on-hold', 'archived'], description: 'New status (optional)' },
+          progress: { type: 'number', description: 'Progress percentage 0-100 (optional)' },
+          endDate: { type: 'string', description: 'End date YYYY-MM-DD (optional)' },
+        },
+        required: ['projectName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'archive_project',
+      description: 'Archive or complete a project. Use when user wants to archive, close, or finish a project.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string', description: 'Project name to archive' },
+        },
+        required: ['projectName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'convert_estimate_to_project',
+      description: 'Convert an approved estimate into an active project. Use when user wants to start a project from an estimate.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Client name whose estimate to convert' },
+          estimateName: { type: 'string', description: 'Specific estimate name (optional)' },
+        },
+        required: ['clientName'],
+      },
+    },
+  },
+  // ============================================
+  // TIME TRACKING / CLOCK TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'clock_in',
+      description: 'Clock in to start working on a project. Use when user wants to start work, clock in, or begin time tracking.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: { type: 'string', description: 'Project name to clock into' },
+          notes: { type: 'string', description: 'Work notes (optional)' },
+        },
+        required: ['projectName'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'clock_out',
+      description: 'Clock out from current work. Use when user wants to stop working, clock out, or end time tracking.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workPerformed: { type: 'string', description: 'Description of work performed (optional)' },
+          category: { type: 'string', description: 'Work category (optional)' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_timecard',
+      description: 'Get timecard summary showing hours worked. Use for timecard, hours worked, or time summary requests.',
+      parameters: {
+        type: 'object',
+        properties: {
+          employeeName: { type: 'string', description: 'Employee name (optional, defaults to current user)' },
+          startDate: { type: 'string', description: 'Start date YYYY-MM-DD (optional)' },
+          endDate: { type: 'string', description: 'End date YYYY-MM-DD (optional)' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_lunch_break',
+      description: 'Add a lunch break to the current clock entry. Use when user wants to record a lunch break.',
+      parameters: {
+        type: 'object',
+        properties: {
+          duration: { type: 'number', description: 'Lunch break duration in minutes (default 30)' },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 // Price list categories for expense categorization
@@ -3230,6 +3361,377 @@ Based on the store and items, intelligently categorize this expense:
               projectId: p.projectId,
             };
           }),
+        },
+      };
+    }
+
+    // ============================================
+    // PROJECT MANAGEMENT EXECUTION
+    // ============================================
+    case 'create_project': {
+      if (!args.name || !args.budget) {
+        return { result: { error: 'Project name and budget are required.' } };
+      }
+      if (args.budget <= 0) {
+        return { result: { error: 'Budget must be greater than 0.' } };
+      }
+
+      // Check for existing project with same name
+      const existingProject = projects.find((p: any) =>
+        p.name.toLowerCase() === args.name.toLowerCase()
+      );
+      if (existingProject) {
+        return { result: { error: `A project named "${args.name}" already exists.` } };
+      }
+
+      // Find client if provided
+      let clientId = null;
+      let estimateId = null;
+      if (args.clientName) {
+        const client = clients.find((c: any) =>
+          c.name.toLowerCase().includes(args.clientName.toLowerCase())
+        );
+        if (client) {
+          clientId = client.id;
+          // Find most recent estimate for this client
+          const clientEstimate = estimates.find((e: any) => e.clientId === client.id);
+          if (clientEstimate) {
+            estimateId = clientEstimate.id;
+          }
+        }
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Creating project "${args.name}" with budget $${args.budget.toLocaleString()}`
+        },
+        actionRequired: 'create_project',
+        actionData: {
+          name: args.name,
+          budget: args.budget,
+          address: args.address || '',
+          startDate: args.startDate || new Date().toISOString(),
+          status: 'active',
+          clientId,
+          estimateId,
+        },
+      };
+    }
+
+    case 'update_project': {
+      // Helper function to find project by name or client name
+      const findProjectByNameOrClient = (searchName: string) => {
+        // First try to find by project name
+        let projectFound = projects.find((p: any) =>
+          p.name?.toLowerCase().includes(searchName.toLowerCase())
+        );
+
+        // If not found by project name, try to find by client name via estimate linkage
+        if (!projectFound && searchName) {
+          const searchNameLower = searchName.toLowerCase();
+          const matchingClient = clients.find((c: any) =>
+            c.name?.toLowerCase().includes(searchNameLower)
+          );
+
+          if (matchingClient) {
+            const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
+            const clientEstimateIds = clientEstimates.map((e: any) => e.id);
+            projectFound = projects.find((p: any) =>
+              p.estimateId && clientEstimateIds.includes(p.estimateId)
+            );
+          }
+        }
+
+        return projectFound;
+      };
+
+      const project = findProjectByNameOrClient(args.projectName);
+      if (!project) {
+        return {
+          result: {
+            error: `Project "${args.projectName}" not found.`,
+            availableProjects: projects.filter((p: any) => p.status === 'active').map((p: any) => p.name),
+          }
+        };
+      }
+
+      const updates: any = {};
+      if (args.budget !== undefined) updates.budget = args.budget;
+      if (args.status) updates.status = args.status;
+      if (args.progress !== undefined) updates.progress = Math.min(100, Math.max(0, args.progress));
+      if (args.endDate) updates.endDate = args.endDate;
+
+      if (Object.keys(updates).length === 0) {
+        return { result: { error: 'No updates provided. Specify budget, status, progress, or endDate.' } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Updating project "${project.name}"`
+        },
+        actionRequired: 'update_project',
+        actionData: {
+          projectId: project.id,
+          projectName: project.name,
+          updates,
+        },
+      };
+    }
+
+    case 'archive_project': {
+      const findProjectByNameOrClient = (searchName: string) => {
+        let projectFound = projects.find((p: any) =>
+          p.name?.toLowerCase().includes(searchName.toLowerCase())
+        );
+
+        if (!projectFound && searchName) {
+          const searchNameLower = searchName.toLowerCase();
+          const matchingClient = clients.find((c: any) =>
+            c.name?.toLowerCase().includes(searchNameLower)
+          );
+
+          if (matchingClient) {
+            const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
+            const clientEstimateIds = clientEstimates.map((e: any) => e.id);
+            projectFound = projects.find((p: any) =>
+              p.estimateId && clientEstimateIds.includes(p.estimateId)
+            );
+          }
+        }
+
+        return projectFound;
+      };
+
+      const project = findProjectByNameOrClient(args.projectName);
+      if (!project) {
+        return { result: { error: `Project "${args.projectName}" not found.` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Archiving project "${project.name}"`
+        },
+        actionRequired: 'update_project',
+        actionData: {
+          projectId: project.id,
+          projectName: project.name,
+          updates: {
+            status: 'archived',
+            endDate: new Date().toISOString(),
+          },
+        },
+      };
+    }
+
+    case 'convert_estimate_to_project': {
+      const clientResult = findClientByName(clients, args.clientName);
+      if (clientResult.error) {
+        return { result: { error: clientResult.error } };
+      }
+
+      const client = clientResult.client;
+
+      // Find estimate for this client
+      let estimate = estimates.find((e: any) =>
+        e.clientId === client.id && e.status === 'approved'
+      );
+
+      // If no approved estimate, try any estimate
+      if (!estimate) {
+        estimate = estimates.find((e: any) => e.clientId === client.id);
+      }
+
+      if (!estimate) {
+        return { result: { error: `No estimate found for client "${client.name}". Create an estimate first.` } };
+      }
+
+      // Check if project already exists for this estimate
+      const existingProject = projects.find((p: any) => p.estimateId === estimate.id);
+      if (existingProject) {
+        return { result: { error: `Project "${existingProject.name}" already exists for this estimate.` } };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Converting estimate to project for ${client.name}`
+        },
+        actionRequired: 'create_project',
+        actionData: {
+          name: estimate.name || `${client.name} Project`,
+          budget: estimate.total || 0,
+          status: 'active',
+          clientId: client.id,
+          estimateId: estimate.id,
+          startDate: new Date().toISOString(),
+        },
+      };
+    }
+
+    // ============================================
+    // CLOCK / TIME TRACKING EXECUTION
+    // ============================================
+    case 'clock_in': {
+      const findProjectByNameOrClient = (searchName: string) => {
+        let projectFound = projects.find((p: any) =>
+          p.name?.toLowerCase().includes(searchName.toLowerCase())
+        );
+
+        if (!projectFound && searchName) {
+          const searchNameLower = searchName.toLowerCase();
+          const matchingClient = clients.find((c: any) =>
+            c.name?.toLowerCase().includes(searchNameLower)
+          );
+
+          if (matchingClient) {
+            const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
+            const clientEstimateIds = clientEstimates.map((e: any) => e.id);
+            projectFound = projects.find((p: any) =>
+              p.estimateId && clientEstimateIds.includes(p.estimateId)
+            );
+          }
+        }
+
+        return projectFound;
+      };
+
+      const project = findProjectByNameOrClient(args.projectName);
+      if (!project) {
+        return {
+          result: {
+            error: `Project "${args.projectName}" not found.`,
+            availableProjects: projects.filter((p: any) => p.status === 'active').map((p: any) => p.name),
+          }
+        };
+      }
+
+      // Check if already clocked in (any project)
+      const { clockEntries = [] } = appData;
+      const activeEntry = clockEntries.find((e: any) => !e.clockOut);
+      if (activeEntry) {
+        const activeProject = projects.find((p: any) => p.id === activeEntry.projectId);
+        return {
+          result: {
+            error: `You're already clocked in to "${activeProject?.name || 'a project'}". Clock out first.`
+          }
+        };
+      }
+
+      return {
+        result: {
+          success: true,
+          message: `Clocking in to "${project.name}"`
+        },
+        actionRequired: 'clock_in',
+        actionData: {
+          projectId: project.id,
+          projectName: project.name,
+          clockIn: new Date().toISOString(),
+          location: { latitude: 0, longitude: 0 },
+          workPerformed: args.notes || null,
+        },
+      };
+    }
+
+    case 'clock_out': {
+      const { clockEntries = [] } = appData;
+      const activeEntry = clockEntries.find((e: any) => !e.clockOut);
+
+      if (!activeEntry) {
+        return { result: { error: "You're not currently clocked in." } };
+      }
+
+      const project = projects.find((p: any) => p.id === activeEntry.projectId);
+
+      return {
+        result: {
+          success: true,
+          message: `Clocking out from "${project?.name || 'project'}"`
+        },
+        actionRequired: 'clock_out',
+        actionData: {
+          entryId: activeEntry.id,
+          clockOut: new Date().toISOString(),
+          workPerformed: args.workPerformed || activeEntry.workPerformed,
+          category: args.category || null,
+        },
+      };
+    }
+
+    case 'get_timecard': {
+      const { clockEntries = [] } = appData;
+
+      // Calculate date range (default to current week)
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      const startDate = args.startDate ? new Date(args.startDate) : startOfWeek;
+      const endDate = args.endDate ? new Date(args.endDate) : now;
+
+      // Filter entries
+      const filtered = clockEntries.filter((e: any) => {
+        const clockIn = new Date(e.clockIn);
+        return clockIn >= startDate && clockIn <= endDate && e.clockOut;
+      });
+
+      // Calculate totals
+      let totalHours = 0;
+      const byProject: { [key: string]: number } = {};
+
+      filtered.forEach((e: any) => {
+        const hours = (new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / (1000 * 60 * 60);
+        totalHours += hours;
+
+        const project = projects.find((p: any) => p.id === e.projectId);
+        const projectName = project?.name || 'Unknown';
+        byProject[projectName] = (byProject[projectName] || 0) + hours;
+      });
+
+      return {
+        result: {
+          period: `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`,
+          totalHours: Math.round(totalHours * 100) / 100,
+          entries: filtered.length,
+          byProject: Object.entries(byProject).map(([name, hours]) => ({
+            project: name,
+            hours: Math.round((hours as number) * 100) / 100,
+          })),
+          message: `Timecard for ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}\n\nTotal Hours: ${Math.round(totalHours * 100) / 100}\nEntries: ${filtered.length}\n\nBy Project:\n${Object.entries(byProject).map(([name, hours]) => `- ${name}: ${Math.round((hours as number) * 100) / 100} hours`).join('\n')}`,
+        },
+      };
+    }
+
+    case 'add_lunch_break': {
+      const { clockEntries = [] } = appData;
+      const activeEntry = clockEntries.find((e: any) => !e.clockOut);
+
+      if (!activeEntry) {
+        return { result: { error: "You're not currently clocked in." } };
+      }
+
+      const duration = args.duration || 30;
+      const endTime = new Date();
+      const startTime = new Date(endTime.getTime() - duration * 60 * 1000);
+
+      const existingBreaks = activeEntry.lunchBreaks || [];
+
+      return {
+        result: {
+          success: true,
+          message: `Adding ${duration} minute lunch break`
+        },
+        actionRequired: 'update_clock_entry',
+        actionData: {
+          entryId: activeEntry.id,
+          lunchBreaks: [...existingBreaks, {
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString()
+          }],
         },
       };
     }
