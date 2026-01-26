@@ -72,15 +72,26 @@ export default function BusinessFileUpload({
       setUploading(true);
       setUploadProgress(0);
 
+      console.log('[BusinessFileUpload] Starting upload...', {
+        fileName: file.name,
+        hasToken: !!token,
+        hasSubcontractorId: !!subcontractorId
+      });
+
       // Step 1: Get presigned URL and save metadata
       const requestBody: any = {
-        subcontractorId,
         type,
         name: file.name,
         fileType: file.mimeType,
         fileSize: file.size,
       };
 
+      // Add subcontractorId only if it exists
+      if (subcontractorId) {
+        requestBody.subcontractorId = subcontractorId;
+      }
+
+      // Add token if it exists (for registration flow)
       if (token) {
         requestBody.token = token;
       }
@@ -88,6 +99,8 @@ export default function BusinessFileUpload({
       if (expiryDate) {
         requestBody.expiryDate = expiryDate.toISOString().split('T')[0];
       }
+
+      console.log('[BusinessFileUpload] Request body:', requestBody);
 
       const metadataResponse = await fetch('/api/upload-subcontractor-business-file', {
         method: 'POST',
@@ -97,17 +110,24 @@ export default function BusinessFileUpload({
         body: JSON.stringify(requestBody),
       });
 
+      console.log('[BusinessFileUpload] Metadata response status:', metadataResponse.status);
+
       if (!metadataResponse.ok) {
         const error = await metadataResponse.json();
+        console.error('[BusinessFileUpload] Metadata error:', error);
         throw new Error(error.error || 'Failed to get upload URL');
       }
 
       const { uploadUrl, ...fileMetadata } = await metadataResponse.json();
 
+      console.log('[BusinessFileUpload] Got upload URL, uploading to S3...');
+
       setUploadProgress(30);
 
       // Step 2: Upload file to S3 using presigned URL
       const fileBlob = await fetch(file.uri).then(res => res.blob());
+
+      console.log('[BusinessFileUpload] File blob created, size:', fileBlob.size);
 
       const uploadResponse = await fetch(uploadUrl, {
         method: 'PUT',
@@ -116,6 +136,8 @@ export default function BusinessFileUpload({
         },
         body: fileBlob,
       });
+
+      console.log('[BusinessFileUpload] S3 upload response status:', uploadResponse.status);
 
       if (!uploadResponse.ok) {
         throw new Error('Failed to upload file to S3');
@@ -130,7 +152,14 @@ export default function BusinessFileUpload({
       Alert.alert('Success', 'File uploaded successfully');
     } catch (error: any) {
       console.error('[BusinessFileUpload] Upload error:', error);
-      Alert.alert('Upload Failed', error.message || 'Failed to upload file. Please try again.');
+      console.error('[BusinessFileUpload] Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+      Alert.alert(
+        'Upload Failed',
+        `${error.message || 'Failed to upload file'}. Please check your connection and try again.`
+      );
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -226,11 +255,15 @@ export default function BusinessFileUpload({
 
       {/* Upload Button */}
       <TouchableOpacity
-        style={styles.uploadButton}
+        style={[styles.uploadButton, uploading && styles.uploadButtonDisabled]}
         onPress={pickDocument}
         disabled={uploading || (!allowMultiple && uploadedFiles.length > 0)}
       >
-        <Ionicons name="cloud-upload-outline" size={24} color="#007AFF" />
+        {uploading ? (
+          <ActivityIndicator size="small" color="#007AFF" />
+        ) : (
+          <Ionicons name="cloud-upload-outline" size={24} color="#007AFF" />
+        )}
         <Text style={styles.uploadButtonText}>
           {uploading ? 'Uploading...' : 'Choose File'}
         </Text>
@@ -330,6 +363,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderStyle: 'dashed',
     backgroundColor: '#F8F9FA',
+  },
+  uploadButtonDisabled: {
+    opacity: 0.5,
+    borderColor: '#9CA3AF',
   },
   uploadButtonText: {
     marginLeft: 10,

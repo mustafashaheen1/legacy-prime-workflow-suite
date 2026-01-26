@@ -370,7 +370,7 @@ export default function SubcontractorRegistrationPage() {
       <BusinessFileUpload
         token={token}
         type="license"
-        label="Business License"
+        label="License"
         onFileUploaded={(file) => handleFileUploaded('license', file)}
         onFileDeleted={(fileId) => handleFileDeleted('license', fileId)}
         uploadedFiles={uploadedFiles.license}
@@ -379,8 +379,7 @@ export default function SubcontractorRegistrationPage() {
       <BusinessFileUpload
         token={token}
         type="insurance"
-        label="Insurance Certificate"
-        requireExpiryDate={true}
+        label="Insurance"
         onFileUploaded={(file) => handleFileUploaded('insurance', file)}
         onFileDeleted={(fileId) => handleFileDeleted('insurance', fileId)}
         uploadedFiles={uploadedFiles.insurance}
@@ -398,8 +397,7 @@ export default function SubcontractorRegistrationPage() {
       <BusinessFileUpload
         token={token}
         type="certificate"
-        label="Other Certificates"
-        requireExpiryDate={true}
+        label="Certificate"
         onFileUploaded={(file) => handleFileUploaded('certificate', file)}
         onFileDeleted={(fileId) => handleFileDeleted('certificate', fileId)}
         uploadedFiles={uploadedFiles.certificate}
@@ -408,7 +406,7 @@ export default function SubcontractorRegistrationPage() {
       <BusinessFileUpload
         token={token}
         type="other"
-        label="Other Documents"
+        label="Other"
         allowMultiple={true}
         onFileUploaded={(file) => handleFileUploaded('other', file)}
         onFileDeleted={(fileId) => handleFileDeleted('other', fileId)}
