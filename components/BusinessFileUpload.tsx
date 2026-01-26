@@ -53,19 +53,30 @@ export default function BusinessFileUpload({
       }
 
       const file = result.assets[0];
+      console.log('[BusinessFileUpload] Selected file:', {
+        name: file.name,
+        size: file.size,
+        type: file.mimeType,
+        uri: file.uri
+      });
 
       // Validate file size (max 10MB)
       const maxFileSize = 10 * 1024 * 1024; // 10MB
       if (file.size && file.size > maxFileSize) {
+        console.log('[BusinessFileUpload] File too large:', file.size);
         Alert.alert('File Too Large', 'Maximum file size is 10MB. Please choose a smaller file.');
         return;
       }
 
+      console.log('[BusinessFileUpload] File size OK, checking if expiry date required:', requireExpiryDate);
+
       // If expiry date is required, show date input first
       if (requireExpiryDate) {
+        console.log('[BusinessFileUpload] Expiry date required, showing input');
         setPendingFile(file);
         setShowExpiryInput(true);
       } else {
+        console.log('[BusinessFileUpload] No expiry date required, starting upload');
         await uploadFile(file);
       }
     } catch (error) {
