@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Generate registration URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://legacyprime.com';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://legacy-prime-workflow-suite.vercel.app';
     const registrationUrl = `${baseUrl}/register-subcontractor/${registrationToken}`;
 
     // Generate email template
