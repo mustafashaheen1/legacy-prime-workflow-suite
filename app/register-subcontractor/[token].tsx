@@ -51,6 +51,10 @@ export default function SubcontractorRegistrationPage() {
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{
+    email?: string;
+    phone?: string;
+  }>({});
 
   const [formData, setFormData] = useState({
     name: '',
@@ -295,26 +299,52 @@ export default function SubcontractorRegistrationPage() {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Email *</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.email && styles.inputError]}
           value={formData.email}
-          onChangeText={(text) => setFormData({ ...formData, email: text })}
+          onChangeText={(text) => {
+            setFormData({ ...formData, email: text });
+            // Clear error when user starts typing
+            if (errors.email) {
+              setErrors({ ...errors, email: undefined });
+            }
+          }}
+          onBlur={() => {
+            // Validate on blur
+            if (formData.email) {
+              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+              if (!emailRegex.test(formData.email)) {
+                setErrors({ ...errors, email: 'Please enter a valid email address' });
+              }
+            }
+          }}
           placeholder="john@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
           placeholderTextColor="#8E8E93"
         />
+        {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
       </View>
 
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Phone Number *</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.phone && styles.inputError]}
           value={formData.phone}
           onChangeText={(text) => {
             // Only allow digits, max 10
             const cleaned = text.replace(/\D/g, '');
             if (cleaned.length <= 10) {
               setFormData({ ...formData, phone: cleaned });
+              // Clear error when user starts typing
+              if (errors.phone) {
+                setErrors({ ...errors, phone: undefined });
+              }
+            }
+          }}
+          onBlur={() => {
+            // Validate on blur
+            if (formData.phone && formData.phone.length !== 10) {
+              setErrors({ ...errors, phone: `Phone must be 10 digits (you have ${formData.phone.length})` });
             }
           }}
           placeholder="5551234567"
@@ -322,7 +352,11 @@ export default function SubcontractorRegistrationPage() {
           placeholderTextColor="#8E8E93"
           maxLength={10}
         />
-        <Text style={styles.helperText}>Enter 10-digit US phone number (digits only)</Text>
+        {errors.phone ? (
+          <Text style={styles.errorText}>{errors.phone}</Text>
+        ) : (
+          <Text style={styles.helperText}>Enter 10-digit US phone number (digits only)</Text>
+        )}
       </View>
 
       <View style={styles.inputGroup}>
@@ -378,6 +412,10 @@ export default function SubcontractorRegistrationPage() {
       </View>
 
       <TouchableOpacity style={styles.nextButton} onPress={() => {
+        // Clear previous errors
+        let newErrors: { email?: string; phone?: string } = {};
+        let hasError = false;
+
         // Validate required fields before moving to step 2
         if (!formData.name || !formData.companyName || !formData.email || !formData.phone || !formData.trade) {
           Alert.alert('Missing Information', 'Please fill in all required fields marked with *');
@@ -387,13 +425,19 @@ export default function SubcontractorRegistrationPage() {
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(formData.email)) {
-          Alert.alert('Invalid Email', 'Please enter a valid email address (e.g., john@example.com)');
-          return;
+          newErrors.email = 'Please enter a valid email address';
+          hasError = true;
         }
 
         // Validate phone number (must be exactly 10 digits)
         if (formData.phone.length !== 10) {
-          Alert.alert('Invalid Phone Number', 'Phone number must be exactly 10 digits (you entered ' + formData.phone.length + ' digits)');
+          newErrors.phone = `Phone must be 10 digits (you have ${formData.phone.length})`;
+          hasError = true;
+        }
+
+        if (hasError) {
+          setErrors(newErrors);
+          Alert.alert('Invalid Information', 'Please fix the errors shown in red below');
           return;
         }
 
@@ -669,6 +713,12 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
+  errorText: {
+    fontSize: 12,
+    color: '#FF3B30',
+    marginTop: 4,
+    fontWeight: '500',
+  },
   input: {
     backgroundColor: '#FFF',
     borderWidth: 1,
@@ -678,6 +728,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#333',
+  },
+  inputError: {
+    borderColor: '#FF3B30',
+    borderWidth: 2,
   },
   textArea: {
     height: 100,
