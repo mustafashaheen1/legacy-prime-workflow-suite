@@ -1270,6 +1270,289 @@ export default function EstimateScreen() {
     setShowPreview(true);
   };
 
+  const handleExportPDF = async () => {
+    try {
+      console.log('[Estimate] Exporting estimate as PDF...');
+
+      // Generate HTML for PDF
+      const html = generateEstimatePreviewHTML();
+
+      if (Platform.OS === 'web') {
+        // Open print dialog for web
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(html);
+          printWindow.document.close();
+          printWindow.onload = () => {
+            printWindow.focus();
+            printWindow.print();
+          };
+          Alert.alert('PDF Export', 'Print dialog opened. You can save as PDF from the print options.');
+        }
+      } else {
+        // Mobile: Generate PDF file
+        const { uri } = await Print.printToFileAsync({ html });
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Save or Share PDF',
+          UTI: 'com.adobe.pdf',
+        });
+        Alert.alert('Success', 'PDF exported successfully!');
+      }
+
+      console.log('[Estimate] PDF export completed');
+    } catch (error: any) {
+      console.error('[Estimate] Error exporting PDF:', error);
+      Alert.alert('Error', 'Failed to export PDF. Please try again.');
+    }
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      console.log('[Estimate] Exporting estimate as CSV...');
+
+      // Generate CSV content
+      let csvContent = 'Item,Description,Quantity,Unit,Unit Price,Total,Notes\n';
+
+      items.forEach((item, index) => {
+        if (item.isSeparator) {
+          // Add separator as a blank row with label in description
+          csvContent += `,"${item.separatorLabel || 'SECTION'}",,,,,\n`;
+        } else {
+          const priceListItem = getPriceListItem(item.priceListItemId);
+          const isCustom = item.priceListItemId === 'custom';
+          const itemName = item.customName || (isCustom ? 'Custom Item' : (priceListItem?.name || ''));
+          const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
+          const displayPrice = item.customPrice ?? item.unitPrice;
+          const notes = item.notes?.replace(/"/g, '""') || ''; // Escape quotes in notes
+
+          csvContent += `${index + 1},"${itemName}",${item.quantity},"${itemUnit}",${displayPrice.toFixed(2)},${item.total.toFixed(2)},"${notes}"\n`;
+        }
+      });
+
+      // Add totals section
+      csvContent += '\n';
+      csvContent += `"Subtotal",,,,,${subtotal.toFixed(2)},\n`;
+
+      if ((parseFloat(markupPercent) || 0) > 0) {
+        csvContent += `"Markup (${markupPercent}%)",,,,,${markupAmount.toFixed(2)},\n`;
+        csvContent += `"Subtotal w/ Markup",,,,,${subtotalWithMarkup.toFixed(2)},\n`;
+      }
+
+      csvContent += `"Tax (${taxPercent}%)",,,,,${taxAmount.toFixed(2)},\n`;
+      csvContent += `"TOTAL",,,,,${total.toFixed(2)},\n`;
+
+      // Save CSV file
+      if (Platform.OS === 'web') {
+        // Web: Create download link
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `estimate-${estimateName.replace(/\s+/g, '-')}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        Alert.alert('Success', 'CSV file downloaded successfully!');
+      } else {
+        // Mobile: Save to file system and share
+        const fileName = `estimate-${estimateName.replace(/\s+/g, '-')}.csv`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Save or Share CSV',
+        });
+        Alert.alert('Success', 'CSV exported successfully!');
+      }
+
+      console.log('[Estimate] CSV export completed');
+    } catch (error: any) {
+      console.error('[Estimate] Error exporting CSV:', error);
+      Alert.alert('Error', 'Failed to export CSV. Please try again.');
+    }
+  };
+
+  const generateEstimatePreviewHTML = (): string => {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estimate - ${estimateName}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #1f2937;
+      background: white;
+      padding: 20px;
+    }
+    .container { max-width: 800px; margin: 0 auto; background: white; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    .company-info h1 { font-size: 24px; font-weight: 700; color: #1f2937; margin-bottom: 8px; }
+    .company-info p { font-size: 11px; color: #6b7280; line-height: 1.5; }
+    .estimate-info { text-align: right; }
+    .estimate-info h2 { font-size: 20px; font-weight: 600; color: #2563eb; margin-bottom: 8px; }
+    .estimate-info p { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+    .project-details {
+      background: #f9fafb;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 25px;
+    }
+    .project-details h3 { font-size: 14px; font-weight: 600; color: #1f2937; margin-bottom: 10px; }
+    .separator-row {
+      background: #f3f4f6;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7280;
+      margin: 10px 0;
+      border-left: 3px solid #9ca3af;
+    }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    thead { background: #f3f4f6; }
+    th {
+      padding: 8px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      color: #4b5563;
+      text-transform: uppercase;
+    }
+    th:last-child, td:last-child { text-align: right; }
+    tbody tr { border-bottom: 1px solid #e5e7eb; }
+    td { padding: 8px; font-size: 11px; color: #1f2937; }
+    .item-name { font-weight: 500; }
+    .item-notes { font-size: 10px; color: #6b7280; font-style: italic; margin-top: 2px; }
+    .totals-section {
+      margin-top: 25px;
+      padding-top: 20px;
+      border-top: 2px solid #e5e7eb;
+    }
+    .totals-table { margin-left: auto; width: 300px; }
+    .totals-table td { padding: 6px 8px; font-size: 12px; }
+    .totals-table .label { text-align: right; color: #6b7280; font-weight: 500; }
+    .totals-table .value { text-align: right; color: #1f2937; font-weight: 600; width: 120px; }
+    .total-row { border-top: 2px solid #e5e7eb; font-size: 14px !important; }
+    .total-row .label { color: #1f2937; font-weight: 700; }
+    .total-row .value { color: #2563eb; font-weight: 700; font-size: 16px; }
+    @media print {
+      body { padding: 0; }
+      .container { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="company-info">
+        <h1>${company?.name || 'Company Name'}</h1>
+        ${company?.email ? `<p>${company.email}</p>` : ''}
+        ${company?.officePhone ? `<p>${company.officePhone}</p>` : ''}
+        ${company?.address ? `<p>${company.address}</p>` : ''}
+      </div>
+      <div class="estimate-info">
+        <h2>ESTIMATE</h2>
+        <p><strong>Project:</strong> ${project?.name || 'Project'}</p>
+        <p><strong>Estimate:</strong> ${estimateName}</p>
+        <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+      </div>
+    </div>
+
+    <div class="line-items">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 5%;">#</th>
+            <th style="width: 40%;">Item</th>
+            <th style="width: 15%;">Quantity</th>
+            <th style="width: 15%;">Unit Price</th>
+            <th style="width: 25%;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((item, index) => {
+            if (item.isSeparator) {
+              return `<tr><td colspan="5" class="separator-row">${item.separatorLabel || 'SECTION'}</td></tr>`;
+            }
+            const priceListItem = getPriceListItem(item.priceListItemId);
+            const isCustom = item.priceListItemId === 'custom';
+            const itemName = item.customName || (isCustom ? 'Custom Item' : (priceListItem?.name || ''));
+            const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
+            const displayPrice = item.customPrice ?? item.unitPrice;
+
+            return `
+              <tr>
+                <td>${index + 1}</td>
+                <td>
+                  <div class="item-name">${itemName}</div>
+                  ${item.notes ? `<div class="item-notes">${item.notes}</div>` : ''}
+                </td>
+                <td>${item.quantity} ${itemUnit}</td>
+                <td>$${displayPrice.toFixed(2)}</td>
+                <td>$${item.total.toFixed(2)}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="totals-section">
+      <table class="totals-table">
+        <tbody>
+          <tr>
+            <td class="label">Subtotal:</td>
+            <td class="value">$${subtotal.toFixed(2)}</td>
+          </tr>
+          ${(parseFloat(markupPercent) || 0) > 0 ? `
+            <tr>
+              <td class="label">Markup (${markupPercent}%):</td>
+              <td class="value">$${markupAmount.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td class="label">Subtotal w/ Markup:</td>
+              <td class="value">$${subtotalWithMarkup.toFixed(2)}</td>
+            </tr>
+          ` : ''}
+          <tr>
+            <td class="label">Tax (${taxPercent}%):</td>
+            <td class="value">$${taxAmount.toFixed(2)}</td>
+          </tr>
+          <tr class="total-row">
+            <td class="label">TOTAL:</td>
+            <td class="value">$${total.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    ${company?.estimateTemplate ? `
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #6b7280;">
+        ${company.estimateTemplate}
+      </div>
+    ` : ''}
+  </div>
+</body>
+</html>
+    `;
+  };
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -2141,7 +2424,23 @@ export default function EstimateScreen() {
               </View>
             </ScrollView>
 
-            <TouchableOpacity 
+            <View style={styles.previewActionsContainer}>
+              <TouchableOpacity
+                style={styles.exportButton}
+                onPress={handleExportPDF}
+              >
+                <Text style={styles.exportButtonText}>📄 Export as PDF</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.exportButton}
+                onPress={handleExportCSV}
+              >
+                <Text style={styles.exportButtonText}>📊 Export as CSV</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
               style={styles.previewCloseButton}
               onPress={() => setShowPreview(false)}
             >
@@ -4511,6 +4810,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 20,
+  },
+  previewActionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  exportButton: {
+    flex: 1,
+    backgroundColor: '#10B981',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  exportButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   previewCloseButton: {
     margin: 16,
