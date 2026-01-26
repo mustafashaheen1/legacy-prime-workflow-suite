@@ -40,6 +40,11 @@ const trades = [
 
 export default function SubcontractorRegistrationPage() {
   const { token } = useLocalSearchParams<{ token: string }>();
+
+  console.log('[Registration Page] Component mounted/rendered');
+  console.log('[Registration Page] Token from params:', token);
+  console.log('[Registration Page] Token type:', typeof token);
+
   const [loading, setLoading] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
   const [tokenExpired, setTokenExpired] = useState(false);
@@ -82,10 +87,26 @@ export default function SubcontractorRegistrationPage() {
     try {
       setLoading(true);
 
+      console.log('[Registration] Validating token:', token);
+
       const response = await fetch(`/api/validate-subcontractor-token?token=${token}`);
       const data = await response.json();
 
+      console.log('[Registration] Token validation response:', {
+        status: response.status,
+        data
+      });
+
       if (!response.ok) {
+        // Check if it's a database setup issue
+        if (data.error && (data.error.includes('does not exist') || data.error.includes('relation'))) {
+          Alert.alert(
+            'Setup Required',
+            'The database needs to be configured. Please contact the administrator to run the database migrations. See MIGRATION_INSTRUCTIONS.md in the project root.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
         throw new Error(data.error || 'Failed to validate token');
       }
 
@@ -101,6 +122,7 @@ export default function SubcontractorRegistrationPage() {
       }
 
       setTokenValid(true);
+      console.log('[Registration] Token is valid, ready for registration');
       // No pre-filled data - receiver fills everything from scratch
     } catch (error: any) {
       console.error('[Registration] Token validation error:', error);
@@ -362,12 +384,23 @@ export default function SubcontractorRegistrationPage() {
     </View>
   );
 
-  const renderStep2 = () => (
-    <View>
-      <Text style={styles.stepTitle}>Business Documents</Text>
-      <Text style={styles.stepSubtitle}>Upload required documents for verification</Text>
+  const renderStep2 = () => {
+    console.log('[Registration Page] Rendering Step 2 - File Uploads');
+    console.log('[Registration Page] Current token value:', token);
+    console.log('[Registration Page] Current uploaded files:', {
+      license: uploadedFiles.license.length,
+      insurance: uploadedFiles.insurance.length,
+      w9: uploadedFiles.w9.length,
+      certificate: uploadedFiles.certificate.length,
+      other: uploadedFiles.other.length,
+    });
 
-      <BusinessFileUpload
+    return (
+      <View>
+        <Text style={styles.stepTitle}>Business Documents</Text>
+        <Text style={styles.stepSubtitle}>Upload required documents for verification</Text>
+
+        <BusinessFileUpload
         token={token}
         type="license"
         label="License"
@@ -424,7 +457,8 @@ export default function SubcontractorRegistrationPage() {
         </TouchableOpacity>
       </View>
     </View>
-  );
+    );
+  };
 
   const renderStep3 = () => {
     const totalFiles = Object.values(uploadedFiles).reduce((sum, files) => sum + files.length, 0);

@@ -67,14 +67,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Validate token if provided (during registration without subcontractorId)
     if (token && !subcontractorId) {
+      console.log('[Upload Subcontractor Business File] Validating token:', token);
+
       const { data: tokenData, error: tokenError } = await supabase
         .from('registration_tokens')
         .select('*')
         .eq('token', token)
         .single();
 
-      if (tokenError || !tokenData) {
-        console.error('[Upload Subcontractor Business File] Invalid token');
+      if (tokenError) {
+        console.error('[Upload Subcontractor Business File] Token validation error:', tokenError);
+
+        // Check if it's a "table doesn't exist" error
+        if (tokenError.message && (tokenError.message.includes('does not exist') || tokenError.message.includes('relation'))) {
+          return res.status(500).json({
+            error: 'Database not configured. Please run migrations. See MIGRATION_INSTRUCTIONS.md',
+            details: tokenError.message
+          });
+        }
+
+        return res.status(401).json({ error: 'Invalid registration token' });
+      }
+
+      if (!tokenData) {
+        console.error('[Upload Subcontractor Business File] Token not found');
         return res.status(401).json({ error: 'Invalid registration token' });
       }
 
@@ -86,6 +102,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error('[Upload Subcontractor Business File] Token expired');
         return res.status(401).json({ error: 'Registration link has expired' });
       }
+
+      console.log('[Upload Subcontractor Business File] Token validated successfully');
 
       // Use special temporary ID pattern for files uploaded during registration
       actualSubcontractorId = `temp_${token}`;

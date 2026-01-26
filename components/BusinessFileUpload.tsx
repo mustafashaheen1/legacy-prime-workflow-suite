@@ -34,14 +34,21 @@ export default function BusinessFileUpload({
   const [pendingFile, setPendingFile] = useState<any>(null);
 
   const pickDocument = async () => {
+    console.log('[BusinessFileUpload] pickDocument called - opening file picker...');
+    console.log('[BusinessFileUpload] Component props:', { type, label, hasToken: !!token, hasSubcontractorId: !!subcontractorId });
+
     try {
+      console.log('[BusinessFileUpload] Calling DocumentPicker.getDocumentAsync...');
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
         copyToCacheDirectory: true,
         multiple: allowMultiple,
       });
 
+      console.log('[BusinessFileUpload] DocumentPicker result:', { canceled: result.canceled, hasAssets: result.assets?.length });
+
       if (result.canceled) {
+        console.log('[BusinessFileUpload] User canceled file picker');
         return;
       }
 
