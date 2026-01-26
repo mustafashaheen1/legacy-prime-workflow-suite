@@ -55,7 +55,6 @@ export default function SubcontractorRegistrationPage() {
     trade: '',
     licenseNumber: '',
     address: '',
-    insuranceExpiry: '',
     notes: '',
     rating: 0,
   });
@@ -126,8 +125,22 @@ export default function SubcontractorRegistrationPage() {
   };
 
   const handleSubmit = async () => {
+    // Validate required fields
     if (!formData.name || !formData.companyName || !formData.email || !formData.phone || !formData.trade) {
       Alert.alert('Error', 'Please fill in all required fields marked with *');
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address (e.g., john@example.com)');
+      return;
+    }
+
+    // Validate phone number (must be exactly 10 digits)
+    if (formData.phone.length !== 10) {
+      Alert.alert('Invalid Phone', 'Phone number must be exactly 10 digits');
       return;
     }
 
@@ -149,7 +162,6 @@ export default function SubcontractorRegistrationPage() {
             trade: formData.trade,
             licenseNumber: formData.licenseNumber || undefined,
             address: formData.address || undefined,
-            insuranceExpiry: formData.insuranceExpiry || undefined,
             notes: formData.notes || undefined,
             rating: formData.rating || undefined,
           },
@@ -276,11 +288,19 @@ export default function SubcontractorRegistrationPage() {
         <TextInput
           style={styles.input}
           value={formData.phone}
-          onChangeText={(text) => setFormData({ ...formData, phone: text })}
-          placeholder="(555) 123-4567"
+          onChangeText={(text) => {
+            // Only allow digits, max 10
+            const cleaned = text.replace(/\D/g, '');
+            if (cleaned.length <= 10) {
+              setFormData({ ...formData, phone: cleaned });
+            }
+          }}
+          placeholder="5551234567"
           keyboardType="phone-pad"
           placeholderTextColor="#8E8E93"
+          maxLength={10}
         />
+        <Text style={styles.helperText}>Enter 10-digit US phone number (digits only)</Text>
       </View>
 
       <View style={styles.inputGroup}>
@@ -318,17 +338,6 @@ export default function SubcontractorRegistrationPage() {
           value={formData.address}
           onChangeText={(text) => setFormData({ ...formData, address: text })}
           placeholder="123 Main St, City, State ZIP"
-          placeholderTextColor="#8E8E93"
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Insurance Expiry Date</Text>
-        <TextInput
-          style={styles.input}
-          value={formData.insuranceExpiry}
-          onChangeText={(text) => setFormData({ ...formData, insuranceExpiry: text })}
-          placeholder="YYYY-MM-DD (e.g., 2025-12-31)"
           placeholderTextColor="#8E8E93"
         />
       </View>
@@ -601,6 +610,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
   },
   input: {
     backgroundColor: '#FFF',
