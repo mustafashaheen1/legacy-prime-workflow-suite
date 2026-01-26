@@ -493,11 +493,13 @@ export default function SubcontractorsScreen() {
                   <View style={styles.subInfo}>
                     <View style={styles.subNameRow}>
                       <Text style={styles.subName}>{sub.name}</Text>
-                      <View style={[styles.availabilityBadge, { backgroundColor: getAvailabilityColor(sub.availability) }]}>
-                        <Text style={styles.availabilityText}>
-                          {sub.availability.charAt(0).toUpperCase() + sub.availability.slice(1)}
-                        </Text>
-                      </View>
+                      {sub.availability && (
+                        <View style={[styles.availabilityBadge, { backgroundColor: getAvailabilityColor(sub.availability) }]}>
+                          <Text style={styles.availabilityText}>
+                            {sub.availability.charAt(0).toUpperCase() + sub.availability.slice(1)}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                     <View style={styles.subCompanyRow}>
                       <Building2 size={14} color="#6B7280" />
@@ -806,14 +808,16 @@ export default function SubcontractorsScreen() {
                   </View>
                 )}
 
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailLabel}>Availability</Text>
-                  <View style={[styles.availabilityBadge, { backgroundColor: getAvailabilityColor(selectedSubcontractor.availability) }]}>
-                    <Text style={styles.availabilityText}>
-                      {selectedSubcontractor.availability.charAt(0).toUpperCase() + selectedSubcontractor.availability.slice(1)}
-                    </Text>
+                {selectedSubcontractor.availability && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailLabel}>Availability</Text>
+                    <View style={[styles.availabilityBadge, { backgroundColor: getAvailabilityColor(selectedSubcontractor.availability) }]}>
+                      <Text style={styles.availabilityText}>
+                        {selectedSubcontractor.availability.charAt(0).toUpperCase() + selectedSubcontractor.availability.slice(1)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
+                )}
 
                 <TouchableOpacity 
                   style={styles.requestEstimateButton}
