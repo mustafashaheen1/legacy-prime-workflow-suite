@@ -44,11 +44,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Validate file size (max 10MB)
-    const maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
+    // Validate file size (max 50MB)
+    const maxFileSize = 50 * 1024 * 1024; // 50MB in bytes
     if (fileSize && fileSize > maxFileSize) {
       return res.status(400).json({
-        error: 'File size exceeds maximum limit of 10MB',
+        error: 'File size exceeds maximum limit of 50MB',
       });
     }
 

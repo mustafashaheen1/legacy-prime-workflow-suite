@@ -60,11 +60,12 @@ export default function BusinessFileUpload({
         uri: file.uri
       });
 
-      // Validate file size (max 10MB)
-      const maxFileSize = 10 * 1024 * 1024; // 10MB
+      // Validate file size (max 50MB)
+      const maxFileSize = 50 * 1024 * 1024; // 50MB
       if (file.size && file.size > maxFileSize) {
         console.log('[BusinessFileUpload] File too large:', file.size);
-        Alert.alert('File Too Large', 'Maximum file size is 10MB. Please choose a smaller file.');
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        Alert.alert('File Too Large', `File size is ${fileSizeMB}MB. Maximum file size is 50MB. Please choose a smaller file.`);
         return;
       }
 
