@@ -377,7 +377,28 @@ export default function SubcontractorRegistrationPage() {
         />
       </View>
 
-      <TouchableOpacity style={styles.nextButton} onPress={() => setStep(2)}>
+      <TouchableOpacity style={styles.nextButton} onPress={() => {
+        // Validate required fields before moving to step 2
+        if (!formData.name || !formData.companyName || !formData.email || !formData.phone || !formData.trade) {
+          Alert.alert('Missing Information', 'Please fill in all required fields marked with *');
+          return;
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.email)) {
+          Alert.alert('Invalid Email', 'Please enter a valid email address (e.g., john@example.com)');
+          return;
+        }
+
+        // Validate phone number (must be exactly 10 digits)
+        if (formData.phone.length !== 10) {
+          Alert.alert('Invalid Phone Number', 'Phone number must be exactly 10 digits (you entered ' + formData.phone.length + ' digits)');
+          return;
+        }
+
+        setStep(2);
+      }}>
         <Text style={styles.nextButtonText}>Continue to Documents</Text>
         <Ionicons name="arrow-forward" size={20} color="#FFF" />
       </TouchableOpacity>
