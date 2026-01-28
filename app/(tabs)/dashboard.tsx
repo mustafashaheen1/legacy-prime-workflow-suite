@@ -1848,22 +1848,24 @@ export default function DashboardScreen() {
 
       {/* ===== ADD TASK MODAL ===== */}
       <Modal visible={showAddTaskModal} animationType="slide" transparent={true} onRequestClose={() => { setShowAddTaskModal(false); resetTaskForm(); }}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxWidth: 500 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Task</Text>
-              <TouchableOpacity onPress={() => { setShowAddTaskModal(false); resetTaskForm(); }}>
-                <X size={24} color="#6B7280" />
+        <View style={styles.addTaskOverlay}>
+          <View style={styles.addTaskModal}>
+            {/* Header */}
+            <View style={styles.addTaskHeader}>
+              <Text style={styles.addTaskTitle}>Add New Task</Text>
+              <TouchableOpacity style={styles.addTaskCloseButton} onPress={() => { setShowAddTaskModal(false); resetTaskForm(); }}>
+                <X size={20} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            {/* Form */}
+            <ScrollView style={styles.addTaskForm} showsVerticalScrollIndicator={false}>
               {/* Task Title */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Task Title *</Text>
+              <View style={styles.addTaskField}>
+                <Text style={styles.addTaskLabel}>Task Title <Text style={styles.required}>*</Text></Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Enter task title"
+                  style={styles.addTaskInput}
+                  placeholder="What needs to be done?"
                   placeholderTextColor="#9CA3AF"
                   value={newTaskTitle}
                   onChangeText={setNewTaskTitle}
@@ -1872,57 +1874,77 @@ export default function DashboardScreen() {
               </View>
 
               {/* Due Date */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Due Date *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#9CA3AF"
-                  value={newTaskDateString}
-                  onChangeText={setNewTaskDateString}
-                />
-                <Text style={styles.inputHint}>Must be today or a future date</Text>
+              <View style={styles.addTaskField}>
+                <Text style={styles.addTaskLabel}>Due Date <Text style={styles.required}>*</Text></Text>
+                <View style={styles.dateInputWrapper}>
+                  <Calendar size={20} color="#6B7280" />
+                  <TextInput
+                    style={styles.dateInput}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#9CA3AF"
+                    value={newTaskDateString}
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^0-9-]/g, '');
+                      setNewTaskDateString(cleaned);
+                    }}
+                    keyboardType="numeric"
+                    maxLength={10}
+                  />
+                </View>
+                <Text style={styles.dateHint}>Must be today or a future date</Text>
               </View>
 
               {/* Reminder Toggle */}
-              <View style={styles.inputGroup}>
-                <TouchableOpacity style={styles.reminderRow} onPress={() => setNewTaskReminder(!newTaskReminder)} activeOpacity={0.7}>
-                  <View style={styles.reminderLeft}>
+              <View style={styles.addTaskField}>
+                <TouchableOpacity
+                  style={styles.reminderToggleRow}
+                  onPress={() => setNewTaskReminder(!newTaskReminder)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.reminderIconWrapper}>
                     <Bell size={20} color={newTaskReminder ? '#F59E0B' : '#9CA3AF'} />
-                    <Text style={styles.reminderLabel}>Set Reminder</Text>
                   </View>
-                  <View style={[styles.toggle, newTaskReminder && styles.toggleActive]}>
-                    <View style={[styles.toggleThumb, newTaskReminder && styles.toggleThumbActive]} />
+                  <View style={styles.reminderTextWrapper}>
+                    <Text style={styles.reminderToggleLabel}>Set Reminder</Text>
+                    <Text style={styles.reminderToggleHint}>Get notified when task is due</Text>
+                  </View>
+                  <View style={[styles.toggleSwitch, newTaskReminder && styles.toggleSwitchActive]}>
+                    <View style={[styles.toggleKnob, newTaskReminder && styles.toggleKnobActive]} />
                   </View>
                 </TouchableOpacity>
               </View>
 
               {/* Notes */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Notes (Optional)</Text>
+              <View style={styles.addTaskField}>
+                <Text style={styles.addTaskLabel}>Notes <Text style={styles.optional}>(Optional)</Text></Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Add notes..."
+                  style={styles.addTaskTextArea}
+                  placeholder="Add any additional details..."
                   placeholderTextColor="#9CA3AF"
                   value={newTaskNotes}
                   onChangeText={setNewTaskNotes}
                   multiline
                   numberOfLines={3}
+                  textAlignVertical="top"
                 />
               </View>
             </ScrollView>
 
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => { setShowAddTaskModal(false); resetTaskForm(); }}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+            {/* Footer Buttons */}
+            <View style={styles.addTaskFooter}>
+              <TouchableOpacity
+                style={styles.addTaskCancelBtn}
+                onPress={() => { setShowAddTaskModal(false); resetTaskForm(); }}
+              >
+                <Text style={styles.addTaskCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.submitButton, (!newTaskTitle.trim() || !isValidFutureDate()) && styles.submitButtonDisabled]}
+                style={[styles.addTaskSubmitBtn, (!newTaskTitle.trim() || !isValidFutureDate()) && styles.addTaskSubmitBtnDisabled]}
                 onPress={handleAddTask}
                 disabled={!newTaskTitle.trim() || !isValidFutureDate()}
               >
                 <Plus size={18} color="#FFFFFF" />
-                <Text style={styles.submitButtonText}>Add Task</Text>
+                <Text style={styles.addTaskSubmitText}>Add Task</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2925,6 +2947,202 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  // Add Task Modal Styles
+  addTaskOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  addTaskModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  addTaskHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  addTaskTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  addTaskCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addTaskForm: {
+    padding: 20,
+  },
+  addTaskField: {
+    marginBottom: 20,
+  },
+  addTaskLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  required: {
+    color: '#EF4444',
+  },
+  optional: {
+    color: '#9CA3AF',
+    fontWeight: '400',
+  },
+  addTaskInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  dateInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  dateInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  dateHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 6,
+  },
+  reminderToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  reminderIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  reminderTextWrapper: {
+    flex: 1,
+  },
+  reminderToggleLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  reminderToggleHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  toggleSwitch: {
+    width: 52,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#D1D5DB',
+    padding: 3,
+  },
+  toggleSwitchActive: {
+    backgroundColor: '#10B981',
+  },
+  toggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleKnobActive: {
+    transform: [{ translateX: 22 }],
+  },
+  addTaskTextArea: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1F2937',
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  addTaskFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    gap: 12,
+  },
+  addTaskCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addTaskCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  addTaskSubmitBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  addTaskSubmitBtnDisabled: {
+    opacity: 0.5,
+  },
+  addTaskSubmitText: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
