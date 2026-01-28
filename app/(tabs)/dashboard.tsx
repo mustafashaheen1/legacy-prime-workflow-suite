@@ -51,6 +51,7 @@ export default function DashboardScreen() {
   const [newTaskNotes, setNewTaskNotes] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [isAddingTask, setIsAddingTask] = useState<boolean>(false);
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
@@ -336,6 +337,7 @@ export default function DashboardScreen() {
     setNewTaskNotes('');
     setShowDatePicker(false);
     setSelectedDate(new Date());
+    setIsAddingTask(false);
   };
 
   const handleDateChange = (event: any, date?: Date) => {
@@ -376,6 +378,7 @@ export default function DashboardScreen() {
       showAlert('Error', 'Please enter a valid date (YYYY-MM-DD format, today or future)');
       return;
     }
+    setIsAddingTask(true);
     try {
       await addDailyTask({
         title: newTaskTitle.trim(),
@@ -391,6 +394,8 @@ export default function DashboardScreen() {
     } catch (error) {
       console.error('Error adding task:', error);
       showAlert('Error', 'Failed to add task');
+    } finally {
+      setIsAddingTask(false);
     }
   };
 
@@ -1873,13 +1878,17 @@ export default function DashboardScreen() {
       </Modal>
 
       {/* ===== ADD TASK MODAL ===== */}
-      <Modal visible={showAddTaskModal} animationType="slide" transparent={true} onRequestClose={() => { setShowAddTaskModal(false); resetTaskForm(); }}>
+      <Modal visible={showAddTaskModal} animationType="slide" transparent={true} onRequestClose={() => { if (!isAddingTask) { setShowAddTaskModal(false); resetTaskForm(); } }}>
         <View style={styles.addTaskOverlay}>
           <View style={styles.addTaskModal}>
             {/* Header */}
             <View style={styles.addTaskHeader}>
               <Text style={styles.addTaskTitle}>Add New Task</Text>
-              <TouchableOpacity style={styles.addTaskCloseButton} onPress={() => { setShowAddTaskModal(false); resetTaskForm(); }}>
+              <TouchableOpacity
+                style={[styles.addTaskCloseButton, isAddingTask && { opacity: 0.5 }]}
+                onPress={() => { if (!isAddingTask) { setShowAddTaskModal(false); resetTaskForm(); } }}
+                disabled={isAddingTask}
+              >
                 <X size={20} color="#6B7280" />
               </TouchableOpacity>
             </View>
@@ -1980,18 +1989,28 @@ export default function DashboardScreen() {
             {/* Footer Buttons */}
             <View style={styles.addTaskFooter}>
               <TouchableOpacity
-                style={styles.addTaskCancelBtn}
+                style={[styles.addTaskCancelBtn, isAddingTask && styles.addTaskSubmitBtnDisabled]}
                 onPress={() => { setShowAddTaskModal(false); resetTaskForm(); }}
+                disabled={isAddingTask}
               >
                 <Text style={styles.addTaskCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.addTaskSubmitBtn, (!newTaskTitle.trim() || !isValidFutureDate()) && styles.addTaskSubmitBtnDisabled]}
+                style={[styles.addTaskSubmitBtn, (!newTaskTitle.trim() || !isValidFutureDate() || isAddingTask) && styles.addTaskSubmitBtnDisabled]}
                 onPress={handleAddTask}
-                disabled={!newTaskTitle.trim() || !isValidFutureDate()}
+                disabled={!newTaskTitle.trim() || !isValidFutureDate() || isAddingTask}
               >
-                <Plus size={18} color="#FFFFFF" />
-                <Text style={styles.addTaskSubmitText}>Add Task</Text>
+                {isAddingTask ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.addTaskSubmitText}>Adding...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={18} color="#FFFFFF" />
+                    <Text style={styles.addTaskSubmitText}>Add Task</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
