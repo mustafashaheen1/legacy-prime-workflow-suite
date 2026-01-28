@@ -7,6 +7,7 @@ import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData, DailyTask } from '@/types';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 
 export default function DashboardScreen() {
@@ -48,6 +49,8 @@ export default function DashboardScreen() {
   const [newTaskDateString, setNewTaskDateString] = useState<string>('');
   const [newTaskReminder, setNewTaskReminder] = useState<boolean>(false);
   const [newTaskNotes, setNewTaskNotes] = useState<string>('');
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
@@ -331,6 +334,29 @@ export default function DashboardScreen() {
     setNewTaskDateString('');
     setNewTaskReminder(false);
     setNewTaskNotes('');
+    setShowDatePicker(false);
+    setSelectedDate(new Date());
+  };
+
+  const handleDateChange = (event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+
+    if (date) {
+      setSelectedDate(date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      setNewTaskDateString(`${year}-${month}-${day}`);
+
+      if (Platform.OS === 'ios') {
+        setShowDatePicker(false);
+      }
+    } else if (Platform.OS === 'android') {
+      // User cancelled on Android
+      setShowDatePicker(false);
+    }
   };
 
   const isValidFutureDate = (): boolean => {
@@ -1876,21 +1902,16 @@ export default function DashboardScreen() {
               {/* Due Date */}
               <View style={styles.addTaskField}>
                 <Text style={styles.addTaskLabel}>Due Date <Text style={styles.required}>*</Text></Text>
-                <View style={styles.dateInputWrapper}>
+                <TouchableOpacity
+                  style={styles.dateInputWrapper}
+                  onPress={() => setShowDatePicker(true)}
+                  activeOpacity={0.7}
+                >
                   <Calendar size={20} color="#6B7280" />
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9CA3AF"
-                    value={newTaskDateString}
-                    onChangeText={(text) => {
-                      const cleaned = text.replace(/[^0-9-]/g, '');
-                      setNewTaskDateString(cleaned);
-                    }}
-                    keyboardType="numeric"
-                    maxLength={10}
-                  />
-                </View>
+                  <Text style={[styles.dateInput, !newTaskDateString && styles.dateInputPlaceholder]}>
+                    {newTaskDateString || 'Select a date'}
+                  </Text>
+                </TouchableOpacity>
                 <Text style={styles.dateHint}>Must be today or a future date</Text>
               </View>
 
@@ -1950,6 +1971,17 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Date Picker */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleDateChange}
+          minimumDate={new Date()}
+        />
+      )}
 
     </View>
   );
@@ -3035,6 +3067,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: '#1F2937',
+  },
+  dateInputPlaceholder: {
+    color: '#9CA3AF',
   },
   dateHint: {
     fontSize: 12,
