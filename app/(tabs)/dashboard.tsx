@@ -1,17 +1,17 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
-import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles } from 'lucide-react-native';
+import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, Calendar, Bell, Trash2, Check } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Svg, { Circle, G } from 'react-native-svg';
-import { Project, Report, ProjectReportData } from '@/types';
+import { Project, Report, ProjectReportData, DailyTask } from '@/types';
 
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
-  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate } = useApp();
+  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate, dailyTasks = [], loadDailyTasks, addDailyTask, updateDailyTask, deleteDailyTask } = useApp();
   const router = useRouter();
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showArchived, setShowArchived] = useState<boolean>(false);
@@ -39,6 +39,15 @@ export default function DashboardScreen() {
   const [showClientPickerModal, setShowClientPickerModal] = useState<boolean>(false);
   const [showEstimatePickerModal, setShowEstimatePickerModal] = useState<boolean>(false);
   const [selectedClientForConversion, setSelectedClientForConversion] = useState<string | null>(null);
+
+  // ===== DAILY TASKS STATE =====
+  const [showDailyTasksMenu, setShowDailyTasksMenu] = useState<boolean>(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState<boolean>(false);
+  const [taskFilter, setTaskFilter] = useState<'today' | 'upcoming' | 'all'>('today');
+  const [newTaskTitle, setNewTaskTitle] = useState<string>('');
+  const [newTaskDateString, setNewTaskDateString] = useState<string>('');
+  const [newTaskReminder, setNewTaskReminder] = useState<boolean>(false);
+  const [newTaskNotes, setNewTaskNotes] = useState<string>('');
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
