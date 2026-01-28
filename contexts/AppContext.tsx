@@ -372,13 +372,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setSubcontractors([]);
           }
 
+          // Load daily tasks
+          try {
+            await loadDailyTasks();
+          } catch (error: any) {
+            console.error('[App] Error loading daily tasks:', error?.message || error);
+          }
+
           console.log('[App] ✅ Finished reloading data after company change');
         } catch (error: any) {
           console.error('[App] ❌ Fatal error reloading data after company change:', error?.message || error);
         }
       })();
     }
-  }, [company?.id, isLoading]);
+  }, [company?.id, isLoading, loadDailyTasks]);
 
   const safeJsonParse = <T,>(data: string | null, key: string, fallback: T): T => {
     if (!data || data === 'undefined' || data === 'null') {
@@ -2222,38 +2229,121 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   // ===== DAILY TASKS MANAGEMENT =====
   const loadDailyTasks = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || !company?.id) return;
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const response = await fetch(`${baseUrl}/api/get-daily-tasks?userId=${user.id}`);
-      const data = await response.json();
-      if (data.tasks) {
-        setDailyTasks(data.tasks);
+      const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+        (Platform.OS === 'web' ? 'http://localhost:3000' : 'http://192.168.1.1:3000');
+
+      const response = await fetch(`${apiUrl}/api/get-daily-tasks?companyId=${company.id}&userId=${user.id}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to load daily tasks');
       }
+
+      const tasks = await response.json();
+      setDailyTasks(tasks);
     } catch (error) {
       console.error('[AppContext] Error loading daily tasks:', error);
     }
-  }, [user?.id]);
+  }, [user?.id, company?.id]);
 
   const addDailyTask = useCallback(async (task: Omit<DailyTask, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newTask: DailyTask = {
-      ...task,
-      id: `task-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setDailyTasks(prev => [...prev, newTask]);
-    return newTask;
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+        (Platform.OS === 'web' ? 'http://localhost:3000' : 'http://192.168.1.1:3000');
+
+      const response = await fetch(`${apiUrl}/api/add-daily-task`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyId: task.companyId,
+          userId: task.userId,
+          title: task.title,
+          dueDate: task.dueDate,
+          reminder: task.reminder,
+          notes: task.notes,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add daily task');
+      }
+
+      const newTask: DailyTask = await response.json();
+      setDailyTasks(prev => [...prev, newTask]);
+      return newTask;
+    } catch (error) {
+      console.error('Error adding daily task:', error);
+      // Fallback to local state only
+      const newTask: DailyTask = {
+        ...task,
+        id: `task-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setDailyTasks(prev => [...prev, newTask]);
+      return newTask;
+    }
   }, []);
 
   const updateDailyTask = useCallback(async (taskId: string, updates: Partial<DailyTask>) => {
-    setDailyTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
-    ));
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+        (Platform.OS === 'web' ? 'http://localhost:3000' : 'http://192.168.1.1:3000');
+
+      const response = await fetch(`${apiUrl}/api/update-daily-task`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          taskId,
+          updates,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update daily task');
+      }
+
+      const updatedTask: DailyTask = await response.json();
+      setDailyTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+    } catch (error) {
+      console.error('Error updating daily task:', error);
+      // Fallback to local state only
+      setDailyTasks(prev => prev.map(t =>
+        t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
+      ));
+    }
   }, []);
 
   const deleteDailyTask = useCallback(async (taskId: string) => {
-    setDailyTasks(prev => prev.filter(t => t.id !== taskId));
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+        (Platform.OS === 'web' ? 'http://localhost:3000' : 'http://192.168.1.1:3000');
+
+      const response = await fetch(`${apiUrl}/api/delete-daily-task`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          taskId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete daily task');
+      }
+
+      setDailyTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (error) {
+      console.error('Error deleting daily task:', error);
+      // Fallback to local state only
+      setDailyTasks(prev => prev.filter(t => t.id !== taskId));
+    }
   }, []);
 
   const logout = useCallback(async () => {
