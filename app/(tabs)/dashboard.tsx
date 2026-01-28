@@ -12,7 +12,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
-  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate, dailyTasks = [], loadDailyTasks, addDailyTask, updateDailyTask, deleteDailyTask } = useApp();
+  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate, dailyTasks = [], loadDailyTasks, addDailyTask, updateDailyTask, deleteDailyTask, user } = useApp();
   const router = useRouter();
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showArchived, setShowArchived] = useState<boolean>(false);
@@ -384,7 +384,7 @@ export default function DashboardScreen() {
         notes: newTaskNotes.trim(),
         completed: false,
         companyId: company?.id || '',
-        userId: company?.id || '',
+        userId: user?.id || '',
       });
       setShowAddTaskModal(false);
       resetTaskForm();
