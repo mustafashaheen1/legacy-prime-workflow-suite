@@ -1733,6 +1733,202 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ===== DAILY TASKS SIDE MENU ===== */}
+      <Modal visible={showDailyTasksMenu} animationType="slide" transparent={true} onRequestClose={() => setShowDailyTasksMenu(false)}>
+        <View style={styles.dailyTasksOverlay}>
+          <TouchableOpacity style={styles.dailyTasksBackdrop} activeOpacity={1} onPress={() => setShowDailyTasksMenu(false)} />
+          <View style={styles.dailyTasksMenu}>
+            {/* Header */}
+            <View style={styles.dailyTasksHeader}>
+              <View>
+                <Text style={styles.dailyTasksTitle}>Daily Tasks</Text>
+                <Text style={styles.dailyTasksSubtitle}>
+                  {dailyTasks?.length || 0} total • {dailyTasks?.filter(t => !t.completed).length || 0} pending
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.addTaskButton}
+                onPress={() => {
+                  setShowDailyTasksMenu(false);
+                  setTimeout(() => setShowAddTaskModal(true), 200);
+                }}
+              >
+                <Plus size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Filter Tabs */}
+            <View style={styles.taskFilters}>
+              {(['today', 'upcoming', 'all'] as const).map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={[styles.filterChip, taskFilter === filter && styles.filterChipActive]}
+                  onPress={() => setTaskFilter(filter)}
+                >
+                  <Text style={[styles.filterText, taskFilter === filter && styles.filterTextActive]}>
+                    {filter === 'today' ? 'Today' : filter === 'upcoming' ? 'This Week' : 'All Tasks'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Task List */}
+            <ScrollView style={styles.taskList} showsVerticalScrollIndicator={false}>
+              {filteredTasks.length === 0 ? (
+                <View style={styles.emptyTasks}>
+                  <CheckSquare size={48} color="#D1D5DB" />
+                  <Text style={styles.emptyTasksTitle}>No tasks</Text>
+                  <Text style={styles.emptyTasksText}>
+                    {taskFilter === 'today' ? 'No tasks for today' :
+                     taskFilter === 'upcoming' ? 'No upcoming tasks this week' :
+                     'Add your first task'}
+                  </Text>
+                </View>
+              ) : (
+                filteredTasks.map((task) => (
+                  <View key={task.id} style={[styles.taskCard, task.completed && styles.taskCardCompleted]}>
+                    <TouchableOpacity style={styles.taskCheckbox} onPress={() => updateDailyTask(task.id, { completed: !task.completed })}>
+                      <View style={[styles.checkbox, task.completed && styles.checkboxCompleted]}>
+                        {task.completed && <Check size={14} color="#FFFFFF" />}
+                      </View>
+                    </TouchableOpacity>
+
+                    <View style={styles.taskContent}>
+                      <Text style={[styles.taskTitle, task.completed && styles.taskTitleCompleted]}>
+                        {task.title}
+                      </Text>
+                      <View style={styles.taskMeta}>
+                        <Calendar size={12} color="#9CA3AF" />
+                        <Text style={styles.taskDate}>{formatTaskDate(task.dueDate)}</Text>
+                        {task.reminder && (
+                          <>
+                            <Bell size={12} color="#F59E0B" style={{ marginLeft: 8 }} />
+                            <Text style={[styles.taskDate, { color: '#F59E0B' }]}>Reminder</Text>
+                          </>
+                        )}
+                      </View>
+                      {task.notes ? <Text style={styles.taskNotes} numberOfLines={1}>{task.notes}</Text> : null}
+                    </View>
+
+                    <TouchableOpacity style={styles.deleteTaskButton} onPress={() => {
+                      showAlert(
+                        'Delete Task',
+                        'Are you sure?',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Delete',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await deleteDailyTask(task.id);
+                              } catch (error) {
+                                console.error('Error deleting task:', error);
+                              }
+                            }
+                          }
+                        ]
+                      );
+                    }}>
+                      <Trash2 size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.closeTasksButton} onPress={() => setShowDailyTasksMenu(false)}>
+              <X size={20} color="#6B7280" />
+              <Text style={styles.closeTasksText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ===== ADD TASK MODAL ===== */}
+      <Modal visible={showAddTaskModal} animationType="slide" transparent={true} onRequestClose={() => { setShowAddTaskModal(false); resetTaskForm(); }}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxWidth: 500 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Task</Text>
+              <TouchableOpacity onPress={() => { setShowAddTaskModal(false); resetTaskForm(); }}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {/* Task Title */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Task Title *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter task title"
+                  placeholderTextColor="#9CA3AF"
+                  value={newTaskTitle}
+                  onChangeText={setNewTaskTitle}
+                  autoFocus
+                />
+              </View>
+
+              {/* Due Date */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Due Date *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#9CA3AF"
+                  value={newTaskDateString}
+                  onChangeText={setNewTaskDateString}
+                />
+                <Text style={styles.inputHint}>Must be today or a future date</Text>
+              </View>
+
+              {/* Reminder Toggle */}
+              <View style={styles.inputGroup}>
+                <TouchableOpacity style={styles.reminderRow} onPress={() => setNewTaskReminder(!newTaskReminder)} activeOpacity={0.7}>
+                  <View style={styles.reminderLeft}>
+                    <Bell size={20} color={newTaskReminder ? '#F59E0B' : '#9CA3AF'} />
+                    <Text style={styles.reminderLabel}>Set Reminder</Text>
+                  </View>
+                  <View style={[styles.toggle, newTaskReminder && styles.toggleActive]}>
+                    <View style={[styles.toggleThumb, newTaskReminder && styles.toggleThumbActive]} />
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Notes */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Notes (Optional)</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Add notes..."
+                  placeholderTextColor="#9CA3AF"
+                  value={newTaskNotes}
+                  onChangeText={setNewTaskNotes}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => { setShowAddTaskModal(false); resetTaskForm(); }}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitButton, (!newTaskTitle.trim() || !isValidFutureDate()) && styles.submitButtonDisabled]}
+                onPress={handleAddTask}
+                disabled={!newTaskTitle.trim() || !isValidFutureDate()}
+              >
+                <Plus size={18} color="#FFFFFF" />
+                <Text style={styles.submitButtonText}>Add Task</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -2486,5 +2682,250 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1F2937',
     paddingVertical: 4,
+  },
+  // Daily Tasks Styles
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dailyTasksOverlay: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  dailyTasksBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  dailyTasksMenu: {
+    width: 340,
+    maxWidth: '85%',
+    backgroundColor: '#FFFFFF',
+    borderLeftWidth: 1,
+    borderLeftColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: -2, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  dailyTasksHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  dailyTasksTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  dailyTasksSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  addTaskButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskFilters: {
+    flexDirection: 'row',
+    padding: 12,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  filterChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  filterChipActive: {
+    backgroundColor: '#2563EB',
+  },
+  filterText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  filterTextActive: {
+    color: '#FFFFFF',
+  },
+  taskList: {
+    flex: 1,
+    padding: 12,
+  },
+  emptyTasks: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTasksTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 12,
+  },
+  emptyTasksText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  taskCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  taskCardCompleted: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#F3F4F6',
+  },
+  taskCheckbox: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxCompleted: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  taskContent: {
+    flex: 1,
+  },
+  taskTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  taskTitleCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
+  },
+  taskMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  taskDate: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  taskNotes: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  deleteTaskButton: {
+    padding: 8,
+  },
+  closeTasksButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  closeTasksText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  inputHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+  },
+  reminderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  reminderLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1F2937',
+  },
+  toggle: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#D1D5DB',
+    padding: 2,
+  },
+  toggleActive: {
+    backgroundColor: '#10B981',
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  toggleThumbActive: {
+    transform: [{ translateX: 22 }],
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#10B981',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  submitButtonDisabled: {
+    opacity: 0.5,
+  },
+  submitButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
