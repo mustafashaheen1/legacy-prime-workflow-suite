@@ -1902,16 +1902,34 @@ export default function DashboardScreen() {
               {/* Due Date */}
               <View style={styles.addTaskField}>
                 <Text style={styles.addTaskLabel}>Due Date <Text style={styles.required}>*</Text></Text>
-                <TouchableOpacity
-                  style={styles.dateInputWrapper}
-                  onPress={() => setShowDatePicker(true)}
-                  activeOpacity={0.7}
-                >
-                  <Calendar size={20} color="#6B7280" />
-                  <Text style={[styles.dateInput, !newTaskDateString && styles.dateInputPlaceholder]}>
-                    {newTaskDateString || 'Select a date'}
-                  </Text>
-                </TouchableOpacity>
+                {Platform.OS === 'web' ? (
+                  <View style={styles.dateInputWrapper}>
+                    <Calendar size={20} color="#6B7280" />
+                    <TextInput
+                      style={styles.dateInput}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#9CA3AF"
+                      value={newTaskDateString}
+                      onChangeText={(text) => {
+                        const cleaned = text.replace(/[^0-9-]/g, '');
+                        setNewTaskDateString(cleaned);
+                      }}
+                      keyboardType="numeric"
+                      maxLength={10}
+                    />
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.dateInputWrapper}
+                    onPress={() => setShowDatePicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Calendar size={20} color="#6B7280" />
+                    <Text style={[styles.dateInput, !newTaskDateString && styles.dateInputPlaceholder]}>
+                      {newTaskDateString || 'Select a date'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 <Text style={styles.dateHint}>Must be today or a future date</Text>
               </View>
 
@@ -1972,8 +1990,8 @@ export default function DashboardScreen() {
         </View>
       </Modal>
 
-      {/* Date Picker */}
-      {showDatePicker && (
+      {/* Date Picker - Native Only */}
+      {Platform.OS !== 'web' && showDatePicker && (
         <DateTimePicker
           value={selectedDate}
           mode="date"
