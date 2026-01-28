@@ -71,6 +71,19 @@ export interface Task {
   completed: boolean;
 }
 
+export interface DailyTask {
+  id: string;
+  companyId: string;
+  userId: string;
+  title: string;
+  dueDate: string;
+  reminder: boolean;
+  completed: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DailyLogNote {
   id: string;
   text: string;
