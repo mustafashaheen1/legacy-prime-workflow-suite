@@ -1905,17 +1905,25 @@ export default function DashboardScreen() {
                 {Platform.OS === 'web' ? (
                   <View style={styles.dateInputWrapper}>
                     <Calendar size={20} color="#6B7280" />
-                    <TextInput
-                      style={styles.dateInput}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#9CA3AF"
-                      value={newTaskDateString}
-                      onChangeText={(text) => {
-                        const cleaned = text.replace(/[^0-9-]/g, '');
-                        setNewTaskDateString(cleaned);
+                    <input
+                      type="date"
+                      style={{
+                        flex: 1,
+                        paddingTop: 14,
+                        paddingBottom: 14,
+                        fontSize: 16,
+                        color: '#1F2937',
+                        border: 'none',
+                        outline: 'none',
+                        backgroundColor: 'transparent',
+                        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                       }}
-                      keyboardType="numeric"
-                      maxLength={10}
+                      value={newTaskDateString}
+                      onChange={(e) => {
+                        const value = (e.target as HTMLInputElement).value;
+                        setNewTaskDateString(value);
+                      }}
+                      min={new Date().toISOString().split('T')[0]}
                     />
                   </View>
                 ) : (
