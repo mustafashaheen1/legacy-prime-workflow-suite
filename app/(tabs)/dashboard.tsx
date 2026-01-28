@@ -298,6 +298,76 @@ export default function DashboardScreen() {
     }
   };
 
+  // ===== DAILY TASKS HELPERS =====
+  const filteredTasks = useMemo(() => {
+    if (!dailyTasks || !Array.isArray(dailyTasks)) return [];
+    const today = new Date().toISOString().split('T')[0];
+    const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+    switch (taskFilter) {
+      case 'today':
+        return dailyTasks.filter(t => t.dueDate === today);
+      case 'upcoming':
+        return dailyTasks.filter(t => t.dueDate >= today && t.dueDate <= weekEnd && !t.completed);
+      case 'all':
+        return [...dailyTasks].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      default:
+        return dailyTasks;
+    }
+  }, [dailyTasks, taskFilter]);
+
+  const formatTaskDate = (dateString: string): string => {
+    if (!dateString) return '';
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    if (dateString === today) return 'Today';
+    if (dateString === tomorrow) return 'Tomorrow';
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  const resetTaskForm = () => {
+    setNewTaskTitle('');
+    setNewTaskDateString('');
+    setNewTaskReminder(false);
+    setNewTaskNotes('');
+  };
+
+  const isValidFutureDate = (): boolean => {
+    if (!newTaskDateString || newTaskDateString.length !== 10) return false;
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(newTaskDateString)) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return newTaskDateString >= today;
+  };
+
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim()) {
+      showAlert('Error', 'Please enter a task title');
+      return;
+    }
+    if (!isValidFutureDate()) {
+      showAlert('Error', 'Please enter a valid date (YYYY-MM-DD format, today or future)');
+      return;
+    }
+    try {
+      await addDailyTask({
+        title: newTaskTitle.trim(),
+        dueDate: newTaskDateString,
+        reminder: newTaskReminder,
+        notes: newTaskNotes.trim(),
+        completed: false,
+        companyId: company?.id || '',
+        userId: company?.id || '',
+      });
+      setShowAddTaskModal(false);
+      resetTaskForm();
+    } catch (error) {
+      console.error('Error adding task:', error);
+      showAlert('Error', 'Failed to add task');
+    }
+  };
+
   const handleConvertEstimateToProject = async (estimateId: string) => {
     const client = clients.find(c => c.id === selectedClientForConversion);
     if (!client) return;
