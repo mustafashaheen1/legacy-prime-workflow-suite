@@ -907,13 +907,23 @@ export default function DashboardScreen() {
               </View>
             </View>
             <View style={styles.headerActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.iconButton}
                 onPress={() => setShowSearch(!showSearch)}
               >
                 <Search size={20} color="#2563EB" />
               </TouchableOpacity>
-              <TouchableOpacity 
+              {/* Daily Tasks Button */}
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => {
+                  if (loadDailyTasks) loadDailyTasks();
+                  setShowDailyTasksMenu(true);
+                }}
+              >
+                <CheckSquare size={20} color="#10B981" />
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => setShowImportOptions(true)}
               >
