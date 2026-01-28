@@ -4,6 +4,7 @@ import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOp
 import { Ionicons } from '@expo/vector-icons';
 import { Subcontractor, Project, ProjectFile, EstimateRequest } from '@/types';
 import { useApp } from '@/contexts/AppContext';
+import DailyTasksButton from '@/components/DailyTasksButton';
 import { Stack, router } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import * as DocumentPicker from 'expo-document-picker';
@@ -379,6 +380,7 @@ export default function SubcontractorsScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Subcontractor Directory</Text>
           <View style={styles.headerActions}>
+            <DailyTasksButton />
             <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Subcontractor</Text>

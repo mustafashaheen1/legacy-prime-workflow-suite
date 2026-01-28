@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform, RefreshControl, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import DailyTasksButton from '@/components/DailyTasksButton';
 import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon, Camera } from 'lucide-react-native';
 import { Project, Client, CallLog } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
@@ -1254,6 +1255,8 @@ export default function CRMScreen() {
               <Phone size={20} color="#FFFFFF" />
               <Text style={styles.callAssistantButtonText}>Call Assistant</Text>
             </TouchableOpacity>
+
+            <DailyTasksButton />
 
             <TouchableOpacity
               style={styles.addButton}

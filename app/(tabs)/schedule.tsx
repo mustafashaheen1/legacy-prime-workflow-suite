@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import DailyTasksButton from '@/components/DailyTasksButton';
 import { Calendar, X, GripVertical, BookOpen, Plus, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronRight, FileText } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto } from '@/types';
 import { trpc } from '@/lib/trpc';
@@ -691,6 +692,7 @@ export default function ScheduleScreen() {
         <Text style={styles.title}>Project Schedule</Text>
         {selectedProject && (
           <View style={styles.headerButtons}>
+            <DailyTasksButton />
             <TouchableOpacity
               style={styles.dailyLogHeaderButton}
               onPress={handleOpenDailyLogs}

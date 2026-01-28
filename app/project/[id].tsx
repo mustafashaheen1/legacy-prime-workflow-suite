@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Tex
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
+import DailyTasksButton from '@/components/DailyTasksButton';
 import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment } from '@/types';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon } from 'lucide-react-native';
@@ -1832,8 +1833,9 @@ export default function ProjectDetailScreen() {
           <ArrowLeft size={24} color="#1F2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{project.name}</Text>
+        <DailyTasksButton />
         {project.status !== 'archived' && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.completeButton}
             onPress={() => {
               Alert.alert(
