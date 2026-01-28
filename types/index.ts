@@ -76,8 +76,11 @@ export interface DailyTask {
   companyId: string;
   userId: string;
   title: string;
-  dueDate: string;
+  dueDate: string;      // Keep for backwards compatibility (YYYY-MM-DD)
+  dueDateTime?: string; // NEW: Full ISO datetime string
+  dueTime?: string;     // NEW: Time string (HH:MM)
   reminder: boolean;
+  reminderSent?: boolean; // NEW: Track if reminder was sent
   completed: boolean;
   notes?: string;
   createdAt: string;

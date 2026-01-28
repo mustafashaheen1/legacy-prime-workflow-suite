@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[add-daily-task] Request body:', JSON.stringify(req.body));
 
   try {
-    const { companyId, userId, title, dueDate, reminder, notes } = req.body;
+    const { companyId, userId, title, dueDate, dueTime, dueDateTime, reminder, notes } = req.body;
 
     // Validate required fields
     if (!title || !dueDate) {
@@ -40,7 +40,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         user_id: finalUserId,
         title,
         due_date: dueDate,
+        due_time: dueTime || null,
+        due_date_time: dueDateTime || null,
         reminder: reminder || false,
+        reminder_sent: false,
         completed: false,
         notes: notes || null,
       })
@@ -65,7 +68,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       userId: data.user_id,
       title: data.title,
       dueDate: data.due_date,
+      dueTime: data.due_time,
+      dueDateTime: data.due_date_time,
       reminder: data.reminder,
+      reminderSent: data.reminder_sent,
       completed: data.completed,
       notes: data.notes,
       createdAt: data.created_at,

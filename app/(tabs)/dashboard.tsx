@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
-import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, Calendar, Bell, Trash2, Check } from 'lucide-react-native';
+import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, Calendar, Bell, Trash2, Check, Clock } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, useMemo } from 'react';
@@ -52,6 +52,7 @@ export default function DashboardScreen() {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isAddingTask, setIsAddingTask] = useState<boolean>(false);
+  const [newTaskTime, setNewTaskTime] = useState<string>('09:00');
 
   const activeProjects = projects.filter(p => p.status !== 'archived');
   const archivedProjects = projects.filter(p => p.status === 'archived');
@@ -330,9 +331,18 @@ export default function DashboardScreen() {
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   };
 
+  const formatTime = (timeStr: string): string => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  };
+
   const resetTaskForm = () => {
     setNewTaskTitle('');
     setNewTaskDateString('');
+    setNewTaskTime('09:00');
     setNewTaskReminder(false);
     setNewTaskNotes('');
     setShowDatePicker(false);
@@ -378,11 +388,17 @@ export default function DashboardScreen() {
       showAlert('Error', 'Please enter a valid date (YYYY-MM-DD format, today or future)');
       return;
     }
+
+    // Combine date and time into ISO datetime string
+    const dueDateTime = `${newTaskDateString}T${newTaskTime}:00`;
+
     setIsAddingTask(true);
     try {
       await addDailyTask({
         title: newTaskTitle.trim(),
         dueDate: newTaskDateString,
+        dueTime: newTaskTime,
+        dueDateTime: dueDateTime,
         reminder: newTaskReminder,
         notes: newTaskNotes.trim(),
         completed: false,
@@ -909,6 +925,56 @@ export default function DashboardScreen() {
       };
     });
   }, [projectExpenses]);
+
+  // Check for task reminders every minute
+  useEffect(() => {
+    const checkReminders = async () => {
+      try {
+        const apiUrl = typeof window !== 'undefined'
+          ? `${window.location.origin}/api/check-task-reminders`
+          : '/api/check-task-reminders';
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+          console.error('[dashboard] Failed to check reminders:', response.status);
+          return;
+        }
+
+        const data = await response.json();
+
+        // Show notifications for reminded tasks
+        if (data.remindedTasks && data.remindedTasks.length > 0) {
+          for (const task of data.remindedTasks) {
+            const timeStr = task.dueTime ? ` at ${formatTime(task.dueTime)}` : '';
+            showAlert(
+              'Task Reminder',
+              `"${task.title}" is due${timeStr}`
+            );
+
+            // Update local state to reflect reminder was sent
+            if (updateDailyTask) {
+              await updateDailyTask(task.id, { reminderSent: true });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[dashboard] Error checking reminders:', error);
+      }
+    };
+
+    // Check immediately on mount
+    checkReminders();
+
+    // Then check every 60 seconds
+    const intervalId = setInterval(checkReminders, 60000);
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
+  }, [updateDailyTask]);
 
   return (
     <View style={styles.container}>
@@ -1831,11 +1897,16 @@ export default function DashboardScreen() {
                       </Text>
                       <View style={styles.taskMeta}>
                         <Calendar size={12} color="#9CA3AF" />
-                        <Text style={styles.taskDate}>{formatTaskDate(task.dueDate)}</Text>
+                        <Text style={styles.taskDate}>
+                          {formatTaskDate(task.dueDate)}
+                          {task.dueTime && ` at ${formatTime(task.dueTime)}`}
+                        </Text>
                         {task.reminder && (
                           <>
                             <Bell size={12} color="#F59E0B" style={{ marginLeft: 8 }} />
-                            <Text style={[styles.taskDate, { color: '#F59E0B' }]}>Reminder</Text>
+                            <Text style={[styles.taskDate, { color: '#F59E0B' }]}>
+                              {task.reminderSent ? 'Reminded' : 'Reminder set'}
+                            </Text>
                           </>
                         )}
                       </View>
@@ -1948,6 +2019,44 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 )}
                 <Text style={styles.dateHint}>Must be today or a future date</Text>
+              </View>
+
+              {/* Due Time */}
+              <View style={styles.addTaskField}>
+                <Text style={styles.addTaskLabel}>Due Time</Text>
+                <View style={styles.timeInputWrapper}>
+                  <Clock size={20} color="#6B7280" />
+                  <TextInput
+                    style={styles.timeInput}
+                    placeholder="HH:MM"
+                    placeholderTextColor="#9CA3AF"
+                    value={newTaskTime}
+                    onChangeText={(text) => {
+                      // Format as HH:MM
+                      let cleaned = text.replace(/[^0-9:]/g, '');
+                      if (cleaned.length === 2 && !cleaned.includes(':')) {
+                        cleaned = cleaned + ':';
+                      }
+                      if (cleaned.length <= 5) {
+                        setNewTaskTime(cleaned);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={5}
+                  />
+                  <View style={styles.timePresets}>
+                    <TouchableOpacity style={styles.timePresetBtn} onPress={() => setNewTaskTime('09:00')}>
+                      <Text style={styles.timePresetText}>9 AM</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.timePresetBtn} onPress={() => setNewTaskTime('12:00')}>
+                      <Text style={styles.timePresetText}>12 PM</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.timePresetBtn} onPress={() => setNewTaskTime('17:00')}>
+                      <Text style={styles.timePresetText}>5 PM</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Text style={styles.dateHint}>24-hour format (e.g., 14:30 for 2:30 PM)</Text>
               </View>
 
               {/* Reminder Toggle */}
@@ -3225,5 +3334,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  timeInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  timeInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1F2937',
+    minWidth: 60,
+  },
+  timePresets: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  timePresetBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 6,
+  },
+  timePresetText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
   },
 });

@@ -2257,6 +2257,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           userId: task.userId,
           title: task.title,
           dueDate: task.dueDate,
+          dueTime: task.dueTime,
+          dueDateTime: task.dueDateTime,
           reminder: task.reminder,
           notes: task.notes,
         }),
