@@ -2,7 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
-import { User, Project, Client, Expense, Photo, Task, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company, Subcontractor, SubcontractorProposal, Notification } from '@/types';
+import { User, Project, Client, Expense, Photo, Task, DailyTask, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company, Subcontractor, SubcontractorProposal, Notification } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
 import { checkAndSeedData, getDefaultCompany, getDefaultUser } from '@/lib/seed-data';
@@ -32,6 +32,7 @@ interface AppState {
   subcontractors: Subcontractor[];
   proposals: SubcontractorProposal[];
   notifications: Notification[];
+  dailyTasks: DailyTask[];
   isLoading: boolean;
   
   setUser: (user: User | null) => void;
@@ -95,6 +96,10 @@ interface AppState {
   refreshClients: () => Promise<void>;
   refreshEstimates: () => Promise<void>;
   refreshDailyLogs: () => Promise<void>;
+  loadDailyTasks: () => Promise<void>;
+  addDailyTask: (task: Omit<DailyTask, 'id' | 'createdAt' | 'updatedAt'>) => Promise<DailyTask | undefined>;
+  updateDailyTask: (taskId: string, updates: Partial<DailyTask>) => Promise<void>;
+  deleteDailyTask: (taskId: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -149,6 +154,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [proposals, setProposals] = useState<SubcontractorProposal[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -2214,6 +2220,42 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, [company?.id]);
 
+  // ===== DAILY TASKS MANAGEMENT =====
+  const loadDailyTasks = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/get-daily-tasks?userId=${user.id}`);
+      const data = await response.json();
+      if (data.tasks) {
+        setDailyTasks(data.tasks);
+      }
+    } catch (error) {
+      console.error('[AppContext] Error loading daily tasks:', error);
+    }
+  }, [user?.id]);
+
+  const addDailyTask = useCallback(async (task: Omit<DailyTask, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newTask: DailyTask = {
+      ...task,
+      id: `task-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setDailyTasks(prev => [...prev, newTask]);
+    return newTask;
+  }, []);
+
+  const updateDailyTask = useCallback(async (taskId: string, updates: Partial<DailyTask>) => {
+    setDailyTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
+    ));
+  }, []);
+
+  const deleteDailyTask = useCallback(async (taskId: string) => {
+    setDailyTasks(prev => prev.filter(t => t.id !== taskId));
+  }, []);
+
   const logout = useCallback(async () => {
     await AsyncStorage.multiRemove(['user', 'company', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders', 'subcontractors', 'proposals', 'notifications']);
     setUserState(null);
@@ -2254,6 +2296,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     subcontractors,
     proposals,
     notifications,
+    dailyTasks,
     isLoading,
     setUser,
     setCompany,
@@ -2326,6 +2369,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     refreshClients,
     refreshEstimates,
     refreshDailyLogs,
+    loadDailyTasks,
+    addDailyTask,
+    updateDailyTask,
+    deleteDailyTask,
     logout,
   }), [
     user,
@@ -2351,6 +2398,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     subcontractors,
     proposals,
     notifications,
+    dailyTasks,
     isLoading,
     setUser,
     setCompany,
@@ -2423,6 +2471,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     refreshClients,
     refreshEstimates,
     refreshDailyLogs,
+    loadDailyTasks,
+    addDailyTask,
+    updateDailyTask,
+    deleteDailyTask,
     logout,
   ]);
 });
