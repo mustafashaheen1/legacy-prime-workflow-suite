@@ -2222,38 +2222,90 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   // ===== DAILY TASKS MANAGEMENT =====
   const loadDailyTasks = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || !company?.id) return;
     try {
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const response = await fetch(`${baseUrl}/api/get-daily-tasks?userId=${user.id}`);
-      const data = await response.json();
-      if (data.tasks) {
-        setDailyTasks(data.tasks);
+      const response = await fetch(`${baseUrl}/api/get-daily-tasks?companyId=${company.id}&userId=${user.id}`);
+      if (response.ok) {
+        const tasks = await response.json();
+        if (Array.isArray(tasks)) {
+          setDailyTasks(tasks);
+        }
       }
     } catch (error) {
       console.error('[AppContext] Error loading daily tasks:', error);
     }
-  }, [user?.id]);
+  }, [user?.id, company?.id]);
 
   const addDailyTask = useCallback(async (task: Omit<DailyTask, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newTask: DailyTask = {
+    // Optimistic update first
+    const tempTask: DailyTask = {
       ...task,
-      id: `task-${Date.now()}`,
+      id: `temp-${Date.now()}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    setDailyTasks(prev => [...prev, newTask]);
-    return newTask;
+    setDailyTasks(prev => [...prev, tempTask]);
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/add-daily-task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: task.companyId,
+          userId: task.userId,
+          title: task.title,
+          dueDate: task.dueDate,
+          reminder: task.reminder,
+          notes: task.notes,
+        }),
+      });
+
+      if (response.ok) {
+        const newTask = await response.json();
+        // Replace temp task with real one from DB
+        setDailyTasks(prev => prev.map(t => t.id === tempTask.id ? newTask : t));
+        return newTask;
+      }
+    } catch (error) {
+      console.error('[AppContext] Error adding daily task:', error);
+    }
+    return tempTask;
   }, []);
 
   const updateDailyTask = useCallback(async (taskId: string, updates: Partial<DailyTask>) => {
+    // Optimistic update
     setDailyTasks(prev => prev.map(t =>
       t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
     ));
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      await fetch(`${baseUrl}/api/update-daily-task`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, updates }),
+      });
+    } catch (error) {
+      console.error('[AppContext] Error updating daily task:', error);
+    }
   }, []);
 
   const deleteDailyTask = useCallback(async (taskId: string) => {
+    // Optimistic update
     setDailyTasks(prev => prev.filter(t => t.id !== taskId));
+
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      await fetch(`${baseUrl}/api/delete-daily-task`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId }),
+      });
+    } catch (error) {
+      console.error('[AppContext] Error deleting daily task:', error);
+    }
   }, []);
 
   const logout = useCallback(async () => {
