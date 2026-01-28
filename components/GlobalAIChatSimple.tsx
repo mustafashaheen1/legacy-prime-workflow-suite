@@ -150,6 +150,7 @@ function useOpenAIChat(appData: {
   callLogs: any[];
   users: any[];
   proposals: any[];
+  dailyTasks: any[];
   updateClient?: (clientId: string, updates: any) => Promise<void>;
   userId?: string; // User ID for persistent chat history
   currentPageContext?: string | null; // Current page context for "this project" etc.
@@ -275,6 +276,7 @@ function useOpenAIChat(appData: {
             callLogs: appData.callLogs,
             users: appData.users,
             proposals: appData.proposals,
+            dailyTasks: appData.dailyTasks,
           }
         }),
       });
@@ -379,6 +381,7 @@ function useOpenAIChat(appData: {
             callLogs: appData.callLogs,
             users: appData.users,
             proposals: appData.proposals,
+            dailyTasks: appData.dailyTasks,
           }
         }),
       });
@@ -631,6 +634,11 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     subcontractors,
     callLogs,
     proposals,
+    // Daily tasks
+    dailyTasks,
+    addDailyTask,
+    updateDailyTask,
+    deleteDailyTask,
   } = useApp();
 
   // Combine master price list with custom items
@@ -656,6 +664,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     callLogs,
     users: [], // TODO: Add users from AppContext when available
     proposals,
+    dailyTasks: dailyTasks || [],
     userId: user?.id, // User ID for persistent chat history
     currentPageContext, // Pass page context from component prop
   });
@@ -1832,6 +1841,49 @@ Generate appropriate line items from the price list that fit this scope of work$
               };
               await addNotification(notification);
               console.log('[AI Action] Notification sent');
+            }
+            break;
+
+          // ============================================
+          // DAILY TASKS HANDLERS
+          // ============================================
+          case 'add_daily_task':
+            if (addDailyTask && pendingAction.data) {
+              await addDailyTask({
+                title: pendingAction.data.title,
+                dueDate: pendingAction.data.dueDate,
+                reminder: pendingAction.data.reminder || false,
+                notes: pendingAction.data.notes || '',
+                completed: false,
+                companyId: company?.id || '',
+                userId: user?.id || '',
+              });
+              console.log('[AI Action] Daily task added:', pendingAction.data.title);
+            }
+            break;
+
+          case 'update_daily_task':
+            if (updateDailyTask && pendingAction.data) {
+              await updateDailyTask(pendingAction.data.taskId, pendingAction.data.updates);
+              console.log('[AI Action] Daily task updated:', pendingAction.data.taskId);
+            }
+            break;
+
+          case 'delete_daily_tasks':
+            if (deleteDailyTask && pendingAction.data?.taskIds) {
+              for (const taskId of pendingAction.data.taskIds) {
+                await deleteDailyTask(taskId);
+              }
+              console.log('[AI Action] Deleted', pendingAction.data.taskIds.length, 'daily tasks');
+            }
+            break;
+
+          case 'bulk_update_reminders':
+            if (updateDailyTask && pendingAction.data?.taskIds) {
+              for (const taskId of pendingAction.data.taskIds) {
+                await updateDailyTask(taskId, { reminder: pendingAction.data.reminder });
+              }
+              console.log('[AI Action] Updated reminders for', pendingAction.data.taskIds.length, 'tasks');
             }
             break;
 

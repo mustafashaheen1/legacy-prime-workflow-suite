@@ -10,6 +10,81 @@ export const config = {
   },
 };
 
+// Helper function to parse natural language dates
+function parseNaturalDate(dateStr: string): string {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  const lowerDate = dateStr.toLowerCase().trim();
+
+  // Handle common phrases
+  if (lowerDate === 'today') {
+    return todayStr;
+  }
+  if (lowerDate === 'tomorrow') {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  }
+  if (lowerDate === 'next week') {
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    return nextWeek.toISOString().split('T')[0];
+  }
+
+  // Handle "next monday", "next friday", etc.
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const nextMatch = lowerDate.match(/next\s+(\w+)/);
+  if (nextMatch) {
+    const targetDay = dayNames.indexOf(nextMatch[1].toLowerCase());
+    if (targetDay !== -1) {
+      const result = new Date(today);
+      const currentDay = result.getDay();
+      let daysToAdd = targetDay - currentDay;
+      if (daysToAdd <= 0) daysToAdd += 7;
+      result.setDate(result.getDate() + daysToAdd);
+      return result.toISOString().split('T')[0];
+    }
+  }
+
+  // Handle "in X days"
+  const inDaysMatch = lowerDate.match(/in\s+(\d+)\s+days?/);
+  if (inDaysMatch) {
+    const days = parseInt(inDaysMatch[1]);
+    const result = new Date(today);
+    result.setDate(result.getDate() + days);
+    return result.toISOString().split('T')[0];
+  }
+
+  // Handle ordinal dates like "10th", "20th" (assumes current month)
+  const ordinalMatch = lowerDate.match(/(\d+)(st|nd|rd|th)/);
+  if (ordinalMatch) {
+    const day = parseInt(ordinalMatch[1]);
+    const result = new Date(today.getFullYear(), today.getMonth(), day);
+    // If the date has passed this month, use next month
+    if (result < today) {
+      result.setMonth(result.getMonth() + 1);
+    }
+    return result.toISOString().split('T')[0];
+  }
+
+  // If it's already in YYYY-MM-DD format, return as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+
+  // Try to parse as a date
+  const parsed = new Date(dateStr);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+
+  // Default to tomorrow if can't parse
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return tomorrow.toISOString().split('T')[0];
+}
+
 // Define the function calling tools for the AI assistant
 const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -1536,6 +1611,103 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           type: { type: 'string', enum: ['info', 'success', 'warning', 'error'], description: 'Notification type (optional)' },
         },
         required: ['title', 'message'],
+      },
+    },
+  },
+  // ============================================
+  // DAILY TASKS TOOLS
+  // ============================================
+  {
+    type: 'function',
+    function: {
+      name: 'add_daily_task',
+      description: 'Create a new personal daily task with optional reminder. Use when user wants to add a task, reminder, or to-do item.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Task title/description' },
+          dueDate: { type: 'string', description: 'Due date - accepts "today", "tomorrow", "next monday", "next week", or YYYY-MM-DD format' },
+          reminder: { type: 'boolean', description: 'Whether to set a reminder (default: false)' },
+          notes: { type: 'string', description: 'Optional notes about the task' },
+        },
+        required: ['title', 'dueDate'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_daily_tasks',
+      description: 'Query daily tasks with intelligent filtering. Use for "what are my tasks", "tasks for today", "tasks this week", "tasks from date to date".',
+      parameters: {
+        type: 'object',
+        properties: {
+          filter: {
+            type: 'string',
+            enum: ['today', 'tomorrow', 'this_week', 'next_week', 'all', 'overdue', 'completed', 'pending'],
+            description: 'Predefined filter for common queries',
+          },
+          startDate: { type: 'string', description: 'Start date for date range query (YYYY-MM-DD)' },
+          endDate: { type: 'string', description: 'End date for date range query (YYYY-MM-DD)' },
+          completed: { type: 'boolean', description: 'Filter by completion status' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_daily_task',
+      description: 'Update a daily task - mark complete, change reminder, update title or date. Use for "complete task", "mark done", "turn off reminder".',
+      parameters: {
+        type: 'object',
+        properties: {
+          taskTitle: { type: 'string', description: 'Keywords to find the task' },
+          completed: { type: 'boolean', description: 'Mark as completed/incomplete' },
+          reminder: { type: 'boolean', description: 'Turn reminder on/off' },
+          newTitle: { type: 'string', description: 'New title for the task' },
+          newDueDate: { type: 'string', description: 'New due date (accepts natural language)' },
+        },
+        required: ['taskTitle'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_daily_tasks',
+      description: 'Delete daily tasks by filter or specific task. Use for "delete task", "remove all tomorrow tasks", "clear completed tasks".',
+      parameters: {
+        type: 'object',
+        properties: {
+          taskTitle: { type: 'string', description: 'Keywords to find specific task to delete' },
+          bulkFilter: {
+            type: 'string',
+            enum: ['today', 'tomorrow', 'this_week', 'completed', 'all', 'overdue'],
+            description: 'Delete all tasks matching this filter'
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'bulk_update_daily_task_reminders',
+      description: 'Turn reminders on or off for multiple tasks. Use for "turn off reminders for tomorrow", "enable reminders for this week".',
+      parameters: {
+        type: 'object',
+        properties: {
+          filter: {
+            type: 'string',
+            enum: ['today', 'tomorrow', 'this_week', 'next_week', 'all'],
+            description: 'Which tasks to update'
+          },
+          reminderEnabled: { type: 'boolean', description: 'true to turn on, false to turn off reminders' },
+        },
+        required: ['filter', 'reminderEnabled'],
       },
     },
   },
@@ -5352,6 +5524,266 @@ Based on the store and items, intelligently categorize this expense:
           title: args.title,
           message: args.message,
           type: args.type || 'info',
+        },
+      };
+    }
+
+    // ============================================
+    // DAILY TASKS HANDLERS
+    // ============================================
+    case 'add_daily_task': {
+      const dueDate = parseNaturalDate(args.dueDate);
+      return {
+        result: {
+          success: true,
+          message: `Task "${args.title}" scheduled for ${dueDate}`,
+        },
+        actionRequired: 'add_daily_task',
+        actionData: {
+          title: args.title,
+          dueDate,
+          reminder: args.reminder || false,
+          notes: args.notes || '',
+        },
+      };
+    }
+
+    case 'query_daily_tasks': {
+      const { dailyTasks = [] } = appData;
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const tomorrowStr = new Date(today.getTime() + 86400000).toISOString().split('T')[0];
+      const weekEndStr = new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0];
+      const nextWeekEndStr = new Date(today.getTime() + 14 * 86400000).toISOString().split('T')[0];
+
+      let filtered = [...dailyTasks];
+
+      // Apply filter
+      if (args.filter) {
+        switch (args.filter) {
+          case 'today':
+            filtered = filtered.filter((t: any) => t.dueDate === todayStr);
+            break;
+          case 'tomorrow':
+            filtered = filtered.filter((t: any) => t.dueDate === tomorrowStr);
+            break;
+          case 'this_week':
+            filtered = filtered.filter((t: any) => t.dueDate >= todayStr && t.dueDate <= weekEndStr);
+            break;
+          case 'next_week':
+            filtered = filtered.filter((t: any) => t.dueDate > weekEndStr && t.dueDate <= nextWeekEndStr);
+            break;
+          case 'overdue':
+            filtered = filtered.filter((t: any) => t.dueDate < todayStr && !t.completed);
+            break;
+          case 'completed':
+            filtered = filtered.filter((t: any) => t.completed);
+            break;
+          case 'pending':
+            filtered = filtered.filter((t: any) => !t.completed);
+            break;
+          case 'all':
+          default:
+            // No filter
+            break;
+        }
+      }
+
+      // Apply date range filter
+      if (args.startDate) {
+        const startDate = parseNaturalDate(args.startDate);
+        filtered = filtered.filter((t: any) => t.dueDate >= startDate);
+      }
+      if (args.endDate) {
+        const endDate = parseNaturalDate(args.endDate);
+        filtered = filtered.filter((t: any) => t.dueDate <= endDate);
+      }
+
+      // Apply completion filter
+      if (args.completed !== undefined) {
+        filtered = filtered.filter((t: any) => t.completed === args.completed);
+      }
+
+      // Sort by due date
+      filtered.sort((a: any, b: any) => a.dueDate.localeCompare(b.dueDate));
+
+      const pendingCount = filtered.filter((t: any) => !t.completed).length;
+      const completedCount = filtered.filter((t: any) => t.completed).length;
+
+      return {
+        result: {
+          count: filtered.length,
+          pendingCount,
+          completedCount,
+          tasks: filtered.map((t: any) => ({
+            id: t.id,
+            title: t.title,
+            dueDate: t.dueDate,
+            reminder: t.reminder,
+            completed: t.completed,
+            notes: t.notes,
+          })),
+        },
+      };
+    }
+
+    case 'update_daily_task': {
+      const { dailyTasks = [] } = appData;
+
+      // Find task by title match
+      const task = dailyTasks.find((t: any) =>
+        t.title?.toLowerCase().includes(args.taskTitle.toLowerCase())
+      );
+
+      if (!task) {
+        const taskTitles = dailyTasks.map((t: any) => t.title).slice(0, 5).join(', ');
+        return {
+          result: {
+            error: `Task "${args.taskTitle}" not found.`,
+            availableTasks: taskTitles || 'No tasks found'
+          },
+        };
+      }
+
+      const updates: any = {};
+      if (args.completed !== undefined) updates.completed = args.completed;
+      if (args.reminder !== undefined) updates.reminder = args.reminder;
+      if (args.newTitle) updates.title = args.newTitle;
+      if (args.newDueDate) updates.dueDate = parseNaturalDate(args.newDueDate);
+
+      return {
+        result: {
+          success: true,
+          message: `Task "${task.title}" will be updated`,
+        },
+        actionRequired: 'update_daily_task',
+        actionData: {
+          taskId: task.id,
+          updates,
+        },
+      };
+    }
+
+    case 'delete_daily_tasks': {
+      const { dailyTasks = [] } = appData;
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const tomorrowStr = new Date(today.getTime() + 86400000).toISOString().split('T')[0];
+      const weekEndStr = new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0];
+
+      let tasksToDelete: string[] = [];
+      let message = '';
+
+      if (args.bulkFilter) {
+        switch (args.bulkFilter) {
+          case 'today':
+            tasksToDelete = dailyTasks.filter((t: any) => t.dueDate === todayStr).map((t: any) => t.id);
+            message = `Deleting ${tasksToDelete.length} task(s) for today`;
+            break;
+          case 'tomorrow':
+            tasksToDelete = dailyTasks.filter((t: any) => t.dueDate === tomorrowStr).map((t: any) => t.id);
+            message = `Deleting ${tasksToDelete.length} task(s) for tomorrow`;
+            break;
+          case 'this_week':
+            tasksToDelete = dailyTasks.filter((t: any) => t.dueDate >= todayStr && t.dueDate <= weekEndStr).map((t: any) => t.id);
+            message = `Deleting ${tasksToDelete.length} task(s) for this week`;
+            break;
+          case 'completed':
+            tasksToDelete = dailyTasks.filter((t: any) => t.completed).map((t: any) => t.id);
+            message = `Deleting ${tasksToDelete.length} completed task(s)`;
+            break;
+          case 'overdue':
+            tasksToDelete = dailyTasks.filter((t: any) => t.dueDate < todayStr && !t.completed).map((t: any) => t.id);
+            message = `Deleting ${tasksToDelete.length} overdue task(s)`;
+            break;
+          case 'all':
+            tasksToDelete = dailyTasks.map((t: any) => t.id);
+            message = `Deleting all ${tasksToDelete.length} task(s)`;
+            break;
+        }
+      } else if (args.taskTitle) {
+        const task = dailyTasks.find((t: any) =>
+          t.title?.toLowerCase().includes(args.taskTitle.toLowerCase())
+        );
+        if (task) {
+          tasksToDelete = [task.id];
+          message = `Deleting task: "${task.title}"`;
+        } else {
+          return {
+            result: { error: `Task "${args.taskTitle}" not found` },
+          };
+        }
+      } else {
+        return {
+          result: { error: 'Please specify a task title or filter (today, tomorrow, completed, etc.)' },
+        };
+      }
+
+      if (tasksToDelete.length === 0) {
+        return {
+          result: { message: 'No tasks found matching the criteria' },
+        };
+      }
+
+      return {
+        result: {
+          success: true,
+          message,
+          count: tasksToDelete.length,
+        },
+        actionRequired: 'delete_daily_tasks',
+        actionData: {
+          taskIds: tasksToDelete,
+        },
+      };
+    }
+
+    case 'bulk_update_daily_task_reminders': {
+      const { dailyTasks = [] } = appData;
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const tomorrowStr = new Date(today.getTime() + 86400000).toISOString().split('T')[0];
+      const weekEndStr = new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0];
+      const nextWeekEndStr = new Date(today.getTime() + 14 * 86400000).toISOString().split('T')[0];
+
+      let tasksToUpdate: any[] = [];
+
+      switch (args.filter) {
+        case 'today':
+          tasksToUpdate = dailyTasks.filter((t: any) => t.dueDate === todayStr);
+          break;
+        case 'tomorrow':
+          tasksToUpdate = dailyTasks.filter((t: any) => t.dueDate === tomorrowStr);
+          break;
+        case 'this_week':
+          tasksToUpdate = dailyTasks.filter((t: any) => t.dueDate >= todayStr && t.dueDate <= weekEndStr);
+          break;
+        case 'next_week':
+          tasksToUpdate = dailyTasks.filter((t: any) => t.dueDate > weekEndStr && t.dueDate <= nextWeekEndStr);
+          break;
+        case 'all':
+          tasksToUpdate = dailyTasks;
+          break;
+      }
+
+      if (tasksToUpdate.length === 0) {
+        return {
+          result: { message: 'No tasks found matching the criteria' },
+        };
+      }
+
+      const action = args.reminderEnabled ? 'enabled' : 'disabled';
+
+      return {
+        result: {
+          success: true,
+          message: `Reminders ${action} for ${tasksToUpdate.length} task(s)`,
+          count: tasksToUpdate.length,
+        },
+        actionRequired: 'bulk_update_reminders',
+        actionData: {
+          taskIds: tasksToUpdate.map((t: any) => t.id),
+          reminder: args.reminderEnabled,
         },
       };
     }
