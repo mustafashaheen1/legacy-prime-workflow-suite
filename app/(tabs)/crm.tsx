@@ -1256,8 +1256,6 @@ export default function CRMScreen() {
               <Text style={styles.callAssistantButtonText}>Call Assistant</Text>
             </TouchableOpacity>
 
-            <DailyTasksButton />
-
             <TouchableOpacity
               style={styles.addButton}
               onPress={openAddClientModal}
@@ -1265,6 +1263,8 @@ export default function CRMScreen() {
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Client</Text>
             </TouchableOpacity>
+
+            <DailyTasksButton />
           </View>
         </View>
 
