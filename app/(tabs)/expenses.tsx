@@ -480,39 +480,37 @@ Be intelligent about the categorization based on the actual items purchased, not
           </TouchableOpacity>
         </View>
 
-        {user?.role === 'admin' && (
-          <View style={styles.expensesList}>
-            <Text style={styles.sectionTitle}>Recent Expenses</Text>
-            {filteredExpenses.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>No expenses recorded for this project</Text>
-              </View>
-            ) : (
-              filteredExpenses.map((expense) => (
-                <View key={expense.id} style={styles.expenseCard}>
-                  <View style={styles.expenseHeader}>
-                    <View style={styles.expenseInfo}>
-                      <View>
-                        <Text style={styles.expenseType}>{expense.type}</Text>
-                        {expense.subcategory && expense.subcategory !== expense.type && (
-                          <Text style={styles.expenseSubcategory}>{expense.subcategory}</Text>
-                        )}
-                      </View>
-                      {expense.receiptUrl && (
-                        <View style={styles.receiptBadge}>
-                          <ImageIcon size={12} color="#10B981" />
-                        </View>
+        <View style={styles.expensesList}>
+          <Text style={styles.sectionTitle}>Recent Expenses</Text>
+          {filteredExpenses.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No expenses recorded for this project</Text>
+            </View>
+          ) : (
+            filteredExpenses.map((expense) => (
+              <View key={expense.id} style={styles.expenseCard}>
+                <View style={styles.expenseHeader}>
+                  <View style={styles.expenseInfo}>
+                    <View>
+                      <Text style={styles.expenseType}>{expense.type}</Text>
+                      {expense.subcategory && expense.subcategory !== expense.type && (
+                        <Text style={styles.expenseSubcategory}>{expense.subcategory}</Text>
                       )}
                     </View>
-                    <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
+                    {expense.receiptUrl && (
+                      <View style={styles.receiptBadge}>
+                        <ImageIcon size={12} color="#10B981" />
+                      </View>
+                    )}
                   </View>
-                  <Text style={styles.expenseStore}>{expense.store}</Text>
-                  <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
+                  <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
                 </View>
-              ))
-            )}
-          </View>
-        )}
+                <Text style={styles.expenseStore}>{expense.store}</Text>
+                <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
+              </View>
+            ))
+          )}
+        </View>
       </ScrollView>
 
       <Modal
