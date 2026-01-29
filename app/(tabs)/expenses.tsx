@@ -50,6 +50,9 @@ export default function ExpensesScreen() {
   );
 
   const handleSave = async () => {
+    console.log('[Expenses] Save clicked - validating fields...');
+    console.log('[Expenses] Current values:', { expenseType, category, amount, store, selectedProjectId });
+
     const missingFields: string[] = [];
 
     if (!expenseType) {
@@ -63,6 +66,7 @@ export default function ExpensesScreen() {
     if (!amount || amount.trim() === '') {
       missingFields.push('Amount');
     } else if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      console.log('[Expenses] Invalid amount detected');
       Alert.alert('Invalid Amount', 'Please enter a valid amount greater than 0.');
       return;
     }
@@ -76,12 +80,15 @@ export default function ExpensesScreen() {
     }
 
     if (missingFields.length > 0) {
+      console.log('[Expenses] Missing fields detected:', missingFields);
       Alert.alert(
         'Missing Information',
         `Please fill out all required fields:\n\n${missingFields.map(f => `• ${f}`).join('\n')}`
       );
       return;
     }
+
+    console.log('[Expenses] Validation passed, saving expense...');
 
     try {
       await addExpense({
