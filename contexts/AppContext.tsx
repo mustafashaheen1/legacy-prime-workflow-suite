@@ -95,6 +95,7 @@ interface AppState {
   deletePhoto: (photoId: string) => Promise<void>;
   refreshClients: () => Promise<void>;
   refreshEstimates: () => Promise<void>;
+  refreshExpenses: () => Promise<void>;
   refreshDailyLogs: () => Promise<void>;
   loadDailyTasks: () => Promise<void>;
   addDailyTask: (task: Omit<DailyTask, 'id' | 'createdAt' | 'updatedAt'>) => Promise<DailyTask | undefined>;
@@ -990,6 +991,35 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       }
     } catch (error) {
       console.error('[App] ❌ Error refreshing estimates:', error);
+    }
+  }, [company?.id]);
+
+  const refreshExpenses = useCallback(async () => {
+    if (!company?.id) {
+      console.log('[App] ⚠️ Cannot refresh expenses - no company ID');
+      return;
+    }
+
+    console.log('[App] 🔄 Refreshing expenses...');
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const response = await fetch(`${baseUrl}/api/get-expenses?companyId=${company.id}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[App] 📦 Expenses result:', data);
+
+      if (data.success && data.expenses) {
+        setExpenses(data.expenses);
+        console.log('[App] ✅ Refreshed', data.expenses.length, 'expenses');
+      } else {
+        console.log('[App] ⚠️ Query succeeded but no expenses returned');
+      }
+    } catch (error) {
+      console.error('[App] ❌ Error refreshing expenses:', error);
     }
   }, [company?.id]);
 
@@ -2422,6 +2452,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     deletePhoto,
     refreshClients,
     refreshEstimates,
+    refreshExpenses,
     refreshDailyLogs,
     loadDailyTasks,
     addDailyTask,
@@ -2524,6 +2555,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     deletePhoto,
     refreshClients,
     refreshEstimates,
+    refreshExpenses,
     refreshDailyLogs,
     loadDailyTasks,
     addDailyTask,

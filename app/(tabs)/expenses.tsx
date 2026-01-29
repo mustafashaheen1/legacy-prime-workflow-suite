@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Platform } from 'react-native';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { priceListCategories } from '@/mocks/priceList';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,7 +11,7 @@ import { Image } from 'expo-image';
 import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File } from 'lucide-react-native';
 
 export default function ExpensesScreen() {
-  const { expenses, addExpense, projects, user } = useApp();
+  const { expenses, addExpense, projects, user, refreshExpenses } = useApp();
   const [expenseType, setExpenseType] = useState<string>('Subcontractor');
   const [category, setCategory] = useState<string>(priceListCategories[0]);
   const [amount, setAmount] = useState<string>('');
@@ -26,7 +26,12 @@ export default function ExpensesScreen() {
   const [showSubcategoryPicker, setShowSubcategoryPicker] = useState<boolean>(false);
   const [customCategory, setCustomCategory] = useState<string>('');
 
-  const activeProjects = useMemo(() => 
+  // Reload expenses when component mounts
+  useEffect(() => {
+    refreshExpenses();
+  }, [refreshExpenses]);
+
+  const activeProjects = useMemo(() =>
     projects.filter(p => p.status === 'active'),
     [projects]
   );
@@ -46,57 +51,65 @@ export default function ExpensesScreen() {
     [projects, selectedProjectId]
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const missingFields: string[] = [];
-    
+
     if (!expenseType) {
       missingFields.push('Expense Type');
     }
-    
+
     if (expenseType === 'Subcontractor' && !category) {
       missingFields.push('Category');
     }
-    
+
     if (!amount || amount.trim() === '') {
       missingFields.push('Amount');
     } else if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       Alert.alert('Invalid Amount', 'Please enter a valid amount greater than 0.');
       return;
     }
-    
+
     if (!store || store.trim() === '') {
       missingFields.push('Store/Invoice');
     }
-    
+
     if (!selectedProjectId) {
       missingFields.push('Project');
     }
-    
+
     if (missingFields.length > 0) {
       Alert.alert(
-        'Missing Information', 
+        'Missing Information',
         `Please fill out all required fields:\n\n${missingFields.map(f => `• ${f}`).join('\n')}`
       );
       return;
     }
-    
-    addExpense({
-      id: Date.now().toString(),
-      projectId: selectedProjectId,
-      type: expenseType,
-      subcategory: expenseType === 'Subcontractor' ? category : expenseType,
-      amount: parseFloat(amount),
-      store,
-      date: new Date().toISOString(),
-      receiptUrl: receiptImage || undefined,
-    });
-    
-    setAmount('');
-    setStore('');
-    setReceiptImage(null);
-    setReceiptType(null);
-    setReceiptFileName(null);
-    Alert.alert('Success', 'Expense added successfully!');
+
+    try {
+      await addExpense({
+        id: Date.now().toString(),
+        projectId: selectedProjectId,
+        type: expenseType,
+        subcategory: expenseType === 'Subcontractor' ? category : expenseType,
+        amount: parseFloat(amount),
+        store,
+        date: new Date().toISOString(),
+        receiptUrl: receiptImage || undefined,
+      });
+
+      // Refresh expenses from database to ensure UI is in sync
+      await refreshExpenses();
+
+      setAmount('');
+      setStore('');
+      setReceiptImage(null);
+      setReceiptType(null);
+      setReceiptFileName(null);
+      Alert.alert('Success', 'Expense added successfully!');
+    } catch (error) {
+      console.error('Error adding expense:', error);
+      Alert.alert('Error', 'Failed to add expense. Please try again.');
+    }
   };
 
   const handleScanReceipt = async () => {
