@@ -5,8 +5,6 @@ import { priceListCategories } from '@/mocks/priceList';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { generateObject } from '@rork-ai/toolkit-sdk';
-import { z } from 'zod';
 import { Image } from 'expo-image';
 import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File } from 'lucide-react-native';
 
@@ -31,23 +29,15 @@ export default function ExpensesScreen() {
     refreshExpenses();
   }, [refreshExpenses]);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('[Expenses] All expenses:', expenses);
-    console.log('[Expenses] Selected project ID:', selectedProjectId);
-    console.log('[Expenses] All projects:', projects);
-  }, [expenses, selectedProjectId, projects]);
-
   const activeProjects = useMemo(() =>
     projects.filter(p => p.status === 'active'),
     [projects]
   );
 
-  const filteredExpenses = useMemo(() => {
-    const filtered = expenses.filter(e => e.projectId === selectedProjectId);
-    console.log('[Expenses] Filtered expenses for project', selectedProjectId, ':', filtered);
-    return filtered;
-  }, [expenses, selectedProjectId]);
+  const filteredExpenses = useMemo(() =>
+    expenses.filter(e => e.projectId === selectedProjectId),
+    [expenses, selectedProjectId]
+  );
 
   const projectExpenseTotal = useMemo(() => 
     filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
@@ -246,7 +236,7 @@ export default function ExpensesScreen() {
         }
       }
 
-      console.log('[OCR] Sending request to AI...');
+      console.log('[OCR] Sending request to API...');
       console.log('[OCR] Image data length:', imageData.length);
       console.log('[OCR] Image data format:', imageData.substring(0, 50));
 
@@ -254,41 +244,29 @@ export default function ExpensesScreen() {
         throw new Error('Invalid image data - image is too small or corrupted');
       }
 
-      const ReceiptSchema = z.object({
-        store: z.string().describe('The name of the store or vendor from the receipt'),
-        amount: z.number().describe('The total amount from the receipt as a number'),
-        date: z.string().optional().describe('The date from the receipt in ISO format if available'),
-        category: z.string().describe(`The most appropriate construction expense category from: ${priceListCategories.join(', ')}`),
-        items: z.string().optional().describe('Brief description of items purchased if visible'),
-        confidence: z.number().min(0).max(100).describe('Confidence level in the extraction (0-100)')
+      // Call the API endpoint instead of using SDK
+      const apiUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081';
+      const apiResponse = await fetch(`${apiUrl}/api/analyze-receipt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageData,
+          categories: priceListCategories,
+        }),
       });
 
-      const result = await generateObject({
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                image: imageData,
-              },
-              {
-                type: 'text',
-                text: `Analyze this receipt image and extract key information. Identify the store/vendor, total amount, date, and items if visible. Based on the items and store, intelligently categorize this expense into the most appropriate construction category. Consider:
-- Hardware stores (Home Depot, Lowe's, etc.) → categorize by what was purchased (lumber, electrical, plumbing, etc.)
-- Material suppliers → specific material categories
-- Service providers → appropriate service category
-- Office/general supplies → PRE-CONSTRUCTION
+      if (!apiResponse.ok) {
+        throw new Error(`API error: ${apiResponse.status}`);
+      }
 
-Be intelligent about the categorization based on the actual items purchased, not just the store name.`,
-              },
-            ],
-          },
-        ],
-        schema: ReceiptSchema,
-      });
+      const apiResult = await apiResponse.json();
+      console.log('[OCR] API Response:', apiResult);
 
-      console.log('[OCR] AI Response:', result);
+      if (!apiResult.success) {
+        throw new Error(apiResult.error || 'Failed to analyze receipt');
+      }
+
+      const result = apiResult.data;
 
       if (result.store) setStore(result.store);
       if (result.amount) {
@@ -301,13 +279,13 @@ Be intelligent about the categorization based on the actual items purchased, not
       }
 
       console.log('[OCR] Successfully extracted receipt data');
-      
-      const confidenceMsg = result.confidence >= 80 
-        ? 'High confidence extraction' 
-        : result.confidence >= 60 
-        ? 'Medium confidence extraction' 
+
+      const confidenceMsg = result.confidence >= 80
+        ? 'High confidence extraction'
+        : result.confidence >= 60
+        ? 'Medium confidence extraction'
         : 'Low confidence extraction';
-      
+
       Alert.alert(
         '✓ Receipt Analyzed',
         `${confidenceMsg}. Fields have been auto-filled. Please review and edit if needed, then tap Save.`,
@@ -315,11 +293,11 @@ Be intelligent about the categorization based on the actual items purchased, not
       );
     } catch (error) {
       console.error('[OCR] Error processing receipt:', error);
-      
+
       let errorMessage = 'Could not extract receipt information. Please enter details manually.';
-      
+
       if (error instanceof Error) {
-        if (error.message.includes('Network request failed')) {
+        if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
           errorMessage = 'Network error: Unable to connect to AI service. Please check your internet connection and try again.';
         } else if (error.message.includes('base64')) {
           errorMessage = 'Image processing error: Could not read the image file. Please try a different photo.';
@@ -327,7 +305,7 @@ Be intelligent about the categorization based on the actual items purchased, not
           errorMessage = `Error: ${error.message}`;
         }
       }
-      
+
       Alert.alert(
         'Processing Error',
         errorMessage,
