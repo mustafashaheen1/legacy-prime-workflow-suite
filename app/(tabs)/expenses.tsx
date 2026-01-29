@@ -131,7 +131,7 @@ export default function ExpensesScreen() {
     try {
       // Generate duplicate detection fields if we have receipt data
       const imageHash = receiptBase64
-        ? generateImageHash(receiptBase64)
+        ? await generateImageHash(receiptBase64)
         : undefined;
 
       const ocrFingerprint = store && amount

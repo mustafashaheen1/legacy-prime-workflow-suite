@@ -61,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Generate image hash
-    const imageHash = generateImageHash(imageBase64);
+    const imageHash = await generateImageHash(imageBase64);
     console.log('[CheckDuplicate] Generated image hash:', imageHash.substring(0, 16) + '...');
 
     // Check for exact duplicate (image hash match)

@@ -6,28 +6,38 @@
  * 2. OCR fingerprinting (normalized store+amount+date) for similar receipts
  */
 
-import crypto from 'crypto';
-
 /**
  * Generate SHA-256 hash from base64 image data
  * Used for exact duplicate detection
+ * Works in both browser (Web Crypto API) and Node.js (crypto module)
  *
  * @param base64Data - Base64 encoded image data (with or without data URL prefix)
  * @returns SHA-256 hash as hex string
  *
  * @example
- * const hash = generateImageHash('data:image/jpeg;base64,/9j/4AAQSkZJRg...');
+ * const hash = await generateImageHash('data:image/jpeg;base64,/9j/4AAQSkZJRg...');
  * // Returns: "a1b2c3d4e5f6..."
  */
-export function generateImageHash(base64Data: string): string {
+export async function generateImageHash(base64Data: string): Promise<string> {
   // Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
   const base64Content = base64Data.replace(/^data:image\/[a-z]+;base64,/, '');
 
-  // Hash the base64 content using SHA-256
-  return crypto
-    .createHash('sha256')
-    .update(base64Content)
-    .digest('hex');
+  // Check if we're in a browser or Node.js environment
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+    // Browser environment - use Web Crypto API
+    const encoder = new TextEncoder();
+    const data = encoder.encode(base64Content);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } else {
+    // Node.js environment - use crypto module
+    const crypto = require('crypto');
+    return crypto
+      .createHash('sha256')
+      .update(base64Content)
+      .digest('hex');
+  }
 }
 
 /**

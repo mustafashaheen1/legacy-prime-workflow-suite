@@ -357,7 +357,7 @@ export default function ProjectExpensesScreen() {
 
       // Generate duplicate detection fields
       const imageHash = extractedExpense.imageBase64
-        ? generateImageHash(extractedExpense.imageBase64)
+        ? await generateImageHash(extractedExpense.imageBase64)
         : undefined;
 
       const ocrFingerprint = modalStore && modalAmount
