@@ -236,13 +236,54 @@ export default function ExpensesScreen() {
         }
       }
 
-      console.log('[OCR] Sending request to API...');
-      console.log('[OCR] Image data length:', imageData.length);
+      console.log('[OCR] Initial image data length:', imageData.length);
       console.log('[OCR] Image data format:', imageData.substring(0, 50));
 
       if (!imageData || imageData.length < 100) {
         throw new Error('Invalid image data - image is too small or corrupted');
       }
+
+      // Compress image if it's too large (> 8MB to leave room for JSON overhead)
+      if (imageData.length > 8 * 1024 * 1024) {
+        console.log('[OCR] Image too large, compressing...');
+        try {
+          // Create an image element
+          const img = new window.Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = imageData;
+          });
+
+          // Calculate new dimensions (max 1920px width while maintaining aspect ratio)
+          let width = img.width;
+          let height = img.height;
+          const maxWidth = 1920;
+
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+
+          // Create canvas and draw resized image
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('Could not get canvas context');
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to base64 with quality reduction
+          imageData = canvas.toDataURL('image/jpeg', 0.7);
+          console.log('[OCR] Compressed image data length:', imageData.length);
+        } catch (compressError) {
+          console.error('[OCR] Error compressing image:', compressError);
+          throw new Error('Failed to compress image');
+        }
+      }
+
+      console.log('[OCR] Sending request to API...');
 
       // Call the API endpoint instead of using SDK
       const apiUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081';
