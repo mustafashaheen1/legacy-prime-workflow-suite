@@ -85,6 +85,87 @@ function parseNaturalDate(dateStr: string): string {
   return tomorrow.toISOString().split('T')[0];
 }
 
+// Helper function to parse natural language times
+function parseNaturalTime(timeStr: string): string {
+  if (!timeStr) return '09:00'; // Default to 9 AM
+
+  const lowerTime = timeStr.toLowerCase().trim();
+
+  // Handle common phrases
+  if (lowerTime === 'morning' || lowerTime === 'in the morning') {
+    return '09:00';
+  }
+  if (lowerTime === 'noon' || lowerTime === 'midday') {
+    return '12:00';
+  }
+  if (lowerTime === 'afternoon' || lowerTime === 'in the afternoon') {
+    return '14:00';
+  }
+  if (lowerTime === 'evening' || lowerTime === 'in the evening') {
+    return '18:00';
+  }
+  if (lowerTime === 'night' || lowerTime === 'tonight') {
+    return '20:00';
+  }
+  if (lowerTime === 'end of day' || lowerTime === 'eod' || lowerTime === 'close of business' || lowerTime === 'cob') {
+    return '17:00';
+  }
+
+  // Handle "Xam" or "Xpm" format (e.g., "9am", "3pm", "10am")
+  const ampmMatch = lowerTime.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+  if (ampmMatch) {
+    let hours = parseInt(ampmMatch[1]);
+    const minutes = ampmMatch[2] ? parseInt(ampmMatch[2]) : 0;
+    const isPM = ampmMatch[3] === 'pm';
+
+    if (isPM && hours !== 12) {
+      hours += 12;
+    } else if (!isPM && hours === 12) {
+      hours = 0;
+    }
+
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  }
+
+  // Handle "X:XX am/pm" format (e.g., "9:30 am", "2:30 pm")
+  const ampmWithColonMatch = lowerTime.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
+  if (ampmWithColonMatch) {
+    let hours = parseInt(ampmWithColonMatch[1]);
+    const minutes = parseInt(ampmWithColonMatch[2]);
+    const isPM = ampmWithColonMatch[3] === 'pm';
+
+    if (isPM && hours !== 12) {
+      hours += 12;
+    } else if (!isPM && hours === 12) {
+      hours = 0;
+    }
+
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  }
+
+  // Handle 24-hour format "HH:MM" (e.g., "14:30", "09:00")
+  const militaryMatch = lowerTime.match(/^(\d{1,2}):(\d{2})$/);
+  if (militaryMatch) {
+    const hours = parseInt(militaryMatch[1]);
+    const minutes = parseInt(militaryMatch[2]);
+    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+  }
+
+  // Handle just hour in 24-hour format (e.g., "14" -> "14:00")
+  const hourOnlyMatch = lowerTime.match(/^(\d{1,2})$/);
+  if (hourOnlyMatch) {
+    const hours = parseInt(hourOnlyMatch[1]);
+    if (hours >= 0 && hours <= 23) {
+      return `${hours.toString().padStart(2, '0')}:00`;
+    }
+  }
+
+  // Default to 9 AM if can't parse
+  return '09:00';
+}
+
 // Define the function calling tools for the AI assistant
 const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -1621,13 +1702,14 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'add_daily_task',
-      description: 'Create a new personal daily task with optional reminder. Use when user wants to add a task, reminder, or to-do item.',
+      description: 'Create a new personal daily task with optional time and reminder. Use when user wants to add a task, reminder, or to-do item.',
       parameters: {
         type: 'object',
         properties: {
           title: { type: 'string', description: 'Task title/description' },
           dueDate: { type: 'string', description: 'Due date - accepts "today", "tomorrow", "next monday", "next week", or YYYY-MM-DD format' },
-          reminder: { type: 'boolean', description: 'Whether to set a reminder (default: false)' },
+          dueTime: { type: 'string', description: 'Due time - accepts "9am", "2:30pm", "14:00", "morning", "afternoon", "evening", or HH:MM format. Default is 09:00 if not specified.' },
+          reminder: { type: 'boolean', description: 'Whether to set a reminder notification (default: false). When true, user will receive a notification at the due time.' },
           notes: { type: 'string', description: 'Optional notes about the task' },
         },
         required: ['title', 'dueDate'],
@@ -1659,7 +1741,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'update_daily_task',
-      description: 'Update a daily task - mark complete, change reminder, update title or date. Use for "complete task", "mark done", "turn off reminder".',
+      description: 'Update a daily task - mark complete, change reminder, update title, date or time. Use for "complete task", "mark done", "turn off reminder", "change time to 3pm".',
       parameters: {
         type: 'object',
         properties: {
@@ -1668,6 +1750,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           reminder: { type: 'boolean', description: 'Turn reminder on/off' },
           newTitle: { type: 'string', description: 'New title for the task' },
           newDueDate: { type: 'string', description: 'New due date (accepts natural language)' },
+          newDueTime: { type: 'string', description: 'New due time (accepts "9am", "2:30pm", "14:00", etc.)' },
         },
         required: ['taskTitle'],
       },
@@ -2016,6 +2099,22 @@ AI: "Sarah has been added to your CRM!" ← WRONG if action hasn't completed yet
 - Chat: Team communication
 - Reports: Generate financial and administrative reports
 - Clock: Employee time tracking
+- Daily Tasks: Personal to-do list with time-based reminders
+
+## DAILY TASKS WITH TIME
+When adding daily tasks, you can specify both date AND time. Examples:
+- "Add task to call John tomorrow at 3pm" → uses dueDate="tomorrow", dueTime="3pm"
+- "Remind me to submit report at 2:30pm on Friday" → uses dueDate="next friday", dueTime="2:30pm", reminder=true
+- "Create task for morning meeting at 9am" → uses dueTime="9am"
+- "Add task to review contracts end of day" → uses dueTime="end of day" (17:00)
+
+Time formats accepted:
+- 12-hour: "9am", "2:30pm", "11:45am"
+- 24-hour: "14:00", "09:30", "17:00"
+- Natural: "morning" (09:00), "afternoon" (14:00), "evening" (18:00), "noon" (12:00), "end of day" (17:00), "eod", "cob"
+- Default: If no time specified, defaults to 9:00 AM
+
+When reminder=true, user receives a notification at the due time (or 30 minutes before).
 
 ## RESPONSE STYLE
 - Be concise and direct
@@ -5533,15 +5632,28 @@ Based on the store and items, intelligently categorize this expense:
     // ============================================
     case 'add_daily_task': {
       const dueDate = parseNaturalDate(args.dueDate);
+      const dueTime = parseNaturalTime(args.dueTime);
+      const dueDateTime = `${dueDate}T${dueTime}:00`;
+
+      // Format time for display
+      const [hours, minutes] = dueTime.split(':').map(Number);
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const hour12 = hours % 12 || 12;
+      const timeDisplay = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+
+      const reminderNote = args.reminder ? ' with reminder' : '';
+
       return {
         result: {
           success: true,
-          message: `Task "${args.title}" scheduled for ${dueDate}`,
+          message: `Task "${args.title}" scheduled for ${dueDate} at ${timeDisplay}${reminderNote}`,
         },
         actionRequired: 'add_daily_task',
         actionData: {
           title: args.title,
           dueDate,
+          dueTime,
+          dueDateTime,
           reminder: args.reminder || false,
           notes: args.notes || '',
         },
@@ -5615,14 +5727,28 @@ Based on the store and items, intelligently categorize this expense:
           count: filtered.length,
           pendingCount,
           completedCount,
-          tasks: filtered.map((t: any) => ({
-            id: t.id,
-            title: t.title,
-            dueDate: t.dueDate,
-            reminder: t.reminder,
-            completed: t.completed,
-            notes: t.notes,
-          })),
+          tasks: filtered.map((t: any) => {
+            // Format time for display if available
+            let timeDisplay = '';
+            if (t.dueTime) {
+              const [hours, minutes] = t.dueTime.split(':').map(Number);
+              const ampm = hours >= 12 ? 'PM' : 'AM';
+              const hour12 = hours % 12 || 12;
+              timeDisplay = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+            }
+
+            return {
+              id: t.id,
+              title: t.title,
+              dueDate: t.dueDate,
+              dueTime: t.dueTime,
+              timeDisplay,
+              reminder: t.reminder,
+              reminderSent: t.reminderSent,
+              completed: t.completed,
+              notes: t.notes,
+            };
+          }),
         },
       };
     }
@@ -5649,12 +5775,44 @@ Based on the store and items, intelligently categorize this expense:
       if (args.completed !== undefined) updates.completed = args.completed;
       if (args.reminder !== undefined) updates.reminder = args.reminder;
       if (args.newTitle) updates.title = args.newTitle;
-      if (args.newDueDate) updates.dueDate = parseNaturalDate(args.newDueDate);
+
+      // Handle date update
+      if (args.newDueDate) {
+        updates.dueDate = parseNaturalDate(args.newDueDate);
+      }
+
+      // Handle time update
+      if (args.newDueTime) {
+        updates.dueTime = parseNaturalTime(args.newDueTime);
+      }
+
+      // Build dueDateTime if either date or time changed
+      if (updates.dueDate || updates.dueTime) {
+        const finalDate = updates.dueDate || task.dueDate;
+        const finalTime = updates.dueTime || task.dueTime || '09:00';
+        updates.dueDateTime = `${finalDate}T${finalTime}:00`;
+      }
+
+      // Build update message
+      let updateMessage = `Task "${task.title}" will be updated`;
+      const changes: string[] = [];
+      if (args.completed !== undefined) changes.push(args.completed ? 'marked complete' : 'marked incomplete');
+      if (args.reminder !== undefined) changes.push(args.reminder ? 'reminder enabled' : 'reminder disabled');
+      if (args.newDueDate) changes.push(`date changed to ${updates.dueDate}`);
+      if (args.newDueTime) {
+        const [h, m] = updates.dueTime.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        changes.push(`time changed to ${h12}:${m.toString().padStart(2, '0')} ${ampm}`);
+      }
+      if (changes.length > 0) {
+        updateMessage = `Task "${task.title}": ${changes.join(', ')}`;
+      }
 
       return {
         result: {
           success: true,
-          message: `Task "${task.title}" will be updated`,
+          message: updateMessage,
         },
         actionRequired: 'update_daily_task',
         actionData: {

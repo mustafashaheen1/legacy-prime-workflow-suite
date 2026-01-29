@@ -1852,13 +1852,15 @@ Generate appropriate line items from the price list that fit this scope of work$
               await addDailyTask({
                 title: pendingAction.data.title,
                 dueDate: pendingAction.data.dueDate,
+                dueTime: pendingAction.data.dueTime || '09:00',
+                dueDateTime: pendingAction.data.dueDateTime || `${pendingAction.data.dueDate}T09:00:00`,
                 reminder: pendingAction.data.reminder || false,
                 notes: pendingAction.data.notes || '',
                 completed: false,
                 companyId: company?.id || '',
                 userId: user?.id || '',
               });
-              console.log('[AI Action] Daily task added:', pendingAction.data.title);
+              console.log('[AI Action] Daily task added:', pendingAction.data.title, 'at', pendingAction.data.dueTime);
             }
             break;
 
