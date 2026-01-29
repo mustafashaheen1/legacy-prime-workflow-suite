@@ -47,6 +47,9 @@ export interface Expense {
   store: string;
   date: string;
   receiptUrl?: string;
+  imageHash?: string;
+  ocrFingerprint?: string;
+  imageSizeBytes?: number;
 }
 
 export interface Photo {

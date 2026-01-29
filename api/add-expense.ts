@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { companyId, projectId, type, subcategory, amount, store, date, receiptUrl } = req.body;
+    const { companyId, projectId, type, subcategory, amount, store, date, receiptUrl, imageHash, ocrFingerprint, imageSizeBytes } = req.body;
 
     console.log('[AddExpense] Adding expense:', amount, 'for project:', projectId);
 
@@ -36,6 +36,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Final validation: check for duplicate image hash to prevent bypass
+    if (imageHash) {
+      console.log('[AddExpense] Validating image hash...');
+      const { data: existingHash, error: hashError } = await supabase
+        .from('expenses')
+        .select('id, store, amount, date')
+        .eq('company_id', companyId)
+        .eq('image_hash', imageHash)
+        .limit(1)
+        .single();
+
+      if (hashError && hashError.code !== 'PGRST116') {
+        console.error('[AddExpense] Error checking duplicate hash:', hashError);
+      }
+
+      if (existingHash) {
+        console.log('[AddExpense] Duplicate image hash detected:', existingHash.id);
+        return res.status(409).json({
+          error: 'Duplicate receipt detected',
+          message: 'This receipt has already been added',
+          existingExpense: {
+            id: existingHash.id,
+            store: existingHash.store,
+            amount: Number(existingHash.amount),
+            date: existingHash.date,
+          },
+        });
+      }
+    }
+
     console.log('[AddExpense] Inserting into database...');
     const insertStart = Date.now();
 
@@ -50,6 +80,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         store: store,
         date: date || new Date().toISOString(),
         receipt_url: receiptUrl || null,
+        image_hash: imageHash || null,
+        ocr_fingerprint: ocrFingerprint || null,
+        image_size_bytes: imageSizeBytes || null,
       })
       .select()
       .single();

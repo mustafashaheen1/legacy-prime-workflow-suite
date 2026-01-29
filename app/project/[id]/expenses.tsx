@@ -8,6 +8,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Check, Edit3 } from 'lucide-react-native';
+import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
 
 interface ExtractedExpense {
   store: string;
@@ -49,6 +50,11 @@ export default function ProjectExpensesScreen() {
   // Receipt viewer state
   const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
   const [showReceiptViewer, setShowReceiptViewer] = useState<boolean>(false);
+
+  // Duplicate detection state
+  const [duplicateCheckResult, setDuplicateCheckResult] = useState<any>(null);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState<boolean>(false);
+  const [pendingExpenseData, setPendingExpenseData] = useState<any>(null);
 
   const project = useMemo(() =>
     projects.find(p => p.id === id),
@@ -201,6 +207,41 @@ export default function ProjectExpensesScreen() {
     };
   };
 
+  // Check for duplicate receipts
+  const checkForDuplicates = async (imageBase64: string, ocrData: any) => {
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+                    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+
+      const response = await fetch(`${apiUrl}/api/check-duplicate-receipt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: company?.id,
+          projectId: id,
+          imageBase64,
+          ocrData: {
+            store: ocrData.store,
+            amount: ocrData.amount,
+            date: ocrData.date,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('[DuplicateCheck] API error:', response.status);
+        // If check fails, allow creation (fail open)
+        return { isDuplicate: false, canOverride: true };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[DuplicateCheck] Error checking for duplicates:', error);
+      // If check fails, allow creation (fail open)
+      return { isDuplicate: false, canOverride: true };
+    }
+  };
+
   const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
 
   const handleSave = async () => {
@@ -314,6 +355,19 @@ export default function ProjectExpensesScreen() {
         }
       }
 
+      // Generate duplicate detection fields
+      const imageHash = extractedExpense.imageBase64
+        ? generateImageHash(extractedExpense.imageBase64)
+        : undefined;
+
+      const ocrFingerprint = modalStore && modalAmount
+        ? generateOCRFingerprint(modalStore, parseFloat(modalAmount), extractedExpense.date || new Date().toISOString())
+        : undefined;
+
+      const imageSizeBytes = extractedExpense.imageBase64
+        ? getBase64ByteSize(extractedExpense.imageBase64)
+        : undefined;
+
       // Save the expense
       await addExpense({
         id: Date.now().toString(),
@@ -324,6 +378,9 @@ export default function ProjectExpensesScreen() {
         store: modalStore,
         date: extractedExpense.date || new Date().toISOString(),
         receiptUrl,
+        imageHash,
+        ocrFingerprint,
+        imageSizeBytes,
       });
 
       console.log('[Expenses] Expense saved from modal successfully');
@@ -471,7 +528,27 @@ export default function ProjectExpensesScreen() {
       const result = await analyzeReceiptWithOpenAI(imageData);
 
       if (result.isValidReceipt && result.data) {
-        // Set up modal data
+        // Check for duplicates
+        setScanningMessage('Checking for duplicates...');
+        const duplicateCheck = await checkForDuplicates(imageData, result.data);
+
+        if (duplicateCheck.isDuplicate) {
+          if (!duplicateCheck.canOverride) {
+            // Exact duplicate - block
+            setIsScanning(false);
+            Alert.alert('Duplicate Receipt', duplicateCheck.message);
+            return;
+          } else {
+            // Similar receipt - show warning modal
+            setDuplicateCheckResult(duplicateCheck);
+            setPendingExpenseData({ imageUri: uri, imageData, extractedData: result.data });
+            setIsScanning(false);
+            setShowDuplicateWarning(true);
+            return;
+          }
+        }
+
+        // No duplicate, continue normally
         result.data.imageUri = uri;
         result.data.imageBase64 = imageData;
 
@@ -1067,6 +1144,96 @@ export default function ProjectExpensesScreen() {
           </View>
         </Modal>
 
+        {/* Duplicate Warning Modal */}
+        <Modal
+          visible={showDuplicateWarning}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowDuplicateWarning(false)}
+        >
+          <View style={styles.confirmModalOverlay}>
+            <View style={styles.confirmModalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Possible Duplicate Receipt</Text>
+                <TouchableOpacity onPress={() => {
+                  setShowDuplicateWarning(false);
+                  setDuplicateCheckResult(null);
+                  setPendingExpenseData(null);
+                }}>
+                  <X size={24} color="#1F2937" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.confirmModalBody}>
+                <View style={styles.duplicateWarningBox}>
+                  <Text style={styles.duplicateWarningText}>
+                    {duplicateCheckResult?.message}
+                  </Text>
+                </View>
+
+                {duplicateCheckResult?.matchedExpense && (
+                  <View style={styles.matchedExpenseBox}>
+                    <Text style={styles.matchedExpenseTitle}>Previous Expense:</Text>
+                    <View style={styles.matchedExpenseRow}>
+                      <Text style={styles.matchedExpenseLabel}>Store:</Text>
+                      <Text style={styles.matchedExpenseValue}>{duplicateCheckResult.matchedExpense.store}</Text>
+                    </View>
+                    <View style={styles.matchedExpenseRow}>
+                      <Text style={styles.matchedExpenseLabel}>Amount:</Text>
+                      <Text style={styles.matchedExpenseValue}>${duplicateCheckResult.matchedExpense.amount.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.matchedExpenseRow}>
+                      <Text style={styles.matchedExpenseLabel}>Date:</Text>
+                      <Text style={styles.matchedExpenseValue}>
+                        {new Date(duplicateCheckResult.matchedExpense.date).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                <Text style={styles.duplicateQuestionText}>
+                  Do you want to add this expense anyway?
+                </Text>
+              </ScrollView>
+
+              <View style={styles.confirmModalButtons}>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => {
+                    setShowDuplicateWarning(false);
+                    setDuplicateCheckResult(null);
+                    setPendingExpenseData(null);
+                  }}
+                >
+                  <Text style={styles.editButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.confirmSaveButton}
+                  onPress={() => {
+                    // Proceed with confirmation flow
+                    setShowDuplicateWarning(false);
+                    if (pendingExpenseData) {
+                      const { extractedData, imageUri, imageData } = pendingExpenseData;
+                      extractedData.imageUri = imageUri;
+                      extractedData.imageBase64 = imageData;
+                      setExtractedExpense(extractedData);
+                      setModalStore(extractedData.store || '');
+                      setModalAmount(extractedData.amount ? extractedData.amount.toFixed(2) : '');
+                      setModalCategory(extractedData.category || priceListCategories[0]);
+                      setEditingInModal(false);
+                      setShowConfirmModal(true);
+                    }
+                    setDuplicateCheckResult(null);
+                    setPendingExpenseData(null);
+                  }}
+                >
+                  <Text style={styles.confirmSaveButtonText}>Add Anyway</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         {/* Receipt Viewer Modal */}
         <Modal
           visible={showReceiptViewer}
@@ -1614,5 +1781,51 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600' as const,
+  },
+  // Duplicate Warning Styles
+  duplicateWarningBox: {
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  duplicateWarningText: {
+    fontSize: 14,
+    color: '#92400E',
+    lineHeight: 20,
+  },
+  matchedExpenseBox: {
+    backgroundColor: '#F3F4F6',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  matchedExpenseTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  matchedExpenseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  matchedExpenseLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  matchedExpenseValue: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  duplicateQuestionText: {
+    fontSize: 16,
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 8,
   },
 });

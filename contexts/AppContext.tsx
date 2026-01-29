@@ -1084,6 +1084,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             store: expense.store,
             date: expense.date,
             receiptUrl: expense.receiptUrl,
+            imageHash: expense.imageHash,
+            ocrFingerprint: expense.ocrFingerprint,
+            imageSizeBytes: expense.imageSizeBytes,
           }),
         });
 

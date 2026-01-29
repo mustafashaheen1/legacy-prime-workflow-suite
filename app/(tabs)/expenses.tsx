@@ -7,6 +7,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File } from 'lucide-react-native';
+import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
 
 export default function ExpensesScreen() {
   const { expenses, addExpense, projects, user, refreshExpenses } = useApp();
@@ -24,6 +25,8 @@ export default function ExpensesScreen() {
   const [showSubcategoryPicker, setShowSubcategoryPicker] = useState<boolean>(false);
   const [customCategory, setCustomCategory] = useState<string>('');
   const [validationError, setValidationError] = useState<string>('');
+  const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
+  const [ocrData, setOcrData] = useState<any>(null);
 
   // Reload expenses when component mounts
   useEffect(() => {
@@ -52,10 +55,45 @@ export default function ExpensesScreen() {
     [filteredExpenses]
   );
 
-  const selectedProject = useMemo(() => 
+  const selectedProject = useMemo(() =>
     projects.find(p => p.id === selectedProjectId),
     [projects, selectedProjectId]
   );
+
+  // Check for duplicate receipts
+  const checkForDuplicates = async (imageBase64: string, ocrData: any) => {
+    try {
+      const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+                    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+
+      const response = await fetch(`${apiUrl}/api/check-duplicate-receipt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: user?.companyId,
+          projectId: selectedProjectId,
+          imageBase64,
+          ocrData: {
+            store: ocrData.store,
+            amount: ocrData.amount,
+            date: ocrData.date,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('[DuplicateCheck] API error:', response.status);
+        // If check fails, allow creation (fail open)
+        return { isDuplicate: false, canOverride: true };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[DuplicateCheck] Error checking for duplicates:', error);
+      // If check fails, allow creation (fail open)
+      return { isDuplicate: false, canOverride: true };
+    }
+  };
 
   const handleSave = async () => {
     setValidationError('');
@@ -91,6 +129,19 @@ export default function ExpensesScreen() {
     }
 
     try {
+      // Generate duplicate detection fields if we have receipt data
+      const imageHash = receiptBase64
+        ? generateImageHash(receiptBase64)
+        : undefined;
+
+      const ocrFingerprint = store && amount
+        ? generateOCRFingerprint(store, parseFloat(amount), new Date().toISOString())
+        : undefined;
+
+      const imageSizeBytes = receiptBase64
+        ? getBase64ByteSize(receiptBase64)
+        : undefined;
+
       await addExpense({
         id: Date.now().toString(),
         projectId: selectedProjectId,
@@ -100,6 +151,9 @@ export default function ExpensesScreen() {
         store,
         date: new Date().toISOString(),
         receiptUrl: receiptImage || undefined,
+        imageHash,
+        ocrFingerprint,
+        imageSizeBytes,
       });
 
       // Refresh expenses from database to ensure UI is in sync
@@ -110,6 +164,8 @@ export default function ExpensesScreen() {
       setReceiptImage(null);
       setReceiptType(null);
       setReceiptFileName(null);
+      setReceiptBase64(null);
+      setOcrData(null);
       setValidationError('');
     } catch (error) {
       console.error('Error adding expense:', error);
@@ -316,6 +372,59 @@ export default function ExpensesScreen() {
 
       const result = apiResult.data;
 
+      // Store base64 and OCR data for duplicate detection
+      setReceiptBase64(imageData);
+      setOcrData(result);
+
+      // Check for duplicates before auto-filling
+      console.log('[OCR] Checking for duplicates...');
+      const duplicateCheck = await checkForDuplicates(imageData, result);
+
+      if (duplicateCheck.isDuplicate) {
+        if (!duplicateCheck.canOverride) {
+          // Exact duplicate - block
+          Alert.alert('Duplicate Receipt', duplicateCheck.message);
+          setReceiptImage(null);
+          setReceiptType(null);
+          setReceiptBase64(null);
+          setOcrData(null);
+          return;
+        } else {
+          // Similar receipt - show warning
+          Alert.alert(
+            'Possible Duplicate Receipt',
+            `${duplicateCheck.message}\n\nDo you want to add this expense anyway?`,
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+                onPress: () => {
+                  setReceiptImage(null);
+                  setReceiptType(null);
+                  setReceiptBase64(null);
+                  setOcrData(null);
+                },
+              },
+              {
+                text: 'Add Anyway',
+                onPress: () => {
+                  // Continue with auto-fill
+                  if (result.store) setStore(result.store);
+                  if (result.amount) {
+                    setAmount(result.amount.toFixed(2));
+                  }
+                  if (result.category && priceListCategories.includes(result.category)) {
+                    setCategory(result.category);
+                  }
+                },
+              },
+            ]
+          );
+          return;
+        }
+      }
+
+      // No duplicate, continue normally
       if (result.store) setStore(result.store);
       if (result.amount) {
         setAmount(result.amount.toFixed(2));
