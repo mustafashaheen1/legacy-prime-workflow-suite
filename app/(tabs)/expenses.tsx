@@ -23,11 +23,19 @@ export default function ExpensesScreen() {
   const [showExpenseTypePicker, setShowExpenseTypePicker] = useState<boolean>(false);
   const [showSubcategoryPicker, setShowSubcategoryPicker] = useState<boolean>(false);
   const [customCategory, setCustomCategory] = useState<string>('');
+  const [validationError, setValidationError] = useState<string>('');
 
   // Reload expenses when component mounts
   useEffect(() => {
     refreshExpenses();
   }, [refreshExpenses]);
+
+  // Clear validation error when user changes any field
+  useEffect(() => {
+    if (validationError) {
+      setValidationError('');
+    }
+  }, [amount, store, expenseType, category]);
 
   const activeProjects = useMemo(() =>
     projects.filter(p => p.status === 'active'),
@@ -50,8 +58,7 @@ export default function ExpensesScreen() {
   );
 
   const handleSave = async () => {
-    console.log('[Expenses] Save clicked - validating fields...');
-    console.log('[Expenses] Current values:', { expenseType, category, amount, store, selectedProjectId });
+    setValidationError('');
 
     const missingFields: string[] = [];
 
@@ -66,8 +73,7 @@ export default function ExpensesScreen() {
     if (!amount || amount.trim() === '') {
       missingFields.push('Amount');
     } else if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      console.log('[Expenses] Invalid amount detected');
-      Alert.alert('Invalid Amount', 'Please enter a valid amount greater than 0.');
+      setValidationError('Please enter a valid amount greater than 0');
       return;
     }
 
@@ -80,15 +86,9 @@ export default function ExpensesScreen() {
     }
 
     if (missingFields.length > 0) {
-      console.log('[Expenses] Missing fields detected:', missingFields);
-      Alert.alert(
-        'Missing Information',
-        `Please fill out all required fields:\n\n${missingFields.map(f => `• ${f}`).join('\n')}`
-      );
+      setValidationError(`Please fill out all required fields: ${missingFields.join(', ')}`);
       return;
     }
-
-    console.log('[Expenses] Validation passed, saving expense...');
 
     try {
       await addExpense({
@@ -110,10 +110,10 @@ export default function ExpensesScreen() {
       setReceiptImage(null);
       setReceiptType(null);
       setReceiptFileName(null);
-      Alert.alert('Success', 'Expense added successfully!');
+      setValidationError('');
     } catch (error) {
       console.error('Error adding expense:', error);
-      Alert.alert('Error', 'Failed to add expense. Please try again.');
+      setValidationError('Failed to add expense. Please try again.');
     }
   };
 
@@ -500,6 +500,12 @@ export default function ExpensesScreen() {
             value={store}
             onChangeText={setStore}
           />
+
+          {validationError && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{validationError}</Text>
+            </View>
+          )}
 
           <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
             <Text style={styles.saveButtonText}>Save</Text>
@@ -1032,5 +1038,18 @@ const styles = StyleSheet.create({
   },
   removeFileButton: {
     padding: 8,
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '600' as const,
   },
 });
