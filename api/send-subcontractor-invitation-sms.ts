@@ -60,28 +60,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const registrationToken = `sub_reg_${timestamp}_${randomString}`;
 
     // Get company name for SMS
-    const { data: company } = await supabase
-      .from('companies')
-      .select('name')
-      .eq('id', companyId)
-      .single();
+    let companyName = 'Legacy Prime Construction';
+    try {
+      const { data: company } = await supabase
+        .from('companies')
+        .select('name')
+        .eq('id', companyId)
+        .single();
 
-    const companyName = company?.name || 'Legacy Prime Construction';
+      if (company?.name) {
+        companyName = company.name;
+      }
+    } catch (companyError) {
+      console.log('[API] Could not fetch company name, using default');
+    }
 
-    // Store token in database
-    const { error: tokenError } = await supabase
-      .from('registration_tokens')
-      .insert({
-        token: registrationToken,
-        company_id: companyId,
-        invited_by: invitedBy,
-        created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      });
-
-    if (tokenError) {
-      console.error('[API] Error storing registration token:', tokenError);
-      // Continue anyway - token is in the URL
+    // Store token in database (optional - token is in URL anyway)
+    try {
+      await supabase
+        .from('registration_tokens')
+        .insert({
+          token: registrationToken,
+          company_id: companyId,
+          invited_by: invitedBy,
+          created_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+    } catch (tokenError) {
+      console.log('[API] Could not store registration token (table may not exist), continuing anyway');
     }
 
     // Generate registration URL
@@ -91,10 +97,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Create SMS message
     const smsMessage = `${companyName} has invited you to join as a subcontractor. Complete your profile here: ${registrationUrl} (Link expires in 7 days)`;
 
+    console.log('[API] About to initialize Twilio client...');
+    console.log('[API] Twilio Account SID present:', !!twilioAccountSid);
+    console.log('[API] Twilio Auth Token present:', !!twilioAuthToken);
+    console.log('[API] Twilio Phone Number:', twilioPhoneNumber);
+
     // Initialize Twilio client and send SMS
-    const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
+    let twilioClient;
+    try {
+      twilioClient = twilio(twilioAccountSid, twilioAuthToken);
+      console.log('[API] Twilio client initialized successfully');
+    } catch (initError: any) {
+      console.error('[API] Failed to initialize Twilio client:', initError);
+      throw new Error(`Twilio initialization failed: ${initError.message}`);
+    }
 
     console.log('[API] Sending SMS to:', phoneNumber);
+    console.log('[API] SMS message length:', smsMessage.length);
 
     const message = await twilioClient.messages.create({
       body: smsMessage,
@@ -112,6 +131,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (error: any) {
     console.error('[API] Error sending SMS invitation:', error);
+    console.error('[API] Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
 
     // Handle specific Twilio errors
     if (error.code === 21211) {
@@ -124,9 +148,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Invalid phone number for this region' });
     }
 
+    // Return detailed error for debugging
     return res.status(500).json({
       error: 'Failed to send SMS',
-      message: error.message
+      message: error.message,
+      details: error.toString(),
+      code: error.code || 'UNKNOWN'
     });
   }
 }

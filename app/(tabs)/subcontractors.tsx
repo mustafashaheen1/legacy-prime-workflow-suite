@@ -289,7 +289,16 @@ export default function SubcontractorsScreen() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send SMS invitation');
+        // Create detailed error message
+        let errorMsg = data.error || 'Failed to send SMS invitation';
+        if (data.message) {
+          errorMsg += `: ${data.message}`;
+        }
+        if (data.details) {
+          console.error('[SMS Error Details]:', data.details);
+          errorMsg += ` (${data.details})`;
+        }
+        throw new Error(errorMsg);
       }
 
       setShowSmsPhoneModal(false);
@@ -302,7 +311,11 @@ export default function SubcontractorsScreen() {
       );
     } catch (error: any) {
       console.error('[Send SMS Invitation] Error:', error);
-      setSmsPhoneError(error.message || 'Failed to send SMS. Please try again.');
+      const errorMessage = error.message || 'Failed to send SMS. Please try again.';
+      setSmsPhoneError(errorMessage);
+
+      // Also show alert for better visibility
+      Alert.alert('SMS Error', errorMessage);
     } finally {
       setSendingSms(false);
     }
