@@ -3,6 +3,22 @@ import { createClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
 import twilio from 'twilio';
 
+// Helper functions to get Twilio credentials from multiple possible env var names
+const getTwilioAccountSid = () => {
+  return process.env.TWILIO_ACCOUNT_SID ||
+         process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID;
+};
+
+const getTwilioAuthToken = () => {
+  return process.env.TWILIO_AUTH_TOKEN ||
+         process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN;
+};
+
+const getTwilioPhoneNumber = () => {
+  return process.env.TWILIO_PHONE_NUMBER ||
+         process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER;
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -30,16 +46,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Check Twilio credentials
-    const twilioAccountSid = process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID;
-    const twilioAuthToken = process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN;
-    const twilioPhoneNumber = process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER;
+    // Log environment variable status for debugging
+    console.log('[API] Environment check:', {
+      TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? 'SET' : 'NOT SET',
+      TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ? 'SET' : 'NOT SET',
+      TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER ? 'SET' : 'NOT SET',
+      EXPO_PUBLIC_TWILIO_ACCOUNT_SID: process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID ? 'SET' : 'NOT SET',
+      EXPO_PUBLIC_TWILIO_AUTH_TOKEN: process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN ? 'SET' : 'NOT SET',
+      EXPO_PUBLIC_TWILIO_PHONE_NUMBER: process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER ? 'SET' : 'NOT SET',
+    });
+
+    // Get Twilio credentials using helper functions
+    const twilioAccountSid = getTwilioAccountSid();
+    const twilioAuthToken = getTwilioAuthToken();
+    const twilioPhoneNumber = getTwilioPhoneNumber();
+
+    console.log('[API] Resolved Twilio credentials:', {
+      accountSid: twilioAccountSid ? `${twilioAccountSid.substring(0, 10)}...` : 'MISSING',
+      authToken: twilioAuthToken ? 'SET' : 'MISSING',
+      phoneNumber: twilioPhoneNumber || 'MISSING',
+    });
 
     if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber) {
-      console.error('[API] Twilio credentials missing');
+      console.error('[API] Twilio credentials missing after checking all env vars');
       return res.status(500).json({
         error: 'SMS service not configured',
-        details: 'Twilio credentials are missing. Please configure EXPO_PUBLIC_TWILIO_ACCOUNT_SID, EXPO_PUBLIC_TWILIO_AUTH_TOKEN, and EXPO_PUBLIC_TWILIO_PHONE_NUMBER.'
+        details: 'Twilio credentials are missing. Please configure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER in Vercel environment variables.'
       });
     }
 
