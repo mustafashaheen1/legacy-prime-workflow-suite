@@ -27,6 +27,13 @@ export default function SubcontractorsScreen() {
   const [fieldErrors, setFieldErrors] = useState<{[key: string]: string}>({});
   const [sendingInvitation, setSendingInvitation] = useState<boolean>(false);
 
+  // Invite method selection
+  const [showInviteMethodModal, setShowInviteMethodModal] = useState<boolean>(false);
+  const [showSmsPhoneModal, setShowSmsPhoneModal] = useState<boolean>(false);
+  const [smsPhoneNumber, setSmsPhoneNumber] = useState<string>('');
+  const [smsPhoneError, setSmsPhoneError] = useState<string>('');
+  const [sendingSms, setSendingSms] = useState<boolean>(false);
+
   const [formData, setFormData] = useState({
     name: '',
     companyName: '',
@@ -182,12 +189,16 @@ export default function SubcontractorsScreen() {
     }
   };
 
-  const handleSendInvite = async () => {
+  const handleSendInvite = () => {
     if (!user) {
       Alert.alert('Error', 'User information not found');
       return;
     }
+    setShowInviteMethodModal(true);
+  };
 
+  const handleSendInviteViaEmail = async () => {
+    setShowInviteMethodModal(false);
     setSendingInvitation(true);
 
     try {
@@ -197,8 +208,8 @@ export default function SubcontractorsScreen() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          companyId: user.companyId,
-          invitedBy: user.id,
+          companyId: user?.companyId,
+          invitedBy: user?.id,
         }),
       });
 
@@ -208,7 +219,6 @@ export default function SubcontractorsScreen() {
         throw new Error(data.error || 'Failed to generate invitation');
       }
 
-      // Open email client with pre-filled subject and body, but NO recipient
       const mailtoUrl = `mailto:?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
 
       if (Platform.OS === 'web') {
@@ -227,6 +237,74 @@ export default function SubcontractorsScreen() {
       Alert.alert('Error', error.message || 'Failed to generate invitation. Please try again.');
     } finally {
       setSendingInvitation(false);
+    }
+  };
+
+  const handleChooseSms = () => {
+    setShowInviteMethodModal(false);
+    setSmsPhoneNumber('');
+    setSmsPhoneError('');
+    setTimeout(() => setShowSmsPhoneModal(true), 200);
+  };
+
+  const validateUsPhoneNumber = (phone: string): boolean => {
+    // Remove any non-digit characters for validation
+    const digitsOnly = phone.replace(/\D/g, '');
+    return digitsOnly.length === 10 && /^\d{10}$/.test(digitsOnly);
+  };
+
+  const formatPhoneInput = (text: string): string => {
+    // Only allow digits
+    return text.replace(/\D/g, '').slice(0, 10);
+  };
+
+  const handleSendInviteViaSms = async () => {
+    // Validate phone number
+    if (!smsPhoneNumber) {
+      setSmsPhoneError('Please enter a phone number');
+      return;
+    }
+
+    if (!validateUsPhoneNumber(smsPhoneNumber)) {
+      setSmsPhoneError('Please enter a valid 10-digit US phone number');
+      return;
+    }
+
+    setSmsPhoneError('');
+    setSendingSms(true);
+
+    try {
+      const response = await fetch('/api/send-subcontractor-invitation-sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyId: user?.companyId,
+          invitedBy: user?.id,
+          phoneNumber: `+1${smsPhoneNumber}`, // Add US country code
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send SMS invitation');
+      }
+
+      setShowSmsPhoneModal(false);
+      setSmsPhoneNumber('');
+
+      Alert.alert(
+        'SMS Sent!',
+        `Invitation link has been sent to (${smsPhoneNumber.slice(0, 3)}) ${smsPhoneNumber.slice(3, 6)}-${smsPhoneNumber.slice(6, 10)}`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('[Send SMS Invitation] Error:', error);
+      setSmsPhoneError(error.message || 'Failed to send SMS. Please try again.');
+    } finally {
+      setSendingSms(false);
     }
   };
 
@@ -1019,6 +1097,159 @@ export default function SubcontractorsScreen() {
         </View>
       </Modal>
 
+      {/* Invite Method Selection Modal */}
+      <Modal
+        visible={showInviteMethodModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowInviteMethodModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.inviteMethodModal}>
+            <View style={styles.inviteMethodHeader}>
+              <Text style={styles.inviteMethodTitle}>Send Invitation</Text>
+              <TouchableOpacity
+                style={styles.inviteMethodCloseBtn}
+                onPress={() => setShowInviteMethodModal(false)}
+              >
+                <X size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inviteMethodSubtitle}>
+              How would you like to send the subcontractor invitation?
+            </Text>
+
+            <View style={styles.inviteMethodOptions}>
+              <TouchableOpacity
+                style={styles.inviteMethodOption}
+                onPress={handleSendInviteViaEmail}
+                disabled={sendingInvitation}
+              >
+                <View style={[styles.inviteMethodIconBox, { backgroundColor: '#EFF6FF' }]}>
+                  <Mail size={28} color="#2563EB" />
+                </View>
+                <Text style={styles.inviteMethodOptionTitle}>Email</Text>
+                <Text style={styles.inviteMethodOptionDesc}>
+                  Opens your email client with the invitation link
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.inviteMethodOption}
+                onPress={handleChooseSms}
+              >
+                <View style={[styles.inviteMethodIconBox, { backgroundColor: '#F0FDF4' }]}>
+                  <MessageSquare size={28} color="#10B981" />
+                </View>
+                <Text style={styles.inviteMethodOptionTitle}>SMS</Text>
+                <Text style={styles.inviteMethodOptionDesc}>
+                  Send invitation link via text message
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.inviteMethodCancelBtn}
+              onPress={() => setShowInviteMethodModal(false)}
+            >
+              <Text style={styles.inviteMethodCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* SMS Phone Number Modal */}
+      <Modal
+        visible={showSmsPhoneModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSmsPhoneModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.smsPhoneModal}>
+            <View style={styles.smsPhoneHeader}>
+              <Text style={styles.smsPhoneTitle}>Send SMS Invitation</Text>
+              <TouchableOpacity
+                style={styles.smsPhoneCloseBtn}
+                onPress={() => setShowSmsPhoneModal(false)}
+              >
+                <X size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.smsPhoneSubtitle}>
+              Enter the subcontractor's phone number to send them the registration link via SMS.
+            </Text>
+
+            <View style={styles.smsPhoneInputContainer}>
+              <Text style={styles.smsPhoneLabel}>Phone Number</Text>
+              <View style={styles.smsPhoneInputWrapper}>
+                <Text style={styles.smsPhonePrefix}>+1</Text>
+                <TextInput
+                  style={styles.smsPhoneInput}
+                  value={smsPhoneNumber}
+                  onChangeText={(text) => {
+                    setSmsPhoneNumber(formatPhoneInput(text));
+                    setSmsPhoneError('');
+                  }}
+                  placeholder="(555) 123-4567"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
+              {smsPhoneError ? (
+                <Text style={styles.smsPhoneErrorText}>{smsPhoneError}</Text>
+              ) : (
+                <Text style={styles.smsPhoneHint}>Enter 10-digit US phone number</Text>
+              )}
+            </View>
+
+            {/* Phone number preview */}
+            {smsPhoneNumber.length === 10 && (
+              <View style={styles.smsPhonePreview}>
+                <Phone size={16} color="#10B981" />
+                <Text style={styles.smsPhonePreviewText}>
+                  +1 ({smsPhoneNumber.slice(0, 3)}) {smsPhoneNumber.slice(3, 6)}-{smsPhoneNumber.slice(6, 10)}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.smsPhoneActions}>
+              <TouchableOpacity
+                style={styles.smsPhoneCancelBtn}
+                onPress={() => {
+                  setShowSmsPhoneModal(false);
+                  setSmsPhoneNumber('');
+                  setSmsPhoneError('');
+                }}
+              >
+                <Text style={styles.smsPhoneCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.smsPhoneSendBtn,
+                  (!validateUsPhoneNumber(smsPhoneNumber) || sendingSms) && styles.smsPhoneSendBtnDisabled
+                ]}
+                onPress={handleSendInviteViaSms}
+                disabled={!validateUsPhoneNumber(smsPhoneNumber) || sendingSms}
+              >
+                {sendingSms ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Send size={18} color="#FFFFFF" />
+                    <Text style={styles.smsPhoneSendText}>Send SMS</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -1757,5 +1988,206 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#16A34A',
+  },
+
+  // Invite Method Modal Styles
+  inviteMethodModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+  },
+  inviteMethodHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 8,
+  },
+  inviteMethodTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  inviteMethodCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  inviteMethodSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginBottom: 24,
+  },
+  inviteMethodOptions: {
+    flexDirection: 'row' as const,
+    gap: 16,
+    marginBottom: 20,
+  },
+  inviteMethodOption: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center' as const,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  inviteMethodIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 12,
+  },
+  inviteMethodOptionTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  inviteMethodOptionDesc: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center' as const,
+  },
+  inviteMethodCancelBtn: {
+    paddingVertical: 14,
+    alignItems: 'center' as const,
+  },
+  inviteMethodCancelText: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '600' as const,
+  },
+
+  // SMS Phone Modal Styles
+  smsPhoneModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    maxWidth: 420,
+  },
+  smsPhoneHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 8,
+  },
+  smsPhoneTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  smsPhoneCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  smsPhoneSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  smsPhoneInputContainer: {
+    marginBottom: 16,
+  },
+  smsPhoneLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#374151',
+    marginBottom: 8,
+  },
+  smsPhoneInputWrapper: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  smsPhonePrefix: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginRight: 8,
+  },
+  smsPhoneInput: {
+    flex: 1,
+    paddingVertical: 16,
+    fontSize: 18,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+    letterSpacing: 1,
+  },
+  smsPhoneHint: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 6,
+  },
+  smsPhoneErrorText: {
+    fontSize: 13,
+    color: '#EF4444',
+    marginTop: 6,
+  },
+  smsPhonePreview: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#F0FDF4',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 20,
+    gap: 8,
+  },
+  smsPhonePreviewText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#10B981',
+  },
+  smsPhoneActions: {
+    flexDirection: 'row' as const,
+    gap: 12,
+    marginTop: 8,
+  },
+  smsPhoneCancelBtn: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+  },
+  smsPhoneCancelText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  smsPhoneSendBtn: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#10B981',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+  },
+  smsPhoneSendBtnDisabled: {
+    opacity: 0.5,
+  },
+  smsPhoneSendText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
 });
