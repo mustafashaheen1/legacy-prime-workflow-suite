@@ -1,6 +1,30 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { generateImageHash, generateOCRFingerprint } from '../lib/receipt-duplicate-detection';
+import crypto from 'crypto';
+
+// Server-side hash generation (Node.js crypto)
+async function generateImageHash(base64Data: string): Promise<string> {
+  const base64Content = base64Data.replace(/^data:image\/[a-z]+;base64,/, '');
+  return crypto
+    .createHash('sha256')
+    .update(base64Content)
+    .digest('hex');
+}
+
+// OCR fingerprint generation
+function generateOCRFingerprint(store: string, amount: number, date: string | Date): string {
+  const normalizedStore = store
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, '_');
+
+  const formattedAmount = amount.toFixed(2);
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const dateStr = dateObj.toISOString().slice(0, 10).replace(/-/g, '');
+
+  return `${normalizedStore}_${formattedAmount}_${dateStr}`;
+}
 
 export const config = {
   maxDuration: 30,

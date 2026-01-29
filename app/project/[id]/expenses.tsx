@@ -393,10 +393,25 @@ export default function ProjectExpensesScreen() {
       setModalAmount('');
       setModalCategory('');
 
-      Alert.alert('Success', 'Expense saved successfully!');
+      if (Platform.OS === 'web') {
+        window.alert('Expense saved successfully!');
+      } else {
+        Alert.alert('Success', 'Expense saved successfully!');
+      }
     } catch (error: any) {
       console.error('[Expenses] Error saving expense from modal:', error);
-      Alert.alert('Error', `Failed to save expense: ${error.message || 'Unknown error'}`);
+
+      // Show user-friendly error message
+      let errorMessage = error.message || 'Failed to save expense';
+      if (errorMessage.includes('Duplicate receipt')) {
+        errorMessage = 'This receipt has already been added to your expenses. Please use a different receipt.';
+      }
+
+      if (Platform.OS === 'web') {
+        window.alert(`Error: ${errorMessage}`);
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setIsSavingExpense(false);
     }

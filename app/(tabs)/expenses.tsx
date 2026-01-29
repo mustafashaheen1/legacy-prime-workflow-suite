@@ -167,9 +167,30 @@ export default function ExpensesScreen() {
       setReceiptBase64(null);
       setOcrData(null);
       setValidationError('');
-    } catch (error) {
+
+      // Show success message
+      if (Platform.OS === 'web') {
+        window.alert('Expense added successfully!');
+      } else {
+        Alert.alert('Success', 'Expense added successfully!');
+      }
+    } catch (error: any) {
       console.error('Error adding expense:', error);
-      setValidationError('Failed to add expense. Please try again.');
+
+      // Show user-friendly error message
+      let errorMessage = error.message || 'Failed to add expense';
+      if (errorMessage.includes('Duplicate receipt')) {
+        errorMessage = 'This receipt has already been added to your expenses. Please use a different receipt.';
+      }
+
+      setValidationError(errorMessage);
+
+      // Also show alert for visibility
+      if (Platform.OS === 'web') {
+        window.alert(`Error: ${errorMessage}`);
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     }
   };
 
@@ -383,7 +404,12 @@ export default function ExpensesScreen() {
       if (duplicateCheck.isDuplicate) {
         if (!duplicateCheck.canOverride) {
           // Exact duplicate - block
-          Alert.alert('Duplicate Receipt', duplicateCheck.message);
+          const blockMessage = 'This receipt has already been added to your expenses. You cannot add the same receipt image twice.';
+          if (Platform.OS === 'web') {
+            window.alert(blockMessage);
+          } else {
+            Alert.alert('Duplicate Receipt', blockMessage);
+          }
           setReceiptImage(null);
           setReceiptType(null);
           setReceiptBase64(null);
@@ -391,36 +417,48 @@ export default function ExpensesScreen() {
           return;
         } else {
           // Similar receipt - show warning
-          Alert.alert(
-            'Possible Duplicate Receipt',
-            `${duplicateCheck.message}\n\nDo you want to add this expense anyway?`,
-            [
-              {
-                text: 'Cancel',
-                style: 'cancel',
-                onPress: () => {
-                  setReceiptImage(null);
-                  setReceiptType(null);
-                  setReceiptBase64(null);
-                  setOcrData(null);
+          if (Platform.OS === 'web') {
+            const proceed = window.confirm(`${duplicateCheck.message}\n\nDo you want to add this expense anyway?`);
+            if (!proceed) {
+              setReceiptImage(null);
+              setReceiptType(null);
+              setReceiptBase64(null);
+              setOcrData(null);
+              return;
+            }
+            // User chose to proceed - continue with auto-fill below
+          } else {
+            Alert.alert(
+              'Possible Duplicate Receipt',
+              `${duplicateCheck.message}\n\nDo you want to add this expense anyway?`,
+              [
+                {
+                  text: 'Cancel',
+                  style: 'cancel',
+                  onPress: () => {
+                    setReceiptImage(null);
+                    setReceiptType(null);
+                    setReceiptBase64(null);
+                    setOcrData(null);
+                  },
                 },
-              },
-              {
-                text: 'Add Anyway',
-                onPress: () => {
-                  // Continue with auto-fill
-                  if (result.store) setStore(result.store);
-                  if (result.amount) {
-                    setAmount(result.amount.toFixed(2));
-                  }
-                  if (result.category && priceListCategories.includes(result.category)) {
-                    setCategory(result.category);
-                  }
+                {
+                  text: 'Add Anyway',
+                  onPress: () => {
+                    // Continue with auto-fill
+                    if (result.store) setStore(result.store);
+                    if (result.amount) {
+                      setAmount(result.amount.toFixed(2));
+                    }
+                    if (result.category && priceListCategories.includes(result.category)) {
+                      setCategory(result.category);
+                    }
+                  },
                 },
-              },
-            ]
-          );
-          return;
+              ]
+            );
+            return;
+          }
         }
       }
 

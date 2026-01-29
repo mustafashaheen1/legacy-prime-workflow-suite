@@ -1092,7 +1092,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `HTTP ${response.status}`);
+          const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+          throw new Error(errorMessage);
         }
 
         const result = await response.json();
