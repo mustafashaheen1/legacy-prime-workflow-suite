@@ -31,15 +31,23 @@ export default function ExpensesScreen() {
     refreshExpenses();
   }, [refreshExpenses]);
 
+  // Debug logging
+  useEffect(() => {
+    console.log('[Expenses] All expenses:', expenses);
+    console.log('[Expenses] Selected project ID:', selectedProjectId);
+    console.log('[Expenses] All projects:', projects);
+  }, [expenses, selectedProjectId, projects]);
+
   const activeProjects = useMemo(() =>
     projects.filter(p => p.status === 'active'),
     [projects]
   );
 
-  const filteredExpenses = useMemo(() => 
-    expenses.filter(e => e.projectId === selectedProjectId),
-    [expenses, selectedProjectId]
-  );
+  const filteredExpenses = useMemo(() => {
+    const filtered = expenses.filter(e => e.projectId === selectedProjectId);
+    console.log('[Expenses] Filtered expenses for project', selectedProjectId, ':', filtered);
+    return filtered;
+  }, [expenses, selectedProjectId]);
 
   const projectExpenseTotal = useMemo(() => 
     filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
