@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput,
 import { CheckSquare, Plus, X, Calendar, Bell, Trash2, Check, Clock } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
 import { DailyTask } from '@/types';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface DailyTasksButtonProps {
   buttonStyle?: object;
@@ -34,6 +35,8 @@ export default function DailyTasksButton({
   const [newTaskTime, setNewTaskTime] = useState<string>('09:00');
   const [newTaskReminder, setNewTaskReminder] = useState<boolean>(false);
   const [newTaskNotes, setNewTaskNotes] = useState<string>('');
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   // Helper functions
   const showAlert = (title: string, message: string) => {
@@ -79,12 +82,35 @@ export default function DailyTasksButton({
     return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   };
 
+  const handleDateChange = (event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+
+    if (date) {
+      setSelectedDate(date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      setNewTaskDateString(`${year}-${month}-${day}`);
+
+      if (Platform.OS === 'ios') {
+        setShowDatePicker(false);
+      }
+    } else if (Platform.OS === 'android') {
+      // User cancelled on Android
+      setShowDatePicker(false);
+    }
+  };
+
   const resetTaskForm = () => {
     setNewTaskTitle('');
     setNewTaskDateString('');
     setNewTaskTime('09:00');
     setNewTaskReminder(false);
     setNewTaskNotes('');
+    setShowDatePicker(false);
+    setSelectedDate(new Date());
   };
 
   const isValidFutureDate = (): boolean => {
@@ -304,21 +330,42 @@ export default function DailyTasksButton({
               {/* Due Date */}
               <View style={styles.field}>
                 <Text style={styles.label}>Due Date <Text style={styles.required}>*</Text></Text>
-                <View style={styles.inputWithIcon}>
-                  <Calendar size={20} color="#6B7280" />
-                  <TextInput
-                    style={styles.inputInner}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9CA3AF"
-                    value={newTaskDateString}
-                    onChangeText={(text) => {
-                      const cleaned = text.replace(/[^0-9-]/g, '');
-                      setNewTaskDateString(cleaned);
-                    }}
-                    keyboardType="numeric"
-                    maxLength={10}
-                  />
-                </View>
+                {Platform.OS === 'web' ? (
+                  <View style={styles.inputWithIcon}>
+                    <Calendar size={20} color="#6B7280" />
+                    <input
+                      type="date"
+                      style={{
+                        flex: 1,
+                        paddingTop: 14,
+                        paddingBottom: 14,
+                        fontSize: 16,
+                        color: '#1F2937',
+                        border: 'none',
+                        outline: 'none',
+                        backgroundColor: 'transparent',
+                        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                      }}
+                      value={newTaskDateString}
+                      onChange={(e) => {
+                        const value = (e.target as HTMLInputElement).value;
+                        setNewTaskDateString(value);
+                      }}
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.inputWithIcon}
+                    onPress={() => setShowDatePicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Calendar size={20} color="#6B7280" />
+                    <Text style={[styles.dateText, !newTaskDateString && styles.datePlaceholder]}>
+                      {newTaskDateString || 'Select a date'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* Due Time */}
@@ -412,6 +459,17 @@ export default function DailyTasksButton({
           </View>
         </View>
       </Modal>
+
+      {/* Date Picker - Native Only */}
+      {Platform.OS !== 'web' && showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+          minimumDate={new Date()}
+        />
+      )}
     </>
   );
 }
@@ -677,6 +735,15 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: '#1F2937',
+  },
+  dateText: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  datePlaceholder: {
+    color: '#9CA3AF',
   },
   timePresets: {
     flexDirection: 'row',
