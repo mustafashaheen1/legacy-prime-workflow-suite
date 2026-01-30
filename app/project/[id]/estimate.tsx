@@ -237,6 +237,20 @@ export default function EstimateScreen() {
   const getCategoryItems = (category: string) => {
     let items = priceListItems.filter(item => item.category === category);
 
+    // Filter out master items if a custom override exists with the same name
+    const customItemNames = new Set(
+      items.filter(item => item.isCustom).map(item => `${item.category}:${item.name}`)
+    );
+
+    items = items.filter(item => {
+      if (!item.isCustom) {
+        // This is a master item - only show it if no custom override exists
+        const key = `${item.category}:${item.name}`;
+        return !customItemNames.has(key);
+      }
+      return true; // Always show custom items
+    });
+
     // Filter by search query if present
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -467,37 +481,16 @@ export default function EstimateScreen() {
     setEditingPriceItemId(null);
     setEditingPrice('');
 
-    // If it's a master item (not custom), create a custom override for this company
-    if (!itemToEdit.isCustom) {
-      console.log('[Estimate] Creating custom override for master item:', itemToEdit.name);
+    // Update the price in local state IMMEDIATELY for both master and custom items
+    updateCustomPriceListItem(editingPriceItemId, { unitPrice: newPrice });
 
-      const customItem: CustomPriceListItem = {
-        id: `custom-${Date.now()}`,
-        category: itemToEdit.category,
-        name: `${itemToEdit.name} (Custom Price)`,
-        description: itemToEdit.description || '',
-        unit: itemToEdit.unit,
-        unitPrice: newPrice,
-        isCustom: true,
-        createdAt: new Date().toISOString(),
-      };
+    // Show success immediately
+    Alert.alert('Success', 'Price updated to $' + newPrice.toFixed(2));
 
-      // Don't await - save happens immediately in AppContext, backend sync is background
-      addCustomPriceListItem(customItem);
+    // If it's a custom item, update in database
+    if (itemToEdit.isCustom) {
+      console.log('[Estimate] Updating custom item in database:', itemToEdit.name);
 
-      // Show success immediately
-      Alert.alert('Success', 'Custom price item created! The original master item remains unchanged.');
-    } else {
-      // It's a custom item, update it directly
-      console.log('[Estimate] Updating custom item:', itemToEdit.name);
-
-      // Update local state immediately
-      updateCustomPriceListItem(editingPriceItemId, { unitPrice: newPrice });
-
-      // Show success immediately
-      Alert.alert('Success', 'Price updated successfully!');
-
-      // Update backend in background (non-blocking)
       (async () => {
         try {
           await vanillaClient.priceList.updatePriceListItem.mutate({
@@ -508,7 +501,31 @@ export default function EstimateScreen() {
           console.log('[Estimate] Price updated in database');
         } catch (error) {
           console.error('[Estimate] Error updating price in database:', error);
-          // Price is already updated locally, so don't show error to user
+        }
+      })();
+    } else {
+      // It's a master item - create a company-specific override with same name
+      console.log('[Estimate] Creating company override for master item:', itemToEdit.name);
+
+      (async () => {
+        try {
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
+          await fetch(`${apiUrl}/api/add-price-item-direct`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId: company.id,
+              category: itemToEdit.category,
+              name: itemToEdit.name, // Same name, no "(Custom Price)"
+              unit: itemToEdit.unit,
+              unitPrice: newPrice,
+            }),
+            signal: AbortSignal.timeout(8000),
+          });
+          console.log('[Estimate] Company override created in database');
+        } catch (error) {
+          console.error('[Estimate] Error creating override:', error);
         }
       })();
     }
@@ -2359,9 +2376,7 @@ export default function EstimateScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Price</Text>
             <Text style={styles.modalSubtitle}>
-              {priceListItems.find(item => item.id === editingPriceItemId)?.isCustom
-                ? 'Update the unit price for this custom item'
-                : 'Create a custom override for this master item'}
+              Update the unit price for this item
             </Text>
 
             <Text style={styles.modalLabel}>Unit Price *</Text>
@@ -2391,11 +2406,7 @@ export default function EstimateScreen() {
                 style={styles.modalAddButton}
                 onPress={handleUpdatePrice}
               >
-                <Text style={styles.modalAddButtonText}>
-                  {priceListItems.find(item => item.id === editingPriceItemId)?.isCustom
-                    ? 'Update Price'
-                    : 'Create Custom'}
-                </Text>
+                <Text style={styles.modalAddButtonText}>Update Price</Text>
               </TouchableOpacity>
             </View>
           </View>
