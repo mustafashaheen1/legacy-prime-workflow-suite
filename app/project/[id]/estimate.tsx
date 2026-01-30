@@ -367,6 +367,39 @@ export default function EstimateScreen() {
     ));
   };
 
+  // Compress image on web using canvas
+  const compressImageForEstimate = async (uri: string, maxWidth: number = 1200, quality: number = 0.7): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = uri;
+    });
+  };
+
   const pickItemImage = async (itemId: string, source: 'camera' | 'library') => {
     const permission = source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
@@ -394,17 +427,10 @@ export default function EstimateScreen() {
         let base64Data: string;
 
         if (Platform.OS === 'web') {
-          // Web: Fetch blob and convert to base64
-          console.log('[Estimate] Converting blob to base64 (web)...');
-          const response = await fetch(localUri);
-          const blob = await response.blob();
-          base64Data = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-          console.log('[Estimate] Base64 conversion complete, length:', base64Data.length);
+          // Web: Compress image first, then convert to base64
+          console.log('[Estimate] Compressing image (web)...');
+          base64Data = await compressImageForEstimate(localUri, 1200, 0.7);
+          console.log('[Estimate] Compression complete, length:', base64Data.length);
         } else {
           // Mobile: Use FileSystem to read as base64
           console.log('[Estimate] Converting to base64 (mobile)...');
@@ -440,13 +466,26 @@ export default function EstimateScreen() {
         } else {
           const errorText = await uploadResponse.text();
           console.error('[Estimate] Failed to upload image to S3:', errorText);
-          Alert.alert('Upload Failed', 'Could not upload image to cloud storage. Please try again.');
-          // Keep the local URI so user can see the image
+
+          if (uploadResponse.status === 413) {
+            Alert.alert('Image Too Large', 'The image is too large to upload. Please try a smaller image or take a new photo.');
+          } else {
+            Alert.alert('Upload Failed', 'Could not upload image to cloud storage. Please try again.');
+          }
+          // Remove the local URI since upload failed
+          removeItemImage(itemId);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('[Estimate] Error uploading image:', error);
-        Alert.alert('Upload Error', 'Could not upload image. Please check your connection and try again.');
-        // Keep the local URI so user can see the image
+
+        if (error.message?.includes('Failed to load image')) {
+          Alert.alert('Error', 'Failed to process image. Please try a different image.');
+        } else {
+          Alert.alert('Upload Error', 'Could not upload image. Please check your connection and try again.');
+        }
+
+        // Remove the image since upload failed
+        removeItemImage(itemId);
       } finally {
         setUploadingImageItemId(null);
       }
