@@ -594,7 +594,25 @@ export default function FilesNavigationScreen() {
               );
             } else if (folder.type === 'receipts') {
               return (
-                <View key={file.id} style={styles.expenseCard}>
+                <TouchableOpacity
+                  key={file.id}
+                  style={styles.expenseCard}
+                  onPress={() => {
+                    if (file.receiptUrl) {
+                      // Detect if it's a PDF or image
+                      const isPdf = file.receiptUrl.toLowerCase().includes('.pdf') ||
+                                   file.receiptUrl.toLowerCase().includes('application/pdf');
+                      setViewingFile({
+                        uri: file.receiptUrl,
+                        name: `${file.store} - $${file.amount.toFixed(2)}`,
+                        type: isPdf ? 'pdf' : 'image'
+                      });
+                    } else {
+                      Alert.alert('No Receipt', 'This expense does not have a receipt image attached.');
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.expenseHeader}>
                     <Text style={styles.expenseType}>{file.type}</Text>
                     <Text style={styles.expenseAmount}>${file.amount.toLocaleString()}</Text>
@@ -603,7 +621,13 @@ export default function FilesNavigationScreen() {
                   <Text style={styles.expenseDate}>
                     {new Date(file.date).toLocaleDateString()}
                   </Text>
-                </View>
+                  {file.receiptUrl && (
+                    <View style={styles.receiptIndicator}>
+                      <Receipt size={14} color="#10B981" />
+                      <Text style={styles.receiptIndicatorText}>Tap to view receipt</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
               );
             } else if (folder.type === 'videos') {
               return (
@@ -862,6 +886,22 @@ export default function FilesNavigationScreen() {
                   style={styles.fileViewerImage}
                   contentFit="contain"
                 />
+              )}
+              {viewingFile?.type === 'pdf' && (
+                <View style={styles.pdfViewerContainer}>
+                  <FileIcon size={64} color="#9CA3AF" />
+                  <Text style={styles.pdfViewerText}>PDF Receipt</Text>
+                  <TouchableOpacity
+                    style={styles.openPdfButton}
+                    onPress={() => {
+                      if (viewingFile?.uri) {
+                        Linking.openURL(viewingFile.uri);
+                      }
+                    }}
+                  >
+                    <Text style={styles.openPdfButtonText}>Open in Browser</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           </View>
@@ -1160,6 +1200,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
   },
+  receiptIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  receiptIndicatorText: {
+    fontSize: 12,
+    color: '#10B981',
+    fontWeight: '500',
+  },
   documentCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -1318,5 +1372,30 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 500,
     backgroundColor: '#000000',
+  },
+  pdfViewerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: '#F9FAFB',
+  },
+  pdfViewerText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  openPdfButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  openPdfButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
