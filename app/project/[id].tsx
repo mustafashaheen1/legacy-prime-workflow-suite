@@ -79,15 +79,7 @@ export default function ProjectDetailScreen() {
     }
   }, [activeTab, id, router, company?.id, refreshReports]);
 
-  const budgetRemaining = useMemo(() => {
-    if (!project) return 0;
-    return project.budget - project.expenses;
-  }, [project]);
-  
-  const budgetUsedPercentage = useMemo(() => {
-    if (!project) return 0;
-    return (project.expenses / project.budget) * 100;
-  }, [project]);
+  // Removed - budgetRemaining and budgetUsedPercentage are now calculated after adjustedProjectTotal and totalJobCost
   
   const daysElapsed = useMemo(() => {
     if (!project) return 0;
@@ -346,7 +338,16 @@ export default function ProjectDetailScreen() {
   const profitMargin = useMemo(() => {
     return adjustedProjectTotal - totalJobCost;
   }, [adjustedProjectTotal, totalJobCost]);
-  
+
+  const budgetRemaining = useMemo(() => {
+    return adjustedProjectTotal - totalJobCost;
+  }, [adjustedProjectTotal, totalJobCost]);
+
+  const budgetUsedPercentage = useMemo(() => {
+    if (adjustedProjectTotal === 0) return 0;
+    return (totalJobCost / adjustedProjectTotal) * 100;
+  }, [adjustedProjectTotal, totalJobCost]);
+
   const estimatedHoursRemaining = useMemo(() => {
     if (!project) return 0;
     if (project.progress === 0) return project.hoursWorked;
@@ -687,11 +688,11 @@ export default function ProjectDetailScreen() {
                       <View style={styles.budgetLegend}>
                         <View style={styles.legendItem}>
                           <View style={[styles.legendDot, { backgroundColor: budgetUsedPercentage > 100 ? '#EF4444' : '#10B981' }]} />
-                          <Text style={styles.legendText}>Spent: ${project.expenses.toLocaleString()}</Text>
+                          <Text style={styles.legendText}>Spent: ${totalJobCost.toLocaleString()}</Text>
                         </View>
                         <View style={styles.legendItem}>
                           <View style={[styles.legendDot, { backgroundColor: '#E5E7EB' }]} />
-                          <Text style={styles.legendText}>Budget: ${project.budget.toLocaleString()}</Text>
+                          <Text style={styles.legendText}>Budget: ${adjustedProjectTotal.toLocaleString()}</Text>
                         </View>
                       </View>
                     </View>
