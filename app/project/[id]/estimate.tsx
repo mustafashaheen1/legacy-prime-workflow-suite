@@ -5,7 +5,7 @@ import { useApp } from '@/contexts/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip, Search, X, Square, Image as ImageIcon } from 'lucide-react-native';
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { masterPriceList, PriceListItem, priceListCategories, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
+import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { EstimateItem, Estimate, ProjectFile } from '@/types';
 import { vanillaClient } from '@/lib/trpc';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,7 +21,7 @@ import * as MailComposer from 'expo-mail-composer';
 export default function EstimateScreen() {
   const { id, estimateId, clientId: clientIdParam } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, clients, addEstimate, estimates, updateEstimate, customPriceListItems, addCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile, company } = useApp();
+  const { projects, clients, addEstimate, estimates, updateEstimate, priceListItems, priceListCategories, addCustomPriceListItem, updateCustomPriceListItem, customCategories, addCustomCategory, deleteCustomCategory, addProjectFile, company } = useApp();
   const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
   const isWeb = Platform.OS === 'web';
@@ -30,7 +30,7 @@ export default function EstimateScreen() {
 
   const [estimateName, setEstimateName] = useState<string>('');
   const [items, setItems] = useState<EstimateItem[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>(priceListCategories[0]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [showUnitsQty, setShowUnitsQty] = useState<boolean>(true);
   const [showBudget, setShowBudget] = useState<boolean>(true);
@@ -52,6 +52,9 @@ export default function EstimateScreen() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [uploadingImageItemId, setUploadingImageItemId] = useState<string | null>(null);
   const [savedEstimateId, setSavedEstimateId] = useState<string | null>(null);
+  const [editingPriceItemId, setEditingPriceItemId] = useState<string | null>(null);
+  const [editingPrice, setEditingPrice] = useState<string>('');
+  const [showEditPriceModal, setShowEditPriceModal] = useState<boolean>(false);
 
   // Support both project-based and client-based estimate creation
   const clientId = clientIdParam as string | undefined;
@@ -59,8 +62,15 @@ export default function EstimateScreen() {
   const project = id !== 'new' ? projects.find(p => p.id === id) : null;
 
   const allCategories = useMemo(() => {
-    return [...priceListCategories, ...customCategories.map(cat => cat.name)];
-  }, [customCategories]);
+    return priceListCategories; // Already includes custom categories from AppContext
+  }, [priceListCategories]);
+
+  // Set first category when loaded
+  useEffect(() => {
+    if (priceListCategories.length > 0 && !selectedCategory) {
+      setSelectedCategory(priceListCategories[0]);
+    }
+  }, [priceListCategories, selectedCategory]);
 
   const loadDraft = useCallback(async () => {
     // Use clientId for drafts if available, otherwise use project id
@@ -225,21 +235,19 @@ export default function EstimateScreen() {
   }
 
   const getCategoryItems = (category: string) => {
-    const masterItems = masterPriceList.filter(item => item.category === category);
-    const customItems = customPriceListItems.filter(item => item.category === category);
-    const allItems = [...masterItems, ...customItems];
+    let items = priceListItems.filter(item => item.category === category);
 
     // Filter by search query if present
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      return allItems.filter(item =>
+      items = items.filter(item =>
         item.name.toLowerCase().includes(query) ||
         item.description?.toLowerCase().includes(query) ||
         item.unit.toLowerCase().includes(query)
       );
     }
 
-    return allItems;
+    return items;
   };
 
   const addTemplateItem = () => {
@@ -428,6 +436,73 @@ export default function EstimateScreen() {
       } finally {
         setUploadingImageItemId(null);
       }
+    }
+  };
+
+  const openEditPriceModal = (priceListItem: PriceListItem) => {
+    setEditingPriceItemId(priceListItem.id);
+    setEditingPrice(priceListItem.unitPrice.toString());
+    setShowEditPriceModal(true);
+  };
+
+  const handleUpdatePrice = async () => {
+    if (!editingPriceItemId || !company) {
+      return;
+    }
+
+    const newPrice = parseFloat(editingPrice);
+    if (isNaN(newPrice) || newPrice < 0) {
+      Alert.alert('Error', 'Please enter a valid price');
+      return;
+    }
+
+    try {
+      const itemToEdit = priceListItems.find(item => item.id === editingPriceItemId);
+      if (!itemToEdit) {
+        Alert.alert('Error', 'Item not found');
+        return;
+      }
+
+      // If it's a master item (not custom), create a custom override for this company
+      if (!itemToEdit.isCustom) {
+        console.log('[Estimate] Creating custom override for master item:', itemToEdit.name);
+
+        const customItem: CustomPriceListItem = {
+          id: `custom-${Date.now()}`,
+          category: itemToEdit.category,
+          name: `${itemToEdit.name} (Custom Price)`,
+          description: itemToEdit.description || '',
+          unit: itemToEdit.unit,
+          unitPrice: newPrice,
+          isCustom: true,
+          createdAt: new Date().toISOString(),
+        };
+
+        await addCustomPriceListItem(customItem);
+        Alert.alert('Success', 'Custom price item created! The original master item remains unchanged.');
+      } else {
+        // It's a custom item, update it directly
+        console.log('[Estimate] Updating custom item:', itemToEdit.name);
+
+        const result = await vanillaClient.priceList.updatePriceListItem.mutate({
+          itemId: editingPriceItemId,
+          companyId: company.id,
+          unitPrice: newPrice,
+        });
+
+        if (result.success) {
+          // Update the local state via AppContext
+          await updateCustomPriceListItem(editingPriceItemId, { unitPrice: newPrice });
+          Alert.alert('Success', 'Price updated successfully!');
+        }
+      }
+
+      setShowEditPriceModal(false);
+      setEditingPriceItemId(null);
+      setEditingPrice('');
+    } catch (error: any) {
+      console.error('[Estimate] Error updating price:', error);
+      Alert.alert('Error', error.message || 'Failed to update price');
     }
   };
 
@@ -1655,7 +1730,13 @@ export default function EstimateScreen() {
                   <View style={styles.lineItemRight}>
                     <Text style={styles.lineItemUnit}>{item.unit}</Text>
                     <Text style={styles.lineItemPrice}>${item.unitPrice.toFixed(2)}</Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
+                      style={styles.editItemButton}
+                      onPress={() => openEditPriceModal(item)}
+                    >
+                      <Edit2 size={16} color="#6B7280" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
                       style={styles.addItemButton}
                       onPress={() => addItemToEstimate(item)}
                     >
@@ -2259,6 +2340,54 @@ export default function EstimateScreen() {
                 onPress={addSeparator}
               >
                 <Text style={styles.modalAddButtonText}>Add Break Point</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {showEditPriceModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Price</Text>
+            <Text style={styles.modalSubtitle}>
+              {priceListItems.find(item => item.id === editingPriceItemId)?.isCustom
+                ? 'Update the unit price for this custom item'
+                : 'Create a custom override for this master item'}
+            </Text>
+
+            <Text style={styles.modalLabel}>Unit Price *</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editingPrice}
+              onChangeText={setEditingPrice}
+              placeholder="0.00"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="decimal-pad"
+              autoFocus
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowEditPriceModal(false);
+                  setEditingPriceItemId(null);
+                  setEditingPrice('');
+                }}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalAddButton}
+                onPress={handleUpdatePrice}
+              >
+                <Text style={styles.modalAddButtonText}>
+                  {priceListItems.find(item => item.id === editingPriceItemId)?.isCustom
+                    ? 'Update Price'
+                    : 'Create Custom'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3928,6 +4057,15 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     minWidth: 60,
     textAlign: 'right',
+  },
+  editItemButton: {
+    backgroundColor: '#F3F4F6',
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
   },
   addItemButton: {
     backgroundColor: '#2563EB',

@@ -11,7 +11,7 @@ import { Audio } from 'expo-av';
 import { usePathname, useRouter } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 // Removed tRPC dependency - using OpenAI API directly
-import { masterPriceList } from '@/mocks/priceList';
+// priceListItems now comes from AppContext
 import { sendEstimate } from '@/utils/sendEstimate';
 import { mockPhotos } from '@/mocks/data';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -626,7 +626,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     addNotification,
     refreshEstimates,
     // Additional data for complete business intelligence
-    customPriceListItems,
+    priceListItems,
     addCustomPriceListItem,
     addCustomCategory,
     dailyLogs,
@@ -641,8 +641,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     deleteDailyTask,
   } = useApp();
 
-  // Combine master price list with custom items
-  const fullPriceList = [...masterPriceList, ...customPriceListItems];
+  // Price list items now includes all items (master + custom) from AppContext
 
   // Pass all business data to AI assistant for complete data-aware responses
   const { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage, updateLastMessage } = useOpenAIChat({
@@ -655,7 +654,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     company,
     updateClient,
     // Additional data for complete business intelligence
-    priceList: fullPriceList,
+    priceList: priceListItems,
     dailyLogs,
     tasks,
     photos: photos.length > 0 ? photos : mockPhotos, // Use mock if no real photos
@@ -713,7 +712,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
 
               try {
                 // Build price list context for OpenAI (same format as estimate page)
-                const priceListContext = masterPriceList.map(item =>
+                const priceListContext = priceListItems.map(item =>
                   `${item.id}|${item.name}|${item.unit}|$${item.unitPrice}`
                 ).join('\n');
 
@@ -754,7 +753,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                   body: JSON.stringify({
                     systemPrompt,
                     userPrompt,
-                    priceList: masterPriceList,
+                    priceList: priceListItems,
                     budget: budget || 0,
                   }),
                 });
@@ -766,7 +765,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                   if (openaiData.success && openaiData.items) {
                     // Map AI response to estimate items with proper structure
                     generatedItems = openaiData.items.map((aiItem: any, index: number) => {
-                      const priceListItem = masterPriceList.find(pl => pl.id === aiItem.priceListItemId);
+                      const priceListItem = priceListItems.find(pl => pl.id === aiItem.priceListItemId);
                       if (priceListItem) {
                         return {
                           id: `item-${Date.now()}-${index}`,
@@ -785,7 +784,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                 // Fallback to simple category matching if OpenAI fails
                 if (generatedItems.length === 0) {
                   console.log('[AI Action] OpenAI failed, using fallback category matching');
-                  generatedItems = getDefaultEstimateItems(projectType || 'General', budget || 0, masterPriceList);
+                  generatedItems = getDefaultEstimateItems(projectType || 'General', budget || 0, priceListItems);
                 }
 
                 const subtotal = generatedItems.reduce((sum: number, item: any) => sum + item.total, 0);
@@ -857,7 +856,7 @@ Generate appropriate line items from the price list that fit this scope of work$
               } catch (error) {
                 console.error('[AI Action] Error generating estimate:', error);
                 // Fallback: create estimate with default items
-                const fallbackItems = getDefaultEstimateItems(projectType || 'General', budget || 0, masterPriceList);
+                const fallbackItems = getDefaultEstimateItems(projectType || 'General', budget || 0, priceListItems);
                 const subtotal = fallbackItems.reduce((sum: number, item: any) => sum + item.total, 0);
                 const taxRate = 0.08;
                 const fallbackEstimateId = `estimate-${Date.now()}`;
@@ -982,7 +981,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     imageUrls: imageUrls,
-                    priceListItems: masterPriceList,
+                    priceListItems: priceListItems,
                     documentType: documentDescription,
                   })
                 });
@@ -1004,7 +1003,7 @@ Generate appropriate line items from the price list that fit this scope of work$
                 // Map API items to estimate items
                 const matchedItems = extractedItems.map((item: any) => {
                   // Find the price list item details
-                  const priceListItem = masterPriceList.find((pl: any) => pl.id === item.priceListItemId);
+                  const priceListItem = priceListItems.find((pl: any) => pl.id === item.priceListItemId);
 
                   return {
                     priceListItemId: item.priceListItemId,

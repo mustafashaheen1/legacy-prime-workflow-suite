@@ -19,7 +19,8 @@ interface AppState {
   tasks: Task[];
   clockEntries: ClockEntry[];
   estimates: Estimate[];
-  customPriceListItems: CustomPriceListItem[];
+  priceListItems: PriceListItem[];
+  priceListCategories: string[];
   customCategories: CustomCategory[];
   photoCategories: string[];
   callLogs: CallLog[];
@@ -55,6 +56,7 @@ interface AppState {
   deleteEstimate: (id: string) => void;
   addCustomPriceListItem: (item: CustomPriceListItem) => void;
   deleteCustomPriceListItem: (id: string) => void;
+  updateCustomPriceListItem: (id: string, updates: Partial<PriceListItem>) => void;
   addCustomCategory: (category: CustomCategory) => void;
   deleteCustomCategory: (id: string) => void;
   addPhotoCategory: (category: string) => void;
@@ -142,7 +144,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [clockEntries, setClockEntries] = useState<ClockEntry[]>([]);
   const [estimates, setEstimates] = useState<Estimate[]>([]);
-  const [customPriceListItems, setCustomPriceListItems] = useState<CustomPriceListItem[]>([]);
+  const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [photoCategories, setPhotoCategories] = useState<string[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
@@ -157,6 +159,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Compute categories dynamically from price list items
+  const priceListCategories = useMemo(() => {
+    const categorySet = new Set<string>();
+    priceListItems.forEach(item => categorySet.add(item.category));
+    customCategories.forEach(cat => categorySet.add(cat.name));
+    return Array.from(categorySet).sort();
+  }, [priceListItems, customCategories]);
 
   useEffect(() => {
     loadData();
@@ -312,7 +322,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setClockEntries([]);
           }
 
-          // Load custom price list items
+          // Load ALL price list items (master + custom)
           try {
             const priceListResponse = await fetch(
               `${baseUrl}/trpc/priceList.getPriceList?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
@@ -320,16 +330,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             const priceListData = await priceListResponse.json();
             const priceListResult = priceListData.result.data.json;
             if (priceListResult.success && priceListResult.items) {
-              // Filter for custom items only (company-specific)
-              const customItems = priceListResult.items.filter((item: any) => item.isCustom);
-              setCustomPriceListItems(customItems);
-              console.log('[App] ✅ Loaded', customItems.length, 'custom price list items');
+              // Keep ALL items (master + custom)
+              setPriceListItems(priceListResult.items);
+              console.log('[App] ✅ Loaded', priceListResult.items.length, 'price list items');
             } else {
-              setCustomPriceListItems([]);
+              setPriceListItems([]);
             }
           } catch (error: any) {
-            console.error('[App] Error loading custom price list items:', error?.message || error);
-            setCustomPriceListItems([]);
+            console.error('[App] Error loading price list items:', error?.message || error);
+            setPriceListItems([]);
           }
 
           // Load estimates
@@ -401,7 +410,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const storedUser = await AsyncStorage.getItem('user');
       const storedCompany = await AsyncStorage.getItem('company');
       const storedSubscription = await AsyncStorage.getItem('subscription');
-      const storedCustomItems = await AsyncStorage.getItem('customPriceListItems');
+      const storedPriceListItems = await AsyncStorage.getItem('priceListItems');
       const storedCustomCategories = await AsyncStorage.getItem('customCategories');
       const storedPhotoCategories = await AsyncStorage.getItem('photoCategories');
       const storedExpenses = await AsyncStorage.getItem('expenses');
@@ -430,9 +439,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         setSubscriptionState(parsedSubscription);
       }
       
-      const parsedCustomItems = safeJsonParse<CustomPriceListItem[]>(storedCustomItems, 'customPriceListItems', []);
-      if (Array.isArray(parsedCustomItems)) {
-        setCustomPriceListItems(parsedCustomItems);
+      const parsedPriceListItems = safeJsonParse<PriceListItem[]>(storedPriceListItems, 'priceListItems', []);
+      if (Array.isArray(parsedPriceListItems)) {
+        setPriceListItems(parsedPriceListItems);
       }
 
       const parsedCustomCategories = safeJsonParse<CustomCategory[]>(storedCustomCategories, 'customCategories', []);
@@ -632,7 +641,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setTasks([]);
           }
 
-          // Load custom price list items from database
+          // Load ALL price list items from database (master + custom)
           try {
             const priceListResponse = await fetch(
               `${baseUrl}/trpc/priceList.getPriceList?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
@@ -640,19 +649,18 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             const priceListData = await priceListResponse.json();
             const priceListResult = priceListData.result.data.json;
             if (priceListResult.success && priceListResult.items) {
-              // Filter for custom items only (company-specific)
-              const customItems = priceListResult.items.filter((item: any) => item.isCustom);
-              setCustomPriceListItems(customItems);
-              console.log('[App] Loaded', customItems.length, 'custom price list items from database');
+              // Keep ALL items (master + custom)
+              setPriceListItems(priceListResult.items);
+              console.log('[App] Loaded', priceListResult.items.length, 'price list items from database');
             } else {
-              setCustomPriceListItems([]);
+              setPriceListItems([]);
             }
           } catch (error) {
-            console.error('[App] Error loading custom price list items:', error);
+            console.error('[App] Error loading price list items:', error);
             // Fallback to AsyncStorage data if backend fails
-            const parsedCustomItems = safeJsonParse<CustomPriceListItem[]>(storedCustomItems, 'customPriceListItems', []);
-            if (Array.isArray(parsedCustomItems)) {
-              setCustomPriceListItems(parsedCustomItems);
+            const parsedPriceListItems = safeJsonParse<PriceListItem[]>(storedPriceListItems, 'priceListItems', []);
+            if (Array.isArray(parsedPriceListItems)) {
+              setPriceListItems(parsedPriceListItems);
             }
           }
 
@@ -1339,7 +1347,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   const addCustomPriceListItem = useCallback(async (item: CustomPriceListItem) => {
     // Optimistically update UI
-    setCustomPriceListItems(prev => [...prev, item]);
+    setPriceListItems(prev => [...prev, item]);
 
     // Save to backend if company exists (non-blocking)
     if (company?.id) {
@@ -1359,7 +1367,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
         if (result.success && result.item) {
           // Update the item with the database ID
-          setCustomPriceListItems(prev =>
+          setPriceListItems(prev =>
             prev.map(i => i.id === item.id ? { ...i, id: result.item.id } : i)
           );
           console.log('[App] Custom price list item saved to backend:', item.name);
@@ -1368,22 +1376,30 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         console.error('[App] Error saving custom price list item to backend:', error);
         // Keep the item in state even if backend fails (offline-first)
         // Save to AsyncStorage as fallback
-        const updated = [...customPriceListItems, item];
-        await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updated));
+        const updated = [...priceListItems, item];
+        await AsyncStorage.setItem('priceListItems', JSON.stringify(updated));
         console.log('[App] Saved custom price list item to AsyncStorage (offline):', item.name);
       }
     } else {
       // Fallback to AsyncStorage if no company
-      const updated = [...customPriceListItems, item];
-      await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updated));
+      const updated = [...priceListItems, item];
+      await AsyncStorage.setItem('priceListItems', JSON.stringify(updated));
     }
-  }, [company, customPriceListItems]);
+  }, [company, priceListItems]);
 
   const deleteCustomPriceListItem = useCallback(async (id: string) => {
-    const updated = customPriceListItems.filter(item => item.id !== id);
-    setCustomPriceListItems(updated);
-    await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updated));
-  }, [customPriceListItems]);
+    const updated = priceListItems.filter(item => item.id !== id);
+    setPriceListItems(updated);
+    await AsyncStorage.setItem('priceListItems', JSON.stringify(updated));
+  }, [priceListItems]);
+
+  const updateCustomPriceListItem = useCallback(async (id: string, updates: Partial<PriceListItem>) => {
+    const updated = priceListItems.map(item =>
+      item.id === id ? { ...item, ...updates } : item
+    );
+    setPriceListItems(updated);
+    await AsyncStorage.setItem('priceListItems', JSON.stringify(updated));
+  }, [priceListItems]);
 
   const addCustomCategory = useCallback(async (category: CustomCategory) => {
     const updated = [...customCategories, category];
@@ -1395,14 +1411,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     const updated = customCategories.filter(cat => cat.id !== id);
     setCustomCategories(updated);
     await AsyncStorage.setItem('customCategories', JSON.stringify(updated));
-    
-    const updatedItems = customPriceListItems.filter(item => {
+
+    const updatedItems = priceListItems.filter(item => {
       const category = customCategories.find(cat => cat.id === id);
       return item.category !== category?.name;
     });
-    setCustomPriceListItems(updatedItems);
-    await AsyncStorage.setItem('customPriceListItems', JSON.stringify(updatedItems));
-  }, [customCategories, customPriceListItems]);
+    setPriceListItems(updatedItems);
+    await AsyncStorage.setItem('priceListItems', JSON.stringify(updatedItems));
+  }, [customCategories, priceListItems]);
 
   const addPhotoCategory = useCallback(async (category: string) => {
     if (!company?.id) {
@@ -2371,7 +2387,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     tasks,
     clockEntries,
     estimates,
-    customPriceListItems,
+    priceListItems,
+    priceListCategories,
     customCategories,
     photoCategories,
     callLogs,
@@ -2406,6 +2423,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     deleteEstimate,
     addCustomPriceListItem,
     deleteCustomPriceListItem,
+    updateCustomPriceListItem,
     addCustomCategory,
     deleteCustomCategory,
     addPhotoCategory,
@@ -2474,7 +2492,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     tasks,
     clockEntries,
     estimates,
-    customPriceListItems,
+    priceListItems,
+    priceListCategories,
     customCategories,
     photoCategories,
     callLogs,
@@ -2509,6 +2528,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     deleteEstimate,
     addCustomPriceListItem,
     deleteCustomPriceListItem,
+    updateCustomPriceListItem,
     addCustomCategory,
     deleteCustomCategory,
     addPhotoCategory,

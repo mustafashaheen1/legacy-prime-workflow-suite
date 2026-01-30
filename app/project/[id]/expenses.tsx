@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Platform } from 'react-native';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
-import { priceListCategories } from '@/mocks/priceList';
+// priceListCategories now comes from AppContext
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -24,9 +24,9 @@ interface ExtractedExpense {
 export default function ProjectExpensesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { expenses, addExpense, projects, user, company } = useApp();
+  const { expenses, addExpense, projects, user, company, priceListCategories } = useApp();
   const [expenseType, setExpenseType] = useState<string>('Subcontractor');
-  const [category, setCategory] = useState<string>(priceListCategories[0]);
+  const [category, setCategory] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [store, setStore] = useState<string>('');
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
@@ -70,6 +70,13 @@ export default function ProjectExpensesScreen() {
     filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
     [filteredExpenses]
   );
+
+  // Set first category when loaded
+  useEffect(() => {
+    if (priceListCategories.length > 0 && !category) {
+      setCategory(priceListCategories[0]);
+    }
+  }, [priceListCategories, category]);
 
   // Upload file to S3 using presigned URL (handles large files like PDFs)
   const uploadToS3 = async (fileData: string | Blob, fileName: string, fileType: string): Promise<string> => {

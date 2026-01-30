@@ -8,7 +8,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { masterPriceList, PriceListItem, priceListCategories } from '@/mocks/priceList';
+import { PriceListItem } from '@/mocks/priceList';
 import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate, AnnotationElement } from '@/types';
 import Svg, { Circle, Polygon, Path, Line, Rect, Text as SvgText } from 'react-native-svg';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -47,7 +47,7 @@ const ARCHITECTURAL_SCALES = [
 export default function TakeoffScreen() {
   const { id, clientId: clientIdParam } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, clients, addEstimate, customPriceListItems, addCustomPriceListItem } = useApp();
+  const { projects, clients, addEstimate, priceListItems, priceListCategories, addCustomPriceListItem } = useApp();
   const insets = useSafeAreaInsets();
 
   // Support both project-based and client-based takeoff
@@ -58,7 +58,7 @@ export default function TakeoffScreen() {
   const [measurementMode, setMeasurementMode] = useState<'count' | 'length' | 'area' | null>(null);
   const [currentPoints, setCurrentPoints] = useState<{ x: number; y: number }[]>([]);
   const [showItemPicker, setShowItemPicker] = useState<boolean>(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>(priceListCategories[0]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [scale, setScale] = useState<number>(1);
   const [scaleDialogVisible, setScaleDialogVisible] = useState<boolean>(false);
   const [scaleInput, setScaleInput] = useState<string>('');
@@ -100,6 +100,13 @@ export default function TakeoffScreen() {
 
   const project = id !== 'new' ? projects.find(p => p.id === id) : null;
   const client = clientId ? clients.find(c => c.id === clientId) : null;
+
+  // Set first category when loaded
+  useEffect(() => {
+    if (priceListCategories.length > 0 && !selectedCategory) {
+      setSelectedCategory(priceListCategories[0]);
+    }
+  }, [priceListCategories, selectedCategory]);
 
   // Prevent browser from opening dropped files
   useEffect(() => {
@@ -687,7 +694,7 @@ export default function TakeoffScreen() {
           imageUrls: imageUrls.length > 0 ? imageUrls : undefined, // Send all page URLs if multi-page PDF
           documentType: uploadedDocumentType,
           priceListCategories: selectedCategories.length > 0 ? selectedCategories : priceListCategories,
-          priceListItems: masterPriceList, // Send full price list for AI to select from
+          priceListItems: priceListItems, // Send full price list for AI to select from
         }),
       });
 
@@ -712,7 +719,7 @@ export default function TakeoffScreen() {
       // AI now returns items with priceListItemId instead of names
       // Look up the full item details from the price list
       const estimateItems = result.items.map((aiItem: any) => {
-        const priceListItem = masterPriceList.find(item => item.id === aiItem.priceListItemId);
+        const priceListItem = priceListItems.find(item => item.id === aiItem.priceListItemId);
 
         if (!priceListItem) {
           console.error('[AI Takeoff] Item not found in price list:', aiItem.priceListItemId);
@@ -808,7 +815,7 @@ export default function TakeoffScreen() {
 
     // Build items HTML
     const itemsHtml = allMeasurements.map((measurement, index) => {
-      const priceListItem = masterPriceList.find(item => item.id === measurement.priceListItemId);
+      const priceListItem = priceListItems.find(item => item.id === measurement.priceListItemId);
       if (!priceListItem) return '';
       const itemTotal = measurement.quantity * priceListItem.unitPrice;
 
@@ -964,7 +971,7 @@ export default function TakeoffScreen() {
     const rows: string[] = [];
 
     allMeasurements.forEach((measurement, index) => {
-      const priceListItem = masterPriceList.find(item => item.id === measurement.priceListItemId);
+      const priceListItem = priceListItems.find(item => item.id === measurement.priceListItemId);
       if (!priceListItem) return;
       const itemTotal = measurement.quantity * priceListItem.unitPrice;
 
@@ -1279,7 +1286,7 @@ export default function TakeoffScreen() {
     const allMeasurements = plans.flatMap(plan => plan.measurements);
     
     const subtotal = allMeasurements.reduce((sum, measurement) => {
-      const priceListItem = masterPriceList.find(item => item.id === measurement.priceListItemId);
+      const priceListItem = priceListItems.find(item => item.id === measurement.priceListItemId);
       if (!priceListItem) return sum;
       return sum + (measurement.quantity * priceListItem.unitPrice);
     }, 0);
@@ -1349,7 +1356,7 @@ export default function TakeoffScreen() {
     console.log('[Takeoff] Creating estimate...');
 
     const items: EstimateItem[] = allMeasurements.map(measurement => {
-      const priceListItem = masterPriceList.find(item => item.id === measurement.priceListItemId);
+      const priceListItem = priceListItems.find(item => item.id === measurement.priceListItemId);
       if (!priceListItem) return null;
 
       return {
@@ -2053,7 +2060,7 @@ export default function TakeoffScreen() {
                     </View>
 
                     {activePlan.measurements.map(measurement => {
-                      const priceListItem = masterPriceList.find(item => item.id === measurement.priceListItemId);
+                      const priceListItem = priceListItems.find(item => item.id === measurement.priceListItemId);
                       if (!priceListItem) return null;
 
                       return (
@@ -2159,7 +2166,7 @@ export default function TakeoffScreen() {
               </ScrollView>
 
               <ScrollView style={styles.itemsList}>
-                {masterPriceList
+                {priceListItems
                   .filter(item => item.category === selectedCategory)
                   .map(item => (
                     <TouchableOpacity
