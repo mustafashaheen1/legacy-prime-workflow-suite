@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Clock, CheckCircle, Coffee, FileText, Calendar, MapPin } from 'lucide-react-native';
 import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
 
 import { ClockEntry, Report, EmployeeTimeData } from '@/types';
 
@@ -31,6 +32,7 @@ interface ClockInOutComponentProps {
 
 export default function ClockInOutComponent({ projectId, projectName, compact = false }: ClockInOutComponentProps) {
   const { clockEntries, addClockEntry, updateClockEntry, user, updateProject } = useApp();
+  const router = useRouter();
   const [currentEntry, setCurrentEntry] = useState<ClockEntry | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [showClockOutModal, setShowClockOutModal] = useState<boolean>(false);
@@ -395,11 +397,24 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     console.log(`  Overtime Hours: ${overtimeHours.toFixed(2)}h`);
     console.log(`  Days Worked: ${uniqueDays}`);
 
-    Alert.alert(
-      'Report Generated',
-      `Weekly hours report saved successfully.\n\nTotal Hours: ${totalHours.toFixed(2)}h\nRegular: ${regularHours.toFixed(2)}h\nOvertime: ${overtimeHours.toFixed(2)}h`,
-      [{ text: 'OK', onPress: () => setShowReportModal(false) }]
-    );
+    // Close modal immediately
+    setShowReportModal(false);
+
+    // Show success message
+    if (Platform.OS === 'web') {
+      window.alert(`Report Generated Successfully!\n\nTotal Hours: ${totalHours.toFixed(2)}h\nRegular: ${regularHours.toFixed(2)}h\nOvertime: ${overtimeHours.toFixed(2)}h\n\nNavigating to Reports page...`);
+      // Navigate to reports page
+      router.push('/reports');
+    } else {
+      Alert.alert(
+        'Report Generated',
+        `Weekly hours report saved successfully.\n\nTotal Hours: ${totalHours.toFixed(2)}h\nRegular: ${regularHours.toFixed(2)}h\nOvertime: ${overtimeHours.toFixed(2)}h`,
+        [{
+          text: 'View Reports',
+          onPress: () => router.push('/reports')
+        }]
+      );
+    }
   };
 
   const todayEntries = clockEntries.filter((entry) => {
