@@ -157,8 +157,10 @@ export default function FilesNavigationScreen() {
         }, {} as Record<string, number>);
         categories = Object.keys(photosByCategory).sort();
       } else if (folderConfig.type === 'receipts') {
-        count = projectExpenses.length;
-        const expensesByCategory = projectExpenses.reduce((acc, expense) => {
+        // Only count expenses that have receipt files
+        const expensesWithReceipts = projectExpenses.filter(e => e.receiptUrl);
+        count = expensesWithReceipts.length;
+        const expensesByCategory = expensesWithReceipts.reduce((acc, expense) => {
           const category = expense.subcategory || expense.type;
           if (!acc[category]) acc[category] = 0;
           acc[category]++;
@@ -203,7 +205,7 @@ export default function FilesNavigationScreen() {
     } else if (folderType === 'receipts') {
       return projectExpenses.filter(e => {
         const expenseCategory = e.subcategory || e.type;
-        return expenseCategory === category;
+        return expenseCategory === category && e.receiptUrl; // Only show expenses with receipt files
       });
     } else if (folderType === 'permit-files') {
       return currentProjectFiles.filter(f => f.category === 'permits');

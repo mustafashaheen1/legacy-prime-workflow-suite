@@ -1338,13 +1338,8 @@ export default function EstimateScreen() {
   const getPriceListItem = (priceListItemId: string): PriceListItem | undefined => {
     if (priceListItemId === 'custom') return undefined;
 
-    // Check master price list first
-    const masterItem = masterPriceList.find(item => item.id === priceListItemId);
-    if (masterItem) return masterItem;
-
-    // Then check custom price list items
-    const customItem = customPriceListItems.find(item => item.id === priceListItemId);
-    return customItem;
+    // Check price list items (includes both master and custom items)
+    return priceListItems.find(item => item.id === priceListItemId);
   };
 
   const updateCustomItemName = (itemId: string, name: string) => {
@@ -3038,7 +3033,7 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
             body: JSON.stringify({
               imageUrls,
               documentType: 'pdf',
-              priceListItems: masterPriceList,
+              priceListItems: priceListItems,
             }),
           });
 
@@ -3073,7 +3068,7 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
 
           // Convert backend API items to estimate items
           const generatedItems: EstimateItem[] = result.items.map((aiItem: any, index: number) => {
-            const priceListItem = masterPriceList.find(pl => pl.id === aiItem.priceListItemId);
+            const priceListItem = priceListItems.find(pl => pl.id === aiItem.priceListItemId);
             if (!priceListItem) {
               console.warn('[AI Estimate] Price list item not found:', aiItem.priceListItemId);
               return null;
@@ -3168,7 +3163,7 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
             body: JSON.stringify({
               imageData,
               documentType: 'image',
-              priceListItems: masterPriceList,
+              priceListItems: priceListItems,
             }),
           });
 
@@ -3203,7 +3198,7 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
 
           // Convert backend API items to estimate items
           const generatedItems: EstimateItem[] = result.items.map((aiItem: any, index: number) => {
-            const priceListItem = masterPriceList.find(pl => pl.id === aiItem.priceListItemId);
+            const priceListItem = priceListItems.find(pl => pl.id === aiItem.priceListItemId);
             if (!priceListItem) {
               console.warn('[AI Estimate] Price list item not found:', aiItem.priceListItemId);
               return null;
@@ -3246,10 +3241,10 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
       // Limit to 50 items to stay within Vercel timeout limits
       // Prioritize common categories for construction estimates
       const commonCategories = ['Labor', 'Materials', 'Equipment', 'Cabinets', 'Countertops', 'Plumbing', 'Electrical', 'Flooring', 'Painting', 'Drywall'];
-      const priorityItems = masterPriceList.filter(item =>
+      const priorityItems = priceListItems.filter(item =>
         commonCategories.some(cat => item.category.includes(cat))
       );
-      const limitedPriceList = [...priorityItems.slice(0, 40), ...masterPriceList.slice(0, 10)].slice(0, 50);
+      const limitedPriceList = [...priorityItems.slice(0, 40), ...priceListItems.slice(0, 10)].slice(0, 50);
 
       const priceListContext = limitedPriceList.map(item =>
         `${item.id}|${item.name}|${item.unit}|$${item.unitPrice}`
@@ -3261,7 +3256,7 @@ function AIEstimateGenerateModal({ visible, onClose, onGenerate, projectName, ex
       if (existingItems.length > 0) {
         existingTotal = existingItems.reduce((sum, item) => sum + item.total, 0);
         const existingItemsList = existingItems.map(item => {
-          const priceListItem = masterPriceList.find(pl => pl.id === item.priceListItemId);
+          const priceListItem = priceListItems.find(pl => pl.id === item.priceListItemId);
           const itemName = item.customName || priceListItem?.name || 'Unknown';
           return `- ${itemName}: ${item.quantity} × $${item.unitPrice} = $${item.total}`;
         }).join('\n');
@@ -3484,11 +3479,8 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
       
       for (const aiItem of aiGeneratedItems) {
         if (aiItem.priceListItemId && aiItem.priceListItemId !== 'custom') {
-          // Check both master and custom price list items
-          let priceListItem = masterPriceList.find(pl => pl.id === aiItem.priceListItemId);
-          if (!priceListItem) {
-            priceListItem = customPriceListItems.find(pl => pl.id === aiItem.priceListItemId);
-          }
+          // Check price list items (includes both master and custom)
+          const priceListItem = priceListItems.find(pl => pl.id === aiItem.priceListItemId);
           if (priceListItem) {
             const estimateItem: EstimateItem = {
               id: `ai-generated-${Date.now()}-${generatedItems.length}`,
