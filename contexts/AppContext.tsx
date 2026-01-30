@@ -1358,38 +1358,44 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       // Don't await - run in background
       (async () => {
         try {
-          const { vanillaClient } = await import('@/lib/trpc');
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
-          // Add a 5-second timeout to prevent waiting forever
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Request timeout')), 5000)
-          );
+          console.log('[App] Saving to database via direct API...');
+          const startTime = Date.now();
 
-          const result = await Promise.race([
-            vanillaClient.priceList.addPriceListItem.mutate({
+          const response = await fetch(`${apiUrl}/api/add-price-item-direct`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
               companyId: company.id,
               category: item.category,
               name: item.name,
-              description: item.description || '',
               unit: item.unit,
               unitPrice: item.unitPrice,
-              laborCost: item.laborCost,
-              materialCost: item.materialCost,
-              isCustom: true,
             }),
-            timeoutPromise
-          ]) as any;
+            signal: AbortSignal.timeout(8000), // 8 second timeout
+          });
 
-          if (result.success && result.item) {
+          const totalTime = Date.now() - startTime;
+
+          if (response.ok) {
+            const result = await response.json();
+            console.log('[App] ✅ Saved to database in', result.timing, 'ms');
+
             // Update the item with the database ID
             setPriceListItems(prev =>
               prev.map(i => i.id === item.id ? { ...i, id: result.item.id } : i)
             );
-            console.log('[App] Custom price list item saved to backend:', item.name);
+          } else {
+            throw new Error(`API returned ${response.status}`);
           }
-        } catch (error) {
-          console.error('[App] Error saving custom price list item to backend:', error);
-          console.log('[App] Item already saved to AsyncStorage (offline):', item.name);
+        } catch (error: any) {
+          // Silently log - item is already saved locally
+          if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+            console.warn('[App] ⚠️ Database save timed out after 8s (item saved locally)');
+          } else {
+            console.warn('[App] ⚠️ Database save failed:', error.message, '(item saved locally)');
+          }
         }
       })();
     }
