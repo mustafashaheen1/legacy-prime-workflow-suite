@@ -1349,41 +1349,49 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Optimistically update UI
     setPriceListItems(prev => [...prev, item]);
 
-    // Save to backend if company exists (non-blocking)
-    if (company?.id) {
-      try {
-        const { vanillaClient } = await import('@/lib/trpc');
-        const result = await vanillaClient.priceList.addPriceListItem.mutate({
-          companyId: company.id,
-          category: item.category,
-          name: item.name,
-          description: item.description || '',
-          unit: item.unit,
-          unitPrice: item.unitPrice,
-          laborCost: item.laborCost,
-          materialCost: item.materialCost,
-          isCustom: true,
-        });
+    // Save to AsyncStorage immediately
+    const updated = [...priceListItems, item];
+    await AsyncStorage.setItem('priceListItems', JSON.stringify(updated));
 
-        if (result.success && result.item) {
-          // Update the item with the database ID
-          setPriceListItems(prev =>
-            prev.map(i => i.id === item.id ? { ...i, id: result.item.id } : i)
+    // Save to backend if company exists (fire-and-forget, non-blocking)
+    if (company?.id) {
+      // Don't await - run in background
+      (async () => {
+        try {
+          const { vanillaClient } = await import('@/lib/trpc');
+
+          // Add a timeout to prevent waiting forever
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Request timeout')), 10000)
           );
-          console.log('[App] Custom price list item saved to backend:', item.name);
+
+          const result = await Promise.race([
+            vanillaClient.priceList.addPriceListItem.mutate({
+              companyId: company.id,
+              category: item.category,
+              name: item.name,
+              description: item.description || '',
+              unit: item.unit,
+              unitPrice: item.unitPrice,
+              laborCost: item.laborCost,
+              materialCost: item.materialCost,
+              isCustom: true,
+            }),
+            timeoutPromise
+          ]) as any;
+
+          if (result.success && result.item) {
+            // Update the item with the database ID
+            setPriceListItems(prev =>
+              prev.map(i => i.id === item.id ? { ...i, id: result.item.id } : i)
+            );
+            console.log('[App] Custom price list item saved to backend:', item.name);
+          }
+        } catch (error) {
+          console.error('[App] Error saving custom price list item to backend:', error);
+          console.log('[App] Item already saved to AsyncStorage (offline):', item.name);
         }
-      } catch (error) {
-        console.error('[App] Error saving custom price list item to backend:', error);
-        // Keep the item in state even if backend fails (offline-first)
-        // Save to AsyncStorage as fallback
-        const updated = [...priceListItems, item];
-        await AsyncStorage.setItem('priceListItems', JSON.stringify(updated));
-        console.log('[App] Saved custom price list item to AsyncStorage (offline):', item.name);
-      }
-    } else {
-      // Fallback to AsyncStorage if no company
-      const updated = [...priceListItems, item];
-      await AsyncStorage.setItem('priceListItems', JSON.stringify(updated));
+      })();
     }
   }, [company, priceListItems]);
 

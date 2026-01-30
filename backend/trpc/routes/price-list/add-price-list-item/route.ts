@@ -34,8 +34,10 @@ export const addPriceListItemProcedure = publicProcedure
     try {
       // Generate UUID for the item
       const itemId = randomUUID();
+      const now = new Date().toISOString();
 
-      const { data, error } = await supabase
+      // Insert with a timeout
+      const insertPromise = supabase
         .from('price_list_items')
         .insert({
           id: itemId,
@@ -48,9 +50,20 @@ export const addPriceListItemProcedure = publicProcedure
           labor_cost: input.laborCost || null,
           material_cost: input.materialCost || null,
           is_custom: input.isCustom,
+          created_at: now,
         } as any)
         .select()
         .single();
+
+      // Add a 8-second timeout to fail fast
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database operation timeout')), 8000)
+      );
+
+      const { data, error } = await Promise.race([
+        insertPromise,
+        timeoutPromise
+      ]) as any;
 
       if (error) {
         console.error('[Price List] Error adding price list item:', error);
@@ -76,7 +89,7 @@ export const addPriceListItemProcedure = publicProcedure
           laborCost: data.labor_cost ? Number(data.labor_cost) : undefined,
           materialCost: data.material_cost ? Number(data.material_cost) : undefined,
           isCustom: data.is_custom || false,
-          createdAt: data.created_at,
+          createdAt: data.created_at || now,
         },
       };
     } catch (error: any) {
