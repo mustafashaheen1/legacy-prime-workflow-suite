@@ -1369,6 +1369,19 @@ export default function EstimateScreen() {
     try {
       console.log('[Estimate] Exporting estimate as PDF...');
 
+      // Check if any images are still uploading
+      if (uploadingImageItemId) {
+        Alert.alert('Please Wait', 'An image is still uploading. Please wait for it to complete before exporting.');
+        return;
+      }
+
+      // Check for blob URLs that weren't uploaded to S3
+      const hasUnuploadedImages = items.some(item => item.imageUrl?.startsWith('blob:'));
+      if (hasUnuploadedImages) {
+        Alert.alert('Upload Issue', 'Some images failed to upload to cloud storage. Please remove and re-attach the images before exporting.');
+        return;
+      }
+
       // Generate HTML for PDF
       const html = generateEstimatePreviewHTML();
 
@@ -1534,6 +1547,7 @@ export default function EstimateScreen() {
     td { padding: 8px; font-size: 11px; color: #1f2937; }
     .item-name { font-weight: 500; }
     .item-notes { font-size: 10px; color: #6b7280; font-style: italic; margin-top: 2px; }
+    .item-image { max-width: 200px; max-height: 150px; margin-top: 8px; border-radius: 4px; display: block; }
     .totals-section {
       margin-top: 25px;
       padding-top: 20px;
@@ -1597,6 +1611,7 @@ export default function EstimateScreen() {
                 <td>
                   <div class="item-name">${itemName}</div>
                   ${item.notes ? `<div class="item-notes">${item.notes}</div>` : ''}
+                  ${item.imageUrl ? `<img src="${item.imageUrl}" class="item-image" alt="Item photo" />` : ''}
                 </td>
                 <td>${item.quantity} ${itemUnit}</td>
                 <td>$${displayPrice.toFixed(2)}</td>
