@@ -2383,7 +2383,16 @@ export default function EstimateScreen() {
             <TextInput
               style={styles.modalInput}
               value={editingPrice}
-              onChangeText={setEditingPrice}
+              onChangeText={(text) => {
+                // Only allow digits and decimal point
+                const numericText = text.replace(/[^0-9.]/g, '');
+                // Prevent multiple decimal points
+                const parts = numericText.split('.');
+                const sanitized = parts.length > 2
+                  ? parts[0] + '.' + parts.slice(1).join('')
+                  : numericText;
+                setEditingPrice(sanitized);
+              }}
               placeholder="0.00"
               placeholderTextColor="#9CA3AF"
               keyboardType="decimal-pad"
