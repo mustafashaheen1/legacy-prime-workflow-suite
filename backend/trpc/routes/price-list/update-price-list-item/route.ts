@@ -28,26 +28,23 @@ export const updatePriceListItemProcedure = publicProcedure
       throw new Error('Database not configured. Please add Supabase environment variables.');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      db: {
+        schema: 'public',
+      },
+      global: {
+        headers: {
+          'x-connection-timeout': '5000',
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
 
     try {
-      // First, check if the item exists and belongs to this company
-      const { data: existingItem, error: fetchError } = await supabase
-        .from('price_list_items')
-        .select('*')
-        .eq('id', input.itemId)
-        .single();
-
-      if (fetchError || !existingItem) {
-        console.error('[Price List] Item not found:', input.itemId);
-        throw new Error('Price list item not found');
-      }
-
-      // Only allow updating custom items that belong to this company
-      if (!existingItem.is_custom || existingItem.company_id !== input.companyId) {
-        console.error('[Price List] Cannot update master item or item from another company');
-        throw new Error('You can only update your own custom items');
-      }
+      console.log('[Price List] Updating item:', input.itemId);
 
       // Build update object with only provided fields
       const updateData: any = {};
@@ -59,39 +56,48 @@ export const updatePriceListItemProcedure = publicProcedure
       if (input.laborCost !== undefined) updateData.labor_cost = input.laborCost;
       if (input.materialCost !== undefined) updateData.material_cost = input.materialCost;
 
-      // Update the item
-      const { data, error } = await supabase
+      // Update the item with timeout (only update if custom item and belongs to company)
+      const updatePromise = supabase
         .from('price_list_items')
         .update(updateData)
         .eq('id', input.itemId)
-        .select()
-        .single();
+        .eq('company_id', input.companyId)
+        .eq('is_custom', true);
+
+      // Add a 5-second timeout
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => {
+          console.error('[Price List] Update timed out after 5s');
+          reject(new Error('Database operation timeout'));
+        }, 5000)
+      );
+
+      const { error } = await Promise.race([
+        updatePromise,
+        timeoutPromise
+      ]) as any;
 
       if (error) {
         console.error('[Price List] Error updating price list item:', error);
         throw new Error(`Failed to update price list item: ${error.message}`);
       }
 
-      if (!data) {
-        throw new Error('No data returned from update');
-      }
+      console.log('[Price List] Price list item updated successfully:', input.itemId);
 
-      console.log('[Price List] Price list item updated successfully:', data.id);
-
-      // Convert database response back to camelCase
+      // Return success (client already has the updated data locally)
       return {
         success: true,
         item: {
-          id: data.id,
-          category: data.category,
-          name: data.name,
-          description: data.description || '',
-          unit: data.unit,
-          unitPrice: Number(data.unit_price),
-          laborCost: data.labor_cost ? Number(data.labor_cost) : undefined,
-          materialCost: data.material_cost ? Number(data.material_cost) : undefined,
-          isCustom: data.is_custom || false,
-          createdAt: data.created_at,
+          id: input.itemId,
+          category: input.category,
+          name: input.name,
+          description: input.description || '',
+          unit: input.unit,
+          unitPrice: input.unitPrice,
+          laborCost: input.laborCost,
+          materialCost: input.materialCost,
+          isCustom: true,
+          createdAt: new Date().toISOString(),
         },
       };
     } catch (error: any) {

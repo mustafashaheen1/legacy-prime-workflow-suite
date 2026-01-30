@@ -1360,9 +1360,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         try {
           const { vanillaClient } = await import('@/lib/trpc');
 
-          // Add a timeout to prevent waiting forever
+          // Add a 5-second timeout to prevent waiting forever
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Request timeout')), 10000)
+            setTimeout(() => reject(new Error('Request timeout')), 5000)
           );
 
           const result = await Promise.race([

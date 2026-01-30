@@ -29,14 +29,29 @@ export const addPriceListItemProcedure = publicProcedure
       throw new Error('Database not configured. Please add Supabase environment variables.');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      db: {
+        schema: 'public',
+      },
+      global: {
+        headers: {
+          'x-connection-timeout': '5000',
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
 
     try {
       // Generate UUID for the item
       const itemId = randomUUID();
       const now = new Date().toISOString();
 
-      // Insert with a timeout
+      console.log('[Price List] Starting insert for:', itemId);
+
+      // Insert without selecting back (faster, one query instead of two)
       const insertPromise = supabase
         .from('price_list_items')
         .insert({
@@ -51,16 +66,17 @@ export const addPriceListItemProcedure = publicProcedure
           material_cost: input.materialCost || null,
           is_custom: input.isCustom,
           created_at: now,
-        } as any)
-        .select()
-        .single();
+        } as any);
 
-      // Add a 8-second timeout to fail fast
+      // Add a 5-second timeout to fail fast
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Database operation timeout')), 8000)
+        setTimeout(() => {
+          console.error('[Price List] Database operation timed out after 5s');
+          reject(new Error('Database operation timeout'));
+        }, 5000)
       );
 
-      const { data, error } = await Promise.race([
+      const { error } = await Promise.race([
         insertPromise,
         timeoutPromise
       ]) as any;
@@ -70,26 +86,22 @@ export const addPriceListItemProcedure = publicProcedure
         throw new Error(`Failed to add price list item: ${error.message}`);
       }
 
-      if (!data) {
-        throw new Error('No data returned from insert');
-      }
+      console.log('[Price List] Price list item added successfully:', itemId);
 
-      console.log('[Price List] Price list item added successfully:', data.id);
-
-      // Convert database response back to camelCase
+      // Return the data we already have (no need to query back)
       return {
         success: true,
         item: {
-          id: data.id,
-          category: data.category,
-          name: data.name,
-          description: data.description || '',
-          unit: data.unit,
-          unitPrice: Number(data.unit_price),
-          laborCost: data.labor_cost ? Number(data.labor_cost) : undefined,
-          materialCost: data.material_cost ? Number(data.material_cost) : undefined,
-          isCustom: data.is_custom || false,
-          createdAt: data.created_at || now,
+          id: itemId,
+          category: input.category,
+          name: input.name,
+          description: input.description || '',
+          unit: input.unit,
+          unitPrice: input.unitPrice,
+          laborCost: input.laborCost,
+          materialCost: input.materialCost,
+          isCustom: input.isCustom,
+          createdAt: now,
         },
       };
     } catch (error: any) {

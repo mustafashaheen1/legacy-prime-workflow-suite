@@ -456,53 +456,61 @@ export default function EstimateScreen() {
       return;
     }
 
-    try {
-      const itemToEdit = priceListItems.find(item => item.id === editingPriceItemId);
-      if (!itemToEdit) {
-        Alert.alert('Error', 'Item not found');
-        return;
-      }
+    const itemToEdit = priceListItems.find(item => item.id === editingPriceItemId);
+    if (!itemToEdit) {
+      Alert.alert('Error', 'Item not found');
+      return;
+    }
 
-      // If it's a master item (not custom), create a custom override for this company
-      if (!itemToEdit.isCustom) {
-        console.log('[Estimate] Creating custom override for master item:', itemToEdit.name);
+    // Close modal immediately
+    setShowEditPriceModal(false);
+    setEditingPriceItemId(null);
+    setEditingPrice('');
 
-        const customItem: CustomPriceListItem = {
-          id: `custom-${Date.now()}`,
-          category: itemToEdit.category,
-          name: `${itemToEdit.name} (Custom Price)`,
-          description: itemToEdit.description || '',
-          unit: itemToEdit.unit,
-          unitPrice: newPrice,
-          isCustom: true,
-          createdAt: new Date().toISOString(),
-        };
+    // If it's a master item (not custom), create a custom override for this company
+    if (!itemToEdit.isCustom) {
+      console.log('[Estimate] Creating custom override for master item:', itemToEdit.name);
 
-        await addCustomPriceListItem(customItem);
-        Alert.alert('Success', 'Custom price item created! The original master item remains unchanged.');
-      } else {
-        // It's a custom item, update it directly
-        console.log('[Estimate] Updating custom item:', itemToEdit.name);
+      const customItem: CustomPriceListItem = {
+        id: `custom-${Date.now()}`,
+        category: itemToEdit.category,
+        name: `${itemToEdit.name} (Custom Price)`,
+        description: itemToEdit.description || '',
+        unit: itemToEdit.unit,
+        unitPrice: newPrice,
+        isCustom: true,
+        createdAt: new Date().toISOString(),
+      };
 
-        const result = await vanillaClient.priceList.updatePriceListItem.mutate({
-          itemId: editingPriceItemId,
-          companyId: company.id,
-          unitPrice: newPrice,
-        });
+      // Don't await - save happens immediately in AppContext, backend sync is background
+      addCustomPriceListItem(customItem);
 
-        if (result.success) {
-          // Update the local state via AppContext
-          await updateCustomPriceListItem(editingPriceItemId, { unitPrice: newPrice });
-          Alert.alert('Success', 'Price updated successfully!');
+      // Show success immediately
+      Alert.alert('Success', 'Custom price item created! The original master item remains unchanged.');
+    } else {
+      // It's a custom item, update it directly
+      console.log('[Estimate] Updating custom item:', itemToEdit.name);
+
+      // Update local state immediately
+      updateCustomPriceListItem(editingPriceItemId, { unitPrice: newPrice });
+
+      // Show success immediately
+      Alert.alert('Success', 'Price updated successfully!');
+
+      // Update backend in background (non-blocking)
+      (async () => {
+        try {
+          await vanillaClient.priceList.updatePriceListItem.mutate({
+            itemId: editingPriceItemId,
+            companyId: company.id,
+            unitPrice: newPrice,
+          });
+          console.log('[Estimate] Price updated in database');
+        } catch (error) {
+          console.error('[Estimate] Error updating price in database:', error);
+          // Price is already updated locally, so don't show error to user
         }
-      }
-
-      setShowEditPriceModal(false);
-      setEditingPriceItemId(null);
-      setEditingPrice('');
-    } catch (error: any) {
-      console.error('[Estimate] Error updating price:', error);
-      Alert.alert('Error', error.message || 'Failed to update price');
+      })();
     }
   };
 
