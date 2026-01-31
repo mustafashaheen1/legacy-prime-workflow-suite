@@ -674,8 +674,8 @@ export default function FilesNavigationScreen() {
             } else {
               const isImage = file.fileType?.startsWith('image/');
               const isPdf = file.fileType === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
-              // S3 files have 'url' property, local files have 'uri'
-              const fileUrl = file.url || file.uri;
+              // All files now use 'uri' property from database
+              const fileUrl = file.uri;
               return (
                 <TouchableOpacity
                   key={file.id}

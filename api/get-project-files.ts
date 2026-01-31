@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       category: file.category,
       fileType: file.file_type,
       fileSize: file.file_size,
-      url: file.url,
+      uri: file.uri, // Database uses 'uri' column
       s3Key: file.s3_key,
       notes: file.notes,
       uploadDate: file.upload_date,

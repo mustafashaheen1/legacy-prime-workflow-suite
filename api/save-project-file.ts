@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         category,
         file_type: fileType || 'unknown',
         file_size: fileSize || 0,
-        url,
+        uri: url, // Database uses 'uri' column
         s3_key: s3Key || null,
         notes: notes || null,
         upload_date: new Date().toISOString(),
@@ -71,7 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         category: data.category,
         fileType: data.file_type,
         fileSize: data.file_size,
-        url: data.url,
+        uri: data.uri, // Return as 'uri' to match interface
         s3Key: data.s3_key,
         notes: data.notes,
         uploadDate: data.upload_date,
