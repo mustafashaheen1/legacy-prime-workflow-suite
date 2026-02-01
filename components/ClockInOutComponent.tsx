@@ -31,7 +31,7 @@ interface ClockInOutComponentProps {
 }
 
 export default function ClockInOutComponent({ projectId, projectName, compact = false }: ClockInOutComponentProps) {
-  const { clockEntries, addClockEntry, updateClockEntry, user, updateProject } = useApp();
+  const { clockEntries, addClockEntry, updateClockEntry, user, updateProject, addExpense, expenses } = useApp();
   const router = useRouter();
   const [currentEntry, setCurrentEntry] = useState<ClockEntry | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -163,14 +163,14 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     setShowClockOutModal(true);
   };
 
-  const completeClockOut = () => {
+  const completeClockOut = async () => {
     if (!currentEntry) return;
 
     const clockOutTime = new Date().toISOString();
     const clockInDate = new Date(currentEntry.clockIn);
     const clockOutDate = new Date(clockOutTime);
     let totalMs = clockOutDate.getTime() - clockInDate.getTime();
-    
+
     if (currentEntry.lunchBreaks) {
       currentEntry.lunchBreaks.forEach(lunch => {
         const lunchStart = new Date(lunch.startTime).getTime();
@@ -178,7 +178,7 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
         totalMs -= (lunchEnd - lunchStart);
       });
     }
-    
+
     const hoursWorked = totalMs / (1000 * 60 * 60);
 
     updateClockEntry(currentEntry.id, {
@@ -196,6 +196,47 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     console.log(`[Clock Out] Hours worked (excluding lunch): ${hoursWorked.toFixed(2)}h`);
     console.log(`[Clock Out] Category: ${currentEntry.category || 'General Labor'}`);
     console.log(`[Clock Out] Work performed: ${workPerformed || 'N/A'}`);
+
+    // Auto-create labor expense if hourly rate is set
+    if (user?.hourlyRate && hoursWorked > 0 && projectId) {
+      // Check if labor expense already exists for this clock entry
+      const existingExpense = expenses.find(exp =>
+        exp.clockEntryId === currentEntry.id && exp.type === 'Labor'
+      );
+
+      if (existingExpense) {
+        console.log('[Clock Out] Labor expense already exists for this clock entry');
+      } else {
+        const laborCost = hoursWorked * user.hourlyRate;
+
+        const laborExpense = {
+          id: `labor-${currentEntry.id}-${Date.now()}`,
+          projectId: projectId,
+          companyId: user.companyId,
+          type: 'Labor',
+          subcategory: 'Employee Labor',
+          amount: laborCost,
+          store: user.name || 'Unknown Employee',
+          date: clockOutTime,
+          receiptUrl: '',
+          notes: `${hoursWorked.toFixed(2)} hours @ $${user.hourlyRate}/hour`,
+          createdAt: new Date().toISOString(),
+          clockEntryId: currentEntry.id,
+        };
+
+        await addExpense(laborExpense);
+
+        console.log('[Clock Out] Created labor expense:', laborExpense.id, `$${laborCost.toFixed(2)}`);
+      }
+    } else {
+      if (!user?.hourlyRate) {
+        console.log('[Clock Out] No hourly rate set for employee, skipping labor expense');
+      } else if (hoursWorked <= 0) {
+        console.log('[Clock Out] Hours worked is 0 or negative, skipping labor expense');
+      } else if (!projectId) {
+        console.log('[Clock Out] No project assigned, skipping labor expense');
+      }
+    }
 
     setCurrentEntry(null);
     setWorkPerformed('');

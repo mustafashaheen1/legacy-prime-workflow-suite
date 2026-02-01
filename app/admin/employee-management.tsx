@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import { Stack, router } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { User, ClockEntry } from '@/types';
-import { Clock, DollarSign, CheckCircle, XCircle, FileText } from 'lucide-react-native';
+import { Clock, DollarSign, CheckCircle, XCircle, FileText, Edit2 } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 
 export default function EmployeeManagementScreen() {
@@ -13,6 +13,8 @@ export default function EmployeeManagementScreen() {
   const [showTimecardModal, setShowTimecardModal] = useState<boolean>(false);
   const [timecardPeriod, setTimecardPeriod] = useState<'weekly' | 'bi-weekly' | 'custom'>('weekly');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showEditRateModal, setShowEditRateModal] = useState<boolean>(false);
+  const [editingRate, setEditingRate] = useState<string>('');
 
   const { data: usersData } = trpc.users.getUsers.useQuery({
     companyId: currentUser?.companyId || '',
@@ -51,9 +53,21 @@ export default function EmployeeManagementScreen() {
     },
   });
 
+  const updateUserMutation = trpc.users.updateUser.useMutation({
+    onSuccess: () => {
+      Alert.alert('Success', 'Hourly rate updated successfully');
+      setShowEditRateModal(false);
+      setSelectedEmployee(null);
+      setEditingRate('');
+    },
+    onError: (error) => {
+      Alert.alert('Error', error.message || 'Failed to update hourly rate');
+    },
+  });
+
   const handleApproveRateChange = async (employee: User, approve: boolean) => {
     if (!currentUser) return;
-    
+
     try {
       await approveRateChangeMutation.mutateAsync({
         userId: employee.id,
@@ -62,6 +76,34 @@ export default function EmployeeManagementScreen() {
       });
     } catch (error) {
       console.error('[Admin] Error handling rate change:', error);
+    }
+  };
+
+  const openEditRateModal = (employee: User) => {
+    setSelectedEmployee(employee);
+    setEditingRate(employee.hourlyRate?.toString() || '');
+    setShowEditRateModal(true);
+  };
+
+  const handleUpdateRate = async () => {
+    if (!selectedEmployee) return;
+
+    const rate = parseFloat(editingRate);
+    if (isNaN(rate) || rate < 0) {
+      Alert.alert('Invalid Rate', 'Please enter a valid hourly rate');
+      return;
+    }
+
+    try {
+      await updateUserMutation.mutateAsync({
+        userId: selectedEmployee.id,
+        updates: {
+          hourlyRate: rate,
+          rateChangeRequest: undefined, // Clear any pending rate change requests
+        },
+      });
+    } catch (error) {
+      console.error('[Admin] Error updating rate:', error);
     }
   };
 
@@ -293,7 +335,14 @@ export default function EmployeeManagementScreen() {
                 </View>
 
                 <View style={styles.employeeActions}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => openEditRateModal(employee)}
+                  >
+                    <Edit2 size={16} color="#10B981" />
+                    <Text style={[styles.actionButtonText, { color: '#10B981' }]}>Edit Rate</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => generateTimecard(employee)}
                   >
@@ -379,6 +428,76 @@ export default function EmployeeManagementScreen() {
                 onPress={confirmGenerateTimecard}
               >
                 <Text style={styles.modalConfirmButtonText}>Generate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showEditRateModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEditRateModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Hourly Rate</Text>
+
+            {selectedEmployee && (
+              <>
+                <View style={styles.modalInfo}>
+                  <Text style={styles.modalInfoLabel}>Employee:</Text>
+                  <Text style={styles.modalInfoValue}>{selectedEmployee.name}</Text>
+                </View>
+
+                <View style={styles.modalInfo}>
+                  <Text style={styles.modalInfoLabel}>Current Hourly Rate:</Text>
+                  <Text style={styles.modalInfoValue}>
+                    ${selectedEmployee.hourlyRate?.toFixed(2) || '0.00'}/hr
+                  </Text>
+                </View>
+
+                <View style={styles.rateInputSection}>
+                  <Text style={styles.rateInputLabel}>New Hourly Rate:</Text>
+                  <TextInput
+                    style={styles.rateInput}
+                    value={editingRate}
+                    onChangeText={(text) => {
+                      // Only allow numbers and decimal point
+                      const filtered = text.replace(/[^0-9.]/g, '');
+                      // Ensure only one decimal point
+                      const parts = filtered.split('.');
+                      if (parts.length > 2) return;
+                      setEditingRate(filtered);
+                    }}
+                    placeholder="25.50"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+              </>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowEditRateModal(false);
+                  setSelectedEmployee(null);
+                  setEditingRate('');
+                }}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmButton}
+                onPress={handleUpdateRate}
+                disabled={updateUserMutation.isPending}
+              >
+                <Text style={styles.modalConfirmButtonText}>
+                  {updateUserMutation.isPending ? 'Updating...' : 'Update Rate'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -715,5 +834,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  rateInputSection: {
+    marginBottom: 24,
+  },
+  rateInputLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  rateInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#1F2937',
   },
 });

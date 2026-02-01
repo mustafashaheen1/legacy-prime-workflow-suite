@@ -4,7 +4,7 @@ import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
 import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permissions';
-import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, Wrench } from 'lucide-react-native';
+import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, Wrench, DollarSign } from 'lucide-react-native';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
@@ -77,6 +77,8 @@ export default function SettingsScreen() {
     cellPhone?: string;
     website?: string;
   }>({});
+  const [showRateChangeModal, setShowRateChangeModal] = useState<boolean>(false);
+  const [requestedRate, setRequestedRate] = useState<string>('');
 
   const usersQuery = trpc.users.getUsers.useQuery(
     { companyId: company?.id },
@@ -174,13 +176,193 @@ export default function SettingsScreen() {
 
   const availableRoles = currentUser ? getAvailableRolesForManagement(currentUser.role) : [];
 
+  const handleRequestRateChange = async () => {
+    const rate = parseFloat(requestedRate);
+    if (isNaN(rate) || rate < 0) {
+      if (Platform.OS === 'web') {
+        alert('Please enter a valid hourly rate');
+      } else {
+        Alert.alert('Invalid Rate', 'Please enter a valid hourly rate');
+      }
+      return;
+    }
+
+    if (!currentUser) return;
+
+    try {
+      // Update user with rate change request
+      const updatedUser = {
+        ...currentUser,
+        rateChangeRequest: {
+          newRate: rate,
+          requestDate: new Date().toISOString(),
+          status: 'pending' as const,
+        },
+      };
+
+      await updateUserMutation.mutateAsync({
+        userId: currentUser.id,
+        updates: {
+          rateChangeRequest: {
+            newRate: rate,
+            requestDate: new Date().toISOString(),
+            status: 'pending',
+          }
+        },
+      });
+
+      setShowRateChangeModal(false);
+      setRequestedRate('');
+
+      if (Platform.OS === 'web') {
+        alert('Rate change request submitted successfully');
+      } else {
+        Alert.alert('Success', 'Rate change request submitted successfully');
+      }
+    } catch (error: any) {
+      console.error('[RateChange] Error:', error);
+      if (Platform.OS === 'web') {
+        alert(error.message || 'Failed to submit rate change request');
+      } else {
+        Alert.alert('Error', error.message || 'Failed to submit rate change request');
+      }
+    }
+  };
+
+  // Employee Settings View (for non-admin users)
   if (!isAdmin && !isSuperAdmin) {
     return (
       <View style={styles.container}>
-        <View style={styles.noAccess}>
-          <Shield size={48} color="#9CA3AF" />
-          <Text style={styles.noAccessText}>{t('settings.noAccess')}</Text>
-        </View>
+        <ScrollView style={styles.scrollView}>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Shield size={24} color="#2563EB" />
+              <Text style={styles.sectionTitle}>My Profile</Text>
+            </View>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Name</Text>
+              <Text style={styles.profileValue}>{currentUser?.name || 'N/A'}</Text>
+
+              <Text style={[styles.infoLabel, { marginTop: 12 }]}>Email</Text>
+              <Text style={styles.profileValue}>{currentUser?.email || 'N/A'}</Text>
+
+              <Text style={[styles.infoLabel, { marginTop: 12 }]}>Role</Text>
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleText}>{getRoleDisplayName(currentUser?.role || 'field-employee')}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <DollarSign size={24} color="#2563EB" />
+              <Text style={styles.sectionTitle}>Hourly Rate</Text>
+            </View>
+
+            <View style={styles.infoCard}>
+              <View style={styles.rateContainer}>
+                <DollarSign size={20} color="#6B7280" />
+                <Text style={styles.rateText}>
+                  {currentUser?.hourlyRate ? `$${currentUser.hourlyRate.toFixed(2)}/hour` : 'Not set'}
+                </Text>
+              </View>
+
+              {currentUser?.rateChangeRequest?.status === 'pending' && (
+                <View style={[styles.pendingBadge, { marginTop: 12 }]}>
+                  <Text style={styles.pendingText}>
+                    Rate change request pending: ${currentUser.rateChangeRequest.newRate}/hour
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.requestButton}
+                onPress={() => setShowRateChangeModal(true)}
+              >
+                <Text style={styles.requestButtonText}>Request Rate Change</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+              disabled={isLoggingOut}
+            >
+              {isLoggingOut ? (
+                <ActivityIndicator size="small" color="#DC2626" />
+              ) : (
+                <>
+                  <LogOut size={20} color="#DC2626" />
+                  <Text style={styles.logoutButtonText}>{t('settings.logout') || 'Logout'}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        {/* Rate Change Request Modal */}
+        <Modal
+          visible={showRateChangeModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowRateChangeModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Request Rate Change</Text>
+                <TouchableOpacity onPress={() => setShowRateChangeModal(false)}>
+                  <X size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <View>
+                <Text style={styles.formLabel}>Current Hourly Rate</Text>
+                <Text style={styles.currentRateDisplay}>
+                  {currentUser?.hourlyRate ? `$${currentUser.hourlyRate.toFixed(2)}/hour` : 'Not set'}
+                </Text>
+
+                <Text style={[styles.formLabel, { marginTop: 16 }]}>Requested Hourly Rate</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={requestedRate}
+                  onChangeText={(text) => {
+                    // Only allow numbers and decimal point
+                    const filtered = text.replace(/[^0-9.]/g, '');
+                    // Ensure only one decimal point
+                    const parts = filtered.split('.');
+                    if (parts.length > 2) return;
+                    setRequestedRate(filtered);
+                  }}
+                  placeholder="25.50"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="decimal-pad"
+                />
+
+                <View style={styles.formButtonsContainer}>
+                  <TouchableOpacity
+                    style={styles.formCancelButton}
+                    onPress={() => {
+                      setShowRateChangeModal(false);
+                      setRequestedRate('');
+                    }}
+                  >
+                    <Text style={styles.formCancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.formSaveButton}
+                    onPress={handleRequestRateChange}
+                  >
+                    <Text style={styles.formSaveButtonText}>Submit Request</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -1489,5 +1671,45 @@ const styles = StyleSheet.create({
   devToolDescription: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  profileValue: {
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '500' as const,
+  },
+  rateContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingVertical: 8,
+  },
+  rateText: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#111827',
+  },
+  requestButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center' as const,
+    marginTop: 16,
+  },
+  requestButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  currentRateDisplay: {
+    fontSize: 16,
+    fontWeight: '500' as const,
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 });

@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
-import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Check, Edit3 } from 'lucide-react-native';
+import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Check, Edit3, Clock, Info } from 'lucide-react-native';
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
 
 interface ExtractedExpense {
@@ -882,36 +882,62 @@ export default function ProjectExpensesScreen() {
           {user?.role === 'admin' && (
             <View style={styles.expensesList}>
               <Text style={styles.sectionTitle}>Recent Expenses</Text>
+
+              {/* Info message for labor expenses */}
+              {filteredExpenses.some(exp => exp.type === 'Labor' && exp.clockEntryId) && (
+                <View style={styles.infoBox}>
+                  <Info size={16} color="#3B82F6" />
+                  <Text style={styles.infoText}>
+                    Labor expenses are automatically created when employees clock out. To modify, adjust the clock entry or employee's hourly rate.
+                  </Text>
+                </View>
+              )}
+
               {filteredExpenses.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyStateText}>No expenses recorded for this project</Text>
                 </View>
               ) : (
-                filteredExpenses.map((expense) => (
-                  <View key={expense.id} style={styles.expenseCard}>
-                    <View style={styles.expenseHeader}>
-                      <View style={styles.expenseInfo}>
-                        <View>
-                          <Text style={styles.expenseType}>{expense.type}</Text>
-                          {expense.subcategory && expense.subcategory !== expense.type && (
-                            <Text style={styles.expenseSubcategory}>{expense.subcategory}</Text>
+                filteredExpenses.map((expense) => {
+                  const isLaborExpense = expense.type === 'Labor' && expense.clockEntryId;
+
+                  return (
+                    <View key={expense.id} style={styles.expenseCard}>
+                      <View style={styles.expenseHeader}>
+                        <View style={styles.expenseInfo}>
+                          <View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={styles.expenseType}>{expense.type}</Text>
+                              {isLaborExpense && (
+                                <View style={styles.laborBadge}>
+                                  <Clock size={12} color="#8B5CF6" />
+                                  <Text style={styles.laborBadgeText}>Auto</Text>
+                                </View>
+                              )}
+                            </View>
+                            {expense.subcategory && expense.subcategory !== expense.type && (
+                              <Text style={styles.expenseSubcategory}>{expense.subcategory}</Text>
+                            )}
+                            {expense.notes && isLaborExpense && (
+                              <Text style={styles.expenseNotes}>{expense.notes}</Text>
+                            )}
+                          </View>
+                          {expense.receiptUrl && (
+                            <TouchableOpacity
+                              style={styles.receiptBadge}
+                              onPress={() => handleViewReceipt(expense.receiptUrl!)}
+                            >
+                              <ImageIcon size={12} color="#10B981" />
+                            </TouchableOpacity>
                           )}
                         </View>
-                        {expense.receiptUrl && (
-                          <TouchableOpacity
-                            style={styles.receiptBadge}
-                            onPress={() => handleViewReceipt(expense.receiptUrl!)}
-                          >
-                            <ImageIcon size={12} color="#10B981" />
-                          </TouchableOpacity>
-                        )}
+                        <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
                       </View>
-                      <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
+                      <Text style={styles.expenseStore}>{expense.store}</Text>
+                      <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
                     </View>
-                    <Text style={styles.expenseStore}>{expense.store}</Text>
-                    <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
-                  </View>
-                ))
+                  );
+                })
               )}
             </View>
           )}
@@ -1849,5 +1875,44 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     textAlign: 'center',
     marginBottom: 8,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1E40AF',
+    lineHeight: 18,
+  },
+  laborBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3E8FF',
+    borderWidth: 1,
+    borderColor: '#C084FC',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  laborBadgeText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: '#7C3AED',
+  },
+  expenseNotes: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    fontStyle: 'italic' as const,
   },
 });

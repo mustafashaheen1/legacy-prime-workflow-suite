@@ -105,6 +105,18 @@ export default function ProjectDetailScreen() {
     return projectExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   }, [projectExpenses]);
 
+  const laborCosts = useMemo(() => {
+    return projectExpenses
+      .filter(exp => exp.type === 'Labor')
+      .reduce((sum, exp) => sum + exp.amount, 0);
+  }, [projectExpenses]);
+
+  const materialCosts = useMemo(() => {
+    return projectExpenses
+      .filter(exp => exp.type !== 'Labor')
+      .reduce((sum, exp) => sum + exp.amount, 0);
+  }, [projectExpenses]);
+
   // Get estimate linked to this project via project.estimateId
   const projectEstimates = useMemo(() => {
     if (!project?.estimateId) return [];
@@ -417,6 +429,32 @@ export default function ProjectDetailScreen() {
                     </Text>
                   </View>
                 </View>
+
+                {/* Cost Breakdown */}
+                {(laborCosts > 0 || materialCosts > 0) && (
+                  <View style={styles.costBreakdownSection}>
+                    <Text style={styles.costBreakdownTitle}>Cost Breakdown</Text>
+                    <View style={styles.costBreakdownCard}>
+                      {materialCosts > 0 && (
+                        <View style={styles.costRow}>
+                          <Text style={styles.costLabel}>Material & Other Costs:</Text>
+                          <Text style={styles.costValue}>${materialCosts.toLocaleString()}</Text>
+                        </View>
+                      )}
+                      {laborCosts > 0 && (
+                        <View style={styles.costRow}>
+                          <Text style={styles.costLabel}>Labor Costs:</Text>
+                          <Text style={styles.costValue}>${laborCosts.toLocaleString()}</Text>
+                        </View>
+                      )}
+                      <View style={styles.costDivider} />
+                      <View style={styles.costRow}>
+                        <Text style={styles.costLabelBold}>Total Job Cost:</Text>
+                        <Text style={styles.costValueBold}>${totalJobCost.toLocaleString()}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
 
                 {totalBudgetAllowance > 0 && (
                   <View style={styles.budgetAllowanceSection}>
@@ -4031,5 +4069,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#D1D5DB',
     lineHeight: 20,
+  },
+  costBreakdownSection: {
+    marginTop: 16,
+  },
+  costBreakdownTitle: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#374151',
+    marginBottom: 8,
+  },
+  costBreakdownCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  costRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  costLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  costValue: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#1F2937',
+  },
+  costLabelBold: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#111827',
+  },
+  costValueBold: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#111827',
+  },
+  costDivider: {
+    height: 1,
+    backgroundColor: '#D1D5DB',
+    marginVertical: 8,
   },
 });

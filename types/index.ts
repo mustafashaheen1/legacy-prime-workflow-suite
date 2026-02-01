@@ -41,8 +41,10 @@ export interface Project {
 export interface Expense {
   id: string;
   projectId: string;
+  companyId?: string;
   type: string;
   subcategory: string;
+  category?: string;
   amount: number;
   store: string;
   date: string;
@@ -50,6 +52,9 @@ export interface Expense {
   imageHash?: string;
   ocrFingerprint?: string;
   imageSizeBytes?: number;
+  notes?: string;
+  createdAt?: string;
+  clockEntryId?: string; // Link to clock entry for labor expenses
 }
 
 export interface Photo {
