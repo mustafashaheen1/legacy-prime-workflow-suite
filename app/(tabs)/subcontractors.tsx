@@ -104,40 +104,100 @@ export default function SubcontractorsScreen() {
         const blob = await response.blob();
 
         if (isImage && blob.size > 1 * 1024 * 1024) { // Compress if > 1MB
-          console.log('[Upload] Compressing image on web...');
-          // For web, we'll use canvas API for compression
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const img = new Image();
+          const fileSizeMB = (blob.size / 1024 / 1024).toFixed(1);
+          console.log('[Upload] Compressing image on web... Original size:', fileSizeMB, 'MB');
 
-          base64Data = await new Promise((resolve, reject) => {
-            img.onload = () => {
-              // Calculate new dimensions (max 1920px)
-              const maxSize = 1920;
-              let width = img.width;
-              let height = img.height;
+          try {
+            // Scale timeout and compression based on file size
+            const timeoutMs = blob.size > 5 * 1024 * 1024 ? 30000 : 15000; // 30s for >5MB, 15s otherwise
+            const maxSize = blob.size > 5 * 1024 * 1024 ? 1280 : 1920; // More aggressive for large files
+            const quality = blob.size > 5 * 1024 * 1024 ? 0.6 : 0.8; // Lower quality for large files
 
-              if (width > height && width > maxSize) {
-                height = (height * maxSize) / width;
-                width = maxSize;
-              } else if (height > maxSize) {
-                width = (width * maxSize) / height;
-                height = maxSize;
+            const compressionPromise = new Promise<string>((resolve, reject) => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                reject(new Error('Canvas context not available'));
+                return;
               }
 
-              canvas.width = width;
-              canvas.height = height;
-              ctx?.drawImage(img, 0, 0, width, height);
+              const img = new Image();
 
-              // Convert to JPEG with 0.8 quality
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-              actualFileSize = Math.ceil((dataUrl.length - 22) * 0.75); // Estimate actual size
-              console.log('[Upload] Web compression complete, new size:', actualFileSize);
-              resolve(dataUrl);
-            };
-            img.onerror = reject;
-            img.src = URL.createObjectURL(blob);
-          });
+              img.onload = () => {
+                try {
+                  let width = img.width;
+                  let height = img.height;
+
+                  console.log('[Upload] Original dimensions:', width, 'x', height);
+
+                  // Scale down to maxSize
+                  if (width > height && width > maxSize) {
+                    height = (height * maxSize) / width;
+                    width = maxSize;
+                  } else if (height > maxSize) {
+                    width = (width * maxSize) / height;
+                    height = maxSize;
+                  }
+
+                  console.log('[Upload] Target dimensions:', width, 'x', height);
+
+                  canvas.width = width;
+                  canvas.height = height;
+                  ctx.drawImage(img, 0, 0, width, height);
+
+                  const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                  actualFileSize = Math.ceil((dataUrl.length - 22) * 0.75);
+
+                  const compressedSizeMB = (actualFileSize / 1024 / 1024).toFixed(1);
+                  console.log('[Upload] Web compression complete, new size:', compressedSizeMB, 'MB');
+
+                  // Clean up object URL
+                  URL.revokeObjectURL(img.src);
+
+                  resolve(dataUrl);
+                } catch (error) {
+                  console.error('[Upload] Canvas error:', error);
+                  reject(error);
+                }
+              };
+
+              img.onerror = (error) => {
+                console.error('[Upload] Image load error:', error);
+                reject(new Error('Failed to load image'));
+              };
+
+              // Set crossOrigin before src to avoid CORS issues
+              img.crossOrigin = 'anonymous';
+              img.src = URL.createObjectURL(blob);
+            });
+
+            const timeoutPromise = new Promise<string>((_, reject) => {
+              setTimeout(() => reject(new Error(`Compression timeout after ${timeoutMs / 1000} seconds`)), timeoutMs);
+            });
+
+            base64Data = await Promise.race([compressionPromise, timeoutPromise]);
+          } catch (compressionError) {
+            console.warn('[Upload] Compression failed:', compressionError);
+
+            // Check if original file is within limit
+            if (blob.size > 5 * 1024 * 1024) {
+              throw new Error(
+                `Image compression failed and original file is too large (${fileSizeMB}MB). ` +
+                `Please use a smaller image or compress it before uploading. Maximum size is 5MB.`
+              );
+            }
+
+            console.log('[Upload] Uploading original file without compression...');
+
+            // Fallback: upload without compression (only if under 5MB)
+            const reader = new FileReader();
+            base64Data = await new Promise((resolve, reject) => {
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            actualFileSize = blob.size;
+          }
         } else {
           // Non-image or small image: read as-is
           const reader = new FileReader();

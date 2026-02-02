@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import { trpc } from '@/lib/trpc';
 import { Linking } from 'react-native';
 import * as FileSystem from 'expo-file-system';
-import { compressImage } from '@/lib/upload-utils';
 
 type FolderType = 'photos' | 'receipts' | 'permit-files' | 'inspections' | 'agreements' | 'videos';
 
@@ -311,159 +310,89 @@ export default function FilesNavigationScreen() {
             ? window.location.origin
             : process.env.EXPO_PUBLIC_API_URL || '';
 
-          // Check if file is an image that needs compression
-          const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
-          const isImage = imageTypes.some(type =>
-            asset.mimeType?.toLowerCase().includes(type.split('/')[1]) ?? false
-          );
+          console.log('[Files] Getting presigned URL for:', asset.name);
 
-          let base64Data: string;
-          let actualFileSize: number = asset.size || 0;
-
-          console.log('[Files] Preparing file for upload...');
-
-          if (Platform.OS === 'web') {
-            // Web: Handle file reading with compression for images
-            const response = await fetch(asset.uri);
-            const blob = await response.blob();
-
-            if (isImage && blob.size > 1 * 1024 * 1024) { // Compress if > 1MB
-              console.log('[Files] Compressing image on web...');
-
-              try {
-                // Add timeout to prevent hanging
-                const compressionPromise = new Promise<string>((resolve, reject) => {
-                  const canvas = document.createElement('canvas');
-                  const ctx = canvas.getContext('2d');
-                  const img = new Image();
-
-                  img.onload = () => {
-                    try {
-                      const maxSize = 1920;
-                      let width = img.width;
-                      let height = img.height;
-
-                      if (width > height && width > maxSize) {
-                        height = (height * maxSize) / width;
-                        width = maxSize;
-                      } else if (height > maxSize) {
-                        width = (width * maxSize) / height;
-                        height = maxSize;
-                      }
-
-                      canvas.width = width;
-                      canvas.height = height;
-                      ctx?.drawImage(img, 0, 0, width, height);
-
-                      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                      actualFileSize = Math.ceil((dataUrl.length - 22) * 0.75);
-                      console.log('[Files] Web compression complete, new size:', actualFileSize);
-
-                      // Clean up object URL
-                      URL.revokeObjectURL(img.src);
-
-                      resolve(dataUrl);
-                    } catch (error) {
-                      reject(error);
-                    }
-                  };
-
-                  img.onerror = (error) => {
-                    console.error('[Files] Image load error:', error);
-                    reject(new Error('Failed to load image'));
-                  };
-
-                  img.src = URL.createObjectURL(blob);
-                });
-
-                const timeoutPromise = new Promise<string>((_, reject) => {
-                  setTimeout(() => reject(new Error('Compression timeout after 10 seconds')), 10000);
-                });
-
-                base64Data = await Promise.race([compressionPromise, timeoutPromise]);
-              } catch (compressionError) {
-                console.warn('[Files] Compression failed:', compressionError);
-                console.log('[Files] Uploading original file without compression...');
-
-                // Fallback: upload without compression
-                const reader = new FileReader();
-                base64Data = await new Promise((resolve, reject) => {
-                  reader.onloadend = () => resolve(reader.result as string);
-                  reader.onerror = reject;
-                  reader.readAsDataURL(blob);
-                });
-                actualFileSize = blob.size;
-              }
-            } else {
-              const reader = new FileReader();
-              base64Data = await new Promise((resolve, reject) => {
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-            }
-          } else {
-            // Mobile: Use compressImage utility for images
-            if (isImage && actualFileSize > 1 * 1024 * 1024) {
-              console.log('[Files] Compressing image on mobile...');
-              const compressed = await compressImage(asset.uri, {
-                maxWidth: 1920,
-                maxHeight: 1920,
-                quality: 0.8,
-              });
-              base64Data = `data:image/jpeg;base64,${compressed.base64}`;
-              actualFileSize = compressed.base64.length;
-              console.log('[Files] Mobile compression complete, new size:', actualFileSize);
-            } else {
-              const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
-              base64Data = `data:${asset.mimeType};base64,${base64}`;
-            }
-          }
-
-          // Check file size
-          const estimatedBodySize = base64Data.length;
-          const maxBodySize = 5 * 1024 * 1024; // 5MB
-          if (estimatedBodySize > maxBodySize) {
-            throw new Error(
-              `File is too large to upload (${(estimatedBodySize / 1024 / 1024).toFixed(1)}MB). ` +
-              `Maximum size is ${(maxBodySize / 1024 / 1024).toFixed(1)}MB. ` +
-              `Please try a smaller file or lower resolution image.`
-            );
-          }
-
-          console.log('[Files] Uploading file via API...');
-
-          // Upload to S3 via API (handles S3 upload and database save in one call)
-          const uploadResponse = await fetch(`${apiUrl}/api/upload-project-file-direct`, {
+          // Step 1: Get presigned URL from API
+          const urlResponse = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              fileData: base64Data,
               fileName: asset.name,
-              fileType: isImage ? 'image/jpeg' : (asset.mimeType || 'application/octet-stream'),
-              fileSize: actualFileSize,
+              fileType: asset.mimeType || 'application/octet-stream',
+              projectId: id,
+              fileCategory: category,
+            }),
+          });
+
+          if (!urlResponse.ok) {
+            throw new Error('Failed to get upload URL');
+          }
+
+          const { uploadUrl, fileUrl, key } = await urlResponse.json();
+          console.log('[Files] Got presigned URL, uploading to S3...');
+
+          // Step 2: Read file as blob
+          let fileBlob: Blob;
+          if (Platform.OS === 'web') {
+            const response = await fetch(asset.uri);
+            fileBlob = await response.blob();
+          } else {
+            // Mobile: read as base64 and convert to blob
+            const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            fileBlob = new Blob([byteArray], { type: asset.mimeType || 'application/octet-stream' });
+          }
+
+          console.log('[Files] Uploading file directly to S3, size:', fileBlob.size, 'bytes');
+
+          // Step 3: Upload directly to S3 using presigned URL
+          const s3Response = await fetch(uploadUrl, {
+            method: 'PUT',
+            body: fileBlob,
+            headers: {
+              'Content-Type': asset.mimeType || 'application/octet-stream',
+            },
+          });
+
+          if (!s3Response.ok) {
+            throw new Error('Failed to upload file to S3');
+          }
+
+          console.log('[Files] S3 upload successful, saving metadata...');
+
+          // Step 4: Save file metadata to database
+          const metadataResponse = await fetch(`${apiUrl}/api/save-project-file-metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
               companyId: company.id,
               projectId: id,
+              fileName: asset.name,
+              fileType: asset.mimeType || 'application/octet-stream',
+              fileSize: fileBlob.size,
               category,
+              s3Key: key,
+              s3Url: fileUrl,
               notes: fileNotes,
             }),
           });
 
-          const uploadResult = await uploadResponse.json();
-
-          if (!uploadResponse.ok) {
-            if (uploadResponse.status === 413) {
-              throw new Error('File is too large. Please try a smaller file or contact support.');
-            }
-            throw new Error(uploadResult.error || 'Upload failed');
+          if (!metadataResponse.ok) {
+            throw new Error('Failed to save file metadata');
           }
 
-          console.log('[Files] File uploaded successfully:', uploadResult.file?.id);
+          const metadataResult = await metadataResponse.json();
+          console.log('[Files] File uploaded successfully:', metadataResult.file?.id);
 
           // Add to local state
-          setS3ProjectFiles(prev => [uploadResult.file, ...prev]);
+          setS3ProjectFiles(prev => [metadataResult.file, ...prev]);
 
           setFileNotes('');
           setUploadModalVisible(false);
