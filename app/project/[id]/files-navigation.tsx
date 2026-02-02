@@ -329,36 +329,71 @@ export default function FilesNavigationScreen() {
 
             if (isImage && blob.size > 1 * 1024 * 1024) { // Compress if > 1MB
               console.log('[Files] Compressing image on web...');
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              const img = new Image();
 
-              base64Data = await new Promise((resolve, reject) => {
-                img.onload = () => {
-                  const maxSize = 1920;
-                  let width = img.width;
-                  let height = img.height;
+              try {
+                // Add timeout to prevent hanging
+                const compressionPromise = new Promise<string>((resolve, reject) => {
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  const img = new Image();
 
-                  if (width > height && width > maxSize) {
-                    height = (height * maxSize) / width;
-                    width = maxSize;
-                  } else if (height > maxSize) {
-                    width = (width * maxSize) / height;
-                    height = maxSize;
-                  }
+                  img.onload = () => {
+                    try {
+                      const maxSize = 1920;
+                      let width = img.width;
+                      let height = img.height;
 
-                  canvas.width = width;
-                  canvas.height = height;
-                  ctx?.drawImage(img, 0, 0, width, height);
+                      if (width > height && width > maxSize) {
+                        height = (height * maxSize) / width;
+                        width = maxSize;
+                      } else if (height > maxSize) {
+                        width = (width * maxSize) / height;
+                        height = maxSize;
+                      }
 
-                  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                  actualFileSize = Math.ceil((dataUrl.length - 22) * 0.75);
-                  console.log('[Files] Web compression complete, new size:', actualFileSize);
-                  resolve(dataUrl);
-                };
-                img.onerror = reject;
-                img.src = URL.createObjectURL(blob);
-              });
+                      canvas.width = width;
+                      canvas.height = height;
+                      ctx?.drawImage(img, 0, 0, width, height);
+
+                      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                      actualFileSize = Math.ceil((dataUrl.length - 22) * 0.75);
+                      console.log('[Files] Web compression complete, new size:', actualFileSize);
+
+                      // Clean up object URL
+                      URL.revokeObjectURL(img.src);
+
+                      resolve(dataUrl);
+                    } catch (error) {
+                      reject(error);
+                    }
+                  };
+
+                  img.onerror = (error) => {
+                    console.error('[Files] Image load error:', error);
+                    reject(new Error('Failed to load image'));
+                  };
+
+                  img.src = URL.createObjectURL(blob);
+                });
+
+                const timeoutPromise = new Promise<string>((_, reject) => {
+                  setTimeout(() => reject(new Error('Compression timeout after 10 seconds')), 10000);
+                });
+
+                base64Data = await Promise.race([compressionPromise, timeoutPromise]);
+              } catch (compressionError) {
+                console.warn('[Files] Compression failed:', compressionError);
+                console.log('[Files] Uploading original file without compression...');
+
+                // Fallback: upload without compression
+                const reader = new FileReader();
+                base64Data = await new Promise((resolve, reject) => {
+                  reader.onloadend = () => resolve(reader.result as string);
+                  reader.onerror = reject;
+                  reader.readAsDataURL(blob);
+                });
+                actualFileSize = blob.size;
+              }
             } else {
               const reader = new FileReader();
               base64Data = await new Promise((resolve, reject) => {
