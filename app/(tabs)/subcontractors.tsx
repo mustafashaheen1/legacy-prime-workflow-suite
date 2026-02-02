@@ -1284,32 +1284,32 @@ export default function SubcontractorsScreen() {
                 console.log('[EstimateRequest] Request sent:', estimateRequest);
                 console.log('[EstimateRequest] Files attached:', selectedFiles.length);
 
-                // Compose email with short links
+                // Compose email with short links (use \r\n for proper email line breaks)
                 const emailSubject = encodeURIComponent(
                   `Estimate Request - ${selectedProject.name}`
                 );
 
-                let emailBody = `Hello ${selectedSubcontractor.name},\n\n`;
-                emailBody += `We would like to request an estimate for the following project:\n\n`;
-                emailBody += `Project: ${selectedProject.name}\n`;
-                emailBody += `Budget: $${selectedProject.budget.toLocaleString()}\n\n`;
+                let emailBody = `Hello ${selectedSubcontractor.name},\r\n\r\n`;
+                emailBody += `We would like to request an estimate for the following project:\r\n\r\n`;
+                emailBody += `Project: ${selectedProject.name}\r\n`;
+                emailBody += `Budget: $${selectedProject.budget.toLocaleString()}\r\n\r\n`;
 
                 if (requestNotes) {
-                  emailBody += `Additional Details:\n${requestNotes}\n\n`;
+                  emailBody += `Additional Details:\r\n${requestNotes}\r\n\r\n`;
                 }
 
                 if (selectedFiles.length > 0) {
-                  emailBody += `Attached Files:\n`;
+                  emailBody += `Attached Files:\r\n`;
                   selectedFiles.forEach((file, index) => {
                     const shortUrl = uploadedFiles[file.id];
                     if (shortUrl) {
-                      emailBody += `${index + 1}. ${file.name}\n   ${shortUrl}\n\n`;
+                      emailBody += `${index + 1}. ${file.name}\r\n   ${shortUrl}\r\n\r\n`;
                     }
                   });
                 }
 
-                emailBody += `\nPlease review the files and provide your estimate at your earliest convenience.\n\n`;
-                emailBody += `Best regards,\n${user?.name || 'Legacy Prime Construction'}`;
+                emailBody += `\r\nPlease review the files and provide your estimate at your earliest convenience.\r\n\r\n`;
+                emailBody += `Best regards,\r\n${user?.name || 'Legacy Prime Construction'}`;
 
                 const mailtoUrl = `mailto:${selectedSubcontractor.email}?subject=${emailSubject}&body=${encodeURIComponent(emailBody)}`;
 
