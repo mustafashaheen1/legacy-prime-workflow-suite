@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Linking, ActivityIndicator } from 'react-native';
-import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp } from 'lucide-react-native';
+import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp, Check, Loader } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Subcontractor, Project, ProjectFile, EstimateRequest } from '@/types';
 import { useApp } from '@/contexts/AppContext';
@@ -8,6 +8,7 @@ import DailyTasksButton from '@/components/DailyTasksButton';
 import { Stack, router } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 
 export default function SubcontractorsScreen() {
   const { subcontractors = [], addSubcontractor, projects, addProjectFile, addNotification, user } = useApp();
@@ -20,6 +21,8 @@ export default function SubcontractorsScreen() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<ProjectFile[]>([]);
   const [requestNotes, setRequestNotes] = useState<string>('');
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
+  const [uploadedFiles, setUploadedFiles] = useState<{[key: string]: string}>({});
   const [selectedSubcontractors, setSelectedSubcontractors] = useState<Set<string>>(new Set());
   const [showStatsWidget, setShowStatsWidget] = useState<boolean>(false);
   const [customTrade, setCustomTrade] = useState<string>('');
@@ -79,6 +82,82 @@ export default function SubcontractorsScreen() {
     'Dumpster',
     'Asphalt',
   ];
+
+  // Function to upload file to S3 and generate short link
+  const uploadFileToS3AndGenerateLink = async (file: ProjectFile) => {
+    setUploadingFiles(prev => new Set(prev).add(file.id));
+
+    try {
+      console.log('[Upload] Starting upload for:', file.name);
+
+      // Read file as base64
+      let base64Data: string;
+
+      if (Platform.OS === 'web') {
+        const response = await fetch(file.uri);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        base64Data = await new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        const base64 = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        base64Data = `data:${file.fileType};base64,${base64}`;
+      }
+
+      console.log('[Upload] File read as base64, size:', base64Data.length);
+
+      // Upload to S3 and generate short link
+      const baseUrl = Platform.OS === 'web' && typeof window !== 'undefined'
+        ? window.location.origin
+        : process.env.EXPO_PUBLIC_API_URL || '';
+
+      const response = await fetch(`${baseUrl}/api/upload-estimate-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileData: base64Data,
+          fileName: file.name,
+          fileType: file.fileType,
+          fileSize: file.fileSize,
+          companyId: user?.companyId,
+          projectId: selectedProject?.id,
+          subcontractorId: selectedSubcontractor?.id,
+          userId: user?.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      // Store short URL
+      setUploadedFiles(prev => ({
+        ...prev,
+        [file.id]: data.shortUrl,
+      }));
+
+      console.log('[Upload] File uploaded successfully:', file.name, '-> Short URL:', data.shortUrl);
+    } catch (error: any) {
+      console.error('[Upload] Error uploading file:', error);
+      Alert.alert('Upload Error', `Failed to upload ${file.name}: ${error.message}`);
+
+      // Remove failed file from list
+      setSelectedFiles(prev => prev.filter(f => f.id !== file.id));
+    } finally {
+      setUploadingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(file.id);
+        return newSet;
+      });
+    }
+  };
 
   const filteredSubcontractors = subcontractors.filter((sub: Subcontractor) => {
     const matchesSearch = sub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1009,6 +1088,11 @@ export default function SubcontractorsScreen() {
 
                     setSelectedFiles(prev => [...prev, ...newFiles]);
                     console.log('[Files] Added files for estimate request:', newFiles.length);
+
+                    // Upload each file immediately to S3 and generate short link
+                    for (const file of newFiles) {
+                      uploadFileToS3AndGenerateLink(file);
+                    }
                   }
                 } catch (error) {
                   console.error('[Files] Error picking files:', error);
@@ -1017,22 +1101,49 @@ export default function SubcontractorsScreen() {
               }}
             >
               <File size={20} color="#2563EB" />
-              <Text style={styles.filePickerButtonText}>Add Files ({selectedFiles.length})</Text>
+              <Text style={styles.filePickerButtonText}>
+                Add Files ({selectedFiles.length})
+                {uploadingFiles.size > 0 && ` (Uploading ${uploadingFiles.size}...)`}
+              </Text>
             </TouchableOpacity>
 
             {selectedFiles.length > 0 && (
               <View style={styles.selectedFilesList}>
-                {selectedFiles.map((file, index) => (
-                  <View key={file.id} style={styles.selectedFileItem}>
-                    <File size={16} color="#6B7280" />
-                    <Text style={styles.selectedFileName} numberOfLines={1}>{file.name}</Text>
-                    <TouchableOpacity onPress={() => {
-                      setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-                    }}>
-                      <X size={16} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                {selectedFiles.map((file, index) => {
+                  const isUploading = uploadingFiles.has(file.id);
+                  const hasShortUrl = !!uploadedFiles[file.id];
+
+                  return (
+                    <View key={file.id} style={styles.selectedFileItem}>
+                      {isUploading ? (
+                        <ActivityIndicator size="small" color="#F59E0B" />
+                      ) : hasShortUrl ? (
+                        <Check size={16} color="#10B981" />
+                      ) : (
+                        <File size={16} color="#6B7280" />
+                      )}
+                      <View style={{ flex: 1, marginLeft: 8 }}>
+                        <Text style={styles.selectedFileName} numberOfLines={1}>{file.name}</Text>
+                        {isUploading && (
+                          <Text style={styles.uploadingText}>Uploading...</Text>
+                        )}
+                        {hasShortUrl && (
+                          <Text style={styles.uploadedText}>Ready to send</Text>
+                        )}
+                      </View>
+                      <TouchableOpacity onPress={() => {
+                        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+                        setUploadedFiles(prev => {
+                          const newUploaded = { ...prev };
+                          delete newUploaded[file.id];
+                          return newUploaded;
+                        });
+                      }}>
+                        <X size={16} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
               </View>
             )}
 
@@ -1047,15 +1158,20 @@ export default function SubcontractorsScreen() {
               placeholderTextColor="#9CA3AF"
             />
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
                 styles.sendRequestButton,
-                (!selectedProject || !selectedSubcontractor) && styles.sendRequestButtonDisabled
+                (!selectedProject || !selectedSubcontractor || uploadingFiles.size > 0) && styles.sendRequestButtonDisabled
               ]}
-              disabled={!selectedProject || !selectedSubcontractor}
+              disabled={!selectedProject || !selectedSubcontractor || uploadingFiles.size > 0}
               onPress={async () => {
                 if (!selectedProject || !selectedSubcontractor) {
                   Alert.alert('Missing Information', 'Please select a project');
+                  return;
+                }
+
+                if (uploadingFiles.size > 0) {
+                  Alert.alert('Upload In Progress', 'Please wait for files to finish uploading');
                   return;
                 }
 
@@ -1092,19 +1208,63 @@ export default function SubcontractorsScreen() {
                 console.log('[EstimateRequest] Request sent:', estimateRequest);
                 console.log('[EstimateRequest] Files attached:', selectedFiles.length);
 
-                setShowRequestModal(false);
-                setSelectedProject(null);
-                setSelectedFiles([]);
-                setRequestNotes('');
-                
-                Alert.alert(
-                  'Request Sent',
-                  `Estimate request sent to ${selectedSubcontractor.name}. They will reply via ${selectedSubcontractor.email} or ${selectedSubcontractor.phone}.`
+                // Compose email with short links
+                const emailSubject = encodeURIComponent(
+                  `Estimate Request - ${selectedProject.name}`
                 );
+
+                let emailBody = `Hello ${selectedSubcontractor.name},\n\n`;
+                emailBody += `We would like to request an estimate for the following project:\n\n`;
+                emailBody += `Project: ${selectedProject.name}\n`;
+                emailBody += `Budget: $${selectedProject.budget.toLocaleString()}\n\n`;
+
+                if (requestNotes) {
+                  emailBody += `Additional Details:\n${requestNotes}\n\n`;
+                }
+
+                if (selectedFiles.length > 0) {
+                  emailBody += `Attached Files:\n`;
+                  selectedFiles.forEach((file, index) => {
+                    const shortUrl = uploadedFiles[file.id];
+                    if (shortUrl) {
+                      emailBody += `${index + 1}. ${file.name}\n   ${shortUrl}\n\n`;
+                    }
+                  });
+                }
+
+                emailBody += `\nPlease review the files and provide your estimate at your earliest convenience.\n\n`;
+                emailBody += `Best regards,\n${user?.name || 'Legacy Prime Construction'}`;
+
+                const mailtoUrl = `mailto:${selectedSubcontractor.email}?subject=${emailSubject}&body=${encodeURIComponent(emailBody)}`;
+
+                // Open email client
+                try {
+                  if (Platform.OS === 'web') {
+                    window.location.href = mailtoUrl;
+                  } else {
+                    await Linking.openURL(mailtoUrl);
+                  }
+
+                  setShowRequestModal(false);
+                  setSelectedProject(null);
+                  setSelectedFiles([]);
+                  setUploadedFiles({});
+                  setRequestNotes('');
+
+                  Alert.alert(
+                    'Email Client Opened',
+                    `Your email client has been opened with the estimate request for ${selectedSubcontractor.name}. The email includes short links to all attached files. Please review and send.`
+                  );
+                } catch (error) {
+                  console.error('[Email] Error opening email client:', error);
+                  Alert.alert('Error', 'Failed to open email client');
+                }
               }}
             >
               <Send size={20} color="#FFFFFF" />
-              <Text style={styles.sendRequestButtonText}>Send Request</Text>
+              <Text style={styles.sendRequestButtonText}>
+                {uploadingFiles.size > 0 ? 'Uploading...' : 'Send Request'}
+              </Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -1952,6 +2112,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: '#1F2937',
+  },
+  uploadingText: {
+    fontSize: 11,
+    color: '#F59E0B',
+    marginTop: 2,
+  },
+  uploadedText: {
+    fontSize: 11,
+    color: '#10B981',
+    marginTop: 2,
   },
   sendRequestButton: {
     flexDirection: 'row' as const,

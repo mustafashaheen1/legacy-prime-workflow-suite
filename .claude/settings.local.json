@@ -80,7 +80,8 @@
       "Bash(mcp__ide__getDiagnostics)",
       "Bash(for [client]\" with a PDF attached and it works automatically.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(bun run type-check:*)",
-      "Bash(bun run start)"
+      "Bash(bun run start)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []
