@@ -6,7 +6,7 @@ export const config = {
   maxDuration: 60,
   api: {
     bodyParser: {
-      sizeLimit: '50mb', // Support large files (plans, PDFs)
+      sizeLimit: '10mb', // Vercel has platform limits (~4-6MB), client should compress before upload
     },
   },
 };
@@ -46,11 +46,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing required fields: fileData, fileName, fileType, companyId, projectId' });
     }
 
-    // Validate file size (50MB max)
-    const maxSize = 50 * 1024 * 1024; // 50MB in bytes
-    if (fileSize && fileSize > maxSize) {
-      return res.status(400).json({ error: 'File size exceeds 50MB limit' });
+    // Validate base64 data size (must fit in Vercel's body limit)
+    const base64SizeMB = (fileData.length / 1024 / 1024).toFixed(2);
+    const maxBase64Size = 5 * 1024 * 1024; // 5MB in bytes (safe for Vercel)
+    if (fileData.length > maxBase64Size) {
+      console.error('[UploadEstimateFile] File too large:', base64SizeMB, 'MB');
+      return res.status(413).json({
+        error: `File is too large (${base64SizeMB}MB). Please compress images or use files smaller than 5MB.`
+      });
     }
+
+    console.log('[UploadEstimateFile] File size OK:', base64SizeMB, 'MB');
 
     // Initialize S3 client
     const s3Client = new S3Client({

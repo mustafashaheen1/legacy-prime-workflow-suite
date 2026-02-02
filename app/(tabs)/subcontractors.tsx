@@ -9,6 +9,7 @@ import { Stack, router } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { compressImage } from '@/lib/upload-utils';
 
 export default function SubcontractorsScreen() {
   const { subcontractors = [], addSubcontractor, projects, addProjectFile, addNotification, user } = useApp();
@@ -90,26 +91,95 @@ export default function SubcontractorsScreen() {
     try {
       console.log('[Upload] Starting upload for:', file.name);
 
-      // Read file as base64
+      // Check if file is an image that needs compression
+      const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
+      const isImage = imageTypes.some(type => file.fileType.toLowerCase().includes(type.split('/')[1]));
+
       let base64Data: string;
+      let actualFileSize: number = file.fileSize;
 
       if (Platform.OS === 'web') {
+        // Web: Handle file reading with compression for images
         const response = await fetch(file.uri);
         const blob = await response.blob();
-        const reader = new FileReader();
-        base64Data = await new Promise((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
+
+        if (isImage && blob.size > 1 * 1024 * 1024) { // Compress if > 1MB
+          console.log('[Upload] Compressing image on web...');
+          // For web, we'll use canvas API for compression
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const img = new Image();
+
+          base64Data = await new Promise((resolve, reject) => {
+            img.onload = () => {
+              // Calculate new dimensions (max 1920px)
+              const maxSize = 1920;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height && width > maxSize) {
+                height = (height * maxSize) / width;
+                width = maxSize;
+              } else if (height > maxSize) {
+                width = (width * maxSize) / height;
+                height = maxSize;
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              ctx?.drawImage(img, 0, 0, width, height);
+
+              // Convert to JPEG with 0.8 quality
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+              actualFileSize = Math.ceil((dataUrl.length - 22) * 0.75); // Estimate actual size
+              console.log('[Upload] Web compression complete, new size:', actualFileSize);
+              resolve(dataUrl);
+            };
+            img.onerror = reject;
+            img.src = URL.createObjectURL(blob);
+          });
+        } else {
+          // Non-image or small image: read as-is
+          const reader = new FileReader();
+          base64Data = await new Promise((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
       } else {
-        const base64 = await FileSystem.readAsStringAsync(file.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        base64Data = `data:${file.fileType};base64,${base64}`;
+        // Mobile: Use compressImage utility for images
+        if (isImage && file.fileSize > 1 * 1024 * 1024) { // Compress if > 1MB
+          console.log('[Upload] Compressing image on mobile...');
+          const compressed = await compressImage(file.uri, {
+            maxWidth: 1920,
+            maxHeight: 1920,
+            quality: 0.8,
+          });
+          base64Data = `data:image/jpeg;base64,${compressed.base64}`;
+          actualFileSize = compressed.base64.length;
+          console.log('[Upload] Mobile compression complete, new size:', actualFileSize);
+        } else {
+          // Non-image or small image: read as-is
+          const base64 = await FileSystem.readAsStringAsync(file.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          base64Data = `data:${file.fileType};base64,${base64}`;
+        }
       }
 
-      console.log('[Upload] File read as base64, size:', base64Data.length);
+      console.log('[Upload] File prepared, base64 size:', base64Data.length);
+
+      // Check if file is still too large (Vercel has ~6MB limit for body)
+      const estimatedBodySize = base64Data.length;
+      const maxBodySize = 5 * 1024 * 1024; // 5MB to be safe
+      if (estimatedBodySize > maxBodySize) {
+        throw new Error(
+          `File is too large to upload (${(estimatedBodySize / 1024 / 1024).toFixed(1)}MB). ` +
+          `Maximum size is ${(maxBodySize / 1024 / 1024).toFixed(1)}MB. ` +
+          `Please try a smaller file or lower resolution image.`
+        );
+      }
 
       // Upload to S3 and generate short link
       const baseUrl = Platform.OS === 'web' && typeof window !== 'undefined'
@@ -122,8 +192,8 @@ export default function SubcontractorsScreen() {
         body: JSON.stringify({
           fileData: base64Data,
           fileName: file.name,
-          fileType: file.fileType,
-          fileSize: file.fileSize,
+          fileType: isImage ? 'image/jpeg' : file.fileType, // Use JPEG for compressed images
+          fileSize: actualFileSize,
           companyId: user?.companyId,
           projectId: selectedProject?.id,
           subcontractorId: selectedSubcontractor?.id,
@@ -134,6 +204,9 @@ export default function SubcontractorsScreen() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 413) {
+          throw new Error('File is too large. Please try a smaller file or contact support.');
+        }
         throw new Error(data.error || 'Upload failed');
       }
 
@@ -146,7 +219,10 @@ export default function SubcontractorsScreen() {
       console.log('[Upload] File uploaded successfully:', file.name, '-> Short URL:', data.shortUrl);
     } catch (error: any) {
       console.error('[Upload] Error uploading file:', error);
-      Alert.alert('Upload Error', `Failed to upload ${file.name}: ${error.message}`);
+
+      // Show user-friendly error message
+      const errorMessage = error.message || 'Upload failed';
+      Alert.alert('Upload Error', `Failed to upload ${file.name}:\n\n${errorMessage}`);
 
       // Remove failed file from list
       setSelectedFiles(prev => prev.filter(f => f.id !== file.id));
