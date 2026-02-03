@@ -56,6 +56,12 @@ export default function EstimateScreen() {
   const [editingPrice, setEditingPrice] = useState<string>('');
   const [showEditPriceModal, setShowEditPriceModal] = useState<boolean>(false);
 
+  // Context menu state
+  const [showContextMenu, setShowContextMenu] = useState<boolean>(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [showSpotlightModal, setShowSpotlightModal] = useState<boolean>(false);
+  const [spotlightSearch, setSpotlightSearch] = useState<string>('');
+
   // Support both project-based and client-based estimate creation
   const clientId = clientIdParam as string | undefined;
   const client = clientId ? clients.find(c => c.id === clientId) : null;
@@ -64,6 +70,19 @@ export default function EstimateScreen() {
   const allCategories = useMemo(() => {
     return priceListCategories; // Already includes custom categories from AppContext
   }, [priceListCategories]);
+
+  const spotlightFilteredItems = useMemo(() => {
+    if (!spotlightSearch.trim()) {
+      return priceListItems;
+    }
+
+    const searchLower = spotlightSearch.toLowerCase();
+    return priceListItems.filter(item =>
+      item.name.toLowerCase().includes(searchLower) ||
+      item.category.toLowerCase().includes(searchLower) ||
+      item.description?.toLowerCase().includes(searchLower)
+    );
+  }, [priceListItems, spotlightSearch]);
 
   // Set first category when loaded
   useEffect(() => {
@@ -299,6 +318,21 @@ export default function EstimateScreen() {
       notes: '',
     };
     setItems(prev => [...prev, newItem]);
+  };
+
+  const handleRightClick = (event: any) => {
+    if (Platform.OS === 'web') {
+      event.preventDefault();
+      setContextMenuPosition({ x: event.clientX, y: event.clientY });
+      setShowContextMenu(true);
+    }
+  };
+
+  const handleLongPress = () => {
+    // For mobile: long press to show context menu
+    if (Platform.OS !== 'web') {
+      setShowContextMenu(true);
+    }
   };
 
   const addCustomItem = () => {
@@ -1863,11 +1897,15 @@ export default function EstimateScreen() {
         </ScrollView>
 
         <View style={styles.selectedItemsContainer}>
-          <View style={[
-            styles.selectedItemsSection,
-            isWeb && !isNarrow && styles.selectedItemsSectionWeb,
-            isNarrow && styles.selectedItemsSectionNarrow
-          ]}>
+          <View
+            style={[
+              styles.selectedItemsSection,
+              isWeb && !isNarrow && styles.selectedItemsSectionWeb,
+              isNarrow && styles.selectedItemsSectionNarrow
+            ]}
+            onContextMenu={handleRightClick}
+            onLongPress={handleLongPress}
+          >
             <View style={styles.selectedItemsHeader}>
               <Text style={styles.sectionLabel}>Selected Items ({items.filter(i => !i.isSeparator).length})</Text>
               <View style={styles.headerButtonsContainer}>
@@ -3760,6 +3798,131 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
         </View>
       </View>
     </Modal>
+
+    {/* Right-Click Context Menu */}
+    {showContextMenu && (
+      <TouchableOpacity
+        style={styles.contextMenuBackdrop}
+        activeOpacity={1}
+        onPress={() => setShowContextMenu(false)}
+      >
+        <View
+          style={[
+            styles.contextMenu,
+            Platform.OS === 'web' && {
+              position: 'fixed' as any,
+              left: contextMenuPosition.x,
+              top: contextMenuPosition.y,
+            }
+          ]}
+          onStartShouldSetResponder={() => true}
+        >
+          <TouchableOpacity
+            style={styles.contextMenuItem}
+            onPress={() => {
+              setShowContextMenu(false);
+              setShowSpotlightModal(true);
+              setSpotlightSearch('');
+            }}
+          >
+            <Plus size={16} color="#374151" />
+            <Text style={styles.contextMenuText}>Add Line Item</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    )}
+
+    {/* Spotlight Search Modal */}
+    <Modal
+      visible={showSpotlightModal}
+      animationType="fade"
+      transparent={true}
+      onRequestClose={() => {
+        setShowSpotlightModal(false);
+        setSpotlightSearch('');
+      }}
+    >
+      <TouchableOpacity
+        style={styles.spotlightBackdrop}
+        activeOpacity={1}
+        onPress={() => {
+          setShowSpotlightModal(false);
+          setSpotlightSearch('');
+        }}
+      >
+        <View
+          style={styles.spotlightContainer}
+          onStartShouldSetResponder={() => true}
+        >
+          {/* Search Input */}
+          <View style={styles.spotlightSearchBox}>
+            <Search size={20} color="#9CA3AF" />
+            <TextInput
+              style={styles.spotlightSearchInput}
+              placeholder="Search line items..."
+              placeholderTextColor="#9CA3AF"
+              value={spotlightSearch}
+              onChangeText={setSpotlightSearch}
+              autoFocus
+            />
+            {spotlightSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setSpotlightSearch('')}>
+                <X size={16} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Results List */}
+          <ScrollView style={styles.spotlightResults}>
+            {spotlightFilteredItems.length === 0 ? (
+              <View style={styles.spotlightEmptyState}>
+                <Text style={styles.spotlightEmptyText}>
+                  No items found
+                </Text>
+              </View>
+            ) : (
+              spotlightFilteredItems.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.spotlightItem}
+                  onPress={() => {
+                    addItemToEstimate(item);
+                    setShowSpotlightModal(false);
+                    setSpotlightSearch('');
+                  }}
+                >
+                  <View style={styles.spotlightItemContent}>
+                    <Text style={styles.spotlightItemName}>{item.name}</Text>
+                    <Text style={styles.spotlightItemCategory}>{item.category}</Text>
+                    {item.description && (
+                      <Text style={styles.spotlightItemDescription} numberOfLines={1}>
+                        {item.description}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.spotlightItemPrice}>
+                    <Text style={styles.spotlightItemUnit}>{item.unit}</Text>
+                    <Text style={styles.spotlightItemPriceText}>
+                      ${item.unitPrice.toFixed(2)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </ScrollView>
+
+          {/* Footer with count */}
+          <View style={styles.spotlightFooter}>
+            <Text style={styles.spotlightFooterText}>
+              {spotlightFilteredItems.length} {spotlightFilteredItems.length === 1 ? 'item' : 'items'}
+            </Text>
+            <Text style={styles.spotlightFooterHint}>
+              Press Esc to close
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
@@ -5264,5 +5427,148 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     marginLeft: 4,
+  },
+
+  // Context Menu Styles
+  contextMenuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  contextMenu: {
+    position: 'absolute',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    minWidth: 180,
+    paddingVertical: 4,
+  },
+  contextMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  contextMenuText: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+  },
+
+  // Spotlight Modal Styles
+  spotlightBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  spotlightContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 600,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  spotlightSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    gap: 8,
+  },
+  spotlightSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1F2937',
+    padding: 0,
+  },
+  spotlightResults: {
+    maxHeight: 500,
+  },
+  spotlightEmptyState: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  spotlightEmptyText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  spotlightItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  spotlightItemContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  spotlightItemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  spotlightItemCategory: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  spotlightItemDescription: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  spotlightItemPrice: {
+    alignItems: 'flex-end',
+  },
+  spotlightItemUnit: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginBottom: 2,
+  },
+  spotlightItemPriceText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  spotlightFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  spotlightFooterText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  spotlightFooterHint: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
 });
