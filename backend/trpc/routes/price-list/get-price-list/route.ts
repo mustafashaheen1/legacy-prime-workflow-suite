@@ -24,6 +24,23 @@ export const getPriceListProcedure = publicProcedure
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     try {
+      // First, get all categories with their sort_order
+      const { data: categories, error: catError } = await supabase
+        .from('price_list_categories')
+        .select('name, sort_order');
+
+      if (catError) {
+        console.error('[Price List] Error fetching categories for ordering:', catError);
+      }
+
+      // Create a map of category name to sort_order
+      const categorySortOrder = new Map<string, number>();
+      if (categories) {
+        categories.forEach(cat => {
+          categorySortOrder.set(cat.name, cat.sort_order);
+        });
+      }
+
       let query = supabase
         .from('price_list_items')
         .select('*');
@@ -40,9 +57,6 @@ export const getPriceListProcedure = publicProcedure
         // Only return master items (no company-specific items)
         query = query.is('company_id', null);
       }
-
-      // Order by category and name
-      query = query.order('category').order('name');
 
       const { data, error } = await query;
 
@@ -69,6 +83,19 @@ export const getPriceListProcedure = publicProcedure
         materialCost: item.material_cost ? Number(item.material_cost) : undefined,
         isCustom: item.is_custom || false,
       }));
+
+      // Sort by category sort_order, then by item name
+      items.sort((a, b) => {
+        const sortOrderA = categorySortOrder.get(a.category) ?? 999;
+        const sortOrderB = categorySortOrder.get(b.category) ?? 999;
+
+        if (sortOrderA !== sortOrderB) {
+          return sortOrderA - sortOrderB;
+        }
+
+        // Same category, sort by name
+        return a.name.localeCompare(b.name);
+      });
 
       return {
         success: true,
