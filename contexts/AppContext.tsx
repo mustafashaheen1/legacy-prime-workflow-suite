@@ -162,10 +162,27 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   // Compute categories dynamically from price list items
   const priceListCategories = useMemo(() => {
-    const categorySet = new Set<string>();
-    priceListItems.forEach(item => categorySet.add(item.category));
-    customCategories.forEach(cat => categorySet.add(cat.name));
-    return Array.from(categorySet).sort();
+    // Preserve the original order from priceListItems (matches database sort_order)
+    const categoryOrder: string[] = [];
+    const seen = new Set<string>();
+
+    // Add categories in the order they appear in priceListItems
+    priceListItems.forEach(item => {
+      if (!seen.has(item.category)) {
+        seen.add(item.category);
+        categoryOrder.push(item.category);
+      }
+    });
+
+    // Add custom categories at the end
+    customCategories.forEach(cat => {
+      if (!seen.has(cat.name)) {
+        seen.add(cat.name);
+        categoryOrder.push(cat.name);
+      }
+    });
+
+    return categoryOrder;
   }, [priceListItems, customCategories]);
 
   useEffect(() => {
