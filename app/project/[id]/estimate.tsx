@@ -5507,7 +5507,7 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   spotlightResults: {
-    maxHeight: 500,
+    maxHeight: 1000,
   },
   spotlightEmptyState: {
     padding: 40,
