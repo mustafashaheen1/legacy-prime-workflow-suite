@@ -1903,9 +1903,14 @@ export default function EstimateScreen() {
               isWeb && !isNarrow && styles.selectedItemsSectionWeb,
               isNarrow && styles.selectedItemsSectionNarrow
             ]}
-            onContextMenu={handleRightClick}
-            onLongPress={handleLongPress}
+            {...(Platform.OS === 'web' ? { onContextMenu: handleRightClick } : {})}
           >
+            <TouchableOpacity
+              activeOpacity={1}
+              onLongPress={handleLongPress}
+              delayLongPress={500}
+              style={{ flex: 1 }}
+            >
             <View style={styles.selectedItemsHeader}>
               <Text style={styles.sectionLabel}>Selected Items ({items.filter(i => !i.isSeparator).length})</Text>
               <View style={styles.headerButtonsContainer}>
@@ -2151,6 +2156,7 @@ export default function EstimateScreen() {
               );
             })}
           </ScrollView>
+          </TouchableOpacity>
         </View>
 
           {items.length > 0 && (
@@ -2693,6 +2699,131 @@ export default function EstimateScreen() {
           </View>
         </View>
       )}
+
+      {/* Right-Click Context Menu */}
+      {showContextMenu && (
+        <TouchableOpacity
+          style={styles.contextMenuBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowContextMenu(false)}
+        >
+          <View
+            style={[
+              styles.contextMenu,
+              Platform.OS === 'web' && {
+                position: 'fixed' as any,
+                left: contextMenuPosition.x,
+                top: contextMenuPosition.y,
+              }
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
+            <TouchableOpacity
+              style={styles.contextMenuItem}
+              onPress={() => {
+                setShowContextMenu(false);
+                setShowSpotlightModal(true);
+                setSpotlightSearch('');
+              }}
+            >
+              <Plus size={16} color="#374151" />
+              <Text style={styles.contextMenuText}>Add Line Item</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Spotlight Search Modal */}
+      <Modal
+        visible={showSpotlightModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => {
+          setShowSpotlightModal(false);
+          setSpotlightSearch('');
+        }}
+      >
+        <TouchableOpacity
+          style={styles.spotlightBackdrop}
+          activeOpacity={1}
+          onPress={() => {
+            setShowSpotlightModal(false);
+            setSpotlightSearch('');
+          }}
+        >
+          <View
+            style={styles.spotlightContainer}
+            onStartShouldSetResponder={() => true}
+          >
+            {/* Search Input */}
+            <View style={styles.spotlightSearchBox}>
+              <Search size={20} color="#9CA3AF" />
+              <TextInput
+                style={styles.spotlightSearchInput}
+                placeholder="Search line items..."
+                placeholderTextColor="#9CA3AF"
+                value={spotlightSearch}
+                onChangeText={setSpotlightSearch}
+                autoFocus
+              />
+              {spotlightSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setSpotlightSearch('')}>
+                  <X size={16} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Results List */}
+            <ScrollView style={styles.spotlightResults}>
+              {spotlightFilteredItems.length === 0 ? (
+                <View style={styles.spotlightEmptyState}>
+                  <Text style={styles.spotlightEmptyText}>
+                    No items found
+                  </Text>
+                </View>
+              ) : (
+                spotlightFilteredItems.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.spotlightItem}
+                    onPress={() => {
+                      addItemToEstimate(item);
+                      setShowSpotlightModal(false);
+                      setSpotlightSearch('');
+                    }}
+                  >
+                    <View style={styles.spotlightItemContent}>
+                      <Text style={styles.spotlightItemName}>{item.name}</Text>
+                      <Text style={styles.spotlightItemCategory}>{item.category}</Text>
+                      {item.description && (
+                        <Text style={styles.spotlightItemDescription} numberOfLines={1}>
+                          {item.description}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.spotlightItemPrice}>
+                      <Text style={styles.spotlightItemUnit}>{item.unit}</Text>
+                      <Text style={styles.spotlightItemPriceText}>
+                        ${item.unitPrice.toFixed(2)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+
+            {/* Footer with count */}
+            <View style={styles.spotlightFooter}>
+              <Text style={styles.spotlightFooterText}>
+                {spotlightFilteredItems.length} {spotlightFilteredItems.length === 1 ? 'item' : 'items'}
+              </Text>
+              <Text style={styles.spotlightFooterHint}>
+                Press Esc to close
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </>
   );
 }
@@ -3797,131 +3928,6 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
           </View>
         </View>
       </View>
-    </Modal>
-
-    {/* Right-Click Context Menu */}
-    {showContextMenu && (
-      <TouchableOpacity
-        style={styles.contextMenuBackdrop}
-        activeOpacity={1}
-        onPress={() => setShowContextMenu(false)}
-      >
-        <View
-          style={[
-            styles.contextMenu,
-            Platform.OS === 'web' && {
-              position: 'fixed' as any,
-              left: contextMenuPosition.x,
-              top: contextMenuPosition.y,
-            }
-          ]}
-          onStartShouldSetResponder={() => true}
-        >
-          <TouchableOpacity
-            style={styles.contextMenuItem}
-            onPress={() => {
-              setShowContextMenu(false);
-              setShowSpotlightModal(true);
-              setSpotlightSearch('');
-            }}
-          >
-            <Plus size={16} color="#374151" />
-            <Text style={styles.contextMenuText}>Add Line Item</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    )}
-
-    {/* Spotlight Search Modal */}
-    <Modal
-      visible={showSpotlightModal}
-      animationType="fade"
-      transparent={true}
-      onRequestClose={() => {
-        setShowSpotlightModal(false);
-        setSpotlightSearch('');
-      }}
-    >
-      <TouchableOpacity
-        style={styles.spotlightBackdrop}
-        activeOpacity={1}
-        onPress={() => {
-          setShowSpotlightModal(false);
-          setSpotlightSearch('');
-        }}
-      >
-        <View
-          style={styles.spotlightContainer}
-          onStartShouldSetResponder={() => true}
-        >
-          {/* Search Input */}
-          <View style={styles.spotlightSearchBox}>
-            <Search size={20} color="#9CA3AF" />
-            <TextInput
-              style={styles.spotlightSearchInput}
-              placeholder="Search line items..."
-              placeholderTextColor="#9CA3AF"
-              value={spotlightSearch}
-              onChangeText={setSpotlightSearch}
-              autoFocus
-            />
-            {spotlightSearch.length > 0 && (
-              <TouchableOpacity onPress={() => setSpotlightSearch('')}>
-                <X size={16} color="#9CA3AF" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Results List */}
-          <ScrollView style={styles.spotlightResults}>
-            {spotlightFilteredItems.length === 0 ? (
-              <View style={styles.spotlightEmptyState}>
-                <Text style={styles.spotlightEmptyText}>
-                  No items found
-                </Text>
-              </View>
-            ) : (
-              spotlightFilteredItems.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.spotlightItem}
-                  onPress={() => {
-                    addItemToEstimate(item);
-                    setShowSpotlightModal(false);
-                    setSpotlightSearch('');
-                  }}
-                >
-                  <View style={styles.spotlightItemContent}>
-                    <Text style={styles.spotlightItemName}>{item.name}</Text>
-                    <Text style={styles.spotlightItemCategory}>{item.category}</Text>
-                    {item.description && (
-                      <Text style={styles.spotlightItemDescription} numberOfLines={1}>
-                        {item.description}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={styles.spotlightItemPrice}>
-                    <Text style={styles.spotlightItemUnit}>{item.unit}</Text>
-                    <Text style={styles.spotlightItemPriceText}>
-                      ${item.unitPrice.toFixed(2)}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            )}
-          </ScrollView>
-
-          {/* Footer with count */}
-          <View style={styles.spotlightFooter}>
-            <Text style={styles.spotlightFooterText}>
-              {spotlightFilteredItems.length} {spotlightFilteredItems.length === 1 ? 'item' : 'items'}
-            </Text>
-            <Text style={styles.spotlightFooterHint}>
-              Press Esc to close
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
     </Modal>
   );
 }
