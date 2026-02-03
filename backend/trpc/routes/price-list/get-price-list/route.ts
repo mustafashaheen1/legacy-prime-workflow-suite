@@ -84,7 +84,7 @@ export const getPriceListProcedure = publicProcedure
         isCustom: item.is_custom || false,
       }));
 
-      // Sort by category sort_order, then by item name
+      // Sort by category sort_order, then by numeric ID
       items.sort((a, b) => {
         const sortOrderA = categorySortOrder.get(a.category) ?? 999;
         const sortOrderB = categorySortOrder.get(b.category) ?? 999;
@@ -93,8 +93,16 @@ export const getPriceListProcedure = publicProcedure
           return sortOrderA - sortOrderB;
         }
 
-        // Same category, sort by name
-        return a.name.localeCompare(b.name);
+        // Same category, sort by numeric portion of ID (pl-1, pl-2, pl-3, etc.)
+        const getNumericId = (id: string) => {
+          const match = id.match(/\d+/);
+          return match ? parseInt(match[0], 10) : 0;
+        };
+
+        const numA = getNumericId(a.id);
+        const numB = getNumericId(b.id);
+
+        return numA - numB;
       });
 
       return {
