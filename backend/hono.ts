@@ -161,6 +161,87 @@ app.get("/debug/supabase", async (c) => {
   }
 });
 
+app.post("/debug/test-custom-folder", async (c) => {
+  try {
+    console.log('[Debug] Testing custom folder insert...');
+
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return c.json({
+        status: "error",
+        error: "Supabase environment variables not configured",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    console.log('[Debug] Supabase URL:', supabaseUrl.substring(0, 30) + '...');
+
+    const testFolder = {
+      project_id: 'test-project-123',
+      folder_type: 'test-folder',
+      name: 'Test Folder',
+      color: '#6B7280',
+      description: 'Debug test folder',
+    };
+
+    console.log('[Debug] Attempting insert...');
+    const startTime = Date.now();
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/custom_folders`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(testFolder)
+    });
+
+    const duration = Date.now() - startTime;
+    console.log('[Debug] Fetch completed in', duration, 'ms, status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Debug] Error response:', errorText);
+      return c.json({
+        status: "error",
+        error: errorText,
+        duration_ms: duration,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    console.log('[Debug] Success!');
+
+    // Clean up - delete the test folder
+    await fetch(`${supabaseUrl}/rest/v1/custom_folders?project_id=eq.test-project-123&folder_type=eq.test-folder`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+      }
+    });
+
+    return c.json({
+      status: "ok",
+      message: "Custom folder insert test successful",
+      duration_ms: duration,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[Debug] Test error:', error);
+    return c.json({
+      status: "error",
+      error: error.message || "Unknown error",
+      stack: error.stack?.substring(0, 500),
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 app.get("/debug/inspection-videos", async (c) => {
   try {
     console.log('[Debug] Testing inspection_videos table...');
