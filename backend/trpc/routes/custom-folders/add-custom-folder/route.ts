@@ -1,6 +1,5 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import { createClient } from '@supabase/supabase-js';
 
 export const addCustomFolderProcedure = publicProcedure
   .input(
@@ -25,29 +24,33 @@ export const addCustomFolderProcedure = publicProcedure
       throw new Error('Database not configured. Please add Supabase environment variables.');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    console.log('[Custom Folders] Supabase client created');
-
     try {
       const folderType = input.name.toLowerCase().replace(/\s+/g, '-');
       console.log('[Custom Folders] Attempting insert with folder_type:', folderType);
 
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Database operation timed out after 8 seconds')), 8000)
-      );
-
-      const insertPromise = supabase
-        .from('custom_folders')
-        .insert({
+      // Use direct HTTP fetch instead of Supabase SDK to avoid cold start issues
+      const response = await fetch(`${supabaseUrl}/rest/v1/custom_folders`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
           project_id: input.projectId,
           folder_type: folderType,
           name: input.name.trim(),
           color: input.color || '#6B7280',
           description: input.description || 'Custom folder',
-        });
+        })
+      });
 
-      const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('[Custom Folders] Error adding folder:', error);
+        throw new Error(`Failed to add custom folder: ${error}`);
+      }
 
       if (error) {
         console.error('[Custom Folders] Error adding folder:', error);
