@@ -1,6 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
-import { supabase } from "../../../lib/supabase.js";
+import { createClient } from '@supabase/supabase-js';
 
 export const addCustomFolderProcedure = publicProcedure
   .input(
@@ -14,10 +14,21 @@ export const addCustomFolderProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Custom Folders] Adding folder:', input.name, 'for project:', input.projectId);
 
-    if (!supabase) {
-      console.error('[Custom Folders] Supabase client not initialized');
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[Custom Folders] Supabase not configured');
       throw new Error('Database not configured. Please add Supabase environment variables.');
     }
+
+    // Create Supabase client INSIDE handler (not at module level)
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     try {
       const folderType = input.name.toLowerCase().replace(/\s+/g, '-');
