@@ -237,23 +237,6 @@ export default function EstimateScreen() {
     }
   };
 
-  // Require either client or project for new estimates, allow editing existing estimates
-  if (!project && !client && !estimateId) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Client or Project not found</Text>
-      </View>
-    );
-  }
-
-  if (isLoadingDraft) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={styles.loadingText}>Loading draft...</Text>
-      </View>
-    );
-  }
-
   const getCategoryItems = (category: string) => {
     let items = priceListItems.filter(item => item.category === category);
 
@@ -2000,6 +1983,29 @@ export default function EstimateScreen() {
 </html>
     `;
   };
+
+  // Require either client or project for new estimates, allow editing existing estimates
+  if (!project && !client && !estimateId) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.container}>
+          <Text style={styles.errorText}>Client or Project not found</Text>
+        </View>
+      </>
+    );
+  }
+
+  if (isLoadingDraft) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={styles.loadingText}>Loading draft...</Text>
+        </View>
+      </>
+    );
+  }
 
   return (
     <>
