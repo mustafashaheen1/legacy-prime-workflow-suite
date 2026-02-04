@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip, Search, X, Square, Image as ImageIcon } from 'lucide-react-native';
+import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff, Sparkles, Camera, Mic, Paperclip, Search, X, Square, Image as ImageIcon, GripVertical } from 'lucide-react-native';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { EstimateItem, Estimate, ProjectFile } from '@/types';
@@ -1426,6 +1426,12 @@ export default function EstimateScreen() {
             activeOpacity={1}
           >
             <View style={[styles.separatorItem, isActive && styles.separatorItemDragging]}>
+              <TouchableOpacity
+                onPressIn={drag}
+                style={styles.dragHandle}
+              >
+                <GripVertical size={20} color="#9CA3AF" />
+              </TouchableOpacity>
               <View style={styles.separatorContent}>
                 <View style={styles.separatorLine} />
                 <TextInput
@@ -1468,6 +1474,12 @@ export default function EstimateScreen() {
           <View style={[styles.estimateItem, isActive && styles.estimateItemDragging]}>
             <View style={styles.itemHeader}>
               <View style={styles.itemTitleRow}>
+                <TouchableOpacity
+                  onPressIn={drag}
+                  style={styles.dragHandle}
+                >
+                  <GripVertical size={20} color="#9CA3AF" />
+                </TouchableOpacity>
                 {isEditing ? (
                   <TextInput
                     style={styles.itemNameInput}
@@ -4518,6 +4530,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+  },
+  dragHandle: {
+    padding: 4,
+    marginRight: 4,
+    cursor: Platform.OS === 'web' ? 'grab' : 'default',
   },
   itemName: {
     fontSize: Platform.select({ web: 12, default: 13 }) as number,
