@@ -2175,7 +2175,6 @@ export default function EstimateScreen() {
               isNarrow && styles.selectedItemsSectionNarrow
             ]}
             {...(Platform.OS === 'web' ? { onContextMenu: handleRightClick } : {})}
-            onLongPress={handleLongPress}
           >
             <View style={styles.selectedItemsHeader}>
               <Text style={styles.sectionLabel}>Selected Items ({items.filter(i => !i.isSeparator).length})</Text>
