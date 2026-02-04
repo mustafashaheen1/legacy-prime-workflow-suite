@@ -28,42 +28,61 @@ export const addCustomFolderProcedure = publicProcedure
       const folderType = input.name.toLowerCase().replace(/\s+/g, '-');
       console.log('[Custom Folders] Attempting insert with folder_type:', folderType);
 
-      // Use direct HTTP fetch instead of Supabase SDK to avoid cold start issues
-      const response = await fetch(`${supabaseUrl}/rest/v1/custom_folders`, {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({
-          project_id: input.projectId,
-          folder_type: folderType,
-          name: input.name.trim(),
-          color: input.color || '#6B7280',
-          description: input.description || 'Custom folder',
-        })
-      });
+      // Create AbortController with 10 second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      if (!response.ok) {
-        const error = await response.text();
-        console.error('[Custom Folders] Error adding folder:', error);
-        throw new Error(`Failed to add custom folder: ${error}`);
+      try {
+        console.log('[Custom Folders] Starting fetch to Supabase...');
+
+        // Use direct HTTP fetch instead of Supabase SDK to avoid cold start issues
+        const response = await fetch(`${supabaseUrl}/rest/v1/custom_folders`, {
+          method: 'POST',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            project_id: input.projectId,
+            folder_type: folderType,
+            name: input.name.trim(),
+            color: input.color || '#6B7280',
+            description: input.description || 'Custom folder',
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        console.log('[Custom Folders] Fetch completed, status:', response.status);
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('[Custom Folders] Error adding folder:', error);
+          throw new Error(`Failed to add custom folder: ${error}`);
+        }
+
+        console.log('[Custom Folders] Folder created successfully');
+
+        return {
+          success: true,
+          folder: {
+            type: folderType,
+            name: input.name.trim(),
+            icon: 'Folder',
+            color: input.color || '#6B7280',
+            description: input.description || 'Custom folder',
+          },
+        };
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.error('[Custom Folders] Fetch timeout after 10 seconds');
+          throw new Error('Request to database timed out. Please check your Supabase configuration.');
+        }
+        throw fetchError;
       }
-
-      console.log('[Custom Folders] Folder created successfully');
-
-      return {
-        success: true,
-        folder: {
-          type: folderType,
-          name: input.name.trim(),
-          icon: 'Folder',
-          color: input.color || '#6B7280',
-          description: input.description || 'Custom folder',
-        },
-      };
     } catch (error: any) {
       console.error('[Custom Folders] Unexpected error:', error);
       throw new Error(error.message || 'Failed to add custom folder');
