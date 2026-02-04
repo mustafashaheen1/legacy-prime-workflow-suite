@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/contexts/AppContext';
 import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2 } from 'lucide-react-native';
 import { Image } from 'expo-image';
@@ -124,6 +125,38 @@ export default function FilesNavigationScreen() {
   useEffect(() => {
     loadProjectFiles();
   }, [loadProjectFiles]);
+
+  // Load custom folders from AsyncStorage
+  useEffect(() => {
+    const loadCustomFolders = async () => {
+      if (!id) return;
+      try {
+        const storageKey = `custom_folders_${id}`;
+        const stored = await AsyncStorage.getItem(storageKey);
+        if (stored) {
+          const folders = JSON.parse(stored);
+          setCustomFolders(folders);
+        }
+      } catch (error) {
+        console.error('[Files] Error loading custom folders:', error);
+      }
+    };
+    loadCustomFolders();
+  }, [id]);
+
+  // Save custom folders to AsyncStorage whenever they change
+  useEffect(() => {
+    const saveCustomFolders = async () => {
+      if (!id) return;
+      try {
+        const storageKey = `custom_folders_${id}`;
+        await AsyncStorage.setItem(storageKey, JSON.stringify(customFolders));
+      } catch (error) {
+        console.error('[Files] Error saving custom folders:', error);
+      }
+    };
+    saveCustomFolders();
+  }, [customFolders, id]);
 
   const projectPhotos = useMemo(() => {
     return photos.filter(p => p.projectId === id);
