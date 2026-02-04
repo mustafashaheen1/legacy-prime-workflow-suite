@@ -1,5 +1,6 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
+import { createClient } from '@supabase/supabase-js';
 
 export const addCustomFolderProcedure = publicProcedure
   .input(
@@ -11,78 +12,76 @@ export const addCustomFolderProcedure = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
-    // Immediate log to verify function is executing
-    console.log('[Custom Folders] FUNCTION STARTED - Adding folder:', input.name);
+    console.log('[Custom Folders] Adding folder:', input.name, 'for project:', input.projectId);
 
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    console.log('[Custom Folders] Env check - URL:', !!supabaseUrl, 'Key:', !!supabaseKey);
-
     if (!supabaseUrl || !supabaseKey) {
-      console.error('[Custom Folders] Missing env variables');
-      throw new Error('Database not configured');
+      console.error('[Custom Folders] Supabase not configured');
+      throw new Error('Database not configured. Please add Supabase environment variables.');
     }
 
-    const folderType = input.name.toLowerCase().replace(/\s+/g, '-');
-    console.log('[Custom Folders] Will insert with type:', folderType);
-
-    // Direct fetch with minimal timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.error('[Custom Folders] Aborting after 10s');
-      controller.abort();
-    }, 10000);
+    // Create Supabase client INSIDE handler (not at module level)
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     try {
-      console.log('[Custom Folders] Fetching:', `${supabaseUrl}/rest/v1/custom_folders`);
+      const folderType = input.name.toLowerCase().replace(/\s+/g, '-');
+      console.log('[Custom Folders] Starting insert with folder_type:', folderType);
 
-      const response = await fetch(`${supabaseUrl}/rest/v1/custom_folders`, {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({
-          project_id: input.projectId,
-          folder_type: folderType,
-          name: input.name.trim(),
-          color: input.color || '#6B7280',
-          description: input.description || 'Custom folder',
-        }),
-        signal: controller.signal
-      });
+      const insertStart = Date.now();
 
-      clearTimeout(timeoutId);
-      console.log('[Custom Folders] Response status:', response.status);
+      // Use Promise.race for 30-second timeout protection
+      const { data, error } = await Promise.race([
+        supabase
+          .from('custom_folders')
+          .insert({
+            project_id: input.projectId,
+            folder_type: folderType,
+            name: input.name.trim(),
+            color: input.color || '#6B7280',
+            description: input.description || 'Custom folder',
+          })
+          .select()
+          .single(),
+        new Promise<any>((_, reject) =>
+          setTimeout(() => reject(new Error('Insert query timeout after 30 seconds')), 30000)
+        )
+      ]);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[Custom Folders] Error response:', errorText);
-        throw new Error(`Database error: ${errorText}`);
+      const insertDuration = Date.now() - insertStart;
+      console.log('[Custom Folders] Insert completed in', insertDuration, 'ms');
+
+      if (error) {
+        console.error('[Custom Folders] Error adding folder:', error);
+        throw new Error(`Failed to add custom folder: ${error.message}`);
       }
 
-      console.log('[Custom Folders] Success!');
+      if (!data) {
+        throw new Error('No data returned from insert');
+      }
+
+      console.log('[Custom Folders] Folder created successfully:', data.id);
 
       return {
         success: true,
         folder: {
-          type: folderType,
-          name: input.name.trim(),
+          id: data.id,
+          type: data.folder_type,
+          name: data.name,
           icon: 'Folder',
-          color: input.color || '#6B7280',
-          description: input.description || 'Custom folder',
+          color: data.color,
+          description: data.description,
+          createdAt: data.created_at,
         },
       };
     } catch (error: any) {
-      clearTimeout(timeoutId);
-      console.error('[Custom Folders] Caught error:', error.name, error.message);
-
-      if (error.name === 'AbortError') {
-        throw new Error('Request timed out after 10 seconds');
-      }
-      throw new Error(error.message || 'Failed to add folder');
+      console.error('[Custom Folders] Unexpected error:', error.message);
+      throw new Error(error.message || 'Failed to add custom folder');
     }
   });
