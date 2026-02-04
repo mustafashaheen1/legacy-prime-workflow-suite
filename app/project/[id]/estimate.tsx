@@ -2175,13 +2175,8 @@ export default function EstimateScreen() {
               isNarrow && styles.selectedItemsSectionNarrow
             ]}
             {...(Platform.OS === 'web' ? { onContextMenu: handleRightClick } : {})}
+            onLongPress={handleLongPress}
           >
-            <TouchableOpacity
-              activeOpacity={1}
-              onLongPress={handleLongPress}
-              delayLongPress={500}
-              style={{ flex: 1 }}
-            >
             <View style={styles.selectedItemsHeader}>
               <Text style={styles.sectionLabel}>Selected Items ({items.filter(i => !i.isSeparator).length})</Text>
               <View style={styles.headerButtonsContainer}>
@@ -2210,7 +2205,6 @@ export default function EstimateScreen() {
               containerStyle={styles.itemsList}
               showsVerticalScrollIndicator={true}
             />
-          </TouchableOpacity>
         </View>
 
           {items.length > 0 && (
