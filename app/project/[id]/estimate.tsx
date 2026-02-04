@@ -1413,12 +1413,12 @@ export default function EstimateScreen() {
     }
   };
 
-  const getPriceListItem = (priceListItemId: string): PriceListItem | undefined => {
+  const getPriceListItem = useCallback((priceListItemId: string): PriceListItem | undefined => {
     if (priceListItemId === 'custom') return undefined;
 
     // Check price list items (includes both master and custom items)
     return priceListItems.find(item => item.id === priceListItemId);
-  };
+  }, [priceListItems]);
 
   const updateCustomItemName = (itemId: string, name: string) => {
     setItems(prev => prev.map(item => 
