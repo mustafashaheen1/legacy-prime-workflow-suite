@@ -340,266 +340,6 @@ export default function EstimateScreen() {
     setItems(newData);
   }, []);
 
-  const renderDraggableItem = useCallback(({ item, drag, isActive }: RenderItemParams<EstimateItem>) => {
-    // Separator item rendering
-    if (item.isSeparator) {
-      return (
-        <ScaleDecorator>
-          <TouchableOpacity
-            onLongPress={drag}
-            disabled={isActive}
-            activeOpacity={1}
-          >
-            <View style={[styles.separatorItem, isActive && styles.separatorItemDragging]}>
-              <View style={styles.separatorContent}>
-                <View style={styles.separatorLine} />
-                <TextInput
-                  style={styles.separatorLabel}
-                  value={item.separatorLabel || ''}
-                  onChangeText={(text) => updateSeparatorLabel(item.id, text)}
-                  placeholder="Section Name"
-                  placeholderTextColor="#9CA3AF"
-                />
-                <View style={styles.separatorLine} />
-              </View>
-              <TouchableOpacity
-                onPress={() => removeItem(item.id)}
-                style={styles.separatorDeleteButton}
-              >
-                <Trash2 size={16} color="#EF4444" />
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </ScaleDecorator>
-      );
-    }
-
-    // Regular item rendering
-    const priceListItem = getPriceListItem(item.priceListItemId);
-    const isCustom = item.priceListItemId === 'custom';
-    const isEditing = editingItemId === item.id;
-    const displayPrice = item.customPrice ?? item.unitPrice;
-    const itemName = item.customName || (isCustom ? 'Custom Item' : (priceListItem?.name || ''));
-    const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
-    const itemCategory = isCustom ? (item.customCategory || 'Custom') : (priceListItem?.category || '');
-
-    return (
-      <ScaleDecorator>
-        <TouchableOpacity
-          onLongPress={drag}
-          disabled={isActive}
-          activeOpacity={1}
-        >
-          <View style={[styles.estimateItem, isActive && styles.estimateItemDragging]}>
-            <View style={styles.itemHeader}>
-              <View style={styles.itemTitleRow}>
-                {isEditing ? (
-                  <TextInput
-                    style={styles.itemNameInput}
-                    value={itemName}
-                    onChangeText={(text) => updateCustomItemName(item.id, text)}
-                    placeholder="Item name"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                ) : (
-                  <Text style={styles.itemName}>{itemName}</Text>
-                )}
-                <View style={styles.itemActions}>
-                  <TouchableOpacity
-                    onPress={() => setEditingItemId(isEditing ? null : item.id)}
-                    style={styles.iconButton}
-                  >
-                    {isEditing ? (
-                      <Check size={18} color="#10B981" />
-                    ) : (
-                      <Edit2 size={18} color="#2563EB" />
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => removeItem(item.id)}
-                    style={styles.iconButton}
-                  >
-                    <Trash2 size={18} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.itemMetaRow}>
-              <Text style={styles.itemCategory}>{itemCategory}</Text>
-            </View>
-
-            <View style={[styles.itemDetailsRow, isNarrow && styles.itemDetailsRowNarrow]}>
-              {showUnitsQty && (
-                <>
-                  <View style={[styles.quantityControl, isNarrow && styles.quantityControlNarrow]}>
-                    <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Qty</Text>
-                    <View style={styles.quantityInput}>
-                      <TouchableOpacity
-                        style={[styles.quantityButton, isNarrow && styles.quantityButtonNarrow]}
-                        onPress={() => updateItemQuantity(item.id, Math.max(1, item.quantity - 1))}
-                      >
-                        <Text style={[styles.quantityButtonText, isNarrow && styles.quantityButtonTextNarrow]}>-</Text>
-                      </TouchableOpacity>
-                      <TextInput
-                        style={[styles.quantityTextInput, isNarrow && styles.quantityTextInputNarrow]}
-                        value={item.quantity.toString()}
-                        onChangeText={(text) => {
-                          const qty = parseInt(text) || 1;
-                          updateItemQuantity(item.id, Math.max(1, qty));
-                        }}
-                        keyboardType="number-pad"
-                      />
-                      <TouchableOpacity
-                        style={[styles.quantityButton, isNarrow && styles.quantityButtonNarrow]}
-                        onPress={() => updateItemQuantity(item.id, item.quantity + 1)}
-                      >
-                        <Text style={[styles.quantityButtonText, isNarrow && styles.quantityButtonTextNarrow]}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  <View style={[styles.unitControl, isNarrow && styles.unitControlNarrow]}>
-                    <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Unit</Text>
-                    {isEditing ? (
-                      <TextInput
-                        style={[styles.unitInput, isNarrow && styles.unitInputNarrow]}
-                        value={itemUnit}
-                        onChangeText={(text) => updateCustomItemUnit(item.id, text)}
-                        placeholder="EA"
-                        placeholderTextColor="#9CA3AF"
-                      />
-                    ) : (
-                      <Text style={[styles.unitValue, isNarrow && styles.unitValueNarrow]}>{itemUnit}</Text>
-                    )}
-                  </View>
-                </>
-              )}
-
-              {showUnitsQty && (
-                <View style={[styles.priceControl, isNarrow && styles.priceControlNarrow]}>
-                  <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Price</Text>
-                  {isEditing ? (
-                    <View style={[styles.priceEditRow, isNarrow && styles.priceEditRowNarrow]}>
-                      <Text style={[styles.dollarSign, isNarrow && styles.dollarSignNarrow]}>$</Text>
-                      <TextInput
-                        style={[styles.priceInput, isNarrow && styles.priceInputNarrow]}
-                        value={displayPrice.toString()}
-                        onChangeText={(text) => {
-                          const price = parseFloat(text) || 0;
-                          updateItemPrice(item.id, price);
-                        }}
-                        keyboardType="decimal-pad"
-                        placeholder="0.00"
-                        placeholderTextColor="#9CA3AF"
-                      />
-                    </View>
-                  ) : (
-                    <Text style={[styles.priceValue, isNarrow && styles.priceValueNarrow]}>${displayPrice.toFixed(2)}</Text>
-                  )}
-                </View>
-              )}
-
-              {showBudget && (
-                <View style={[styles.budgetControl, isNarrow && styles.budgetControlNarrow]}>
-                  <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Budget</Text>
-                  <View style={[styles.priceEditRow, isNarrow && styles.priceEditRowNarrow]}>
-                    <Text style={[styles.dollarSign, isNarrow && styles.dollarSignNarrow]}>$</Text>
-                    <TextInput
-                      style={[styles.budgetInput, isNarrow && styles.budgetInputNarrow]}
-                      value={item.budgetUnitPrice?.toString() || ''}
-                      onChangeText={(text) => {
-                        const budgetUnitPrice = parseFloat(text) || 0;
-                        updateItemBudget(item.id, budgetUnitPrice);
-                      }}
-                      keyboardType="decimal-pad"
-                      placeholder="0.00"
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  </View>
-                </View>
-              )}
-
-              <View style={[styles.totalControl, !showUnitsQty && !showBudget && styles.totalControlFull, isNarrow && styles.totalControlNarrow]}>
-                <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Total</Text>
-                <View>
-                  <Text style={[styles.totalValue, isNarrow && styles.totalValueNarrow]}>${item.total.toFixed(2)}</Text>
-                  {showBudget && item.budget && item.budget > 0 ? (
-                    <Text style={[styles.budgetTotalText, isNarrow && styles.budgetTotalTextNarrow]}>(${item.budget.toFixed(2)})</Text>
-                  ) : null}
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.notesSection}>
-              <TextInput
-                style={styles.notesInput}
-                value={item.notes}
-                onChangeText={(text) => updateItemNotes(item.id, text)}
-                placeholder="Add notes (will appear on PDF)..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={2}
-              />
-            </View>
-
-            <View style={styles.itemPhotoSection}>
-              {item.imageUrl ? (
-                <View style={styles.itemPhotoPreview}>
-                  <Image source={{ uri: item.imageUrl }} style={styles.itemPhotoThumbnail} />
-                  {uploadingImageItemId === item.id && (
-                    <View style={styles.uploadingOverlay}>
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    </View>
-                  )}
-                  {uploadingImageItemId !== item.id && (
-                    <TouchableOpacity onPress={() => removeItemImage(item.id)} style={styles.removePhotoButton}>
-                      <X size={14} color="#EF4444" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ) : (
-                <View style={styles.addPhotoButtons}>
-                  <TouchableOpacity
-                    onPress={() => pickItemImage(item.id, 'camera')}
-                    style={styles.addPhotoButton}
-                    disabled={uploadingImageItemId !== null}
-                  >
-                    <Camera size={16} color="#6B7280" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => pickItemImage(item.id, 'library')}
-                    style={styles.addPhotoButton}
-                    disabled={uploadingImageItemId !== null}
-                  >
-                    <ImageIcon size={16} color="#6B7280" />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </ScaleDecorator>
-    );
-  }, [
-    removeItem,
-    getPriceListItem,
-    updateItemQuantity,
-    updateItemPrice,
-    updateItemBudget,
-    updateItemNotes,
-    updateCustomItemName,
-    updateCustomItemUnit,
-    pickItemImage,
-    removeItemImage,
-    uploadingImageItemId,
-    showBudget,
-    showUnitsQty,
-    editingItemId,
-    isNarrow,
-    updateSeparatorLabel,
-  ]);
-
   const addCustomItem = () => {
     const newItem: EstimateItem = {
       id: `custom-${Date.now()}`,
@@ -1687,10 +1427,270 @@ export default function EstimateScreen() {
   };
 
   const updateCustomItemUnit = (itemId: string, unit: string) => {
-    setItems(prev => prev.map(item => 
+    setItems(prev => prev.map(item =>
       item.id === itemId ? { ...item, customUnit: unit } : item
     ));
   };
+
+  const renderDraggableItem = useCallback(({ item, drag, isActive }: RenderItemParams<EstimateItem>) => {
+    // Separator item rendering
+    if (item.isSeparator) {
+      return (
+        <ScaleDecorator>
+          <TouchableOpacity
+            onLongPress={drag}
+            disabled={isActive}
+            activeOpacity={1}
+          >
+            <View style={[styles.separatorItem, isActive && styles.separatorItemDragging]}>
+              <View style={styles.separatorContent}>
+                <View style={styles.separatorLine} />
+                <TextInput
+                  style={styles.separatorLabel}
+                  value={item.separatorLabel || ''}
+                  onChangeText={(text) => updateSeparatorLabel(item.id, text)}
+                  placeholder="Section Name"
+                  placeholderTextColor="#9CA3AF"
+                />
+                <View style={styles.separatorLine} />
+              </View>
+              <TouchableOpacity
+                onPress={() => removeItem(item.id)}
+                style={styles.separatorDeleteButton}
+              >
+                <Trash2 size={16} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </ScaleDecorator>
+      );
+    }
+
+    // Regular item rendering
+    const priceListItem = getPriceListItem(item.priceListItemId);
+    const isCustom = item.priceListItemId === 'custom';
+    const isEditing = editingItemId === item.id;
+    const displayPrice = item.customPrice ?? item.unitPrice;
+    const itemName = item.customName || (isCustom ? 'Custom Item' : (priceListItem?.name || ''));
+    const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
+    const itemCategory = isCustom ? (item.customCategory || 'Custom') : (priceListItem?.category || '');
+
+    return (
+      <ScaleDecorator>
+        <TouchableOpacity
+          onLongPress={drag}
+          disabled={isActive}
+          activeOpacity={1}
+        >
+          <View style={[styles.estimateItem, isActive && styles.estimateItemDragging]}>
+            <View style={styles.itemHeader}>
+              <View style={styles.itemTitleRow}>
+                {isEditing ? (
+                  <TextInput
+                    style={styles.itemNameInput}
+                    value={itemName}
+                    onChangeText={(text) => updateCustomItemName(item.id, text)}
+                    placeholder="Item name"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                ) : (
+                  <Text style={styles.itemName}>{itemName}</Text>
+                )}
+                <View style={styles.itemActions}>
+                  <TouchableOpacity
+                    onPress={() => setEditingItemId(isEditing ? null : item.id)}
+                    style={styles.iconButton}
+                  >
+                    {isEditing ? (
+                      <Check size={18} color="#10B981" />
+                    ) : (
+                      <Edit2 size={18} color="#2563EB" />
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => removeItem(item.id)}
+                    style={styles.iconButton}
+                  >
+                    <Trash2 size={18} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.itemMetaRow}>
+              <Text style={styles.itemCategory}>{itemCategory}</Text>
+            </View>
+
+            <View style={[styles.itemDetailsRow, isNarrow && styles.itemDetailsRowNarrow]}>
+              {showUnitsQty && (
+                <>
+                  <View style={[styles.quantityControl, isNarrow && styles.quantityControlNarrow]}>
+                    <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Qty</Text>
+                    <View style={styles.quantityInput}>
+                      <TouchableOpacity
+                        style={[styles.quantityButton, isNarrow && styles.quantityButtonNarrow]}
+                        onPress={() => updateItemQuantity(item.id, Math.max(1, item.quantity - 1))}
+                      >
+                        <Text style={[styles.quantityButtonText, isNarrow && styles.quantityButtonTextNarrow]}>-</Text>
+                      </TouchableOpacity>
+                      <TextInput
+                        style={[styles.quantityTextInput, isNarrow && styles.quantityTextInputNarrow]}
+                        value={item.quantity.toString()}
+                        onChangeText={(text) => {
+                          const qty = parseInt(text) || 1;
+                          updateItemQuantity(item.id, Math.max(1, qty));
+                        }}
+                        keyboardType="number-pad"
+                      />
+                      <TouchableOpacity
+                        style={[styles.quantityButton, isNarrow && styles.quantityButtonNarrow]}
+                        onPress={() => updateItemQuantity(item.id, item.quantity + 1)}
+                      >
+                        <Text style={[styles.quantityButtonText, isNarrow && styles.quantityButtonTextNarrow]}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={[styles.unitControl, isNarrow && styles.unitControlNarrow]}>
+                    <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Unit</Text>
+                    {isEditing ? (
+                      <TextInput
+                        style={[styles.unitInput, isNarrow && styles.unitInputNarrow]}
+                        value={itemUnit}
+                        onChangeText={(text) => updateCustomItemUnit(item.id, text)}
+                        placeholder="EA"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    ) : (
+                      <Text style={[styles.unitValue, isNarrow && styles.unitValueNarrow]}>{itemUnit}</Text>
+                    )}
+                  </View>
+                </>
+              )}
+
+              {showUnitsQty && (
+                <View style={[styles.priceControl, isNarrow && styles.priceControlNarrow]}>
+                  <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Price</Text>
+                  {isEditing ? (
+                    <View style={[styles.priceEditRow, isNarrow && styles.priceEditRowNarrow]}>
+                      <Text style={[styles.dollarSign, isNarrow && styles.dollarSignNarrow]}>$</Text>
+                      <TextInput
+                        style={[styles.priceInput, isNarrow && styles.priceInputNarrow]}
+                        value={displayPrice.toString()}
+                        onChangeText={(text) => {
+                          const price = parseFloat(text) || 0;
+                          updateItemPrice(item.id, price);
+                        }}
+                        keyboardType="decimal-pad"
+                        placeholder="0.00"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    </View>
+                  ) : (
+                    <Text style={[styles.priceValue, isNarrow && styles.priceValueNarrow]}>${displayPrice.toFixed(2)}</Text>
+                  )}
+                </View>
+              )}
+
+              {showBudget && (
+                <View style={[styles.budgetControl, isNarrow && styles.budgetControlNarrow]}>
+                  <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Budget</Text>
+                  <View style={[styles.priceEditRow, isNarrow && styles.priceEditRowNarrow]}>
+                    <Text style={[styles.dollarSign, isNarrow && styles.dollarSignNarrow]}>$</Text>
+                    <TextInput
+                      style={[styles.budgetInput, isNarrow && styles.budgetInputNarrow]}
+                      value={item.budgetUnitPrice?.toString() || ''}
+                      onChangeText={(text) => {
+                        const budgetUnitPrice = parseFloat(text) || 0;
+                        updateItemBudget(item.id, budgetUnitPrice);
+                      }}
+                      keyboardType="decimal-pad"
+                      placeholder="0.00"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+              )}
+
+              <View style={[styles.totalControl, !showUnitsQty && !showBudget && styles.totalControlFull, isNarrow && styles.totalControlNarrow]}>
+                <Text style={[styles.itemLabel, isNarrow && styles.itemLabelNarrow]}>Total</Text>
+                <View>
+                  <Text style={[styles.totalValue, isNarrow && styles.totalValueNarrow]}>${item.total.toFixed(2)}</Text>
+                  {showBudget && item.budget && item.budget > 0 ? (
+                    <Text style={[styles.budgetTotalText, isNarrow && styles.budgetTotalTextNarrow]}>(${item.budget.toFixed(2)})</Text>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.notesSection}>
+              <TextInput
+                style={styles.notesInput}
+                value={item.notes}
+                onChangeText={(text) => updateItemNotes(item.id, text)}
+                placeholder="Add notes (will appear on PDF)..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={2}
+              />
+            </View>
+
+            <View style={styles.itemPhotoSection}>
+              {item.imageUrl ? (
+                <View style={styles.itemPhotoPreview}>
+                  <Image source={{ uri: item.imageUrl }} style={styles.itemPhotoThumbnail} />
+                  {uploadingImageItemId === item.id && (
+                    <View style={styles.uploadingOverlay}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    </View>
+                  )}
+                  {uploadingImageItemId !== item.id && (
+                    <TouchableOpacity onPress={() => removeItemImage(item.id)} style={styles.removePhotoButton}>
+                      <X size={14} color="#EF4444" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.addPhotoButtons}>
+                  <TouchableOpacity
+                    onPress={() => pickItemImage(item.id, 'camera')}
+                    style={styles.addPhotoButton}
+                    disabled={uploadingImageItemId !== null}
+                  >
+                    <Camera size={16} color="#6B7280" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => pickItemImage(item.id, 'library')}
+                    style={styles.addPhotoButton}
+                    disabled={uploadingImageItemId !== null}
+                  >
+                    <ImageIcon size={16} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }, [
+    removeItem,
+    getPriceListItem,
+    updateItemQuantity,
+    updateItemPrice,
+    updateItemBudget,
+    updateItemNotes,
+    updateCustomItemName,
+    updateCustomItemUnit,
+    pickItemImage,
+    removeItemImage,
+    uploadingImageItemId,
+    showBudget,
+    showUnitsQty,
+    editingItemId,
+    isNarrow,
+    updateSeparatorLabel,
+  ]);
 
   const { subtotal, totalBudget, markupAmount, subtotalWithMarkup, taxAmount, total } = calculateTotals();
 
