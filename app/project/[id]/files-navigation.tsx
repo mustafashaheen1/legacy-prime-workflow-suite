@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '@/contexts/AppContext';
 import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2 } from 'lucide-react-native';
 import { Image } from 'expo-image';
@@ -91,33 +92,13 @@ export default function FilesNavigationScreen() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [newFolderModalVisible, setNewFolderModalVisible] = useState<boolean>(false);
   const [newFolderName, setNewFolderName] = useState<string>('');
+  const [customFolders, setCustomFolders] = useState<FolderConfig[]>([]);
   const [viewingFile, setViewingFile] = useState<{ uri: string; name: string; type: string } | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [s3ProjectFiles, setS3ProjectFiles] = useState<ProjectFile[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(true);
 
   const project = projects.find(p => p.id === id);
-
-  // Fetch custom folders from database
-  const customFoldersQuery = trpc.customFolders.getCustomFolders.useQuery({
-    projectId: id as string,
-  }, {
-    enabled: !!id,
-  });
-
-  const addCustomFolderMutation = trpc.customFolders.addCustomFolder.useMutation({
-    onSuccess: () => {
-      customFoldersQuery.refetch();
-    },
-  });
-
-  const deleteCustomFolderMutation = trpc.customFolders.deleteCustomFolder.useMutation({
-    onSuccess: () => {
-      customFoldersQuery.refetch();
-    },
-  });
-
-  const customFolders: FolderConfig[] = customFoldersQuery.data?.folders || [];
 
   // Load project files from S3/database
   const loadProjectFiles = useCallback(async () => {
@@ -144,6 +125,38 @@ export default function FilesNavigationScreen() {
   useEffect(() => {
     loadProjectFiles();
   }, [loadProjectFiles]);
+
+  // Load custom folders from AsyncStorage
+  useEffect(() => {
+    const loadCustomFolders = async () => {
+      if (!id) return;
+      try {
+        const storageKey = `custom_folders_${id}`;
+        const stored = await AsyncStorage.getItem(storageKey);
+        if (stored) {
+          const folders = JSON.parse(stored);
+          setCustomFolders(folders);
+        }
+      } catch (error) {
+        console.error('[Files] Error loading custom folders:', error);
+      }
+    };
+    loadCustomFolders();
+  }, [id]);
+
+  // Save custom folders to AsyncStorage whenever they change
+  useEffect(() => {
+    const saveCustomFolders = async () => {
+      if (!id) return;
+      try {
+        const storageKey = `custom_folders_${id}`;
+        await AsyncStorage.setItem(storageKey, JSON.stringify(customFolders));
+      } catch (error) {
+        console.error('[Files] Error saving custom folders:', error);
+      }
+    };
+    saveCustomFolders();
+  }, [customFolders, id]);
 
   const projectPhotos = useMemo(() => {
     return photos.filter(p => p.projectId === id);
@@ -432,29 +445,24 @@ export default function FilesNavigationScreen() {
     }
   };
 
-  const handleCreateNewFolder = async () => {
+  const handleCreateNewFolder = () => {
     if (!newFolderName.trim()) {
       Alert.alert('Error', 'Please enter a folder name');
       return;
     }
 
-    if (!id) return;
+    const newFolder: FolderConfig = {
+      type: newFolderName.toLowerCase().replace(/\s+/g, '-') as FolderType,
+      name: newFolderName.trim(),
+      icon: Folder,
+      color: '#6B7280',
+      description: 'Custom folder',
+    };
 
-    try {
-      await addCustomFolderMutation.mutateAsync({
-        projectId: id as string,
-        name: newFolderName.trim(),
-        color: '#6B7280',
-        description: 'Custom folder',
-      });
-
-      setNewFolderName('');
-      setNewFolderModalVisible(false);
-      Alert.alert('Success', 'Folder created successfully!');
-    } catch (error: any) {
-      console.error('[Files] Error creating folder:', error);
-      Alert.alert('Error', error.message || 'Failed to create folder');
-    }
+    setCustomFolders(prev => [...prev, newFolder]);
+    setNewFolderName('');
+    setNewFolderModalVisible(false);
+    Alert.alert('Success', 'Folder created successfully!');
   };
 
   const handleDeleteFolder = (folderType: FolderType) => {
@@ -466,19 +474,9 @@ export default function FilesNavigationScreen() {
         {
           text: t('common.delete'),
           style: 'destructive',
-          onPress: async () => {
-            if (!id) return;
-
-            try {
-              await deleteCustomFolderMutation.mutateAsync({
-                projectId: id as string,
-                folderType,
-              });
-              Alert.alert(t('common.success'), 'Folder deleted');
-            } catch (error: any) {
-              console.error('[Files] Error deleting folder:', error);
-              Alert.alert('Error', error.message || 'Failed to delete folder');
-            }
+          onPress: () => {
+            setCustomFolders(prev => prev.filter(f => f.type !== folderType));
+            Alert.alert(t('common.success'), 'Folder deleted');
           },
         },
       ]

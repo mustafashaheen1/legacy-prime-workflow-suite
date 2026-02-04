@@ -90,9 +90,6 @@ import { getScheduledTasksProcedure } from "./routes/scheduled-tasks/get-schedul
 import { addScheduledTaskProcedure } from "./routes/scheduled-tasks/add-scheduled-task/route.js";
 import { updateScheduledTaskProcedure } from "./routes/scheduled-tasks/update-scheduled-task/route.js";
 import { deleteScheduledTaskProcedure } from "./routes/scheduled-tasks/delete-scheduled-task/route.js";
-import { getCustomFoldersProcedure } from "./routes/custom-folders/get-custom-folders/route.js";
-import { addCustomFolderProcedure } from "./routes/custom-folders/add-custom-folder/route.js";
-import { deleteCustomFolderProcedure } from "./routes/custom-folders/delete-custom-folder/route.js";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -228,11 +225,6 @@ export const appRouter = createTRPCRouter({
     addScheduledTask: addScheduledTaskProcedure,
     updateScheduledTask: updateScheduledTaskProcedure,
     deleteScheduledTask: deleteScheduledTaskProcedure,
-  }),
-  customFolders: createTRPCRouter({
-    getCustomFolders: getCustomFoldersProcedure,
-    addCustomFolder: addCustomFolderProcedure,
-    deleteCustomFolder: deleteCustomFolderProcedure,
   }),
 });
 
