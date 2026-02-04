@@ -52,11 +52,6 @@ export const addCustomFolderProcedure = publicProcedure
         throw new Error(`Failed to add custom folder: ${error}`);
       }
 
-      if (error) {
-        console.error('[Custom Folders] Error adding folder:', error);
-        throw new Error(`Failed to add custom folder: ${error.message}`);
-      }
-
       console.log('[Custom Folders] Folder created successfully');
 
       return {
