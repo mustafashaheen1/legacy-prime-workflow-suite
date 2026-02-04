@@ -17,17 +17,27 @@ export const addCustomFolderProcedure = publicProcedure
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+    console.log('[Custom Folders] Supabase URL exists:', !!supabaseUrl);
+    console.log('[Custom Folders] Supabase Key exists:', !!supabaseKey);
+
     if (!supabaseUrl || !supabaseKey) {
       console.error('[Custom Folders] Supabase not configured');
       throw new Error('Database not configured. Please add Supabase environment variables.');
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('[Custom Folders] Supabase client created');
 
     try {
       const folderType = input.name.toLowerCase().replace(/\s+/g, '-');
+      console.log('[Custom Folders] Attempting insert with folder_type:', folderType);
 
-      const { data, error } = await supabase
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database operation timed out after 8 seconds')), 8000)
+      );
+
+      const insertPromise = supabase
         .from('custom_folders')
         .insert({
           project_id: input.projectId,
@@ -38,6 +48,8 @@ export const addCustomFolderProcedure = publicProcedure
         })
         .select()
         .single();
+
+      const { data, error } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error('[Custom Folders] Error adding folder:', error);
