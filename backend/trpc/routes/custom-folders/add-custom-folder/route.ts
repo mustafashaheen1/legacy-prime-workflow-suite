@@ -45,11 +45,9 @@ export const addCustomFolderProcedure = publicProcedure
           name: input.name.trim(),
           color: input.color || '#6B7280',
           description: input.description || 'Custom folder',
-        })
-        .select()
-        .single();
+        });
 
-      const { data, error } = await Promise.race([insertPromise, timeoutPromise]) as any;
+      const { error } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error('[Custom Folders] Error adding folder:', error);
@@ -61,11 +59,11 @@ export const addCustomFolderProcedure = publicProcedure
       return {
         success: true,
         folder: {
-          type: data.folder_type,
-          name: data.name,
+          type: folderType,
+          name: input.name.trim(),
           icon: 'Folder',
-          color: data.color,
-          description: data.description,
+          color: input.color || '#6B7280',
+          description: input.description || 'Custom folder',
         },
       };
     } catch (error: any) {
