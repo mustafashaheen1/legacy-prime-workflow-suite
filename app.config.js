@@ -7,22 +7,27 @@ module.exports = {
     slug: "legacy-prime-workflow-suite",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/icon.png",
+    icon: "./assets/images/icon.png",
+    splash: {
+      image: "./assets/images/splash-icon.png",
+      resizeMode: "contain",
+      backgroundColor: "#ffffff"
+    },
     userInterfaceStyle: "light",
     assetBundlePatterns: ["**/*"],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.legacyprime.workflowsuite"
+      bundleIdentifier: "app.rork.legacy-prime-workflow-suite"
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
+        foregroundImage: "./assets/images/adaptive-icon.png",
         backgroundColor: "#ffffff"
       },
-      package: "com.legacyprime.workflowsuite"
+      package: "app.rork.legacy-prime-workflow-suite"
     },
     web: {
-      favicon: "./assets/favicon.png",
+      favicon: "./assets/images/favicon.png",
       bundler: "metro"
     },
     extra: {
