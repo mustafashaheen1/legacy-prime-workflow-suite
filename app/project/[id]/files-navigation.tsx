@@ -95,6 +95,7 @@ export default function FilesNavigationScreen() {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [s3ProjectFiles, setS3ProjectFiles] = useState<ProjectFile[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(true);
+  const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
 
   const project = projects.find(p => p.id === id);
 
@@ -433,27 +434,53 @@ export default function FilesNavigationScreen() {
   };
 
   const handleCreateNewFolder = async () => {
+    console.log('[Files] handleCreateNewFolder called');
+    console.log('[Files] Folder name:', newFolderName);
+    console.log('[Files] Project ID:', id);
+
     if (!newFolderName.trim()) {
+      console.warn('[Files] Empty folder name');
       Alert.alert('Error', 'Please enter a folder name');
       return;
     }
 
-    if (!id) return;
+    if (!id) {
+      console.error('[Files] No project ID');
+      return;
+    }
+
+    if (isCreatingFolder) {
+      console.warn('[Files] Already creating folder, ignoring duplicate click');
+      return;
+    }
 
     try {
-      await addCustomFolderMutation.mutateAsync({
+      setIsCreatingFolder(true);
+      console.log('[Files] Starting folder creation mutation...');
+
+      const result = await addCustomFolderMutation.mutateAsync({
         projectId: id as string,
         name: newFolderName.trim(),
         color: '#6B7280',
         description: 'Custom folder',
       });
 
+      console.log('[Files] Folder created successfully:', result);
+
       setNewFolderName('');
       setNewFolderModalVisible(false);
       Alert.alert('Success', 'Folder created successfully!');
     } catch (error: any) {
       console.error('[Files] Error creating folder:', error);
-      Alert.alert('Error', error.message || 'Failed to create folder');
+      console.error('[Files] Error details:', {
+        message: error.message,
+        cause: error.cause,
+        stack: error.stack,
+      });
+      Alert.alert('Error', error.message || 'Failed to create folder. Check console for details.');
+    } finally {
+      setIsCreatingFolder(false);
+      console.log('[Files] Folder creation attempt finished');
     }
   };
 
@@ -881,11 +908,14 @@ export default function FilesNavigationScreen() {
               />
 
               <TouchableOpacity
-                style={[styles.modalActionButton, { flex: 1 }]}
+                style={[styles.modalActionButton, { flex: 1 }, isCreatingFolder && styles.modalActionButtonDisabled]}
                 onPress={handleCreateNewFolder}
+                disabled={isCreatingFolder}
               >
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.modalActionButtonText}>{t('projects.files.createFolder')}</Text>
+                <Text style={styles.modalActionButtonText}>
+                  {isCreatingFolder ? 'Creating...' : t('projects.files.createFolder')}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

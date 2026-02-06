@@ -20,7 +20,12 @@ export const deleteCustomFolderProcedure = publicProcedure
       throw new Error('Database not configured. Please add Supabase environment variables.');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     try {
       const { error } = await supabase
