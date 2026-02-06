@@ -83,7 +83,8 @@
       "Bash(bun run start)",
       "Bash(xargs:*)",
       "Bash(sudo xcodebuild:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(pod install)"
     ],
     "deny": [],
     "ask": []

@@ -24,7 +24,7 @@ module.exports = {
         foregroundImage: "./assets/images/adaptive-icon.png",
         backgroundColor: "#ffffff"
       },
-      package: "app.rork.legacy-prime-workflow-suite"
+      package: "app.rork.legacy_prime_workflow_suite"
     },
     web: {
       favicon: "./assets/images/favicon.png",
