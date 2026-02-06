@@ -4,11 +4,11 @@
   "installCommand": "bun install",
   "functions": {
     "api/create-estimate.ts": {
-      "maxDuration": 30,
+      "maxDuration": 10,
       "memory": 512
     },
     "api/**/*.ts": {
-      "maxDuration": 60,
+      "maxDuration": 10,
       "memory": 1024
     }
   },
