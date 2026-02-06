@@ -77,6 +77,16 @@ app.get("/health", (c) => {
   });
 });
 
+// Ultra-simple POST test (no async, no database, no imports)
+app.post("/test/ping", (c) => {
+  console.log('[PING] POST received!');
+  return c.json({
+    success: true,
+    message: "POST works!",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Test POST endpoint for folder creation (bypassing tRPC)
 app.post("/test/create-folder", async (c) => {
   console.log('[Test POST] ========== STARTED ==========');
