@@ -1,9 +1,7 @@
+// Backup of current version before making changes
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
 import { createClient } from '@supabase/supabase-js';
-
-// Test logging at module level to ensure file loads
-console.log('[Custom Folders Module] ✓ Module loaded at', new Date().toISOString());
 
 export const addCustomFolderProcedure = publicProcedure
   .input(
@@ -15,10 +13,6 @@ export const addCustomFolderProcedure = publicProcedure
     })
   )
   .mutation(async ({ input }) => {
-    // Log IMMEDIATELY at the start - even before variable declaration
-    console.log('[Custom Folders] ========== MUTATION CALLED ==========');
-    console.log('[Custom Folders] Input received:', JSON.stringify(input));
-
     const startTime = Date.now();
     console.log('[Custom Folders] ⏱️ START - Adding folder:', input.name, 'for project:', input.projectId);
 
