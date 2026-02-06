@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { trpcServer } from "@hono/trpc-server";
 import { cors } from "hono/cors";
-import { timeout } from "hono/timeout";
 import { appRouter } from "./trpc/app-router.js";
 import { createContext } from "./trpc/create-context.js";
 import twilio from "twilio";
