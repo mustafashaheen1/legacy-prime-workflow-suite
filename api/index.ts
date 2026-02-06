@@ -1,10 +1,9 @@
-import { handle } from '@hono/node-server/vercel';
 import app from '../backend/hono.js';
 
+// Use Vercel's native edge runtime instead of @hono/node-server/vercel
+// The node adapter has known issues with POST request body parsing
 export const config = {
-  // Vercel Hobby plan limit is 10 seconds
-  // To use 60s, upgrade to Vercel Pro: https://vercel.com/docs/functions/serverless-functions/runtimes#max-duration
-  maxDuration: 10,
+  runtime: 'edge',
 };
 
-export default handle(app as any);
+export default app.fetch;
