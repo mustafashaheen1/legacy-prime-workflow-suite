@@ -222,6 +222,11 @@ export default function FilesNavigationScreen() {
         );
         count = clientVideos.length;
         categories = count > 0 ? ['Client Videos'] : [];
+      } else {
+        // Handle custom folders - filter files by the folder type as category
+        const files = currentProjectFiles.filter(f => f.category === folderConfig.type);
+        count = files.length;
+        categories = count > 0 ? ['All Files'] : [];
       }
 
       return {
@@ -254,8 +259,10 @@ export default function FilesNavigationScreen() {
         v.status === 'completed' &&
         v.videoUrl
       );
+    } else {
+      // Handle custom folders - return files matching the folder type as category
+      return currentProjectFiles.filter(f => f.category === folderType);
     }
-    return [];
   };
 
   const handlePickPhoto = async () => {
@@ -336,6 +343,10 @@ export default function FilesNavigationScreen() {
         if (selectedFolder === 'permit-files') category = 'permits';
         else if (selectedFolder === 'inspections') category = 'inspections';
         else if (selectedFolder === 'agreements') category = 'agreements';
+        else if (selectedFolder) {
+          // For custom folders, use the folder type as the category
+          category = selectedFolder as FileCategory;
+        }
 
         try {
           const apiUrl = Platform.OS === 'web' && typeof window !== 'undefined'
