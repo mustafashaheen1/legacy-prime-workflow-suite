@@ -223,8 +223,11 @@ export default function FilesNavigationScreen() {
         count = clientVideos.length;
         categories = count > 0 ? ['Client Videos'] : [];
       } else {
-        // Handle custom folders - filter files by the folder type as category
-        const files = currentProjectFiles.filter(f => f.category === folderConfig.type);
+        // Handle custom folders - filter files by custom folder marker in notes
+        const customFolderMarker = `[CUSTOM_FOLDER:${folderConfig.type}]`;
+        const files = currentProjectFiles.filter(f =>
+          f.category === 'other' && f.notes?.startsWith(customFolderMarker)
+        );
         count = files.length;
         categories = count > 0 ? ['All Files'] : [];
       }
@@ -260,8 +263,11 @@ export default function FilesNavigationScreen() {
         v.videoUrl
       );
     } else {
-      // Handle custom folders - return files matching the folder type as category
-      return currentProjectFiles.filter(f => f.category === folderType);
+      // Handle custom folders - return files with custom folder marker in notes
+      const customFolderMarker = `[CUSTOM_FOLDER:${folderType}]`;
+      return currentProjectFiles.filter(f =>
+        f.category === 'other' && f.notes?.startsWith(customFolderMarker)
+      );
     }
   };
 
@@ -340,12 +346,15 @@ export default function FilesNavigationScreen() {
         console.log('[Files] Starting file upload:', asset.name);
 
         let category: FileCategory = 'documentation';
+        let customFolderType: string | null = null;
+
         if (selectedFolder === 'permit-files') category = 'permits';
         else if (selectedFolder === 'inspections') category = 'inspections';
         else if (selectedFolder === 'agreements') category = 'agreements';
-        else if (selectedFolder) {
-          // For custom folders, use the folder type as the category
-          category = selectedFolder as FileCategory;
+        else if (selectedFolder && !['photos', 'receipts', 'videos'].includes(selectedFolder)) {
+          // For custom folders, use 'other' category and store the folder type in notes
+          category = 'other';
+          customFolderType = selectedFolder;
         }
 
         try {
@@ -423,7 +432,9 @@ export default function FilesNavigationScreen() {
               category,
               s3Key: key,
               s3Url: fileUrl,
-              notes: fileNotes,
+              notes: customFolderType
+                ? `[CUSTOM_FOLDER:${customFolderType}]${fileNotes ? ' ' + fileNotes : ''}`
+                : fileNotes,
             }),
           });
 
