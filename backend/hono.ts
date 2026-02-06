@@ -28,7 +28,8 @@ try {
     credentials: true,
   }));
 
-  app.use("/trpc/*", timeout(60000));
+  // REMOVED: timeout middleware conflicts with Vercel's 10s limit
+  // app.use("/trpc/*", timeout(60000));
 
   // Debug middleware to see what's happening before tRPC
   app.use("/trpc/*", async (c, next) => {
