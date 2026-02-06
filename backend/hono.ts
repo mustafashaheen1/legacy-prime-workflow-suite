@@ -77,6 +77,70 @@ app.get("/health", (c) => {
   });
 });
 
+// Test POST endpoint for folder creation (bypassing tRPC)
+app.post("/test/create-folder", async (c) => {
+  console.log('[Test POST] ========== STARTED ==========');
+  console.log('[Test POST] Timestamp:', new Date().toISOString());
+
+  try {
+    const body = await c.req.json();
+    console.log('[Test POST] Body:', JSON.stringify(body));
+
+    console.log('[Test POST] Creating Supabase client...');
+    const { createClient } = await import('@supabase/supabase-js');
+
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[Test POST] Supabase not configured');
+      return c.json({ error: 'Supabase not configured' }, 500);
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    console.log('[Test POST] Inserting to database...');
+    const startTime = Date.now();
+
+    const { data, error } = await supabase
+      .from('custom_folders')
+      .insert({
+        project_id: body.projectId || 'test-hono-post',
+        folder_type: (body.name || 'test').toLowerCase().replace(/\s+/g, '-'),
+        name: body.name || 'Test POST',
+        color: body.color || '#6B7280',
+        description: body.description || 'Hono POST test',
+      })
+      .select()
+      .single();
+
+    const duration = Date.now() - startTime;
+    console.log('[Test POST] Insert completed in', duration, 'ms');
+
+    if (error) {
+      console.error('[Test POST] Database error:', error);
+      return c.json({
+        success: false,
+        error: error.message,
+        duration_ms: duration,
+      }, 500);
+    }
+
+    console.log('[Test POST] ========== SUCCESS ==========');
+    return c.json({
+      success: true,
+      folder: data,
+      duration_ms: duration,
+    });
+
+  } catch (error: any) {
+    console.error('[Test POST] Error:', error.message);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
 app.get("/test-uuid", (c) => {
   try {
     const testUuid = crypto.randomUUID();
