@@ -106,17 +106,28 @@ export default function FilesNavigationScreen() {
     enabled: !!id,
   });
 
-  const addCustomFolderMutation = trpc.customFolders.addCustomFolder.useMutation({
-    onSuccess: () => {
-      customFoldersQuery.refetch();
-    },
-  });
-
   const deleteCustomFolderMutation = trpc.customFolders.deleteCustomFolder.useMutation({
     onSuccess: () => {
       customFoldersQuery.refetch();
     },
   });
+
+  // Direct API call to create custom folder (bypasses tRPC)
+  const createCustomFolder = async (projectId: string, name: string, color?: string, description?: string) => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const response = await fetch(`${baseUrl}/api/custom-folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, name, color, description }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to create folder');
+    }
+
+    return await response.json();
+  };
 
   const customFolders: FolderConfig[] = customFoldersQuery.data?.folders || [];
 
@@ -456,19 +467,23 @@ export default function FilesNavigationScreen() {
 
     try {
       setIsCreatingFolder(true);
-      console.log('[Files] Starting folder creation mutation...');
+      console.log('[Files] Starting folder creation via direct API...');
 
-      const result = await addCustomFolderMutation.mutateAsync({
-        projectId: id as string,
-        name: newFolderName.trim(),
-        color: '#6B7280',
-        description: 'Custom folder',
-      });
+      const result = await createCustomFolder(
+        id as string,
+        newFolderName.trim(),
+        '#6B7280',
+        'Custom folder'
+      );
 
       console.log('[Files] Folder created successfully:', result);
 
       setNewFolderName('');
       setNewFolderModalVisible(false);
+
+      // Refetch to show new folder
+      await customFoldersQuery.refetch();
+
       Alert.alert('Success', 'Folder created successfully!');
     } catch (error: any) {
       console.error('[Files] Error creating folder:', error);
