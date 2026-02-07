@@ -358,18 +358,53 @@ export default function PhotosScreen() {
               .map((photo) => (
               <View key={photo.id} style={styles.galleryItem}>
                 <Image source={{ uri: photo.url }} style={styles.thumbnail} contentFit="cover" />
+
+                {/* 🎯 CLIENT DESIGN: Uploader info with avatar + name */}
                 <View style={styles.thumbnailFooter}>
-                  <Text style={styles.thumbnailLabel}>{photo.category}</Text>
-                  <TouchableOpacity 
-                    onPress={() => handleEditCategory(photo)}
-                    style={styles.editButton}
-                  >
-                    <Edit2 size={14} color="#2563EB" />
-                  </TouchableOpacity>
+                  <View style={styles.uploaderRow}>
+                    {photo.uploader ? (
+                      <>
+                        {photo.uploader.avatar ? (
+                          <Image
+                            source={{ uri: photo.uploader.avatar }}
+                            style={styles.uploaderAvatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.uploaderAvatarPlaceholder}>
+                            <Text style={styles.uploaderInitials}>
+                              {photo.uploader.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </Text>
+                          </View>
+                        )}
+                        <Text style={styles.uploaderName} numberOfLines={1}>
+                          {photo.uploader.name}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <View style={styles.uploaderAvatarPlaceholder}>
+                          <Text style={styles.uploaderInitials}>?</Text>
+                        </View>
+                        <Text style={styles.uploaderName}>Unknown</Text>
+                      </>
+                    )}
+                  </View>
+
+                  <View style={styles.categoryRow}>
+                    <Text style={styles.thumbnailLabel}>{photo.category}</Text>
+                    <TouchableOpacity
+                      onPress={() => handleEditCategory(photo)}
+                      style={styles.editButton}
+                    >
+                      <Edit2 size={14} color="#2563EB" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {photo.notes && (
+                    <Text style={styles.photoNotes} numberOfLines={2}>{photo.notes}</Text>
+                  )}
                 </View>
-                {photo.notes && (
-                  <Text style={styles.photoNotes} numberOfLines={2}>{photo.notes}</Text>
-                )}
               </View>
             ))}
           </View>
@@ -863,6 +898,42 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   thumbnailFooter: {
+    marginTop: 8,
+  },
+  // 🎯 CLIENT DESIGN: Uploader row styles
+  uploaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  uploaderAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  uploaderAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#6B7280',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploaderInitials: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  uploaderName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    flex: 1,
+  },
+  categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
