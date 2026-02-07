@@ -8,6 +8,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File } from 'lucide-react-native';
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
+import UploaderBadge from '@/components/UploaderBadge';
 
 export default function ExpensesScreen() {
   const { expenses, addExpense, projects, user, refreshExpenses, priceListCategories } = useApp();
@@ -675,6 +676,16 @@ export default function ExpensesScreen() {
           ) : (
             filteredExpenses.map((expense) => (
               <View key={expense.id} style={styles.expenseCard}>
+                {/* 🎯 PHASE 5: Show uploader at top of card */}
+                {expense.uploader && (
+                  <View style={styles.uploaderSection}>
+                    <UploaderBadge uploader={expense.uploader} size="small" showName={true} />
+                    <Text style={styles.uploadDate}>
+                      {new Date(expense.date).toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
+
                 <View style={styles.expenseHeader}>
                   <View style={styles.expenseInfo}>
                     <View>
@@ -692,7 +703,9 @@ export default function ExpensesScreen() {
                   <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
                 </View>
                 <Text style={styles.expenseStore}>{expense.store}</Text>
-                <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
+                {!expense.uploader && (
+                  <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
+                )}
               </View>
             ))
           )}
@@ -1026,6 +1039,26 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  // 🎯 PHASE 5: Uploader section styles
+  uploaderSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  uploadDate: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
   },
   expenseHeader: {
     flexDirection: 'row',
