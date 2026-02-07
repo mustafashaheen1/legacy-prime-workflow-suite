@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Photo } from '@/types';
 import { compressImage, getFileSize, validateFileForUpload, getMimeType } from '@/lib/upload-utils';
 import { useUploadProgress } from '@/hooks/useUploadProgress';
+import { supabase } from '@/lib/supabase';
 
 export default function PhotosScreen() {
   const { photos, addPhoto, updatePhoto, photoCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company, projects } = useApp();
@@ -141,14 +142,25 @@ export default function PhotosScreen() {
       uploadProgress.startUpload();
       uploadProgress.setProgress(50);
 
+      // 🎯 PHASE 2B: Get JWT token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        console.warn('[Photos] No auth token available for photo upload');
+        throw new Error('You must be logged in to upload photos');
+      }
+
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
       const response = await fetch(`${baseUrl}/api/add-photo`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // 🎯 PHASE 2B: Attach Authorization header
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          companyId: company.id,
+          // 🎯 SECURITY: Remove companyId - comes from JWT
           projectId: selectedProjectId,
           category: tempCategory,
           notes: previewNotes,
