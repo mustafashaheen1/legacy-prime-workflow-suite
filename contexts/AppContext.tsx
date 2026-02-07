@@ -7,6 +7,7 @@ import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/pric
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
 import { checkAndSeedData, getDefaultCompany, getDefaultUser } from '@/lib/seed-data';
 import { fixtureClockEntries } from '@/mocks/fixtures';
+import { supabase } from '@/lib/supabase';
 
 interface AppState {
   user: User | null;
@@ -1097,11 +1098,23 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
         console.log('[App] Saving expense to:', `${apiUrl}/api/add-expense`);
 
+        // 🎯 PHASE 2B: Get JWT token from Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
+        if (!token) {
+          console.warn('[App] No auth token available for expense upload');
+        }
+
         const response = await fetch(`${apiUrl}/api/add-expense`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            // 🎯 PHASE 2B: Attach Authorization header
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
-            companyId: company.id,
+            // 🎯 SECURITY: Remove companyId from body - comes from JWT now
             projectId: expense.projectId,
             type: expense.type,
             subcategory: expense.subcategory,
@@ -1153,11 +1166,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       try {
         // Use direct API endpoint (bypasses tRPC for reliability)
         const apiUrl = process.env.EXPO_PUBLIC_API_URL || '';
+
+        // 🎯 PHASE 2B: Get JWT token from Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
+        if (!token) {
+          console.warn('[App] No auth token available for photo upload');
+        }
+
         const response = await fetch(`${apiUrl}/api/save-photo`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            // 🎯 PHASE 2B: Attach Authorization header
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
-            companyId: company.id,
+            // 🎯 SECURITY: Remove companyId from body - comes from JWT now
             projectId: photo.projectId,
             category: photo.category,
             notes: photo.notes,

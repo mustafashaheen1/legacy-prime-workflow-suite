@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { requireAuth } from './lib/auth-helper';
 
 export const config = {
   maxDuration: 30,
@@ -15,14 +16,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { companyId, projectId, category, notes, url, date } = req.body;
+    // 🎯 PHASE 2B: Extract user from JWT (required for uploaded_by tracking)
+    let authUser;
+    try {
+      authUser = await requireAuth(req);
+      console.log('[SavePhoto] ✅ Authenticated user:', authUser.email);
+    } catch (authError: any) {
+      console.error('[SavePhoto] Authentication failed:', authError.message);
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'You must be logged in to upload photos'
+      });
+    }
 
-    console.log('[SavePhoto] Saving photo for project:', projectId);
+    const { projectId, category, notes, url, date } = req.body;
+
+    // 🎯 SECURITY: Use company ID from authenticated user, not from request body
+    const companyId = authUser.companyId;
+
+    console.log('[SavePhoto] Saving photo for project:', projectId, 'by user:', authUser.id);
 
     // Validate required fields
-    if (!companyId || !projectId || !category || !url) {
+    if (!projectId || !category || !url) {
       console.log('[SavePhoto] Missing required fields');
-      return res.status(400).json({ error: 'Missing required fields: companyId, projectId, category, url' });
+      return res.status(400).json({ error: 'Missing required fields: projectId, category, url' });
     }
 
     // Initialize Supabase client
@@ -58,6 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         url,
         s3_key: s3Key,
         date: date || new Date().toISOString(),
+        uploaded_by: authUser.id, // 🎯 PHASE 3: Auto-capture uploader
       } as any)
       .select()
       .single();

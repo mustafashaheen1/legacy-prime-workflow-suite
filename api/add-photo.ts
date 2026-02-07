@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { requireAuth } from './lib/auth-helper';
 
 // Initialize S3 client
 const s3Client = new S3Client({
@@ -154,12 +155,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Add Photo] Starting request...');
 
   try {
-    const { companyId, projectId, category, notes, fileData, fileName, mimeType, fileSize, date } = req.body;
+    // 🎯 PHASE 2B: Extract user from JWT (required for uploaded_by tracking)
+    let authUser;
+    try {
+      authUser = await requireAuth(req);
+      console.log('[Add Photo] ✅ Authenticated user:', authUser.email);
+    } catch (authError: any) {
+      console.error('[Add Photo] Authentication failed:', authError.message);
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'You must be logged in to upload photos'
+      });
+    }
+
+    const { projectId, category, notes, fileData, fileName, mimeType, fileSize, date } = req.body;
+
+    // 🎯 SECURITY: Use company ID from authenticated user, not from request body
+    const companyId = authUser.companyId;
 
     // Validate required fields
-    if (!companyId) {
-      return res.status(400).json({ error: 'Missing required field: companyId' });
-    }
     if (!projectId) {
       return res.status(400).json({ error: 'Missing required field: projectId' });
     }
@@ -244,6 +258,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         file_type: mimeType,
         compressed: false,
         date: date || new Date().toISOString(),
+        uploaded_by: authUser.id, // 🎯 PHASE 3: Auto-capture uploader
       })
       .select()
       .single();

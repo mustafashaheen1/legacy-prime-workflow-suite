@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { requireAuth } from './lib/auth-helper';
 
 export const config = {
   maxDuration: 30,
@@ -15,15 +16,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { companyId, projectId, type, subcategory, amount, store, date, receiptUrl, imageHash, ocrFingerprint, imageSizeBytes } = req.body;
+    // 🎯 PHASE 2B: Extract user from JWT (required for uploaded_by tracking)
+    let authUser;
+    try {
+      authUser = await requireAuth(req);
+      console.log('[AddExpense] ✅ Authenticated user:', authUser.email);
+    } catch (authError: any) {
+      console.error('[AddExpense] Authentication failed:', authError.message);
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'You must be logged in to add expenses'
+      });
+    }
 
-    console.log('[AddExpense] Adding expense:', amount, 'for project:', projectId);
+    const { projectId, type, subcategory, amount, store, date, receiptUrl, imageHash, ocrFingerprint, imageSizeBytes } = req.body;
+
+    console.log('[AddExpense] Adding expense:', amount, 'for project:', projectId, 'by user:', authUser.id);
 
     // Validate required fields
-    if (!companyId || !projectId || !type || !subcategory || !amount || !store) {
+    if (!projectId || !type || !subcategory || !amount || !store) {
       console.log('[AddExpense] Missing required fields');
-      return res.status(400).json({ error: 'Missing required fields: companyId, projectId, type, subcategory, amount, store' });
+      return res.status(400).json({ error: 'Missing required fields: projectId, type, subcategory, amount, store' });
     }
+
+    // 🎯 SECURITY: Use company ID from authenticated user, not from request body
+    const companyId = authUser.companyId;
 
     // Initialize Supabase client
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -83,6 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         image_hash: imageHash || null,
         ocr_fingerprint: ocrFingerprint || null,
         image_size_bytes: imageSizeBytes || null,
+        uploaded_by: authUser.id, // 🎯 PHASE 3: Auto-capture uploader
       })
       .select()
       .single();
