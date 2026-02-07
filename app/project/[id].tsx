@@ -1213,25 +1213,53 @@ export default function ProjectDetailScreen() {
                         activeOpacity={0.8}
                       >
                         <Image source={{ uri: photo.url }} style={styles.photosThumbnail} contentFit="cover" />
+
+                        {/* 🎯 CLIENT DESIGN: Uploader info below image */}
                         <View style={styles.photosThumbnailInfo}>
-                          {/* 🎯 PHASE 6: Show uploader badge */}
-                          {photo.uploader && (
-                            <View style={styles.photoUploaderSection}>
-                              <UploaderBadge
-                                uploader={photo.uploader}
-                                size="small"
-                                showName={true}
-                              />
-                            </View>
-                          )}
+                          {/* Uploader: Avatar + Name */}
+                          <View style={styles.photoUploaderRow}>
+                            {photo.uploader ? (
+                              <>
+                                {photo.uploader.avatar ? (
+                                  <Image
+                                    source={{ uri: photo.uploader.avatar }}
+                                    style={styles.photoUploaderAvatar}
+                                    contentFit="cover"
+                                  />
+                                ) : (
+                                  <View style={styles.photoUploaderAvatarPlaceholder}>
+                                    <Text style={styles.photoUploaderInitials}>
+                                      {photo.uploader.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                    </Text>
+                                  </View>
+                                )}
+                                <Text style={styles.photoUploaderName} numberOfLines={1}>
+                                  {photo.uploader.name}
+                                </Text>
+                              </>
+                            ) : (
+                              <>
+                                <View style={styles.photoUploaderAvatarPlaceholder}>
+                                  <Text style={styles.photoUploaderInitials}>?</Text>
+                                </View>
+                                <Text style={styles.photoUploaderName}>Unknown</Text>
+                              </>
+                            )}
+                          </View>
+
+                          {/* Category */}
                           <View style={styles.photosCategoryBadge}>
                             <Text style={styles.photosCategoryBadgeText}>{photo.category}</Text>
                           </View>
+
+                          {/* Notes */}
                           {photo.notes && (
                             <Text style={styles.photosThumbnailNotes} numberOfLines={2}>
                               {photo.notes}
                             </Text>
                           )}
+
+                          {/* Date */}
                           <Text style={styles.photosThumbnailDate}>
                             {new Date(photo.date).toLocaleDateString()}
                           </Text>
@@ -3536,12 +3564,38 @@ const styles = StyleSheet.create({
   photosThumbnailInfo: {
     padding: 12,
   },
-  // 🎯 PHASE 6: Photo uploader section
-  photoUploaderSection: {
+  // 🎯 CLIENT DESIGN: Photo uploader row (matches expense design)
+  photoUploaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 8,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+  },
+  photoUploaderAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  photoUploaderAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#6B7280',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoUploaderInitials: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  photoUploaderName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    flex: 1,
   },
   photosCategoryBadge: {
     backgroundColor: '#3B82F6',
