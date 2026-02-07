@@ -29,9 +29,18 @@ export const getPhotosProcedure = publicProcedure
 
     try {
       // Start with base query
+      // 🎯 PHASE 3: JOIN with users table to get uploader info
       let query = supabase
         .from('photos')
-        .select('*')
+        .select(`
+          *,
+          uploader:uploaded_by (
+            id,
+            name,
+            avatar,
+            email
+          )
+        `)
         .eq('company_id', input.companyId);
 
       // Apply filters
@@ -65,6 +74,7 @@ export const getPhotosProcedure = publicProcedure
       const photos = (data || []).map((photo: any) => ({
         id: photo.id,
         projectId: photo.project_id,
+        companyId: photo.company_id,
         category: photo.category,
         notes: photo.notes || '',
         url: photo.url,
@@ -73,6 +83,15 @@ export const getPhotosProcedure = publicProcedure
         fileType: photo.file_type,
         s3Key: photo.s3_key,
         compressed: photo.compressed,
+        createdAt: photo.created_at,
+        // 🎯 PHASE 3: Include uploader info from JOIN
+        uploadedBy: photo.uploaded_by || undefined,
+        uploader: photo.uploader ? {
+          id: photo.uploader.id,
+          name: photo.uploader.name,
+          avatar: photo.uploader.avatar || undefined,
+          email: photo.uploader.email,
+        } : null,
       }));
 
       console.log('[Photos] Found', photos.length, 'photos');

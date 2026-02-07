@@ -39,9 +39,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('[GetExpenses] Querying database...');
     const queryStart = Date.now();
 
+    // 🎯 PHASE 3: JOIN with users table to get uploader info
     let query = supabase
       .from('expenses')
-      .select('*')
+      .select(`
+        *,
+        uploader:uploaded_by (
+          id,
+          name,
+          avatar,
+          email
+        )
+      `)
       .eq('company_id', companyId)
       .order('date', { ascending: false });
 
@@ -63,12 +72,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const expenses = (data || []).map((expense: any) => ({
       id: expense.id,
       projectId: expense.project_id,
+      companyId: expense.company_id,
       type: expense.type,
       subcategory: expense.subcategory,
       amount: Number(expense.amount),
       store: expense.store,
       date: expense.date,
       receiptUrl: expense.receipt_url || undefined,
+      imageHash: expense.image_hash || undefined,
+      ocrFingerprint: expense.ocr_fingerprint || undefined,
+      imageSizeBytes: expense.image_size_bytes || undefined,
+      createdAt: expense.created_at,
+      // 🎯 PHASE 3: Include uploader info from JOIN
+      uploadedBy: expense.uploaded_by || undefined,
+      uploader: expense.uploader ? {
+        id: expense.uploader.id,
+        name: expense.uploader.name,
+        avatar: expense.uploader.avatar || undefined,
+        email: expense.uploader.email,
+      } : null,
     }));
 
     console.log('[GetExpenses] ===== API ROUTE COMPLETED =====');

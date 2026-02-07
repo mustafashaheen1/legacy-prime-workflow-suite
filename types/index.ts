@@ -1,5 +1,16 @@
 export type UserRole = 'super-admin' | 'admin' | 'salesperson' | 'field-employee' | 'employee';
 
+/**
+ * Uploader information for expenses and photos
+ * Returned from JOIN queries with users table
+ */
+export interface Uploader {
+  id: string;
+  name: string;
+  avatar?: string;
+  email: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -55,6 +66,9 @@ export interface Expense {
   notes?: string;
   createdAt?: string;
   clockEntryId?: string; // Link to clock entry for labor expenses
+  // 🎯 PHASE 3: Uploader tracking
+  uploadedBy?: string;      // User ID who uploaded this expense
+  uploader?: Uploader | null; // Full user info from JOIN query
 }
 
 export interface Photo {
@@ -68,6 +82,9 @@ export interface Photo {
   fileType?: string;      // MIME type (e.g., image/jpeg)
   s3Key?: string;         // S3 object key
   compressed?: boolean;   // Whether image was compressed
+  // 🎯 PHASE 3: Uploader tracking
+  uploadedBy?: string;      // User ID who uploaded this photo
+  uploader?: Uploader | null; // Full user info from JOIN query
 }
 
 export interface Task {
