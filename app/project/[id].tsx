@@ -10,6 +10,7 @@ import ClockInOutComponent from '@/components/ClockInOutComponent';
 import RequestEstimateComponent from '@/components/RequestEstimate';
 import GlobalAIChatSimple from '@/components/GlobalAIChatSimple';
 import { Image } from 'expo-image';
+import UploaderBadge from '@/components/UploaderBadge';
 import * as ImagePicker from 'expo-image-picker';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
@@ -1213,6 +1214,16 @@ export default function ProjectDetailScreen() {
                       >
                         <Image source={{ uri: photo.url }} style={styles.photosThumbnail} contentFit="cover" />
                         <View style={styles.photosThumbnailInfo}>
+                          {/* 🎯 PHASE 6: Show uploader badge */}
+                          {photo.uploader && (
+                            <View style={styles.photoUploaderSection}>
+                              <UploaderBadge
+                                uploader={photo.uploader}
+                                size="small"
+                                showName={true}
+                              />
+                            </View>
+                          )}
                           <View style={styles.photosCategoryBadge}>
                             <Text style={styles.photosCategoryBadgeText}>{photo.category}</Text>
                           </View>
@@ -3524,6 +3535,13 @@ const styles = StyleSheet.create({
   },
   photosThumbnailInfo: {
     padding: 12,
+  },
+  // 🎯 PHASE 6: Photo uploader section
+  photoUploaderSection: {
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   photosCategoryBadge: {
     backgroundColor: '#3B82F6',
