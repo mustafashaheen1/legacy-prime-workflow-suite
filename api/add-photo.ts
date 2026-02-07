@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { requireAuth } from './lib/auth-helper';
+import { requireAuth } from './lib/auth-helper.js';
 
 // Initialize S3 client
 const s3Client = new S3Client({
