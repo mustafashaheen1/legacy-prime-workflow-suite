@@ -2,7 +2,7 @@ import { createTRPCReact } from "@trpc/react-query";
 import { createTRPCProxyClient, httpLink, httpBatchLink } from "@trpc/client";
 import type { AppRouter } from "@/backend/trpc/app-router";
 import superjson from "superjson";
-
+import { supabase } from "./supabase";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -23,6 +23,19 @@ const getBaseUrl = () => {
   return 'http://localhost:8081';
 };
 
+/**
+ * Get JWT token from Supabase session
+ */
+const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  } catch (error) {
+    console.error('[tRPC] Failed to get auth token:', error);
+    return null;
+  }
+};
+
 export const trpcClient = trpc.createClient({
   links: [
     httpLink({
@@ -31,13 +44,24 @@ export const trpcClient = trpc.createClient({
       async fetch(url, options) {
         console.log('[tRPC] Fetching:', url);
 
+        // 🎯 NEW: Get JWT token from Supabase session
+        const token = await getAuthToken();
+
         const requestInit = {
           ...options,
           headers: {
             ...options?.headers,
             'Content-Type': 'application/json',
+            // 🎯 NEW: Attach Authorization header if token exists
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         };
+
+        if (token) {
+          console.log('[tRPC] ✅ Attaching JWT token to request');
+        } else {
+          console.log('[tRPC] ⚠️  No auth token - proceeding as unauthenticated');
+        }
 
         try {
           const response = await fetch(url, requestInit);
@@ -86,13 +110,22 @@ export const vanillaClient = createTRPCProxyClient<AppRouter>({
       async fetch(url, options) {
         console.log('[tRPC Vanilla] Fetching:', url);
 
+        // 🎯 NEW: Get JWT token for vanilla client too
+        const token = await getAuthToken();
+
         const requestInit = {
           ...options,
           headers: {
             ...options?.headers,
             'Content-Type': 'application/json',
+            // 🎯 NEW: Attach Authorization header
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         };
+
+        if (token) {
+          console.log('[tRPC Vanilla] ✅ Attaching JWT token');
+        }
 
         try {
           const response = await fetch(url, requestInit);
