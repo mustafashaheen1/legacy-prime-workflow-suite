@@ -676,36 +676,50 @@ export default function ExpensesScreen() {
           ) : (
             filteredExpenses.map((expense) => (
               <View key={expense.id} style={styles.expenseCard}>
-                {/* 🎯 PHASE 5: Show uploader at top of card */}
-                {expense.uploader && (
-                  <View style={styles.uploaderSection}>
-                    <UploaderBadge uploader={expense.uploader} size="small" showName={true} />
-                    <Text style={styles.uploadDate}>
-                      {new Date(expense.date).toLocaleDateString()}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.expenseHeader}>
-                  <View style={styles.expenseInfo}>
-                    <View>
-                      <Text style={styles.expenseType}>{expense.type}</Text>
-                      {expense.subcategory && expense.subcategory !== expense.type && (
-                        <Text style={styles.expenseSubcategory}>{expense.subcategory}</Text>
-                      )}
-                    </View>
-                    {expense.receiptUrl && (
-                      <View style={styles.receiptBadge}>
-                        <ImageIcon size={12} color="#10B981" />
+                {/* 🎯 CLIENT DESIGN: Large avatar on left, name + amount on first line */}
+                <View style={styles.expenseMainRow}>
+                  {/* Left: Avatar + Name + Category */}
+                  <View style={styles.expenseLeftSection}>
+                    {expense.uploader ? (
+                      /* Show uploader avatar */
+                      expense.uploader.avatar ? (
+                        <Image
+                          source={{ uri: expense.uploader.avatar }}
+                          style={styles.expenseAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        /* Show initials */
+                        <View style={styles.expenseAvatarPlaceholder}>
+                          <Text style={styles.expenseAvatarInitials}>
+                            {expense.uploader.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                          </Text>
+                        </View>
+                      )
+                    ) : (
+                      /* No uploader - show default icon */
+                      <View style={styles.expenseAvatarPlaceholder}>
+                        <Text style={styles.expenseAvatarInitials}>?</Text>
                       </View>
                     )}
+
+                    <View style={styles.expenseNameSection}>
+                      <Text style={styles.expenseUploaderName}>
+                        {expense.uploader ? expense.uploader.name : 'Unknown'}
+                      </Text>
+                      <Text style={styles.expenseType}>{expense.type}</Text>
+                    </View>
                   </View>
+
+                  {/* Right: Amount */}
                   <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
                 </View>
+
+                {/* Store/Details */}
                 <Text style={styles.expenseStore}>{expense.store}</Text>
-                {!expense.uploader && (
-                  <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
-                )}
+
+                {/* Date */}
+                <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
               </View>
             ))
           )}
@@ -1045,20 +1059,47 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  // 🎯 PHASE 5: Uploader section styles
-  uploaderSection: {
+  // 🎯 CLIENT DESIGN: Main row with avatar, name, and amount
+  expenseMainRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  uploadDate: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontWeight: '500',
+  expenseLeftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  expenseAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  expenseAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#6B7280',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expenseAvatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700' as const,
+  },
+  expenseNameSection: {
+    flex: 1,
+  },
+  expenseUploaderName: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginBottom: 4,
   },
   expenseHeader: {
     flexDirection: 'row',
@@ -1067,12 +1108,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   expenseType: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+    fontSize: 15,
+    fontWeight: '400' as const,
+    color: '#6B7280',
   },
   expenseAmount: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700' as const,
     color: '#2563EB',
   },
@@ -1082,13 +1123,15 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   expenseStore: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '400' as const,
     marginBottom: 4,
   },
   expenseDate: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#9CA3AF',
+    marginTop: 4,
   },
   expenseInfo: {
     flexDirection: 'row',
