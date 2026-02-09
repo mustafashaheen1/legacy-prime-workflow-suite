@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles } from 'lucide-react-native';
+import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles, Trash2 } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,6 +38,51 @@ export default function ChatScreen() {
   const [isLoadingConversations, setIsLoadingConversations] = useState<boolean>(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [audioProgress, setAudioProgress] = useState<{ [key: string]: number }>({});
+
+  // Function to clear AI chat history
+  const handleClearAIChat = async () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to clear all AI chat history? This cannot be undone.')) {
+        await clearAIChatHistory();
+      }
+    } else {
+      Alert.alert('Clear AI Chat', 'Are you sure you want to clear all AI chat history? This cannot be undone.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear', style: 'destructive', onPress: () => clearAIChatHistory() },
+      ]);
+    }
+  };
+
+  const clearAIChatHistory = async () => {
+    if (!user?.id) return;
+
+    try {
+      console.log('[Chat] Clearing AI chat history...');
+
+      const response = await fetch('/api/clear-chat-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+        }),
+      });
+
+      if (response.ok) {
+        console.log('[Chat] ✅ AI chat history cleared');
+        // Reload the page or refresh AI chat to show cleared state
+        if (selectedChat === 'ai-assistant') {
+          setSelectedChat(null);
+          setTimeout(() => setSelectedChat('ai-assistant'), 100);
+        }
+      } else {
+        console.error('[Chat] ❌ Failed to clear AI chat history');
+        Alert.alert('Error', 'Failed to clear chat history');
+      }
+    } catch (error) {
+      console.error('[Chat] Error clearing AI chat:', error);
+      Alert.alert('Error', 'Failed to clear chat history');
+    }
+  };
 
   // Refs for web audio recording
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -1287,7 +1332,12 @@ export default function ChatScreen() {
 
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.contactsSection}>
-              <Text style={styles.sectionTitle}>{t('chat.title')}</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>{t('chat.title')}</Text>
+                <TouchableOpacity onPress={handleClearAIChat} style={styles.clearChatIconButton}>
+                  <Trash2 size={18} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
                 style={[styles.aiChatItem, selectedChat === 'ai-assistant' && styles.contactItemActive]}
                 onPress={() => {
@@ -1300,9 +1350,6 @@ export default function ChatScreen() {
                 <View style={styles.aiChatInfo}>
                   <Text style={styles.aiChatName}>AI Assistant</Text>
                   <Text style={styles.aiChatDescription}>{t('chat.typeMessage')}</Text>
-                </View>
-                <View style={styles.aiSparkle}>
-                  <Sparkles size={16} color="#8B5CF6" />
                 </View>
               </TouchableOpacity>
             </View>
@@ -1837,11 +1884,19 @@ const styles = StyleSheet.create({
   contactsSection: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#6B7280',
-    marginBottom: 12,
+  },
+  clearChatIconButton: {
+    padding: 4,
   },
   contactItem: {
     flexDirection: 'row',
