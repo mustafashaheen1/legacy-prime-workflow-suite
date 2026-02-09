@@ -216,3 +216,4 @@ Set up webhook in Resend for email events:
 ---
 
 **Deployment complete! 🎉**
+# Email API configured
