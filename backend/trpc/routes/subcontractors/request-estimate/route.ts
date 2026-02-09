@@ -1,9 +1,9 @@
-import { protectedProcedure } from "../../../create-context";
+import { protectedProcedure } from "../../../create-context.js";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { supabase } from "../../../lib/supabase";
+import { supabase } from "../../../lib/supabase.js";
 import twilio from "twilio";
-import { sendEstimateRequestEmail } from "../../../lib/email-service";
+import { sendEstimateRequestEmail } from "../../../lib/email-service.js";
 
 // Initialize Twilio client
 const twilioClient = twilio(
