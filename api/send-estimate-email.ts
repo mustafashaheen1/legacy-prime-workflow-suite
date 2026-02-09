@@ -15,13 +15,17 @@ interface EmailRequest {
   description: string;
   requiredBy?: string;
   notes?: string;
+  files?: Array<{
+    name: string;
+    url: string;
+  }>;
 }
 
 /**
  * Generate HTML email template
  */
 function generateEmailHTML(params: EmailRequest): string {
-  const { toName, projectName, companyName, description, requiredBy, notes } = params;
+  const { toName, projectName, companyName, description, requiredBy, notes, files } = params;
 
   return `
 <!DOCTYPE html>
@@ -42,6 +46,11 @@ function generateEmailHTML(params: EmailRequest): string {
     .card-title { font-size: 14px; font-weight: 600; color: #6b7280; text-transform: uppercase; margin-bottom: 12px; }
     .card-value { font-size: 16px; color: #1f2937; margin-bottom: 8px; }
     .label { font-weight: 600; }
+    .file-list { list-style: none; padding: 0; margin: 12px 0 0 0; }
+    .file-item { margin-bottom: 12px; }
+    .file-link { display: inline-block; padding: 12px 20px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600; transition: background-color 0.2s; }
+    .file-link:hover { background-color: #1d4ed8; }
+    .file-icon { display: inline-block; margin-right: 8px; }
     .footer { background-color: #f9fafb; padding: 30px 20px; text-align: center; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }
   </style>
 </head>
@@ -68,6 +77,21 @@ function generateEmailHTML(params: EmailRequest): string {
         <div class="card-value">${description}</div>
       </div>
       ${notes ? `<div class="card"><div class="card-title">Additional Notes</div><div class="card-value">${notes}</div></div>` : ''}
+      ${files && files.length > 0 ? `
+      <div class="card">
+        <div class="card-title">📎 Attached Files (${files.length})</div>
+        <ul class="file-list">
+          ${files.map(file => `
+            <li class="file-item">
+              <a href="${file.url}" class="file-link" target="_blank">
+                <span class="file-icon">📄</span>
+                ${file.name}
+              </a>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+      ` : ''}
       <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
       <p class="message" style="font-size: 14px; color: #6b7280;">
         <strong>What's Next?</strong><br>

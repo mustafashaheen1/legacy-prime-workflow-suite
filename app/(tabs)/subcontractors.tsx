@@ -1350,27 +1350,29 @@ export default function SubcontractorsScreen() {
                     ? window.location.origin
                     : process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
-                  // Build email body with file links
-                  let description = requestNotes || 'Estimate request for project';
-
-                  if (selectedFiles.length > 0) {
-                    description += '\n\nAttached Files:\n';
-                    selectedFiles.forEach((file, index) => {
+                  // Build file attachments array
+                  const fileAttachments = selectedFiles
+                    .map(file => {
                       const shortUrl = uploadedFiles[file.id];
                       if (shortUrl) {
-                        description += `${index + 1}. ${file.name}\n   ${shortUrl}\n\n`;
+                        return {
+                          name: file.name,
+                          url: shortUrl
+                        };
                       }
-                    });
-                  }
+                      return null;
+                    })
+                    .filter(Boolean) as Array<{ name: string; url: string }>;
 
                   const emailData = {
                     to: selectedSubcontractor.email,
                     toName: selectedSubcontractor.name,
                     projectName: selectedProject.name,
                     companyName: company?.name || user?.name || 'Legacy Prime Construction',
-                    description: description,
+                    description: requestNotes || 'Estimate request for project',
                     requiredBy: undefined,
                     notes: `Budget: $${selectedProject.budget.toLocaleString()}`,
+                    files: fileAttachments.length > 0 ? fileAttachments : undefined,
                   };
 
                   console.log('[Email] Sending estimate request email...');
