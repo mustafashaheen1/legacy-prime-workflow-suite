@@ -3345,6 +3345,33 @@ Generate appropriate line items from the price list that fit this scope of work$
   if (inline) {
     return (
       <View style={styles.inlineContainer}>
+        {/* Inline Header with Clear Chat Button */}
+        <View style={styles.inlineHeader}>
+          <View style={styles.headerLeft}>
+            <View style={styles.aiIcon}>
+              <Bot size={22} color="#2563EB" strokeWidth={2.5} />
+            </View>
+            <Text style={styles.headerTitle}>AI Assistant</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.clearChatButton}
+            onPress={() => {
+              if (Platform.OS === 'web') {
+                if (window.confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {
+                  clearChat();
+                }
+              } else {
+                Alert.alert('Clear Chat', 'Are you sure you want to clear all chat history? This cannot be undone.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Clear', style: 'destructive', onPress: () => clearChat() },
+                ]);
+              }
+            }}
+          >
+            <Trash2 size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
+
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
@@ -4286,6 +4313,16 @@ Generate appropriate line items from the price list that fit this scope of work$
 const styles = StyleSheet.create({
   inlineContainer: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  inlineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
   },
   floatingButton: {
