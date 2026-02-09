@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
-import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2, Phone, PhoneOff, Copy, Sparkles, FileText, Download } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Image, useWindowDimensions, Alert } from 'react-native';
+import { Bot, X, Send, Paperclip, File as FileIcon, Mic, Volume2, Image as ImageIcon, Loader2, Phone, PhoneOff, Copy, Sparkles, FileText, Download, Trash2 } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -535,7 +535,36 @@ function useOpenAIChat(appData: {
     }
   };
 
-  return { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage, updateLastMessage };
+  // Function to clear all chat messages
+  const clearChat = async () => {
+    try {
+      console.log('[AI Chat] Clearing chat history...');
+
+      // Clear messages from state
+      setMessages([]);
+
+      // Delete messages from database
+      if (appData.userId) {
+        const response = await fetch('/api/clear-chat-history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: appData.userId,
+          }),
+        });
+
+        if (response.ok) {
+          console.log('[AI Chat] ✅ Chat history cleared from database');
+        } else {
+          console.error('[AI Chat] ❌ Failed to clear chat history from database');
+        }
+      }
+    } catch (error) {
+      console.error('[AI Chat] Error clearing chat:', error);
+    }
+  };
+
+  return { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage, updateLastMessage, clearChat };
 }
 
 export default function GlobalAIChatSimple({ currentPageContext, inline = false }: GlobalAIChatProps) {
@@ -646,7 +675,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   // Price list items now includes all items (master + custom) from AppContext
 
   // Pass all business data to AI assistant for complete data-aware responses
-  const { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage, updateLastMessage } = useOpenAIChat({
+  const { messages, sendMessage, isLoading, isLoadingHistory, pendingAction, clearPendingAction, addMessage, updateLastMessage, clearChat } = useOpenAIChat({
     projects,
     clients,
     expenses,
@@ -3809,6 +3838,23 @@ Generate appropriate line items from the price list that fit this scope of work$
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
+                  style={styles.clearChatButton}
+                  onPress={() => {
+                    if (Platform.OS === 'web') {
+                      if (window.confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {
+                        clearChat();
+                      }
+                    } else {
+                      Alert.alert('Clear Chat', 'Are you sure you want to clear all chat history? This cannot be undone.', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Clear', style: 'destructive', onPress: () => clearChat() },
+                      ]);
+                    }
+                  }}
+                >
+                  <Trash2 size={20} color="#EF4444" />
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={styles.closeButton}
                   onPress={async () => {
                     setIsOpen(false);
@@ -4319,6 +4365,12 @@ const styles = StyleSheet.create({
   },
   conversationButtonActive: {
     backgroundColor: '#10A37F',
+  },
+  clearChatButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeButton: {
     width: 40,
