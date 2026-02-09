@@ -1,8 +1,11 @@
 /**
  * Send Estimate Request Email
- * Uses Resend HTTP API (no SDK) for Vercel compatibility
+ * Uses Resend HTTP API (native fetch only)
  * Platform: iOS, Android, Web
+ * Runtime: Node.js (Vercel Serverless)
  */
+
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 interface EmailRequest {
   to: string;
@@ -83,27 +86,25 @@ function generateEmailHTML(params: EmailRequest): string {
 }
 
 /**
- * API Handler - Uses native fetch to call Resend HTTP API
+ * API Handler - Vercel Node.js Serverless Function
  */
-export default async function handler(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Only allow POST
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const body = await req.json() as EmailRequest;
+    const body = req.body as EmailRequest;
 
     console.log('[Email API] Request to send email to:', body.to);
 
-    // Validate
+    // Validate required fields
     if (!body.to || !body.toName || !body.projectName || !body.companyName || !body.description) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing required fields' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
+      });
     }
 
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -112,11 +113,13 @@ export default async function handler(req: Request) {
 
     if (!RESEND_API_KEY) {
       console.error('[Email API] RESEND_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ success: false, error: 'Email service not configured' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return res.status(500).json({
+        success: false,
+        error: 'Email service not configured'
+      });
     }
+
+    console.log('[Email API] Calling Resend API...');
 
     // Call Resend HTTP API directly (no SDK)
     const resendResponse = await fetch('https://api.resend.com/emails', {
@@ -137,40 +140,25 @@ export default async function handler(req: Request) {
 
     if (!resendResponse.ok) {
       console.error('[Email API] Resend error:', resendData);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: resendData.message || 'Failed to send email'
-        }),
-        { status: resendResponse.status, headers: { 'Content-Type': 'application/json' } }
-      );
+      return res.status(resendResponse.status).json({
+        success: false,
+        error: (resendData as any).message || 'Failed to send email'
+      });
     }
 
-    console.log('[Email API] ✅ Email sent successfully:', resendData.id);
+    console.log('[Email API] ✅ Email sent successfully:', (resendData as any).id);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        messageId: resendData.id,
-        message: 'Email sent successfully'
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
+    return res.status(200).json({
+      success: true,
+      messageId: (resendData as any).id,
+      message: 'Email sent successfully'
+    });
 
   } catch (error: any) {
-    console.error('[Email API] Exception:', error.message);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || 'Internal server error'
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    console.error('[Email API] Exception:', error.message || error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
   }
 }
-
-// Use Node.js runtime (not edge) for better package compatibility
-export const config = {
-  runtime: 'nodejs',
-  maxDuration: 10,
-};
