@@ -48,9 +48,9 @@ function generateEmailHTML(params: EmailRequest): string {
     .label { font-weight: 600; }
     .file-list { list-style: none; padding: 0; margin: 12px 0 0 0; }
     .file-item { margin-bottom: 12px; }
-    .file-link { display: inline-block; padding: 12px 20px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600; transition: background-color 0.2s; }
-    .file-link:hover { background-color: #1d4ed8; }
-    .file-icon { display: inline-block; margin-right: 8px; }
+    .file-link { display: inline-block; padding: 12px 20px; background-color: #10b981; color: #ffffff !important; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+    .file-link:hover { background-color: #059669; }
+    .file-icon { display: inline-block; margin-right: 8px; color: #ffffff; }
     .footer { background-color: #f9fafb; padding: 30px 20px; text-align: center; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }
   </style>
 </head>
