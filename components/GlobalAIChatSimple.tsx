@@ -43,6 +43,8 @@ type AttachedFile = {
   mimeType: string;
   size: number;
   type: 'file';
+  uploading?: boolean;
+  s3Url?: string;
 };
 
 
@@ -2788,12 +2790,19 @@ Generate appropriate line items from the price list that fit this scope of work$
             mimeType: getSanitizedMimeType(asset.mimeType, asset.fileName || `image_${Date.now()}.jpg`),
             size: asset.fileSize || 0,
             type: 'file',
+            uploading: true, // Mark as uploading to S3
           };
           console.log('[Attachment] Image successfully attached:', newFile.name, 'URI:', asset.uri.substring(0, 50));
           return newFile;
         });
         setAttachedFiles(prev => [...prev, ...newFiles]);
         console.log('[Attachment] Total attached files:', attachedFiles.length + newFiles.length);
+
+        // Upload images to S3 to get public URLs
+        for (const asset of result.assets) {
+          const fileName = asset.fileName || `image_${Date.now()}.jpg`;
+          uploadImageToS3(asset, fileName);
+        }
       } else {
         console.log('[Attachment] Image picker was canceled');
       }
@@ -2807,18 +2816,18 @@ Generate appropriate line items from the price list that fit this scope of work$
     try {
       console.log('[Attachment] Requesting camera permission...');
       setShowAttachMenu(false);
-      
+
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       console.log('[Attachment] Camera permission status:', status);
-      
+
       if (status !== 'granted') {
         console.log('[Attachment] Camera permission denied');
         alert('Camera permission is required to take photos. Please enable it in your device settings.');
         return;
       }
-      
+
       console.log('[Attachment] Opening camera...');
 
       const result = await ImagePicker.launchCameraAsync({
@@ -2830,22 +2839,94 @@ Generate appropriate line items from the price list that fit this scope of work$
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
+        const fileName = file.fileName || `photo_${Date.now()}.jpg`;
         const newFile: AttachedFile = {
           uri: file.uri,
-          name: file.fileName || `photo_${Date.now()}.jpg`,
-          mimeType: getSanitizedMimeType(file.mimeType, file.fileName || `photo_${Date.now()}.jpg`),
+          name: fileName,
+          mimeType: getSanitizedMimeType(file.mimeType, fileName),
           size: file.fileSize || 0,
           type: 'file',
+          uploading: true, // Mark as uploading to S3
         };
         console.log('[Attachment] Photo successfully captured:', newFile.name, 'URI:', file.uri.substring(0, 50));
         setAttachedFiles(prev => [...prev, newFile]);
         console.log('[Attachment] Total attached files:', attachedFiles.length + 1);
+
+        // Upload image to S3 to get public URL
+        uploadImageToS3(file, fileName);
       } else {
         console.log('[Attachment] Camera was canceled');
       }
     } catch (error) {
       console.error('[Attachment] Error taking photo:', error);
       alert('Error taking photo. Please try again.');
+    }
+  };
+
+  // Upload image to S3 and get public URL
+  const uploadImageToS3 = async (asset: any, fileName: string) => {
+    try {
+      console.log('[Attachment] Uploading image to S3...', fileName);
+
+      // Get presigned upload URL
+      const urlResponse = await fetch('/api/get-s3-upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: fileName,
+          fileType: asset.mimeType || 'image/jpeg',
+        }),
+      });
+
+      if (!urlResponse.ok) {
+        throw new Error('Failed to get upload URL');
+      }
+
+      const { uploadUrl, fileUrl } = await urlResponse.json();
+      console.log('[Attachment] Got presigned URL, uploading image to S3...');
+
+      // Upload file directly to S3
+      let uploadResponse;
+      if (Platform.OS === 'web') {
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: blob,
+          headers: { 'Content-Type': asset.mimeType || 'image/jpeg' },
+        });
+      } else {
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: 'base64' as any,
+        });
+        const buffer = Buffer.from(base64, 'base64');
+        uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: buffer,
+          headers: { 'Content-Type': asset.mimeType || 'image/jpeg' },
+        });
+      }
+
+      if (uploadResponse.ok) {
+        console.log('[Attachment] Image uploaded successfully to S3:', fileUrl);
+
+        // Update the attached file with S3 URL and remove uploading flag
+        setAttachedFiles(prev =>
+          prev.map(f =>
+            f.name === fileName
+              ? { ...f, uri: fileUrl, uploading: false, s3Url: fileUrl }
+              : f
+          )
+        );
+      } else {
+        throw new Error(`Upload failed with status: ${uploadResponse.status}`);
+      }
+    } catch (uploadError: any) {
+      console.error('[Attachment] Error uploading image to S3:', uploadError);
+      alert(`Failed to upload image: ${uploadError.message}`);
+
+      // Remove the file from attached files since upload failed
+      setAttachedFiles(prev => prev.filter(f => f.name !== fileName));
     }
   };
 

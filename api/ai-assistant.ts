@@ -4147,10 +4147,13 @@ Based on the store and items, intelligently categorize this expense:
       // Use provided fileUrls or extract from attachedFiles if available
       let fileUrls = providedFileUrls;
       if (!fileUrls && attachedFiles && attachedFiles.length > 0) {
-        fileUrls = attachedFiles.map((file: any) => ({
-          name: file.name || file.fileName || 'attachment',
-          url: file.url || file.uri || file.s3Url,
-        })).filter((f: any) => f.url); // Only include files with valid URLs
+        fileUrls = attachedFiles
+          .filter((file: any) => !file.uploading) // Skip files still uploading
+          .map((file: any) => ({
+            name: file.name || file.fileName || 'attachment',
+            url: file.s3Url || file.url || file.uri, // Prioritize s3Url
+          }))
+          .filter((f: any) => f.url && f.url.startsWith('http')); // Only include valid HTTP(S) URLs
       }
 
       // Find the subcontractor by name
