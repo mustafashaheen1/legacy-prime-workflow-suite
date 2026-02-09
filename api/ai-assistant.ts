@@ -793,7 +793,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'send_estimate_request',
-      description: 'Send an estimate request email to a subcontractor for a specific project. Use when user says "send estimate request", "request estimate from [subcontractor]", "ask [subcontractor] for estimate". If user uploads files in the conversation, extract their URLs and pass them in fileUrls parameter.',
+      description: 'Send an estimate request email to a subcontractor for a specific project. Use when user says "send estimate request", "request estimate from [subcontractor]", "ask [subcontractor] for estimate". Any files attached to the conversation will be automatically included as email attachments - DO NOT manually pass fileUrls parameter.',
       parameters: {
         type: 'object',
         properties: {
@@ -4141,12 +4141,12 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'send_estimate_request': {
-      const { subcontractorName, projectName, description, notes, fileUrls: providedFileUrls } = args;
+      const { subcontractorName, projectName, description, notes } = args;
       const { subcontractors = [], projects = [], company, user } = appData;
 
-      // Use provided fileUrls or extract from attachedFiles if available
-      let fileUrls = providedFileUrls;
-      if (!fileUrls && attachedFiles && attachedFiles.length > 0) {
+      // Always extract file URLs from attachedFiles (ignore any URLs provided by AI)
+      let fileUrls = null;
+      if (attachedFiles && attachedFiles.length > 0) {
         fileUrls = attachedFiles
           .filter((file: any) => !file.uploading) // Skip files still uploading
           .map((file: any) => ({
@@ -4154,6 +4154,8 @@ Based on the store and items, intelligently categorize this expense:
             url: file.s3Url || file.url || file.uri, // Prioritize s3Url
           }))
           .filter((f: any) => f.url && f.url.startsWith('http')); // Only include valid HTTP(S) URLs
+
+        console.log('[AI Assistant] Extracted file URLs from attachedFiles:', fileUrls);
       }
 
       // Find the subcontractor by name
