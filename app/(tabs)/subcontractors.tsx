@@ -12,7 +12,7 @@ import * as FileSystem from 'expo-file-system';
 import { compressImage } from '@/lib/upload-utils';
 
 export default function SubcontractorsScreen() {
-  const { subcontractors = [], addSubcontractor, projects, addProjectFile, addNotification, user } = useApp();
+  const { subcontractors = [], addSubcontractor, projects, addProjectFile, addNotification, user, company } = useApp();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTrade, setSelectedTrade] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -1344,56 +1344,73 @@ export default function SubcontractorsScreen() {
                 console.log('[EstimateRequest] Request sent:', estimateRequest);
                 console.log('[EstimateRequest] Files attached:', selectedFiles.length);
 
-                // Compose email with short links (use \r\n for proper email line breaks)
-                const emailSubject = encodeURIComponent(
-                  `Estimate Request - ${selectedProject.name}`
-                );
-
-                let emailBody = `Hello ${selectedSubcontractor.name},\r\n\r\n`;
-                emailBody += `We would like to request an estimate for the following project:\r\n\r\n`;
-                emailBody += `Project: ${selectedProject.name}\r\n`;
-                emailBody += `Budget: $${selectedProject.budget.toLocaleString()}\r\n\r\n`;
-
-                if (requestNotes) {
-                  emailBody += `Additional Details:\r\n${requestNotes}\r\n\r\n`;
-                }
-
-                if (selectedFiles.length > 0) {
-                  emailBody += `Attached Files:\r\n`;
-                  selectedFiles.forEach((file, index) => {
-                    const shortUrl = uploadedFiles[file.id];
-                    if (shortUrl) {
-                      emailBody += `${index + 1}. ${file.name}\r\n   ${shortUrl}\r\n\r\n`;
-                    }
-                  });
-                }
-
-                emailBody += `\r\nPlease review the files and provide your estimate at your earliest convenience.\r\n\r\n`;
-                emailBody += `Best regards,\r\n${user?.name || 'Legacy Prime Construction'}`;
-
-                const mailtoUrl = `mailto:${selectedSubcontractor.email}?subject=${emailSubject}&body=${encodeURIComponent(emailBody)}`;
-
-                // Open email client
+                // Send email notification via API
                 try {
-                  if (Platform.OS === 'web') {
-                    window.location.href = mailtoUrl;
-                  } else {
-                    await Linking.openURL(mailtoUrl);
+                  const API_URL = Platform.OS === 'web' && typeof window !== 'undefined'
+                    ? window.location.origin
+                    : process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
+                  // Build email body with file links
+                  let description = requestNotes || 'Estimate request for project';
+
+                  if (selectedFiles.length > 0) {
+                    description += '\n\nAttached Files:\n';
+                    selectedFiles.forEach((file, index) => {
+                      const shortUrl = uploadedFiles[file.id];
+                      if (shortUrl) {
+                        description += `${index + 1}. ${file.name}\n   ${shortUrl}\n\n`;
+                      }
+                    });
                   }
 
-                  setShowRequestModal(false);
-                  setSelectedProject(null);
-                  setSelectedFiles([]);
-                  setUploadedFiles({});
-                  setRequestNotes('');
+                  const emailData = {
+                    to: selectedSubcontractor.email,
+                    toName: selectedSubcontractor.name,
+                    projectName: selectedProject.name,
+                    companyName: company?.name || user?.name || 'Legacy Prime Construction',
+                    description: description,
+                    requiredBy: undefined,
+                    notes: `Budget: $${selectedProject.budget.toLocaleString()}`,
+                  };
 
+                  console.log('[Email] Sending estimate request email...');
+
+                  const response = await fetch(`${API_URL}/api/send-estimate-email`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(emailData),
+                  });
+
+                  const result = await response.json();
+
+                  if (result.success) {
+                    console.log('[Email] ✅ Sent successfully:', result.messageId);
+
+                    setShowRequestModal(false);
+                    setSelectedProject(null);
+                    setSelectedFiles([]);
+                    setUploadedFiles({});
+                    setRequestNotes('');
+
+                    Alert.alert(
+                      'Success!',
+                      `Estimate request email sent to ${selectedSubcontractor.name} with ${selectedFiles.length} file link(s).`
+                    );
+                  } else {
+                    console.error('[Email] ❌ Failed:', result.error);
+                    Alert.alert(
+                      'Email Error',
+                      `Failed to send email: ${result.error}\n\nThe estimate request was saved, but the email notification could not be sent.`
+                    );
+                  }
+                } catch (error: any) {
+                  console.error('[Email] Exception:', error);
                   Alert.alert(
-                    'Email Client Opened',
-                    `Your email client has been opened with the estimate request for ${selectedSubcontractor.name}. The email includes short links to all attached files. Please review and send.`
+                    'Email Error',
+                    `Failed to send email: ${error.message || 'Unknown error'}\n\nThe estimate request was saved, but the email notification could not be sent.`
                   );
-                } catch (error) {
-                  console.error('[Email] Error opening email client:', error);
-                  Alert.alert('Error', 'Failed to open email client');
                 }
               }}
             >
