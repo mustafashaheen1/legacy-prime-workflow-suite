@@ -1921,16 +1921,19 @@ export default function EstimateScreen() {
         <thead>
           <tr>
             <th style="width: 5%;">#</th>
-            <th style="width: ${showUnitsQty ? '40%' : '75%'};">Item</th>
-            ${showUnitsQty ? '<th style="width: 15%;">Quantity</th>' : ''}
-            ${showUnitsQty ? '<th style="width: 15%;">Unit Price</th>' : ''}
-            <th style="width: 25%;">Total</th>
+            <th style="width: ${showUnitsQty && showBudget ? '35%' : showUnitsQty || showBudget ? '50%' : '75%'};">Item</th>
+            ${showUnitsQty ? '<th style="width: 12%;">Quantity</th>' : ''}
+            ${showUnitsQty ? '<th style="width: 12%;">Unit Price</th>' : ''}
+            ${showBudget ? '<th style="width: 12%;">Budget</th>' : ''}
+            <th style="width: 12%;">Total</th>
           </tr>
         </thead>
         <tbody>
           ${items.map((item, index) => {
             if (item.isSeparator) {
-              const colspan = showUnitsQty ? 5 : 3;
+              let colspan = 3; // Base: # + Item + Total
+              if (showUnitsQty) colspan += 2; // Add Quantity + Unit Price
+              if (showBudget) colspan += 1; // Add Budget
               return `<tr><td colspan="${colspan}" class="separator-row">${item.separatorLabel || 'SECTION'}</td></tr>`;
             }
             const priceListItem = getPriceListItem(item.priceListItemId);
@@ -1938,6 +1941,7 @@ export default function EstimateScreen() {
             const itemName = item.customName || (isCustom ? 'Custom Item' : (priceListItem?.name || ''));
             const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
             const displayPrice = item.customPrice ?? item.unitPrice;
+            const budgetValue = item.budget && item.budget > 0 ? item.budget : 0;
 
             return `
               <tr>
@@ -1949,6 +1953,7 @@ export default function EstimateScreen() {
                 </td>
                 ${showUnitsQty ? `<td>${item.quantity} ${itemUnit}</td>` : ''}
                 ${showUnitsQty ? `<td>$${displayPrice.toFixed(2)}</td>` : ''}
+                ${showBudget ? `<td>${budgetValue > 0 ? '$' + budgetValue.toFixed(2) : '-'}</td>` : ''}
                 <td>$${item.total.toFixed(2)}</td>
               </tr>
             `;
@@ -1964,6 +1969,12 @@ export default function EstimateScreen() {
             <td class="label">Subtotal:</td>
             <td class="value">$${subtotal.toFixed(2)}</td>
           </tr>
+          ${showBudget && totalBudget > 0 ? `
+            <tr>
+              <td class="label">Total Budget:</td>
+              <td class="value" style="color: #10b981;">$${totalBudget.toFixed(2)}</td>
+            </tr>
+          ` : ''}
           ${(parseFloat(markupPercent) || 0) > 0 ? `
             <tr>
               <td class="label">Markup (${markupPercent}%):</td>
