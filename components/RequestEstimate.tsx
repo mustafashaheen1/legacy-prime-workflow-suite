@@ -1,20 +1,8 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-  Platform
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, Alert, Platform } from 'react-native';
 import { Send, X, FileText } from 'lucide-react-native';
-import { Subcontractor } from '@/types';
+import { Subcontractor, EstimateRequest, Notification } from '@/types';
 import { useApp } from '@/contexts/AppContext';
-import { trpc } from '@/lib/trpc';
 
 interface RequestEstimateProps {
   projectId: string;
@@ -29,97 +17,48 @@ export default function RequestEstimateComponent({ projectId, projectName }: Req
   const [requiredBy, setRequiredBy] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
-  // tRPC mutation
-  const requestMutation = trpc.subcontractors.requestEstimate.useMutation();
-
   const handleSendRequest = async () => {
-    // Validation
     if (!selectedSubcontractor) {
       Alert.alert('Error', 'Please select a subcontractor');
       return;
     }
 
-    if (!description.trim()) {
+    if (!description) {
       Alert.alert('Error', 'Please provide a description');
       return;
     }
 
-    if (description.trim().length < 10) {
-      Alert.alert('Error', 'Description must be at least 10 characters');
-      return;
-    }
+    const estimateRequest: EstimateRequest = {
+      id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      projectId,
+      subcontractorId: selectedSubcontractor.id,
+      requestedBy: user?.id || 'user_current',
+      requestDate: new Date().toISOString(),
+      description,
+      requiredBy,
+      status: 'pending',
+      notes,
+      createdAt: new Date().toISOString(),
+    };
 
-    try {
-      // Call backend API
-      const result = await requestMutation.mutateAsync({
-        projectId,
-        subcontractorId: selectedSubcontractor.id,
-        description: description.trim(),
-        requiredBy: requiredBy.trim() || undefined,
-        notes: notes.trim() || undefined,
-      });
+    const notification: Notification = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId: user?.id || 'user_current',
+      type: 'general',
+      title: 'Estimate Request Sent',
+      message: `Estimate request sent to ${selectedSubcontractor.name} for ${projectName}`,
+      data: { estimateRequestId: estimateRequest.id, projectId },
+      read: false,
+      createdAt: new Date().toISOString(),
+    };
 
-      console.log('[EstimateRequest] Request sent successfully:', result.id);
+    await addNotification(notification);
 
-      // Create local notification
-      await addNotification({
-        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-        userId: user?.id || '',
-        type: 'general',
-        title: 'Estimate Request Sent',
-        message: `Estimate request sent to ${selectedSubcontractor.name} for ${projectName}`,
-        data: {
-          estimateRequestId: result.id,
-          projectId,
-          status: result.status
-        },
-        read: false,
-        createdAt: new Date().toISOString(),
-      });
+    console.log('[EstimateRequest] Request sent:', estimateRequest);
 
-      // Success feedback with notification details
-      const notificationDetails = [];
-      if (result.notifications?.sms?.sent) {
-        notificationDetails.push('✓ SMS sent');
-      } else if (result.notifications?.sms?.available) {
-        notificationDetails.push('✗ SMS failed');
-      }
-
-      if (result.notifications?.email?.sent) {
-        notificationDetails.push('✓ Email sent');
-      } else if (result.notifications?.email?.available) {
-        notificationDetails.push('✗ Email failed');
-      }
-
-      const notificationMessage = notificationDetails.length > 0
-        ? '\n\n' + notificationDetails.join('\n')
-        : '\n\nNotifications will be sent shortly.';
-
-      Alert.alert(
-        'Success',
-        `Estimate request sent to ${selectedSubcontractor.name}!${notificationMessage}`,
-        [{ text: 'OK' }]
-      );
-
-      // Close modal and reset
-      setShowModal(false);
-      resetForm();
-    } catch (error: any) {
-      console.error('[EstimateRequest] Error:', error);
-
-      // User-friendly error messages
-      let errorMessage = 'Failed to send estimate request. Please try again.';
-
-      if (error.message?.includes('at least 10 characters')) {
-        errorMessage = 'Description must be at least 10 characters';
-      } else if (error.message?.includes('not found')) {
-        errorMessage = 'Project or subcontractor not found';
-      } else if (error.message?.includes('not currently active')) {
-        errorMessage = 'This subcontractor is not currently active';
-      }
-
-      Alert.alert('Error', errorMessage);
-    }
+    Alert.alert('Success', `Estimate request sent to ${selectedSubcontractor.name}`);
+    setShowModal(false);
+    resetForm();
   };
 
   const resetForm = () => {
@@ -208,30 +147,10 @@ export default function RequestEstimateComponent({ projectId, projectName }: Req
               numberOfLines={3}
             />
 
-            <TouchableOpacity
-              style={[
-                styles.sendButton,
-                requestMutation.isLoading && styles.sendButtonDisabled
-              ]}
-              onPress={handleSendRequest}
-              disabled={requestMutation.isLoading}
-              activeOpacity={0.8}
-            >
-              {requestMutation.isLoading ? (
-                <>
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.sendButtonText}>Sending...</Text>
-                </>
-              ) : (
-                <>
-                  <Send size={20} color="#FFFFFF" />
-                  <Text style={styles.sendButtonText}>Send Request</Text>
-                </>
-              )}
+            <TouchableOpacity style={styles.sendButton} onPress={handleSendRequest}>
+              <Send size={20} color="#FFFFFF" />
+              <Text style={styles.sendButtonText}>Send Request</Text>
             </TouchableOpacity>
-
-            {/* Platform-specific spacing */}
-            <View style={{ height: Platform.OS === 'ios' ? 40 : 20 }} />
           </ScrollView>
         </View>
       </Modal>
@@ -364,15 +283,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 16,
     marginTop: 24,
+    marginBottom: 40,
     gap: 8,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer' as any,
-      },
-    }),
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#9CA3AF',
   },
   sendButtonText: {
     fontSize: 16,
