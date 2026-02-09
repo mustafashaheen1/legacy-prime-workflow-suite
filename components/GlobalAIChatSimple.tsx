@@ -3302,19 +3302,6 @@ Generate appropriate line items from the price list that fit this scope of work$
             }
             return (
             <View key={message.id} style={styles.messageWrapper}>
-              {/* DEBUG BANNER - ALWAYS VISIBLE */}
-              {message.role === 'user' && (
-                <View style={{ backgroundColor: '#3B82F6', padding: 8, borderRadius: 4, marginBottom: 4 }}>
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
-                    🔍 DEBUG: Files in message = {message.files ? message.files.length : 'NONE'}
-                  </Text>
-                  {message.files && message.files.length > 0 && (
-                    <Text style={{ color: 'white', fontSize: 10, marginTop: 2 }}>
-                      File types: {message.files.map((f: any) => f.mimeType).join(', ')}
-                    </Text>
-                  )}
-                </View>
-              )}
               {/* Show attached files for user messages */}
               {(() => {
                 const shouldShowFiles = message.role === 'user' && message.files && message.files.length > 0;
@@ -3387,10 +3374,6 @@ Generate appropriate line items from the price list that fit this scope of work$
                     );
                     });
                   })()}
-                  {/* DEBUG: Show file count */}
-                  <Text style={{ color: 'red', fontSize: 10, marginTop: 4 }}>
-                    DEBUG: {message.files?.length || 0} files attached
-                  </Text>
                 </View>
               )}
               {message.parts.map((part, i) => {
