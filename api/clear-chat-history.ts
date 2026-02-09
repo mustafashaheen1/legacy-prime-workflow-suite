@@ -8,9 +8,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow POST
   if (req.method !== 'POST') {
@@ -29,12 +26,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[Clear Chat] Clearing chat history for user:', userId);
 
+    // Get environment variables
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    // Check environment variables
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[Clear Chat] Missing environment variables:', {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseServiceKey,
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Server configuration error'
+      });
+    }
+
     // Create Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Delete all chat messages for this user
     const { error } = await supabase
-      .from('chat_messages')
+      .from('ai_chat_messages')
       .delete()
       .eq('user_id', userId);
 
