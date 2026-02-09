@@ -3,6 +3,10 @@
   "outputDirectory": "dist",
   "installCommand": "bun install",
   "functions": {
+    "api/ai-assistant.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
     "api/create-estimate.ts": {
       "maxDuration": 10,
       "memory": 512
