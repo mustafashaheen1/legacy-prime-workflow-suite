@@ -3630,6 +3630,58 @@ Generate appropriate line items from the price list that fit this scope of work$
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Attach Menu Modal for Inline Mode */}
+        <Modal
+          visible={showAttachMenu}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowAttachMenu(false)}
+        >
+          <TouchableOpacity
+            style={styles.attachModalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowAttachMenu(false)}
+          >
+            <TouchableOpacity
+              style={styles.attachMenu}
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.attachMenuHandle} />
+
+              <Text style={styles.attachMenuTitle}>Attach File</Text>
+
+              <TouchableOpacity style={styles.attachOption} onPress={handleTakePhoto}>
+                <View style={[styles.attachIconContainer, { backgroundColor: '#EF4444' }]}>
+                  <ImageIcon size={24} color="#FFFFFF" />
+                </View>
+                <Text style={styles.attachOptionText}>Take Photo</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.attachOption} onPress={handlePickImage}>
+                <View style={[styles.attachIconContainer, { backgroundColor: '#8B5CF6' }]}>
+                  <ImageIcon size={24} color="#FFFFFF" />
+                </View>
+                <Text style={styles.attachOptionText}>Photo Library</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.attachOption} onPress={handlePickFile}>
+                <View style={[styles.attachIconContainer, { backgroundColor: '#3B82F6' }]}>
+                  <Paperclip size={24} color="#FFFFFF" />
+                </View>
+                <Text style={styles.attachOptionText}>Document / PDF</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.attachCancelButton}
+                onPress={() => setShowAttachMenu(false)}
+              >
+                <Text style={styles.attachCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </View>
     );
   }
