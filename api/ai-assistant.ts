@@ -4144,18 +4144,26 @@ Based on the store and items, intelligently categorize this expense:
       const { subcontractorName, projectName, description, notes } = args;
       const { subcontractors = [], projects = [], company, user } = appData;
 
+      console.log('[send_estimate_request] Called with:', { subcontractorName, projectName });
+      console.log('[send_estimate_request] Attached files:', attachedFiles?.length || 0);
+
       // Always extract file URLs from attachedFiles (ignore any URLs provided by AI)
       let fileUrls = null;
       if (attachedFiles && attachedFiles.length > 0) {
-        fileUrls = attachedFiles
+        const extracted = attachedFiles
           .filter((file: any) => !file.uploading) // Skip files still uploading
-          .map((file: any) => ({
-            name: file.name || file.fileName || 'attachment',
-            url: file.s3Url || file.url || file.uri, // Prioritize s3Url
-          }))
+          .map((file: any) => {
+            const url = file.s3Url || (file.uri?.startsWith('http') ? file.uri : null);
+            console.log('[send_estimate_request] File:', file.name, '| s3Url:', file.s3Url?.substring(0, 60), '| Final URL:', url?.substring(0, 60));
+            return {
+              name: file.name || file.fileName || 'attachment',
+              url: url,
+            };
+          })
           .filter((f: any) => f.url && f.url.startsWith('http')); // Only include valid HTTP(S) URLs
 
-        console.log('[AI Assistant] Extracted file URLs from attachedFiles:', fileUrls);
+        fileUrls = extracted.length > 0 ? extracted : null;
+        console.log('[send_estimate_request] Final URLs for email:', JSON.stringify(fileUrls));
       }
 
       // Find the subcontractor by name
