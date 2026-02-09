@@ -3243,7 +3243,7 @@ Generate appropriate line items from the price list that fit this scope of work$
         }
 
         // For non-receipt images or multiple images, use the regular flow
-        const filesForAI: { type: 'file'; mimeType: string; uri: string; name?: string; size?: number; }[] = [];
+        const filesForAI: { type: 'file'; mimeType: string; uri: string; name?: string; size?: number; s3Url?: string; }[] = [];
 
         // Add images
         for (const file of filesWithS3Urls.filter(f => f.mimeType.startsWith('image/'))) {
@@ -3254,6 +3254,7 @@ Generate appropriate line items from the price list that fit this scope of work$
             uri: dataUri,
             name: file.name,
             size: file.size,
+            s3Url: file.s3Url, // Preserve S3 URL for email attachments
           });
         }
 
@@ -3265,8 +3266,11 @@ Generate appropriate line items from the price list that fit this scope of work$
             uri: file.uri, // This is the S3 URL from when file was attached
             name: file.name,
             size: file.size,
+            s3Url: file.uri, // Set s3Url for consistency
           });
         }
+
+        console.log('[Send] Files being sent to AI with S3 URLs:', filesForAI.map(f => ({ name: f.name, hasS3Url: !!f.s3Url, s3Url: f.s3Url?.substring(0, 50) })));
 
         // Send message with files
         await sendMessage({
@@ -3276,7 +3280,7 @@ Generate appropriate line items from the price list that fit this scope of work$
       } else if (hasPDFs) {
         // PDFs only (no images) - already uploaded when attached
         console.log('[Send] Sending message with PDFs');
-        const filesForAI: { type: 'file'; mimeType: string; uri: string; name?: string; size?: number; }[] = [];
+        const filesForAI: { type: 'file'; mimeType: string; uri: string; name?: string; size?: number; s3Url?: string; }[] = [];
 
         for (const file of filesWithS3Urls.filter(f => f.mimeType === 'application/pdf')) {
           filesForAI.push({
@@ -3285,10 +3289,11 @@ Generate appropriate line items from the price list that fit this scope of work$
             uri: file.uri, // This is the S3 URL from when file was attached
             name: file.name,
             size: file.size,
+            s3Url: file.uri, // Set s3Url for consistency
           });
         }
 
-        console.log('[Send] Files being sent to AI:', filesForAI);
+        console.log('[Send] Files being sent to AI with S3 URLs:', filesForAI.map(f => ({ name: f.name, hasS3Url: !!f.s3Url, s3Url: f.s3Url?.substring(0, 50) })));
 
         // Send message with PDF files
         await sendMessage({
