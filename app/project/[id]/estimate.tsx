@@ -1921,16 +1921,17 @@ export default function EstimateScreen() {
         <thead>
           <tr>
             <th style="width: 5%;">#</th>
-            <th style="width: 40%;">Item</th>
-            <th style="width: 15%;">Quantity</th>
-            <th style="width: 15%;">Unit Price</th>
+            <th style="width: ${showUnitsQty ? '40%' : '75%'};">Item</th>
+            ${showUnitsQty ? '<th style="width: 15%;">Quantity</th>' : ''}
+            ${showUnitsQty ? '<th style="width: 15%;">Unit Price</th>' : ''}
             <th style="width: 25%;">Total</th>
           </tr>
         </thead>
         <tbody>
           ${items.map((item, index) => {
             if (item.isSeparator) {
-              return `<tr><td colspan="5" class="separator-row">${item.separatorLabel || 'SECTION'}</td></tr>`;
+              const colspan = showUnitsQty ? 5 : 3;
+              return `<tr><td colspan="${colspan}" class="separator-row">${item.separatorLabel || 'SECTION'}</td></tr>`;
             }
             const priceListItem = getPriceListItem(item.priceListItemId);
             const isCustom = item.priceListItemId === 'custom';
@@ -1946,8 +1947,8 @@ export default function EstimateScreen() {
                   ${item.notes ? `<div class="item-notes">${item.notes}</div>` : ''}
                   ${item.imageUrl ? `<img src="${item.imageUrl}" class="item-image" alt="Item photo" />` : ''}
                 </td>
-                <td>${item.quantity} ${itemUnit}</td>
-                <td>$${displayPrice.toFixed(2)}</td>
+                ${showUnitsQty ? `<td>${item.quantity} ${itemUnit}</td>` : ''}
+                ${showUnitsQty ? `<td>$${displayPrice.toFixed(2)}</td>` : ''}
                 <td>$${item.total.toFixed(2)}</td>
               </tr>
             `;
