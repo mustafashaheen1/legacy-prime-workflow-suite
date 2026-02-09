@@ -792,6 +792,35 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'send_estimate_request',
+      description: 'Send an estimate request email to a subcontractor for a specific project. Use when user says "send estimate request", "request estimate from [subcontractor]", "ask [subcontractor] for estimate".',
+      parameters: {
+        type: 'object',
+        properties: {
+          subcontractorName: {
+            type: 'string',
+            description: 'Name of the subcontractor to send the request to',
+          },
+          projectName: {
+            type: 'string',
+            description: 'Name of the project for the estimate request',
+          },
+          description: {
+            type: 'string',
+            description: 'Description of work or scope for the estimate',
+          },
+          notes: {
+            type: 'string',
+            description: 'Additional notes or requirements (budget, timeline, etc.)',
+          },
+        },
+        required: ['subcontractorName', 'projectName', 'description'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'query_call_logs',
       description: 'Query call logs. Use for "call history", "qualified leads from calls".',
       parameters: {
@@ -4092,6 +4121,102 @@ Based on the store and items, intelligently categorize this expense:
         actionRequired: 'open_email_client',
         actionData: {},
       };
+    }
+
+    case 'send_estimate_request': {
+      const { subcontractorName, projectName, description, notes } = args;
+      const { subcontractors = [], projects = [], company, user } = appData;
+
+      // Find the subcontractor by name
+      const subcontractor = subcontractors.find((s: any) =>
+        s.name.toLowerCase().includes(subcontractorName.toLowerCase())
+      );
+
+      if (!subcontractor) {
+        return {
+          result: {
+            success: false,
+            message: `Could not find subcontractor "${subcontractorName}". Available subcontractors: ${subcontractors.map((s: any) => s.name).join(', ')}`,
+          },
+        };
+      }
+
+      if (!subcontractor.email) {
+        return {
+          result: {
+            success: false,
+            message: `Subcontractor "${subcontractor.name}" does not have an email address on file.`,
+          },
+        };
+      }
+
+      // Find the project by name
+      const project = projects.find((p: any) =>
+        p.name.toLowerCase().includes(projectName.toLowerCase())
+      );
+
+      if (!project) {
+        return {
+          result: {
+            success: false,
+            message: `Could not find project "${projectName}". Available projects: ${projects.map((p: any) => p.name).join(', ')}`,
+          },
+        };
+      }
+
+      // Send the estimate request email via API
+      try {
+        const emailData = {
+          to: subcontractor.email,
+          toName: subcontractor.name,
+          projectName: project.name,
+          companyName: company?.name || user?.name || 'Legacy Prime Construction',
+          description: description,
+          notes: notes || (project.budget ? `Budget: $${project.budget.toLocaleString()}` : undefined),
+        };
+
+        // Call the email API (we'll use the deployed endpoint)
+        const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
+        const response = await fetch(`${API_URL}/api/send-estimate-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(emailData),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          return {
+            result: {
+              success: true,
+              message: `✅ Estimate request sent successfully to ${subcontractor.name} (${subcontractor.email}) for project "${project.name}"!`,
+              details: {
+                subcontractor: subcontractor.name,
+                email: subcontractor.email,
+                project: project.name,
+                description: description,
+              },
+            },
+          };
+        } else {
+          return {
+            result: {
+              success: false,
+              message: `Failed to send email: ${result.error}`,
+            },
+          };
+        }
+      } catch (error: any) {
+        return {
+          result: {
+            success: false,
+            message: `Error sending estimate request: ${error.message || 'Unknown error'}`,
+          },
+        };
+      }
     }
 
     case 'query_call_logs': {
