@@ -793,7 +793,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'send_estimate_request',
-      description: 'Send an estimate request email to a subcontractor for a specific project. Use when user says "send estimate request", "request estimate from [subcontractor]", "ask [subcontractor] for estimate".',
+      description: 'Send an estimate request email to a subcontractor for a specific project. Use when user says "send estimate request", "request estimate from [subcontractor]", "ask [subcontractor] for estimate". If user uploads files in the conversation, extract their URLs and pass them in fileUrls parameter.',
       parameters: {
         type: 'object',
         properties: {
@@ -812,6 +812,23 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           notes: {
             type: 'string',
             description: 'Additional notes or requirements (budget, timeline, etc.)',
+          },
+          fileUrls: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: {
+                  type: 'string',
+                  description: 'File name',
+                },
+                url: {
+                  type: 'string',
+                  description: 'File URL (uploaded S3 link)',
+                },
+              },
+            },
+            description: 'Array of file attachments with name and URL from user uploads',
           },
         },
         required: ['subcontractorName', 'projectName', 'description'],
@@ -4124,8 +4141,17 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'send_estimate_request': {
-      const { subcontractorName, projectName, description, notes } = args;
+      const { subcontractorName, projectName, description, notes, fileUrls: providedFileUrls } = args;
       const { subcontractors = [], projects = [], company, user } = appData;
+
+      // Use provided fileUrls or extract from attachedFiles if available
+      let fileUrls = providedFileUrls;
+      if (!fileUrls && attachedFiles && attachedFiles.length > 0) {
+        fileUrls = attachedFiles.map((file: any) => ({
+          name: file.name || file.fileName || 'attachment',
+          url: file.url || file.uri || file.s3Url,
+        })).filter((f: any) => f.url); // Only include files with valid URLs
+      }
 
       // Find the subcontractor by name
       const subcontractor = subcontractors.find((s: any) =>
@@ -4173,6 +4199,7 @@ Based on the store and items, intelligently categorize this expense:
           companyName: company?.name || user?.name || 'Legacy Prime Construction',
           description: description,
           notes: notes || (project.budget ? `Budget: $${project.budget.toLocaleString()}` : undefined),
+          files: fileUrls && fileUrls.length > 0 ? fileUrls : undefined,
         };
 
         // Call the email API (we'll use the deployed endpoint)
@@ -4189,15 +4216,19 @@ Based on the store and items, intelligently categorize this expense:
         const result = await response.json();
 
         if (result.success) {
+          const fileCount = fileUrls && fileUrls.length > 0 ? fileUrls.length : 0;
+          const fileMessage = fileCount > 0 ? ` with ${fileCount} file attachment(s)` : '';
+
           return {
             result: {
               success: true,
-              message: `✅ Estimate request sent successfully to ${subcontractor.name} (${subcontractor.email}) for project "${project.name}"!`,
+              message: `✅ Estimate request sent successfully to ${subcontractor.name} (${subcontractor.email}) for project "${project.name}"${fileMessage}!`,
               details: {
                 subcontractor: subcontractor.name,
                 email: subcontractor.email,
                 project: project.name,
                 description: description,
+                filesAttached: fileCount,
               },
             },
           };
