@@ -56,9 +56,60 @@ export default function RequestEstimateComponent({ projectId, projectName }: Req
 
     console.log('[EstimateRequest] Request sent:', estimateRequest);
 
-    Alert.alert('Success', `Estimate request sent to ${selectedSubcontractor.name}`);
+    // Send email notification (async, don't block UI)
+    if (selectedSubcontractor.email) {
+      sendEmailNotification({
+        to: selectedSubcontractor.email,
+        toName: selectedSubcontractor.name,
+        projectName,
+        companyName: 'Legacy Prime Construction',
+        description,
+        requiredBy,
+        notes,
+      }).catch(error => {
+        console.error('[EstimateRequest] Email failed (non-blocking):', error);
+      });
+    }
+
+    Alert.alert('Success', `Estimate request sent to ${selectedSubcontractor.name}${selectedSubcontractor.email ? '\n\n📧 Email notification will be sent shortly' : ''}`);
     setShowModal(false);
     resetForm();
+  };
+
+  // Send email notification via standalone API
+  const sendEmailNotification = async (emailData: {
+    to: string;
+    toName: string;
+    projectName: string;
+    companyName: string;
+    description: string;
+    requiredBy?: string;
+    notes?: string;
+  }) => {
+    try {
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
+      const response = await fetch(`${API_URL}/api/send-estimate-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emailData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('[Email] ✅ Sent successfully:', result.messageId);
+      } else {
+        console.error('[Email] ❌ Failed:', result.error);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('[Email] Exception:', error);
+      throw error;
+    }
   };
 
   const resetForm = () => {
