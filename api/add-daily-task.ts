@@ -73,6 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       reminder: data.reminder,
       reminderSent: data.reminder_sent,
       completed: data.completed,
+      completedAt: data.completed_at, // Include completion timestamp
       notes: data.notes,
       createdAt: data.created_at,
       updatedAt: data.updated_at,

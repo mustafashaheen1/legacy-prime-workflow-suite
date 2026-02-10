@@ -47,6 +47,7 @@ export default async function handler(req: any, res: any) {
       reminder: task.reminder,
       reminderSent: task.reminder_sent,
       completed: task.completed,
+      completedAt: task.completed_at, // Include completion timestamp
       notes: task.notes,
       createdAt: task.created_at,
       updatedAt: task.updated_at,

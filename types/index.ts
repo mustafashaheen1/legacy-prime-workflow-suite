@@ -107,6 +107,7 @@ export interface DailyTask {
   reminder: boolean;
   reminderSent?: boolean; // NEW: Track if reminder was sent
   completed: boolean;
+  completedAt?: string; // NEW: Timestamp when task was completed (ISO string)
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -450,6 +451,10 @@ export interface ScheduledTask {
   color: string;
   row?: number;
   rowSpan?: number;
+  completed?: boolean;      // NEW: Whether task is completed
+  completedAt?: string;     // NEW: Timestamp when task was completed (ISO string)
+  createdAt?: string;       // NEW: Timestamp when task was created (ISO string)
+  updatedAt?: string;       // NEW: Timestamp when task was last updated (ISO string)
 }
 
 export interface Payment {

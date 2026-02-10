@@ -14,6 +14,7 @@ export const updateScheduledTaskProcedure = publicProcedure
       notes: z.string().optional(),
       row: z.number().optional(),
       rowSpan: z.number().optional(),
+      completed: z.boolean().optional(),
     })
   )
   .mutation(async ({ input }) => {
@@ -29,6 +30,7 @@ export const updateScheduledTaskProcedure = publicProcedure
       if (input.notes !== undefined) task.notes = input.notes;
       if (input.row !== undefined) task.row = input.row;
       if (input.rowSpan !== undefined) task.rowSpan = input.rowSpan;
+      if (input.completed !== undefined) task.completed = input.completed;
       console.log('[Backend] Updated scheduled task in memory store');
     }
 
@@ -48,6 +50,7 @@ export const updateScheduledTaskProcedure = publicProcedure
         if (input.notes !== undefined) updateData.notes = input.notes;
         if (input.row !== undefined) updateData.row = input.row;
         if (input.rowSpan !== undefined) updateData.row_span = input.rowSpan;
+        if (input.completed !== undefined) updateData.completed = input.completed;
 
         const { data, error } = await supabase
           .from('scheduled_tasks')
@@ -76,6 +79,10 @@ export const updateScheduledTaskProcedure = publicProcedure
           color: data.color,
           row: data.row,
           rowSpan: data.row_span,
+          completed: data.completed,
+          completedAt: data.completed_at,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
         };
 
         return { success: true, scheduledTask: updatedTask };

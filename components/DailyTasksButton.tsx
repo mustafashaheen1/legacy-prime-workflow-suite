@@ -280,6 +280,33 @@ export default function DailyTasksButton({
                           </>
                         )}
                       </View>
+                      {/* Created and Completed Timestamps */}
+                      <View style={styles.taskTimestamps}>
+                        {task.createdAt && (
+                          <Text style={styles.timestampText}>
+                            Created: {new Date(task.createdAt).toLocaleString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            })}
+                          </Text>
+                        )}
+                        {task.completed && task.completedAt && (
+                          <Text style={styles.timestampText}>
+                            Completed: {new Date(task.completedAt).toLocaleString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            })}
+                          </Text>
+                        )}
+                      </View>
                     </View>
 
                     <TouchableOpacity onPress={() => handleDeleteTask(task.id)}>
@@ -640,6 +667,15 @@ const styles = StyleSheet.create({
   taskMetaText: {
     fontSize: 12,
     color: '#9CA3AF',
+  },
+  taskTimestamps: {
+    marginTop: 6,
+    gap: 2,
+  },
+  timestampText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic',
   },
 
   // Modal

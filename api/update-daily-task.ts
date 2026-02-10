@@ -47,8 +47,12 @@ export default async function handler(req: any, res: any) {
       userId: data.user_id,
       title: data.title,
       dueDate: data.due_date,
+      dueTime: data.due_time,
+      dueDateTime: data.due_date_time,
       reminder: data.reminder,
+      reminderSent: data.reminder_sent,
       completed: data.completed,
+      completedAt: data.completed_at, // Include completion timestamp
       notes: data.notes,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
