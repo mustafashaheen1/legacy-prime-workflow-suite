@@ -281,9 +281,10 @@ export default function DailyTasksButton({
                         </Text>
                         {task.reminder && (
                           <>
-                            <Bell size={12} color="#F59E0B" style={{ marginLeft: 8 }} />
+                            <View style={{ width: 4 }} />
+                            <Bell size={12} color="#F59E0B" />
                             <Text style={[styles.taskMetaText, { color: '#F59E0B' }]}>
-                              {task.reminderSent ? 'Sent' : 'Set'}
+                              {task.reminderSent ? 'Reminded' : 'Reminder set'}
                             </Text>
                           </>
                         )}
@@ -322,7 +323,10 @@ export default function DailyTasksButton({
                       )}
                     </View>
 
-                    <TouchableOpacity onPress={() => handleDeleteTask(task.id)}>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteTask(task.id)}
+                    >
                       <Trash2 size={16} color="#EF4444" />
                     </TouchableOpacity>
                   </View>
@@ -647,7 +651,7 @@ const getStyles = (SCREEN_WIDTH: number) => StyleSheet.create({
   },
   checkbox: {
     marginRight: SCREEN_WIDTH < 768 ? 10 : 12,
-    paddingTop: 2, // Align checkbox with first line of text
+    paddingTop: 3, // Align checkbox with first line of text
   },
   checkboxInner: {
     width: SCREEN_WIDTH < 768 ? 20 : 22,
@@ -665,7 +669,7 @@ const getStyles = (SCREEN_WIDTH: number) => StyleSheet.create({
   taskContent: {
     flex: 1,
     minWidth: 0, // Prevents flex items from overflowing
-    marginRight: 8,
+    marginRight: 12,
   },
   taskTitle: {
     fontSize: SCREEN_WIDTH < 768 ? 14 : 15,
@@ -704,6 +708,10 @@ const getStyles = (SCREEN_WIDTH: number) => StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  deleteButton: {
+    paddingTop: 2, // Align with first line of text
+    paddingLeft: 4,
   },
 
   // Modal
