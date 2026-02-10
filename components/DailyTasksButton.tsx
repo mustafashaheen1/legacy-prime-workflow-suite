@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, Platform, Alert, useWindowDimensions } from 'react-native';
 import { CheckSquare, Plus, X, Calendar, Bell, Trash2, Check, Clock } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
 import { DailyTask } from '@/types';
@@ -16,6 +16,7 @@ export default function DailyTasksButton({
   iconColor = '#10B981',
   iconSize = 20
 }: DailyTasksButtonProps) {
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const {
     dailyTasks = [],
     loadDailyTasks,
@@ -172,6 +173,9 @@ export default function DailyTasksButton({
 
   const pendingCount = dailyTasks?.filter(t => !t.completed).length || 0;
 
+  // Generate responsive styles
+  const styles = useMemo(() => getStyles(SCREEN_WIDTH), [SCREEN_WIDTH]);
+
   return (
     <>
       {/* Daily Tasks Button */}
@@ -262,12 +266,16 @@ export default function DailyTasksButton({
                     </TouchableOpacity>
 
                     <View style={styles.taskContent}>
-                      <Text style={[styles.taskTitle, task.completed && styles.taskTitleCompleted]}>
+                      <Text
+                        style={[styles.taskTitle, task.completed && styles.taskTitleCompleted]}
+                        numberOfLines={2}
+                        ellipsizeMode="tail"
+                      >
                         {task.title}
                       </Text>
                       <View style={styles.taskMeta}>
                         <Calendar size={12} color="#9CA3AF" />
-                        <Text style={styles.taskMetaText}>
+                        <Text style={styles.taskMetaText} numberOfLines={1}>
                           {formatTaskDate(task.dueDate)}
                           {task.dueTime && ` at ${formatTime(task.dueTime)}`}
                         </Text>
@@ -283,7 +291,7 @@ export default function DailyTasksButton({
                       {/* Created and Completed Timestamps */}
                       <View style={styles.taskTimestamps}>
                         {task.createdAt && (
-                          <Text style={styles.timestampText}>
+                          <Text style={styles.timestampText} numberOfLines={1} ellipsizeMode="tail">
                             Created: {new Date(task.createdAt).toLocaleString('en-US', {
                               month: 'short',
                               day: 'numeric',
@@ -295,7 +303,7 @@ export default function DailyTasksButton({
                           </Text>
                         )}
                         {task.completed && task.completedAt && (
-                          <Text style={styles.timestampText}>
+                          <Text style={styles.timestampText} numberOfLines={1} ellipsizeMode="tail">
                             Completed: {new Date(task.completedAt).toLocaleString('en-US', {
                               month: 'short',
                               day: 'numeric',
@@ -307,6 +315,11 @@ export default function DailyTasksButton({
                           </Text>
                         )}
                       </View>
+                      {task.notes && (
+                        <Text style={styles.taskNotes} numberOfLines={2} ellipsizeMode="tail">
+                          {task.notes}
+                        </Text>
+                      )}
                     </View>
 
                     <TouchableOpacity onPress={() => handleDeleteTask(task.id)}>
@@ -501,7 +514,7 @@ export default function DailyTasksButton({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (SCREEN_WIDTH: number) => StyleSheet.create({
   // Button
   iconButton: {
     width: 40,
@@ -540,7 +553,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sideMenu: {
-    width: 340,
+    width: SCREEN_WIDTH < 768 ? SCREEN_WIDTH * 0.85 : 400,
+    maxWidth: 450,
+    minWidth: 300,
     backgroundColor: '#FFFFFF',
     height: '100%',
   },
@@ -548,17 +563,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: SCREEN_WIDTH < 768 ? 16 : 20,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   menuTitle: {
-    fontSize: 20,
+    fontSize: SCREEN_WIDTH < 768 ? 18 : 20,
     fontWeight: '700',
     color: '#1F2937',
   },
   menuSubtitle: {
-    fontSize: 13,
+    fontSize: SCREEN_WIDTH < 768 ? 12 : 13,
     color: '#6B7280',
     marginTop: 2,
   },
@@ -574,8 +589,8 @@ const styles = StyleSheet.create({
   // Filter Tabs
   filterTabs: {
     flexDirection: 'row',
-    padding: 12,
-    gap: 8,
+    padding: SCREEN_WIDTH < 768 ? 10 : 12,
+    gap: SCREEN_WIDTH < 768 ? 6 : 8,
   },
   filterTab: {
     flex: 1,
@@ -588,7 +603,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
   },
   filterTabText: {
-    fontSize: 13,
+    fontSize: SCREEN_WIDTH < 768 ? 12 : 13,
     fontWeight: '600',
     color: '#6B7280',
   },
@@ -599,7 +614,7 @@ const styles = StyleSheet.create({
   // Task List
   taskList: {
     flex: 1,
-    padding: 12,
+    padding: SCREEN_WIDTH < 768 ? 10 : 12,
   },
   emptyState: {
     alignItems: 'center',
@@ -618,8 +633,8 @@ const styles = StyleSheet.create({
   },
   taskCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
+    alignItems: 'flex-start',
+    padding: SCREEN_WIDTH < 768 ? 10 : 12,
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     marginBottom: 8,
@@ -631,11 +646,12 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   checkbox: {
-    marginRight: 12,
+    marginRight: SCREEN_WIDTH < 768 ? 10 : 12,
+    paddingTop: 2, // Align checkbox with first line of text
   },
   checkboxInner: {
-    width: 22,
-    height: 22,
+    width: SCREEN_WIDTH < 768 ? 20 : 22,
+    height: SCREEN_WIDTH < 768 ? 20 : 22,
     borderRadius: 6,
     borderWidth: 2,
     borderColor: '#D1D5DB',
@@ -648,11 +664,14 @@ const styles = StyleSheet.create({
   },
   taskContent: {
     flex: 1,
+    minWidth: 0, // Prevents flex items from overflowing
+    marginRight: 8,
   },
   taskTitle: {
-    fontSize: 15,
+    fontSize: SCREEN_WIDTH < 768 ? 14 : 15,
     fontWeight: '600',
     color: '#1F2937',
+    flexShrink: 1,
   },
   taskTitleCompleted: {
     textDecorationLine: 'line-through',
@@ -663,18 +682,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
     gap: 4,
+    flexWrap: 'wrap',
   },
   taskMetaText: {
-    fontSize: 12,
+    fontSize: SCREEN_WIDTH < 768 ? 11 : 12,
     color: '#9CA3AF',
+    flexShrink: 1,
   },
   taskTimestamps: {
     marginTop: 6,
     gap: 2,
   },
   timestampText: {
-    fontSize: 11,
+    fontSize: SCREEN_WIDTH < 768 ? 10 : 11,
     color: '#6B7280',
+    fontStyle: 'italic',
+    flexShrink: 1,
+  },
+  taskNotes: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
     fontStyle: 'italic',
   },
 
@@ -690,19 +718,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     width: '100%',
-    maxWidth: 420,
+    maxWidth: SCREEN_WIDTH < 768 ? '95%' : 420,
     maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: SCREEN_WIDTH < 768 ? 16 : 20,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: SCREEN_WIDTH < 768 ? 18 : 20,
     fontWeight: '700',
     color: '#1F2937',
   },
@@ -715,14 +743,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalBody: {
-    padding: 20,
+    padding: SCREEN_WIDTH < 768 ? 16 : 20,
   },
   modalFooter: {
     flexDirection: 'row',
-    padding: 20,
+    padding: SCREEN_WIDTH < 768 ? 16 : 20,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    gap: 12,
+    gap: SCREEN_WIDTH < 768 ? 10 : 12,
   },
 
   // Form
