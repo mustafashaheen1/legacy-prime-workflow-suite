@@ -557,9 +557,9 @@ const getStyles = (SCREEN_WIDTH: number) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sideMenu: {
-    width: SCREEN_WIDTH < 768 ? SCREEN_WIDTH * 0.85 : 400,
-    maxWidth: 450,
-    minWidth: 300,
+    width: SCREEN_WIDTH < 768 ? SCREEN_WIDTH * 0.90 : 480,
+    maxWidth: 550,
+    minWidth: 320,
     backgroundColor: '#FFFFFF',
     height: '100%',
   },
