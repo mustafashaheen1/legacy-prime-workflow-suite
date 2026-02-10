@@ -7,4 +7,5 @@ export const config = {
 
 // WORKAROUND for @hono/node-server/vercel POST body parsing bug
 // See: https://github.com/honojs/node-server/issues/84
+// @ts-ignore - Hono type compatibility with Vercel adapter
 export default handle(app);
