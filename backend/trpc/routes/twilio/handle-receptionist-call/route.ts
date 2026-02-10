@@ -207,14 +207,19 @@ export const handleReceptionistCallProcedure = publicProcedure
         });
         state.step = 1;
 
-        twiml.say({ voice: 'alice' }, greeting);
-        
+        twiml.say({
+          voice: 'Polly.Joanna-Neural',
+          language: 'en-US'
+        }, greeting);
+
         const gather = twiml.gather({
           input: ['speech'],
           action: `${process.env.EXPO_PUBLIC_API_URL || ''}/api/twilio/receptionist`,
           method: 'POST',
           speechTimeout: 'auto',
           language: 'en-US',
+          speechModel: 'phone_call',
+          enhanced: true,
           hints: 'kitchen,bathroom,remodel,addition,roofing,thousand,dollars,budget,month,months',
         });
 
@@ -278,9 +283,15 @@ Generate a warm closing message thanking them by name and promising a callback w
         console.log("[Receptionist] Closing message:", closingMessage);
         console.log("[Receptionist] Final lead data:", state.collectedInfo);
 
-        twiml.say({ voice: 'alice' }, closingMessage);
+        twiml.say({
+          voice: 'Polly.Joanna-Neural',
+          language: 'en-US'
+        }, closingMessage);
         twiml.pause({ length: 1 });
-        twiml.say({ voice: 'alice' }, "Have a great day!");
+        twiml.say({
+          voice: 'Polly.Joanna-Neural',
+          language: 'en-US'
+        }, "Have a great day!");
         twiml.hangup();
 
         // Save to CRM database
@@ -430,14 +441,19 @@ Generate a warm, enthusiastic response (1-2 sentences max). Show genuine excitem
       });
       state.step++;
 
-      twiml.say({ voice: 'alice' }, aiResponse);
-      
+      twiml.say({
+        voice: 'Polly.Joanna-Neural',
+        language: 'en-US'
+      }, aiResponse);
+
       const gather = twiml.gather({
         input: ['speech'],
         action: `${process.env.EXPO_PUBLIC_API_URL || ''}/api/twilio/receptionist`,
         method: 'POST',
         speechTimeout: 'auto',
         language: 'en-US',
+        speechModel: 'phone_call',
+        enhanced: true,
         hints: 'kitchen,bathroom,remodel,addition,roofing,thousand,dollars,budget,month,months',
       });
 
@@ -453,9 +469,10 @@ Generate a warm, enthusiastic response (1-2 sentences max). Show genuine excitem
       console.error("[Receptionist] ERROR:", error);
       
       const twiml = new twilio.twiml.VoiceResponse();
-      twiml.say({ voice: 'alice' }, 
-        "I apologize, but I'm experiencing technical difficulties. Please call back in a few minutes, or leave a message and we'll call you back."
-      );
+      twiml.say({
+        voice: 'Polly.Joanna-Neural',
+        language: 'en-US'
+      }, "I apologize, but I'm experiencing technical difficulties. Please call back in a few minutes, or leave a message and we'll call you back.");
       twiml.hangup();
       
       return {
