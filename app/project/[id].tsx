@@ -65,25 +65,12 @@ export default function ProjectDetailScreen() {
   }, [paymentsQuery.data]);
 
   useEffect(() => {
-    if (activeTab === 'estimate') {
-      // Show estimate tab content inline (no navigation needed)
-      // This allows users to view estimates without leaving the project page
-      return;
-    }
-    if (activeTab === 'expenses') {
-      router.push(`/project/${id}/expenses` as any);
-    }
-    if (activeTab === 'change-orders') {
-      router.push(`/project/${id}/change-orders` as any);
-    }
-    if (activeTab === 'files') {
-      router.push(`/project/${id}/files-navigation` as any);
-      setActiveTab('overview');
-    }
+    // All tabs now show content inline - no navigation needed
+    // This provides a better user experience with instant tab switching
     if (activeTab === 'reports' && company?.id) {
       refreshReports();
     }
-  }, [activeTab, id, router, company?.id, refreshReports]);
+  }, [activeTab, company?.id, refreshReports]);
 
   // Removed - budgetRemaining and budgetUsedPercentage are now calculated after adjustedProjectTotal and totalJobCost
   
@@ -926,8 +913,69 @@ export default function ProjectDetailScreen() {
         );
 
       case 'change-orders':
-        router.push(`/project/${id}/change-orders` as any);
-        return null;
+        return (
+          <View style={styles.changeOrdersTabContent}>
+            <View style={styles.changeOrdersHeader}>
+              <View>
+                <Text style={styles.changeOrdersTitle}>Change Orders</Text>
+                <Text style={styles.changeOrdersSubtitle}>
+                  {changeOrders.length} {changeOrders.length === 1 ? 'order' : 'orders'} •
+                  ${changeOrders.reduce((sum, co) => sum + co.amount, 0).toLocaleString()} total
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.manageChangeOrdersButton}
+                onPress={() => router.push(`/project/${id}/change-orders` as any)}
+              >
+                <Text style={styles.manageChangeOrdersButtonText}>Manage All</Text>
+              </TouchableOpacity>
+            </View>
+
+            {changeOrders.length === 0 ? (
+              <View style={styles.changeOrdersEmpty}>
+                <FileText size={48} color="#9CA3AF" />
+                <Text style={styles.changeOrdersEmptyTitle}>No Change Orders</Text>
+                <Text style={styles.changeOrdersEmptyText}>
+                  Change orders will appear here when added
+                </Text>
+                <TouchableOpacity
+                  style={styles.addChangeOrderButton}
+                  onPress={() => router.push(`/project/${id}/change-orders` as any)}
+                >
+                  <Plus size={20} color="#FFFFFF" />
+                  <Text style={styles.addChangeOrderButtonText}>Add Change Order</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView style={styles.changeOrdersList}>
+                {changeOrders.map((co) => (
+                  <TouchableOpacity
+                    key={co.id}
+                    style={styles.changeOrderCard}
+                    onPress={() => router.push(`/project/${id}/change-orders` as any)}
+                  >
+                    <View style={styles.changeOrderHeader}>
+                      <Text style={styles.changeOrderDescription}>{co.description}</Text>
+                      <View style={[
+                        styles.changeOrderStatusBadge,
+                        co.status === 'approved' && styles.changeOrderStatusApproved,
+                        co.status === 'rejected' && styles.changeOrderStatusRejected,
+                      ]}>
+                        <Text style={styles.changeOrderStatusText}>{co.status.toUpperCase()}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.changeOrderDetails}>
+                      <Text style={styles.changeOrderAmount}>${co.amount.toLocaleString()}</Text>
+                      <Text style={styles.changeOrderDate}>
+                        {new Date(co.date).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        );
 
       case 'clock':
         return (
@@ -4200,5 +4248,127 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#D1D5DB',
     marginVertical: 8,
+  },
+  changeOrdersTabContent: {
+    padding: 20,
+  },
+  changeOrdersHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 20,
+  },
+  changeOrdersTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  changeOrdersSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  manageChangeOrdersButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  manageChangeOrdersButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  changeOrdersEmpty: {
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingVertical: 60,
+  },
+  changeOrdersEmptyTitle: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginTop: 16,
+  },
+  changeOrdersEmptyText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center' as const,
+  },
+  addChangeOrderButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 24,
+    gap: 8,
+  },
+  addChangeOrderButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600' as const,
+  },
+  changeOrdersList: {
+    flex: 1,
+  },
+  changeOrderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  changeOrderHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'flex-start' as const,
+    marginBottom: 12,
+  },
+  changeOrderDescription: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    flex: 1,
+    marginRight: 12,
+  },
+  changeOrderStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: '#FEF3C7',
+  },
+  changeOrderStatusApproved: {
+    backgroundColor: '#D1FAE5',
+  },
+  changeOrderStatusRejected: {
+    backgroundColor: '#FEE2E2',
+  },
+  changeOrderStatusText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#92400E',
+  },
+  changeOrderDetails: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  },
+  changeOrderAmount: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#2563EB',
+  },
+  changeOrderDate: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });
