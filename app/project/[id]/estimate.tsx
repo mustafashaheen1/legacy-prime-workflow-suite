@@ -2684,6 +2684,11 @@ export default function EstimateScreen() {
                       {!showUnitsQty && (
                         <Text style={styles.previewItemDetails}>${item.total.toFixed(2)}</Text>
                       )}
+                      {showBudget && item.budget && item.budget > 0 && (
+                        <Text style={styles.previewItemDetails}>
+                          Budget: ${item.budget.toFixed(2)}
+                        </Text>
+                      )}
                       {item.notes ? (
                         <Text style={styles.previewItemNotes}>Note: {item.notes}</Text>
                       ) : null}
@@ -2706,6 +2711,13 @@ export default function EstimateScreen() {
                   <Text style={styles.previewTotalLabel}>Subtotal</Text>
                   <Text style={styles.previewTotalValue}>${subtotal.toFixed(2)}</Text>
                 </View>
+
+                {showBudget && totalBudget > 0 && (
+                  <View style={styles.previewTotalsRow}>
+                    <Text style={styles.previewTotalLabel}>Total Budget</Text>
+                    <Text style={[styles.previewTotalValue, { color: '#10b981' }]}>${totalBudget.toFixed(2)}</Text>
+                  </View>
+                )}
 
                 {(parseFloat(markupPercent) || 0) > 0 && (
                   <>
