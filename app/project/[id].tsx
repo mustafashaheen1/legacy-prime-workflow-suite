@@ -65,6 +65,11 @@ export default function ProjectDetailScreen() {
   }, [paymentsQuery.data]);
 
   useEffect(() => {
+    if (activeTab === 'estimate') {
+      // Show estimate tab content inline (no navigation needed)
+      // This allows users to view estimates without leaving the project page
+      return;
+    }
     if (activeTab === 'expenses') {
       router.push(`/project/${id}/expenses` as any);
     }
@@ -824,7 +829,7 @@ export default function ProjectDetailScreen() {
         console.log('[Estimate Tab] Found original estimate:', originalEstimate ? originalEstimate.name : 'NOT FOUND');
 
         return (
-          <ScrollView style={styles.estimateTabContent}>
+          <View style={styles.estimateTabContent}>
             {originalEstimate && (
               <View style={styles.originalEstimateSection}>
                 <View style={styles.originalEstimateHeader}>
@@ -917,7 +922,7 @@ export default function ProjectDetailScreen() {
                 />
               </View>
             </View>
-          </ScrollView>
+          </View>
         );
 
       case 'change-orders':
