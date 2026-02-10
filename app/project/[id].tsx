@@ -1909,9 +1909,12 @@ export default function ProjectDetailScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            console.log('[Back Button] Navigating back to dashboard');
+            router.push('/(tabs)/dashboard' as any);
+          }}
         >
           <ArrowLeft size={24} color="#1F2937" />
         </TouchableOpacity>
@@ -2133,6 +2136,11 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: 16,
+    padding: 8,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
   },
   headerTitle: {
     fontSize: 20,
