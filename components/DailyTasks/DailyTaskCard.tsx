@@ -88,11 +88,27 @@ export default function DailyTaskCard({ task, onToggleComplete, onDelete }: Dail
             </Text>
           )}
 
-          {/* Completed timestamp */}
-          {task.completed && task.completedAt && (
-            <View style={styles.completedContainer}>
-              <Text style={styles.completedText}>
-                ✓ Completed on {new Date(task.completedAt).toLocaleDateString('en-US', {
+          {/* Timestamps */}
+          <View style={styles.timestampsContainer}>
+            {/* Created At */}
+            {task.createdAt && (
+              <Text style={styles.timestampText}>
+                Created at: {new Date(task.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: new Date(task.createdAt).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                })} at {new Date(task.createdAt).toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true
+                })}
+              </Text>
+            )}
+
+            {/* Completed At */}
+            {task.completed && task.completedAt && (
+              <Text style={styles.timestampTextCompleted}>
+                Completed at: {new Date(task.completedAt).toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: new Date(task.completedAt).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
@@ -102,8 +118,8 @@ export default function DailyTaskCard({ task, onToggleComplete, onDelete }: Dail
                   hour12: true
                 })}
               </Text>
-            </View>
-          )}
+            )}
+          </View>
         </View>
 
         {/* Delete Button */}
@@ -247,12 +263,22 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 
-  // Completed Timestamp
-  completedContainer: {
+  // Timestamps Container
+  timestampsContainer: {
+    gap: 3,
     marginTop: 2,
   },
-  completedText: {
-    fontSize: 12,
+
+  // Timestamp Text
+  timestampText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
+
+  // Completed Timestamp Text
+  timestampTextCompleted: {
+    fontSize: 11,
     color: '#10B981',
     fontWeight: '600',
     fontStyle: 'italic',
