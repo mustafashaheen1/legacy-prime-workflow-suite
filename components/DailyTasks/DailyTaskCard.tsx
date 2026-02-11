@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Calendar, Bell, Trash2, Check } from 'lucide-react-native';
+import { Calendar, Bell, Trash2, Check, Clock } from 'lucide-react-native';
 import { DailyTask } from '@/types';
 import { useDailyTaskResponsive } from './hooks/useDailyTaskResponsive';
 
@@ -31,207 +31,208 @@ export default function DailyTaskCard({ task, onToggleComplete, onDelete }: Dail
     return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   };
 
-  const formatTimestamp = (isoString: string): string => {
-    return new Date(isoString).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
   return (
     <View style={[styles.card, task.completed && styles.cardCompleted]}>
-      {/* Checkbox - Fixed width, top-aligned */}
+      {/* Left: Checkbox */}
       <TouchableOpacity
         style={styles.checkboxContainer}
         onPress={() => onToggleComplete(task)}
         activeOpacity={0.7}
       >
-        <View
-          style={[
-            styles.checkbox,
-            { width: responsive.checkboxSize, height: responsive.checkboxSize },
-            task.completed && styles.checkboxChecked,
-          ]}
-        >
-          {task.completed && <Check size={14} color="#FFF" />}
+        <View style={[styles.checkbox, task.completed && styles.checkboxChecked]}>
+          {task.completed && <Check size={16} color="#FFF" strokeWidth={3} />}
         </View>
       </TouchableOpacity>
 
-      {/* Content - Flexible, constrained */}
+      {/* Center: Content */}
       <View style={styles.content}>
+        {/* Title - Remove strikethrough for better readability */}
         <Text
-          style={[
-            styles.title,
-            { fontSize: responsive.bodyFontSize },
-            task.completed && styles.titleCompleted,
-          ]}
+          style={[styles.title, task.completed && styles.titleCompleted]}
           numberOfLines={2}
-          ellipsizeMode="tail"
         >
           {task.title}
         </Text>
 
-        {/* Meta row - Date and reminder */}
-        <View style={styles.metaRow}>
-          <View style={styles.metaItem}>
-            <Calendar size={responsive.metaFontSize} color="#9CA3AF" />
-            <Text style={[styles.metaText, { fontSize: responsive.metaFontSize }]} numberOfLines={1}>
-              {formatTaskDate(task.dueDate)}
-              {task.dueTime && ` • ${formatTime(task.dueTime)}`}
-            </Text>
+        {/* Date & Time Row */}
+        <View style={styles.infoRow}>
+          <View style={styles.dateTimeContainer}>
+            <Calendar size={14} color="#6B7280" strokeWidth={2} />
+            <Text style={styles.dateText}>{formatTaskDate(task.dueDate)}</Text>
+            {task.dueTime && (
+              <>
+                <Clock size={14} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.timeText}>{formatTime(task.dueTime)}</Text>
+              </>
+            )}
           </View>
+
+          {/* Reminder Badge */}
           {task.reminder && (
-            <View style={styles.metaItem}>
-              <Bell size={responsive.metaFontSize} color="#F59E0B" />
-              <Text style={[styles.metaText, { fontSize: responsive.metaFontSize, color: '#F59E0B' }]}>
-                {task.reminderSent ? 'Sent' : 'Set'}
+            <View style={[styles.reminderBadge, task.reminderSent && styles.reminderBadgeSent]}>
+              <Bell size={12} color={task.reminderSent ? '#10B981' : '#F59E0B'} strokeWidth={2} />
+              <Text style={[styles.reminderText, task.reminderSent && styles.reminderTextSent]}>
+                {task.reminderSent ? 'Sent' : 'Reminder'}
               </Text>
             </View>
           )}
         </View>
 
-        {/* Timestamps - Constrained width to prevent overflow */}
-        {(task.createdAt || (task.completed && task.completedAt)) && (
-          <View style={styles.timestamps}>
-            {task.createdAt && (
-              <Text
-                style={[styles.timestamp, { fontSize: responsive.timestampFontSize }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                Created: {formatTimestamp(task.createdAt)}
-              </Text>
-            )}
-            {task.completed && task.completedAt && (
-              <Text
-                style={[styles.timestamp, { fontSize: responsive.timestampFontSize }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                Completed: {formatTimestamp(task.completedAt)}
-              </Text>
-            )}
-          </View>
+        {/* Notes - Only show if present */}
+        {task.notes && !task.completed && (
+          <Text style={styles.notes} numberOfLines={2}>
+            {task.notes}
+          </Text>
         )}
 
-        {/* Notes */}
-        {task.notes && (
-          <Text style={styles.notes} numberOfLines={2} ellipsizeMode="tail">
-            {task.notes}
+        {/* Completed timestamp - Only for completed tasks */}
+        {task.completed && task.completedAt && (
+          <Text style={styles.completedText}>
+            Completed {new Date(task.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </Text>
         )}
       </View>
 
-      {/* Delete button - Fixed width, top-aligned */}
+      {/* Right: Delete button */}
       <TouchableOpacity
         style={styles.deleteButton}
         onPress={() => onDelete(task.id)}
         activeOpacity={0.7}
       >
-        <Trash2 size={16} color="#EF4444" />
+        <Trash2 size={18} color="#EF4444" strokeWidth={2} />
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Card Container
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
     borderColor: '#E5E7EB',
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   cardCompleted: {
     backgroundColor: '#F9FAFB',
-    opacity: 0.7,
+    borderColor: '#D1D5DB',
+    borderStyle: 'dashed',
   },
 
-  // Checkbox - Fixed width column
+  // Checkbox
   checkboxContainer: {
-    paddingTop: 2, // Align with first line of text
-    paddingRight: 12,
+    marginRight: 12,
+    marginTop: 2,
   },
   checkbox: {
-    borderRadius: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
   },
   checkboxChecked: {
     backgroundColor: '#10B981',
     borderColor: '#10B981',
   },
 
-  // Content - Flexible column with constraints
+  // Content Area
   content: {
     flex: 1,
-    minWidth: 0, // Critical: allows flex child to shrink below content size
-    paddingRight: 8,
+    gap: 8,
   },
+
+  // Title
   title: {
+    fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
     lineHeight: 20,
-    marginBottom: 6,
   },
   titleCompleted: {
-    textDecorationLine: 'line-through',
     color: '#9CA3AF',
   },
 
-  // Meta row - Horizontally scrollable if needed
-  metaRow: {
+  // Info Row (Date, Time, Reminder)
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 6,
+    justifyContent: 'space-between',
     flexWrap: 'wrap',
+    gap: 8,
   },
-  metaItem: {
+
+  // Date & Time
+  dateTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  dateText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  timeText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+
+  // Reminder Badge
+  reminderBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    flexShrink: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 6,
   },
-  metaText: {
-    color: '#9CA3AF',
-    flexShrink: 1,
+  reminderBadgeSent: {
+    backgroundColor: '#D1FAE5',
   },
-
-  // Timestamps - Constrained to prevent overflow
-  timestamps: {
-    gap: 3,
-    marginBottom: 6,
+  reminderText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#F59E0B',
   },
-  timestamp: {
-    color: '#6B7280',
-    fontStyle: 'italic',
-    lineHeight: 14,
+  reminderTextSent: {
+    color: '#10B981',
   },
 
   // Notes
   notes: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#6B7280',
+    lineHeight: 18,
     fontStyle: 'italic',
-    lineHeight: 16,
   },
 
-  // Delete button - Fixed width column
+  // Completed Timestamp
+  completedText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
+
+  // Delete Button
   deleteButton: {
-    paddingTop: 2, // Align with first line of text
-    paddingLeft: 4,
-    width: 28,
-    alignItems: 'center',
+    marginLeft: 8,
+    padding: 4,
+    marginTop: 2,
   },
 });

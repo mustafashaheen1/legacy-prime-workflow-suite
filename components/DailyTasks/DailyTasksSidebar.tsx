@@ -55,40 +55,43 @@ export default function DailyTasksSidebar({
         {/* Sidebar */}
         <View style={[styles.sidebar, { width: responsive.sidebarWidth }]}>
           {/* Header */}
-          <View style={[styles.header, { padding: responsive.sidebarPadding }]}>
-            <View style={styles.headerText}>
-              <Text style={[styles.title, { fontSize: responsive.headerFontSize }]}>
-                Daily Tasks
-              </Text>
-              <Text style={[styles.subtitle, { fontSize: responsive.subtitleFontSize }]}>
-                {tasks?.length || 0} total • {pendingCount} pending
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.addButton} onPress={onAddTask} activeOpacity={0.7}>
-              <Plus size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Filter Tabs */}
-          <View style={[styles.filterTabs, { padding: responsive.sidebarPadding - 4 }]}>
-            {(['today', 'upcoming', 'all'] as const).map((filter) => (
-              <TouchableOpacity
-                key={filter}
-                style={[styles.filterTab, taskFilter === filter && styles.filterTabActive]}
-                onPress={() => setTaskFilter(filter)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.filterTabText,
-                    { fontSize: responsive.subtitleFontSize },
-                    taskFilter === filter && styles.filterTabTextActive,
-                  ]}
-                >
-                  {filter === 'today' ? 'Today' : filter === 'upcoming' ? 'Week' : 'All'}
-                </Text>
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <View style={styles.headerText}>
+                <Text style={styles.title}>Daily Tasks</Text>
+                <View style={styles.statsRow}>
+                  <View style={styles.statBadge}>
+                    <Text style={styles.statNumber}>{tasks?.length || 0}</Text>
+                    <Text style={styles.statLabel}>Total</Text>
+                  </View>
+                  <View style={[styles.statBadge, styles.statBadgePending]}>
+                    <Text style={[styles.statNumber, styles.statNumberPending]}>{pendingCount}</Text>
+                    <Text style={[styles.statLabel, styles.statLabelPending]}>Pending</Text>
+                  </View>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.addButton} onPress={onAddTask} activeOpacity={0.7}>
+                <Plus size={22} color="#FFFFFF" strokeWidth={2.5} />
               </TouchableOpacity>
-            ))}
+            </View>
+
+            {/* Filter Tabs */}
+            <View style={styles.filterTabs}>
+              {(['today', 'upcoming', 'all'] as const).map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={[styles.filterTab, taskFilter === filter && styles.filterTabActive]}
+                  onPress={() => setTaskFilter(filter)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[styles.filterTabText, taskFilter === filter && styles.filterTabTextActive]}
+                  >
+                    {filter === 'today' ? 'Today' : filter === 'upcoming' ? 'This Week' : 'All Tasks'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {/* Task List */}
@@ -99,14 +102,14 @@ export default function DailyTasksSidebar({
           >
             {filteredTasks.length === 0 ? (
               <View style={styles.emptyState}>
-                <CheckSquare size={48} color="#D1D5DB" />
+                <CheckSquare size={56} color="#D1D5DB" strokeWidth={1.5} />
                 <Text style={styles.emptyTitle}>No tasks</Text>
                 <Text style={styles.emptyText}>
                   {taskFilter === 'today'
-                    ? 'No tasks for today'
+                    ? 'No tasks scheduled for today'
                     : taskFilter === 'upcoming'
-                    ? 'No upcoming tasks'
-                    : 'Add your first task'}
+                    ? 'No tasks this week'
+                    : 'Tap + to add your first task'}
                 </Text>
               </View>
             ) : (
@@ -133,57 +136,97 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   sidebar: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     height: '100%',
     shadowColor: '#000',
-    shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
 
   // Header
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    paddingTop: 20,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
   headerText: {
     flex: 1,
   },
   title: {
+    fontSize: 24,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 2,
+    marginBottom: 12,
   },
-  subtitle: {
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+  },
+  statBadgePending: {
+    backgroundColor: '#FEF3C7',
+  },
+  statNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  statNumberPending: {
+    color: '#F59E0B',
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '500',
     color: '#6B7280',
   },
+  statLabelPending: {
+    color: '#D97706',
+  },
   addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     backgroundColor: '#10B981',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
 
   // Filter Tabs
   filterTabs: {
     flexDirection: 'row',
     gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   filterTab: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
   },
@@ -191,6 +234,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
   },
   filterTabText: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#6B7280',
   },
@@ -201,22 +245,24 @@ const styles = StyleSheet.create({
   // Task List
   taskList: {
     flex: 1,
+    backgroundColor: '#F9FAFB',
   },
 
   // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#6B7280',
-    marginTop: 16,
+    marginTop: 20,
   },
   emptyText: {
     fontSize: 14,
     color: '#9CA3AF',
-    marginTop: 6,
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
