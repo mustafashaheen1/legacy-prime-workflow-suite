@@ -1166,9 +1166,9 @@ export default function EstimateScreen() {
         const displayPrice = item.customPrice ?? item.unitPrice;
         const notes = item.notes ? `<div style="color: #666; font-size: 12px; margin-top: 4px;">Note: ${item.notes}</div>` : '';
         const imageHtml = item.imageUrl
-          ? item.imageUrl.split('|||').map(url =>
-              `<img src="${url}" style="max-width: 200px; max-height: 150px; margin-top: 8px; margin-right: 8px; border-radius: 4px; display: inline-block;" />`
-            ).join('')
+          ? `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">${item.imageUrl.split('|||').map(url =>
+              `<img src="${url}" style="width: 120px; height: 90px; object-fit: cover; border-radius: 4px; border: 1px solid #e5e7eb;" />`
+            ).join('')}</div>`
           : '';
 
         return `
@@ -2141,10 +2141,40 @@ export default function EstimateScreen() {
     }
     th:last-child, td:last-child { text-align: right; }
     tbody tr { border-bottom: 1px solid #e5e7eb; }
-    td { padding: 8px; font-size: 11px; color: #1f2937; }
+    td { padding: 8px; font-size: 11px; color: #1f2937; vertical-align: top; }
     .item-name { font-weight: 500; }
     .item-notes { font-size: 10px; color: #6b7280; font-style: italic; margin-top: 2px; }
-    .item-image { max-width: 200px; max-height: 150px; margin-top: 8px; border-radius: 4px; display: block; }
+    .item-images-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+      max-width: 100%;
+    }
+    .item-image {
+      width: 120px;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid #e5e7eb;
+    }
+    @media print {
+      body { padding: 0; }
+      .container { max-width: 100%; }
+      .item-image {
+        width: 100px;
+        height: 75px;
+      }
+      .item-images-container {
+        max-width: 100%;
+      }
+      tbody tr {
+        page-break-inside: avoid;
+      }
+      .item-name, .item-notes, .item-images-container {
+        page-break-inside: avoid;
+      }
+    }
     .totals-section {
       margin-top: 25px;
       padding-top: 20px;
@@ -2213,7 +2243,7 @@ export default function EstimateScreen() {
                 <td>
                   <div class="item-name">${itemName}</div>
                   ${item.notes ? `<div class="item-notes">${item.notes}</div>` : ''}
-                  ${item.imageUrl ? item.imageUrl.split('|||').map(url => `<img src="${url}" class="item-image" alt="Item photo" />`).join('') : ''}
+                  ${item.imageUrl ? `<div class="item-images-container">${item.imageUrl.split('|||').map(url => `<img src="${url}" class="item-image" alt="Item photo" />`).join('')}</div>` : ''}
                 </td>
                 ${showUnitsQty ? `<td>${item.quantity} ${itemUnit}</td>` : ''}
                 ${showUnitsQty ? `<td>$${displayPrice.toFixed(2)}</td>` : ''}
