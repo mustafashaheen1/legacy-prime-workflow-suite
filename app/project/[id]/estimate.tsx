@@ -423,6 +423,21 @@ export default function EstimateScreen() {
   };
 
   const pickItemImage = async (itemId: string, source: 'camera' | 'library') => {
+    // Check current number of images for this item
+    const currentItem = items.find(i => i.id === itemId);
+    const currentImageCount = currentItem?.imageUrl ? currentItem.imageUrl.split('|||').length : 0;
+    const remainingSlots = 5 - currentImageCount;
+
+    // Validate: Check if already at maximum
+    if (remainingSlots <= 0) {
+      Alert.alert(
+        'Maximum Photos Reached',
+        'This item already has 5 photos (maximum). Please remove existing photos to add new ones.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     const permission = source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -432,12 +447,12 @@ export default function EstimateScreen() {
       return;
     }
 
-    // For camera: Allow multiple sequential shots
+    // For camera: Allow multiple sequential shots (up to remaining slots)
     if (source === 'camera') {
       const capturedPhotos: string[] = [];
       let continueCapturing = true;
 
-      while (continueCapturing && capturedPhotos.length < 5) {
+      while (continueCapturing && capturedPhotos.length < remainingSlots) {
         const result = await ImagePicker.launchCameraAsync({
           allowsEditing: true,
           quality: 0.8
@@ -445,14 +460,15 @@ export default function EstimateScreen() {
 
         if (!result.canceled && result.assets && result.assets[0]) {
           capturedPhotos.push(result.assets[0].uri);
-          console.log(`[Estimate] Photo ${capturedPhotos.length}/5 captured`);
+          const totalAfterThis = currentImageCount + capturedPhotos.length;
+          console.log(`[Estimate] Photo ${capturedPhotos.length}/${remainingSlots} captured (${totalAfterThis}/5 total)`);
 
           // Ask if user wants to take another photo (unless at limit)
-          if (capturedPhotos.length < 5) {
+          if (capturedPhotos.length < remainingSlots) {
             await new Promise<void>((resolve) => {
               Alert.alert(
                 'Photo Captured',
-                `${capturedPhotos.length} photo(s) taken. Take another?`,
+                `${capturedPhotos.length} photo(s) taken (${totalAfterThis}/5 total). Take another?`,
                 [
                   {
                     text: 'Done',
@@ -463,16 +479,16 @@ export default function EstimateScreen() {
                     }
                   },
                   {
-                    text: 'Take Another',
+                    text: `Take Another (${remainingSlots - capturedPhotos.length} remaining)`,
                     onPress: () => resolve()
                   }
                 ]
               );
             });
           } else {
-            // Reached 5 photo limit
+            // Reached maximum for this item
             continueCapturing = false;
-            Alert.alert('Maximum Photos', 'You have captured 5 photos (maximum reached).');
+            Alert.alert('Maximum Photos', `You have captured ${capturedPhotos.length} photos. This item now has 5 photos total (maximum reached).`);
           }
         } else {
           // User canceled camera
@@ -558,28 +574,40 @@ export default function EstimateScreen() {
       return;
     }
 
-    // For gallery: Multiple selection at once
+    // For gallery: Multiple selection at once (up to remaining slots)
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
       allowsMultipleSelection: true,
-      selectionLimit: 5,
+      selectionLimit: remainingSlots,  // Dynamic limit based on remaining slots
       quality: 0.8
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      console.log(`[Estimate] ${result.assets.length} image(s) selected`);
+      // Validate and truncate if user somehow selected more than allowed
+      let selectedAssets = result.assets;
+      if (selectedAssets.length > remainingSlots) {
+        console.warn(`[Estimate] User selected ${selectedAssets.length} images but only ${remainingSlots} slots remaining. Truncating.`);
+        selectedAssets = selectedAssets.slice(0, remainingSlots);
+        Alert.alert(
+          'Too Many Photos',
+          `You selected ${result.assets.length} photos, but only ${remainingSlots} slot(s) available. Only the first ${remainingSlots} will be uploaded.`,
+          [{ text: 'OK' }]
+        );
+      }
+
+      console.log(`[Estimate] ${selectedAssets.length} image(s) selected (${currentImageCount + selectedAssets.length}/5 total)`);
 
       // Show loading state
       setUploadingImageItemId(itemId);
 
       try {
         // Process and upload each selected image
-        for (let i = 0; i < result.assets.length; i++) {
-          const asset = result.assets[i];
+        for (let i = 0; i < selectedAssets.length; i++) {
+          const asset = selectedAssets[i];
           const localUri = asset.uri;
 
-          console.log(`[Estimate] Processing image ${i + 1}/${result.assets.length}...`);
+          console.log(`[Estimate] Processing image ${i + 1}/${selectedAssets.length}...`);
 
           // Convert image to base64 for S3 upload
           let base64Data: string;
@@ -643,7 +671,7 @@ export default function EstimateScreen() {
           }
         }
 
-        Alert.alert('Success', `${result.assets.length} photo(s) uploaded successfully!`);
+        Alert.alert('Success', `${selectedAssets.length} photo(s) uploaded successfully! (${currentImageCount + selectedAssets.length}/5 total)`);
 
       } catch (error: any) {
         console.error('[Estimate] Error uploading images:', error);
@@ -1821,33 +1849,62 @@ export default function EstimateScreen() {
 
             <View style={styles.itemPhotoSection}>
               {item.imageUrl ? (
-                <View style={styles.itemPhotosGrid}>
-                  {item.imageUrl.split('|||').map((imageUrl, index) => (
-                    <View key={`${item.id}-img-${index}`} style={styles.itemPhotoPreview}>
-                      <Image source={{ uri: imageUrl }} style={styles.itemPhotoThumbnail} />
-                      {uploadingImageItemId === item.id && (
-                        <View style={styles.uploadingOverlay}>
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        </View>
-                      )}
-                      {uploadingImageItemId !== item.id && (
+                <View>
+                  <View style={styles.itemPhotosGrid}>
+                    {item.imageUrl.split('|||').map((imageUrl, index) => (
+                      <View key={`${item.id}-img-${index}`} style={styles.itemPhotoPreview}>
+                        <Image source={{ uri: imageUrl }} style={styles.itemPhotoThumbnail} />
+                        {uploadingImageItemId === item.id && (
+                          <View style={styles.uploadingOverlay}>
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          </View>
+                        )}
+                        {uploadingImageItemId !== item.id && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              // Remove this specific image
+                              const urls = item.imageUrl.split('|||').filter((_, i) => i !== index);
+                              setItems(prev => prev.map(i =>
+                                i.id === item.id
+                                  ? { ...i, imageUrl: urls.length > 0 ? urls.join('|||') : undefined }
+                                  : i
+                              ));
+                            }}
+                            style={styles.removePhotoButton}
+                          >
+                            <X size={14} color="#EF4444" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                  {/* Show "Add More" button if under 5 photos */}
+                  {item.imageUrl.split('|||').length < 5 && (
+                    <View style={styles.addPhotoButtons}>
+                      {!isWeb && (
                         <TouchableOpacity
-                          onPress={() => {
-                            // Remove this specific image
-                            const urls = item.imageUrl.split('|||').filter((_, i) => i !== index);
-                            setItems(prev => prev.map(i =>
-                              i.id === item.id
-                                ? { ...i, imageUrl: urls.length > 0 ? urls.join('|||') : undefined }
-                                : i
-                            ));
-                          }}
-                          style={styles.removePhotoButton}
+                          onPress={() => pickItemImage(item.id, 'camera')}
+                          style={styles.addPhotoButton}
+                          disabled={uploadingImageItemId !== null}
                         >
-                          <X size={14} color="#EF4444" />
+                          <Camera size={16} color="#6B7280" />
+                          <Text style={styles.addPhotoButtonText}>
+                            {item.imageUrl.split('|||').length}/5
+                          </Text>
                         </TouchableOpacity>
                       )}
+                      <TouchableOpacity
+                        onPress={() => pickItemImage(item.id, 'library')}
+                        style={styles.addPhotoButton}
+                        disabled={uploadingImageItemId !== null}
+                      >
+                        <Plus size={16} color="#6B7280" />
+                        <Text style={styles.addPhotoButtonText}>
+                          Add More ({item.imageUrl.split('|||').length}/5)
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                  ))}
+                  )}
                 </View>
               ) : (
                 <View style={styles.addPhotoButtons}>
