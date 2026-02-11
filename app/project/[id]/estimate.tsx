@@ -1853,7 +1853,7 @@ export default function EstimateScreen() {
                   <View style={styles.itemPhotosGrid}>
                     {item.imageUrl.split('|||').map((imageUrl, index) => (
                       <View key={`${item.id}-img-${index}`} style={styles.itemPhotoPreview}>
-                        <Image source={{ uri: imageUrl }} style={styles.itemPhotoThumbnail} />
+                        <Image source={{ uri: imageUrl }} style={styles.itemPhotoThumbnail} resizeMode="cover" />
                         {uploadingImageItemId === item.id && (
                           <View style={styles.uploadingOverlay}>
                             <ActivityIndicator size="small" color="#FFFFFF" />
@@ -5090,9 +5090,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   itemPhotoThumbnail: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+    width: '100%' as const,
+    height: '100%' as const,
   },
   uploadingOverlay: {
     position: 'absolute',
