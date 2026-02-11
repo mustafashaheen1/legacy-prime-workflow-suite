@@ -33,73 +33,78 @@ export default function DailyTaskCard({ task, onToggleComplete, onDelete }: Dail
 
   return (
     <View style={[styles.card, task.completed && styles.cardCompleted]}>
-      {/* Left: Checkbox */}
-      <TouchableOpacity
-        style={styles.checkboxContainer}
-        onPress={() => onToggleComplete(task)}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.checkbox, task.completed && styles.checkboxChecked]}>
-          {task.completed && <Check size={16} color="#FFF" strokeWidth={3} />}
-        </View>
-      </TouchableOpacity>
-
-      {/* Center: Content */}
-      <View style={styles.content}>
-        {/* Title - Remove strikethrough for better readability */}
-        <Text
-          style={[styles.title, task.completed && styles.titleCompleted]}
-          numberOfLines={2}
+      {/* Row 1: Checkbox + Content + Delete */}
+      <View style={styles.mainRow}>
+        {/* Checkbox */}
+        <TouchableOpacity
+          style={styles.checkboxContainer}
+          onPress={() => onToggleComplete(task)}
+          activeOpacity={0.7}
         >
-          {task.title}
-        </Text>
+          <View style={[styles.checkbox, task.completed && styles.checkboxChecked]}>
+            {task.completed && <Check size={16} color="#FFF" strokeWidth={3} />}
+          </View>
+        </TouchableOpacity>
 
-        {/* Date & Time */}
-        <View style={styles.dateTimeRow}>
-          <Calendar size={13} color="#6B7280" strokeWidth={2} />
-          <Text style={styles.dateText}>{formatTaskDate(task.dueDate)}</Text>
-          {task.dueTime && (
-            <>
-              <View style={styles.separator} />
-              <Clock size={13} color="#6B7280" strokeWidth={2} />
-              <Text style={styles.timeText}>{formatTime(task.dueTime)}</Text>
-            </>
+        {/* Content Area */}
+        <View style={styles.content}>
+          {/* Title */}
+          <Text
+            style={[styles.title, task.completed && styles.titleCompleted]}
+            numberOfLines={2}
+          >
+            {task.title}
+          </Text>
+
+          {/* Date & Time */}
+          <View style={styles.dateTimeRow}>
+            <Calendar size={13} color="#6B7280" strokeWidth={2} />
+            <Text style={styles.dateText}>{formatTaskDate(task.dueDate)}</Text>
+            {task.dueTime && (
+              <>
+                <View style={styles.separator} />
+                <Clock size={13} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.timeText}>{formatTime(task.dueTime)}</Text>
+              </>
+            )}
+          </View>
+
+          {/* Reminder Badge - FORCED on own line */}
+          {task.reminder && (
+            <View style={styles.reminderContainer}>
+              <View style={[styles.reminderBadge, task.reminderSent && styles.reminderBadgeSent]}>
+                <Bell size={11} color={task.reminderSent ? '#10B981' : '#F59E0B'} strokeWidth={2} />
+                <Text style={[styles.reminderText, task.reminderSent && styles.reminderTextSent]}>
+                  {task.reminderSent ? 'Reminder sent' : 'Reminder set'}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Notes */}
+          {task.notes && !task.completed && (
+            <Text style={styles.notes} numberOfLines={2}>
+              {task.notes}
+            </Text>
+          )}
+
+          {/* Completed timestamp */}
+          {task.completed && task.completedAt && (
+            <Text style={styles.completedText}>
+              ✓ Completed {new Date(task.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </Text>
           )}
         </View>
 
-        {/* Reminder Badge - Separate row */}
-        {task.reminder && (
-          <View style={[styles.reminderBadge, task.reminderSent && styles.reminderBadgeSent]}>
-            <Bell size={11} color={task.reminderSent ? '#10B981' : '#F59E0B'} strokeWidth={2} />
-            <Text style={[styles.reminderText, task.reminderSent && styles.reminderTextSent]}>
-              {task.reminderSent ? 'Reminder sent' : 'Reminder set'}
-            </Text>
-          </View>
-        )}
-
-        {/* Notes - Only show if present */}
-        {task.notes && !task.completed && (
-          <Text style={styles.notes} numberOfLines={2}>
-            {task.notes}
-          </Text>
-        )}
-
-        {/* Completed timestamp - Only for completed tasks */}
-        {task.completed && task.completedAt && (
-          <Text style={styles.completedText}>
-            ✓ Completed {new Date(task.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          </Text>
-        )}
+        {/* Delete Button */}
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => onDelete(task.id)}
+          activeOpacity={0.7}
+        >
+          <Trash2 size={18} color="#EF4444" strokeWidth={2} />
+        </TouchableOpacity>
       </View>
-
-      {/* Right: Delete button */}
-      <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={() => onDelete(task.id)}
-        activeOpacity={0.7}
-      >
-        <Trash2 size={18} color="#EF4444" strokeWidth={2} />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -107,8 +112,6 @@ export default function DailyTaskCard({ task, onToggleComplete, onDelete }: Dail
 const styles = StyleSheet.create({
   // Card Container
   card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     marginBottom: 10,
@@ -126,6 +129,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     borderColor: '#D1D5DB',
     borderStyle: 'dashed',
+  },
+
+  // Main Row (Checkbox + Content + Delete)
+  mainRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
 
   // Checkbox
@@ -190,6 +199,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+  // Reminder Container (forces full width)
+  reminderContainer: {
+    width: '100%',
+    marginBottom: 6,
+  },
+
   // Reminder Badge
   reminderBadge: {
     flexDirection: 'row',
@@ -200,7 +215,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     backgroundColor: '#FEF3C7',
     borderRadius: 8,
-    marginBottom: 6,
   },
   reminderBadgeSent: {
     backgroundColor: '#D1FAE5',
