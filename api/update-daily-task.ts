@@ -4,6 +4,16 @@ const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export default async function handler(req: any, res: any) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'PUT, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'PUT') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -25,8 +35,14 @@ export default async function handler(req: any, res: any) {
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
     if (updates.reminder !== undefined) dbUpdates.reminder = updates.reminder;
-    if (updates.completed !== undefined) dbUpdates.completed = updates.completed;
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+
+    // Handle completion status and timestamp
+    if (updates.completed !== undefined) {
+      dbUpdates.completed = updates.completed;
+      // Automatically set/clear completed_at timestamp
+      dbUpdates.completed_at = updates.completed ? new Date().toISOString() : null;
+    }
 
     const { data, error } = await supabase
       .from('daily_tasks')
