@@ -435,7 +435,7 @@ export default function EstimateScreen() {
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 })
       : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: false,
           allowsMultipleSelection: true,
           selectionLimit: 5,
