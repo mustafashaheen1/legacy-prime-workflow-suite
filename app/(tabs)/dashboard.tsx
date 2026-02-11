@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
-import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, Calendar, Bell, Trash2, Check, Clock } from 'lucide-react-native';
+import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, Calendar, Bell, Clock } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, useMemo, useEffect } from 'react';
@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData, DailyTask } from '@/types';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import DailyTaskCard from '@/components/DailyTasks/DailyTaskCard';
 
 
 export default function DashboardScreen() {
@@ -320,16 +321,6 @@ export default function DashboardScreen() {
         return dailyTasks;
     }
   }, [dailyTasks, taskFilter]);
-
-  const formatTaskDate = (dateString: string): string => {
-    if (!dateString) return '';
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    if (dateString === today) return 'Today';
-    if (dateString === tomorrow) return 'Tomorrow';
-    const date = new Date(dateString + 'T00:00:00');
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  };
 
   const formatTime = (timeStr: string): string => {
     if (!timeStr) return '';
@@ -1871,7 +1862,7 @@ export default function DashboardScreen() {
             </View>
 
             {/* Task List */}
-            <ScrollView style={styles.taskList} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.taskList} contentContainerStyle={styles.taskListContent} showsVerticalScrollIndicator={false}>
               {filteredTasks.length === 0 ? (
                 <View style={styles.emptyTasks}>
                   <CheckSquare size={48} color="#D1D5DB" />
@@ -1884,58 +1875,12 @@ export default function DashboardScreen() {
                 </View>
               ) : (
                 filteredTasks.map((task) => (
-                  <View key={task.id} style={[styles.taskCard, task.completed && styles.taskCardCompleted]}>
-                    <TouchableOpacity style={styles.taskCheckbox} onPress={() => updateDailyTask(task.id, { completed: !task.completed })}>
-                      <View style={[styles.checkbox, task.completed && styles.checkboxCompleted]}>
-                        {task.completed && <Check size={14} color="#FFFFFF" />}
-                      </View>
-                    </TouchableOpacity>
-
-                    <View style={styles.taskContent}>
-                      <Text style={[styles.taskTitle, task.completed && styles.taskTitleCompleted]}>
-                        {task.title}
-                      </Text>
-                      <View style={styles.taskMeta}>
-                        <Calendar size={12} color="#9CA3AF" />
-                        <Text style={styles.taskDate}>
-                          {formatTaskDate(task.dueDate)}
-                          {task.dueTime && ` at ${formatTime(task.dueTime)}`}
-                        </Text>
-                        {task.reminder && (
-                          <>
-                            <Bell size={12} color="#F59E0B" style={{ marginLeft: 8 }} />
-                            <Text style={[styles.taskDate, { color: '#F59E0B' }]}>
-                              {task.reminderSent ? 'Reminded' : 'Reminder set'}
-                            </Text>
-                          </>
-                        )}
-                      </View>
-                      {task.notes ? <Text style={styles.taskNotes} numberOfLines={1}>{task.notes}</Text> : null}
-                    </View>
-
-                    <TouchableOpacity style={styles.deleteTaskButton} onPress={() => {
-                      showAlert(
-                        'Delete Task',
-                        'Are you sure?',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Delete',
-                            style: 'destructive',
-                            onPress: async () => {
-                              try {
-                                await deleteDailyTask(task.id);
-                              } catch (error) {
-                                console.error('Error deleting task:', error);
-                              }
-                            }
-                          }
-                        ]
-                      );
-                    }}>
-                      <Trash2 size={16} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
+                  <DailyTaskCard
+                    key={task.id}
+                    task={task}
+                    onToggleComplete={(task) => updateDailyTask(task.id, { completed: !task.completed })}
+                    onDelete={(taskId) => deleteDailyTask(taskId)}
+                  />
                 ))
               )}
             </ScrollView>
@@ -2974,7 +2919,9 @@ const styles = StyleSheet.create({
   },
   taskList: {
     flex: 1,
-    padding: 12,
+  },
+  taskListContent: {
+    padding: 16,
   },
   emptyTasks: {
     alignItems: 'center',
