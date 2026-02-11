@@ -9,6 +9,24 @@ import { checkAndSeedData, getDefaultCompany, getDefaultUser } from '@/lib/seed-
 import { fixtureClockEntries } from '@/mocks/fixtures';
 import { supabase } from '@/lib/supabase';
 
+/**
+ * Get the correct API base URL
+ * Prioritizes environment variable over window.location.origin
+ */
+const getApiBaseUrl = (): string => {
+  const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+
+  if (rorkApi) {
+    return rorkApi;
+  }
+
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  return 'http://localhost:8081';
+};
+
 interface AppState {
   user: User | null;
   company: Company | null;
@@ -207,7 +225,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         try {
           console.log('[App] Loading data from backend for company:', company.id);
           // Use direct HTTP fetch instead of tRPC dynamic import (which breaks in production)
-          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          const baseUrl = getApiBaseUrl();
 
           // Load clients
           try {
@@ -527,7 +545,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         console.log('[App] Loading data from backend for company:', parsedCompany.id);
         try {
           // Use direct HTTP fetch instead of tRPC dynamic import (which breaks in production)
-          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          const baseUrl = getApiBaseUrl();
 
           // Load clients
           try {
@@ -784,7 +802,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         try {
           console.log('[App] 🔄 Syncing temporary project to backend:', project.name);
 
-          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          const baseUrl = getApiBaseUrl();
           const response = await fetch(`${baseUrl}/trpc/projects.addProject`, {
             method: 'POST',
             headers: {
@@ -887,7 +905,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (company?.id) {
       try {
         // Use direct API endpoint instead of tRPC (tRPC was timing out)
-        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const baseUrl = getApiBaseUrl();
         const response = await fetch(`${baseUrl}/api/add-client`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -932,7 +950,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log('[App] Company name:', company.name);
     try {
       // Use direct HTTP fetch instead of tRPC dynamic import (which breaks in production)
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const clientsResponse = await fetch(
         `${baseUrl}/trpc/crm.getClients?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
       );
@@ -957,7 +975,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     // Save to database
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(
         `${baseUrl}/trpc/crm.updateClient`,
         {
@@ -999,7 +1017,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     console.log('[App] 🔄 Refreshing estimates...');
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/get-estimates?companyId=${company.id}`);
 
       if (!response.ok) {
@@ -1028,7 +1046,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     console.log('[App] 🔄 Refreshing expenses...');
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/get-expenses?companyId=${company.id}`);
 
       if (!response.ok) {
@@ -1057,7 +1075,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     console.log('[App] 🔄 Refreshing daily logs...');
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/get-daily-logs?companyId=${company.id}`);
 
       if (!response.ok) {
@@ -1360,7 +1378,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to database if status is being updated
     if (updates.status) {
       try {
-        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const baseUrl = getApiBaseUrl();
         const response = await fetch(`${baseUrl}/api/update-estimate-status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1489,7 +1507,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(
         `${baseUrl}/trpc/photoCategories.addPhotoCategory`,
         {
@@ -1525,7 +1543,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(
         `${baseUrl}/trpc/photoCategories.updatePhotoCategory`,
         {
@@ -1568,7 +1586,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(
         `${baseUrl}/trpc/photoCategories.deletePhotoCategory`,
         {
@@ -1647,7 +1665,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to database
     if (company?.id) {
       try {
-        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const baseUrl = getApiBaseUrl();
         const response = await fetch(`${baseUrl}/api/save-report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1697,7 +1715,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Delete from database
     if (company?.id) {
       try {
-        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const baseUrl = getApiBaseUrl();
         await fetch(`${baseUrl}/api/delete-report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1726,7 +1744,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/get-reports?companyId=${company.id}`);
       const data = await response.json();
 
@@ -1802,7 +1820,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         })
       );
 
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/save-daily-log`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1868,7 +1886,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/delete-daily-log`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -2099,7 +2117,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (company?.id) {
       try {
         console.log('[Subcontractor] Saving to database for company:', company.id);
-        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const baseUrl = getApiBaseUrl();
         const response = await fetch(
           `${baseUrl}/api/create-subcontractor`,
           {
@@ -2331,7 +2349,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const loadDailyTasks = useCallback(async () => {
     if (!user?.id || !company?.id) return;
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/get-daily-tasks?companyId=${company.id}&userId=${user.id}`);
       if (response.ok) {
         const tasks = await response.json();
@@ -2355,7 +2373,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setDailyTasks(prev => [...prev, tempTask]);
 
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/add-daily-task`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2390,7 +2408,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     ));
 
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       await fetch(`${baseUrl}/api/update-daily-task`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -2406,7 +2424,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setDailyTasks(prev => prev.filter(t => t.id !== taskId));
 
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       await fetch(`${baseUrl}/api/delete-daily-task`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
