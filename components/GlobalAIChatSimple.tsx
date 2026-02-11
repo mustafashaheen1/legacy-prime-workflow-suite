@@ -181,7 +181,9 @@ function useOpenAIChat(appData: {
       setIsLoadingHistory(true);
       console.log('[AI Chat] Loading chat history for user:', appData.userId);
 
-      const response = await fetch(`/api/get-chat-history?userId=${appData.userId}&limit=200`);
+      const baseUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+        (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+      const response = await fetch(`${baseUrl}/api/get-chat-history?userId=${appData.userId}&limit=200`);
 
       if (response.ok) {
         const data = await response.json();

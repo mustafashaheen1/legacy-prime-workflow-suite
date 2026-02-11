@@ -930,9 +930,9 @@ export default function DashboardScreen() {
   useEffect(() => {
     const checkReminders = async () => {
       try {
-        const apiUrl = typeof window !== 'undefined'
-          ? `${window.location.origin}/api/check-task-reminders`
-          : '/api/check-task-reminders';
+        const baseUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+          (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+        const apiUrl = `${baseUrl}/api/check-task-reminders`;
 
         const response = await fetch(apiUrl, {
           method: 'POST',
