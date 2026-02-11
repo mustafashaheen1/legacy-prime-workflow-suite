@@ -432,15 +432,140 @@ export default function EstimateScreen() {
       return;
     }
 
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 })
-      : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: false,
-          allowsMultipleSelection: true,
-          selectionLimit: 5,
+    // For camera: Allow multiple sequential shots
+    if (source === 'camera') {
+      const capturedPhotos: string[] = [];
+      let continueCapturing = true;
+
+      while (continueCapturing && capturedPhotos.length < 5) {
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
           quality: 0.8
         });
+
+        if (!result.canceled && result.assets && result.assets[0]) {
+          capturedPhotos.push(result.assets[0].uri);
+          console.log(`[Estimate] Photo ${capturedPhotos.length}/5 captured`);
+
+          // Ask if user wants to take another photo (unless at limit)
+          if (capturedPhotos.length < 5) {
+            await new Promise<void>((resolve) => {
+              Alert.alert(
+                'Photo Captured',
+                `${capturedPhotos.length} photo(s) taken. Take another?`,
+                [
+                  {
+                    text: 'Done',
+                    style: 'cancel',
+                    onPress: () => {
+                      continueCapturing = false;
+                      resolve();
+                    }
+                  },
+                  {
+                    text: 'Take Another',
+                    onPress: () => resolve()
+                  }
+                ]
+              );
+            });
+          } else {
+            // Reached 5 photo limit
+            continueCapturing = false;
+            Alert.alert('Maximum Photos', 'You have captured 5 photos (maximum reached).');
+          }
+        } else {
+          // User canceled camera
+          continueCapturing = false;
+        }
+      }
+
+      // If no photos were captured, exit early
+      if (capturedPhotos.length === 0) {
+        return;
+      }
+
+      // Upload all captured photos
+      console.log(`[Estimate] Uploading ${capturedPhotos.length} camera photos...`);
+      setUploadingImageItemId(itemId);
+
+      try {
+        for (let i = 0; i < capturedPhotos.length; i++) {
+          const localUri = capturedPhotos[i];
+
+          console.log(`[Estimate] Processing image ${i + 1}/${capturedPhotos.length}...`);
+
+          // Convert image to base64 for S3 upload
+          let base64Data: string;
+
+          if (Platform.OS === 'web') {
+            console.log('[Estimate] Compressing image (web)...');
+            base64Data = await compressImageForEstimate(localUri, 1200, 0.7);
+          } else {
+            console.log('[Estimate] Converting to base64 (mobile)...');
+            const base64 = await FileSystem.readAsStringAsync(localUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            base64Data = `data:image/jpeg;base64,${base64}`;
+          }
+
+          // Upload to S3
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+          const fileName = `estimate-item-${itemId}-${Date.now()}-${i}.jpg`;
+
+          const uploadResponse = await fetch(`${apiUrl}/api/upload-to-s3`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileData: base64Data,
+              fileName: fileName,
+              fileType: 'image/jpeg',
+              folder: 'estimate-item-photos',
+            }),
+          });
+
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json();
+            console.log(`[Estimate] Image ${i + 1} uploaded to S3 successfully:`, uploadResult.url);
+
+            // Add each uploaded image to the item
+            setItems(prev => prev.map(item => {
+              if (item.id === itemId) {
+                const existingUrls = item.imageUrl ? item.imageUrl.split('|||') : [];
+                const newUrls = [...existingUrls, uploadResult.url];
+                return {
+                  ...item,
+                  imageUrl: newUrls.join('|||')
+                };
+              }
+              return item;
+            }));
+          } else {
+            console.error(`[Estimate] Failed to upload image ${i + 1}`);
+            Alert.alert('Upload Failed', `Could not upload photo ${i + 1}.`);
+          }
+        }
+
+        Alert.alert('Success', `${capturedPhotos.length} photo(s) uploaded successfully!`);
+
+      } catch (error: any) {
+        console.error('[Estimate] Error uploading camera photos:', error);
+        Alert.alert('Upload Error', 'Failed to upload photos. Please try again.');
+      } finally {
+        setUploadingImageItemId(null);
+      }
+
+      return;
+    }
+
+    // For gallery: Multiple selection at once
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
+      quality: 0.8
+    });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       console.log(`[Estimate] ${result.assets.length} image(s) selected`);
