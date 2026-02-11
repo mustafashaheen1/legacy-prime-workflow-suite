@@ -434,80 +434,100 @@ export default function EstimateScreen() {
 
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.8 });
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: false,
+          allowsMultipleSelection: true,
+          selectionLimit: 5,
+          quality: 0.8
+        });
 
-    if (!result.canceled && result.assets[0]) {
-      const localUri = result.assets[0].uri;
-      console.log('[Estimate] Image selected, local URI:', localUri);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      console.log(`[Estimate] ${result.assets.length} image(s) selected`);
 
       // Show loading state
       setUploadingImageItemId(itemId);
-      updateItemImage(itemId, localUri);
 
       try {
-        // Convert image to base64 for S3 upload
-        let base64Data: string;
+        // Process and upload each selected image
+        for (let i = 0; i < result.assets.length; i++) {
+          const asset = result.assets[i];
+          const localUri = asset.uri;
 
-        if (Platform.OS === 'web') {
-          // Web: Compress image first, then convert to base64
-          console.log('[Estimate] Compressing image (web)...');
-          base64Data = await compressImageForEstimate(localUri, 1200, 0.7);
-          console.log('[Estimate] Compression complete, length:', base64Data.length);
-        } else {
-          // Mobile: Use FileSystem to read as base64
-          console.log('[Estimate] Converting to base64 (mobile)...');
-          const base64 = await FileSystem.readAsStringAsync(localUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          base64Data = `data:image/jpeg;base64,${base64}`;
-          console.log('[Estimate] Base64 conversion complete, length:', base64Data.length);
-        }
+          console.log(`[Estimate] Processing image ${i + 1}/${result.assets.length}...`);
 
-        // Upload to S3
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-        const fileName = `estimate-item-${itemId}-${Date.now()}.jpg`;
-        console.log('[Estimate] Uploading to S3...', { apiUrl, fileName });
+          // Convert image to base64 for S3 upload
+          let base64Data: string;
 
-        const uploadResponse = await fetch(`${apiUrl}/api/upload-to-s3`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileData: base64Data,
-            fileName: fileName,
-            fileType: 'image/jpeg',
-            folder: 'estimate-item-photos',
-          }),
-        });
-
-        console.log('[Estimate] S3 upload response status:', uploadResponse.status);
-
-        if (uploadResponse.ok) {
-          const result = await uploadResponse.json();
-          console.log('[Estimate] Image uploaded to S3 successfully:', result.url);
-          updateItemImage(itemId, result.url);
-        } else {
-          const errorText = await uploadResponse.text();
-          console.error('[Estimate] Failed to upload image to S3:', errorText);
-
-          if (uploadResponse.status === 413) {
-            Alert.alert('Image Too Large', 'The image is too large to upload. Please try a smaller image or take a new photo.');
+          if (Platform.OS === 'web') {
+            // Web: Compress image first, then convert to base64
+            console.log('[Estimate] Compressing image (web)...');
+            base64Data = await compressImageForEstimate(localUri, 1200, 0.7);
           } else {
-            Alert.alert('Upload Failed', 'Could not upload image to cloud storage. Please try again.');
+            // Mobile: Use FileSystem to read as base64
+            console.log('[Estimate] Converting to base64 (mobile)...');
+            const base64 = await FileSystem.readAsStringAsync(localUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            base64Data = `data:image/jpeg;base64,${base64}`;
           }
-          // Remove the local URI since upload failed
-          removeItemImage(itemId);
+
+          // Upload to S3
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+          const fileName = `estimate-item-${itemId}-${Date.now()}-${i}.jpg`;
+          console.log('[Estimate] Uploading to S3...', { apiUrl, fileName });
+
+          const uploadResponse = await fetch(`${apiUrl}/api/upload-to-s3`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileData: base64Data,
+              fileName: fileName,
+              fileType: 'image/jpeg',
+              folder: 'estimate-item-photos',
+            }),
+          });
+
+          console.log(`[Estimate] S3 upload response status for image ${i + 1}:`, uploadResponse.status);
+
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json();
+            console.log(`[Estimate] Image ${i + 1} uploaded to S3 successfully:`, uploadResult.url);
+
+            // Add each uploaded image to the item (storing multiple URLs separated by |||)
+            setItems(prev => prev.map(item => {
+              if (item.id === itemId) {
+                const existingUrls = item.imageUrl ? item.imageUrl.split('|||') : [];
+                const newUrls = [...existingUrls, uploadResult.url];
+                return {
+                  ...item,
+                  imageUrl: newUrls.join('|||')
+                };
+              }
+              return item;
+            }));
+          } else {
+            const errorText = await uploadResponse.text();
+            console.error(`[Estimate] Failed to upload image ${i + 1} to S3:`, errorText);
+
+            if (uploadResponse.status === 413) {
+              Alert.alert('Image Too Large', `Image ${i + 1} is too large to upload. Please try a smaller image.`);
+            } else {
+              Alert.alert('Upload Failed', `Could not upload image ${i + 1} to cloud storage.`);
+            }
+          }
         }
+
+        Alert.alert('Success', `${result.assets.length} photo(s) uploaded successfully!`);
+
       } catch (error: any) {
-        console.error('[Estimate] Error uploading image:', error);
+        console.error('[Estimate] Error uploading images:', error);
 
         if (error.message?.includes('Failed to load image')) {
           Alert.alert('Error', 'Failed to process image. Please try a different image.');
         } else {
-          Alert.alert('Upload Error', 'Could not upload image. Please check your connection and try again.');
+          Alert.alert('Upload Error', 'Could not upload images. Please check your connection and try again.');
         }
-
-        // Remove the image since upload failed
-        removeItemImage(itemId);
       } finally {
         setUploadingImageItemId(null);
       }
@@ -520,76 +540,116 @@ export default function EstimateScreen() {
     setShowEditPriceModal(true);
   };
 
-  const handleUpdatePrice = async () => {
+  const handleUpdatePrice = () => {
+    // Quick validation (synchronous, < 1ms)
     if (!editingPriceItemId || !company) {
       return;
     }
 
     const newPrice = parseFloat(editingPrice);
     if (isNaN(newPrice) || newPrice < 0) {
-      Alert.alert('Error', 'Please enter a valid price');
+      setTimeout(() => Alert.alert('Error', 'Please enter a valid price'), 0);
       return;
     }
 
-    const itemToEdit = priceListItems.find(item => item.id === editingPriceItemId);
-    if (!itemToEdit) {
-      Alert.alert('Error', 'Item not found');
-      return;
-    }
+    // Capture values BEFORE deferring work
+    const itemId = editingPriceItemId;
+    const companyId = company.id;
 
-    // Close modal immediately
-    setShowEditPriceModal(false);
-    setEditingPriceItemId(null);
-    setEditingPrice('');
+    // CRITICAL: Return immediately - defer ALL work to avoid blocking
+    // Click handler returns in < 1ms, work happens asynchronously
+    setTimeout(() => {
+      // Close modal (deferred)
+      setShowEditPriceModal(false);
+      setEditingPriceItemId(null);
+      setEditingPrice('');
 
-    // Update the price in local state IMMEDIATELY for both master and custom items
-    updateCustomPriceListItem(editingPriceItemId, { unitPrice: newPrice });
+      // Find item
+      const itemToEdit = priceListItems.find(item => item.id === itemId);
+      if (!itemToEdit) {
+        Alert.alert('Error', 'Item not found');
+        return;
+      }
 
-    // Show success immediately
-    Alert.alert('Success', 'Price updated to $' + newPrice.toFixed(2));
+      const itemName = itemToEdit.name;
+      const isCustom = itemToEdit.isCustom;
 
-    // If it's a custom item, update in database
-    if (itemToEdit.isCustom) {
-      console.log('[Estimate] Updating custom item in database:', itemToEdit.name);
+      // Update price in state
+      updateCustomPriceListItem(itemId, { unitPrice: newPrice });
 
-      (async () => {
-        try {
-          await vanillaClient.priceList.updatePriceListItem.mutate({
-            itemId: editingPriceItemId,
-            companyId: company.id,
-            unitPrice: newPrice,
-          });
+      // Show success
+      Alert.alert('Success', 'Price updated to $' + newPrice.toFixed(2));
+
+      // Background database update (fire-and-forget)
+      if (isCustom) {
+        console.log('[Estimate] Updating custom item in database:', itemName);
+
+        vanillaClient.priceList.updatePriceListItem.mutate({
+          itemId,
+          companyId,
+          unitPrice: newPrice,
+        }).then(() => {
           console.log('[Estimate] Price updated in database');
-        } catch (error) {
+        }).catch((error) => {
           console.error('[Estimate] Error updating price in database:', error);
-        }
-      })();
-    } else {
-      // It's a master item - create a company-specific override with same name
-      console.log('[Estimate] Creating company override for master item:', itemToEdit.name);
+        });
+      } else {
+        // It's a master item - create a company-specific override
+        console.log('[Estimate] Creating company override for master item:', itemName);
 
-      (async () => {
+        // Try localhost first, fallback to production if not available
+        const tryLocalFirst = async () => {
+        const localUrl = 'http://localhost:3000';
+        const prodUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
+        const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+          ? localUrl
+          : prodUrl;
+
         try {
-          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-
           await fetch(`${apiUrl}/api/add-price-item-direct`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               companyId: company.id,
               category: itemToEdit.category,
-              name: itemToEdit.name, // Same name, no "(Custom Price)"
+              name: itemToEdit.name,
               unit: itemToEdit.unit,
               unitPrice: newPrice,
             }),
             signal: AbortSignal.timeout(8000),
           });
           console.log('[Estimate] Company override created in database');
-        } catch (error) {
+        } catch (error: any) {
           console.error('[Estimate] Error creating override:', error);
+
+          // If local failed and we're on localhost, try production as fallback
+          if (apiUrl === localUrl && error.message?.includes('Failed to fetch')) {
+            console.log('[Estimate] Local API not available, falling back to production...');
+            try {
+              await fetch(`${prodUrl}/api/add-price-item-direct`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  companyId: company.id,
+                  category: itemToEdit.category,
+                  name: itemToEdit.name,
+                  unit: itemToEdit.unit,
+                  unitPrice: newPrice,
+                }),
+                signal: AbortSignal.timeout(8000),
+              });
+              console.log('[Estimate] Company override created via production API');
+            } catch (prodError) {
+              console.error('[Estimate] Production API also failed:', prodError);
+            }
+          }
         }
-      })();
-    }
+      };
+
+        tryLocalFirst();
+      }
+    });
   };
 
   const removeItem = (itemId: string) => {
@@ -952,7 +1012,11 @@ export default function EstimateScreen() {
         const itemUnit = item.customUnit || (isCustom ? 'EA' : (priceListItem?.unit || ''));
         const displayPrice = item.customPrice ?? item.unitPrice;
         const notes = item.notes ? `<div style="color: #666; font-size: 12px; margin-top: 4px;">Note: ${item.notes}</div>` : '';
-        const imageHtml = item.imageUrl ? `<img src="${item.imageUrl}" style="max-width: 200px; max-height: 150px; margin-top: 8px; border-radius: 4px; display: block;" />` : '';
+        const imageHtml = item.imageUrl
+          ? item.imageUrl.split('|||').map(url =>
+              `<img src="${url}" style="max-width: 200px; max-height: 150px; margin-top: 8px; margin-right: 8px; border-radius: 4px; display: inline-block;" />`
+            ).join('')
+          : '';
 
         return `
           <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e0e0e0;">
@@ -1632,18 +1696,33 @@ export default function EstimateScreen() {
 
             <View style={styles.itemPhotoSection}>
               {item.imageUrl ? (
-                <View style={styles.itemPhotoPreview}>
-                  <Image source={{ uri: item.imageUrl }} style={styles.itemPhotoThumbnail} />
-                  {uploadingImageItemId === item.id && (
-                    <View style={styles.uploadingOverlay}>
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                <View style={styles.itemPhotosGrid}>
+                  {item.imageUrl.split('|||').map((imageUrl, index) => (
+                    <View key={`${item.id}-img-${index}`} style={styles.itemPhotoPreview}>
+                      <Image source={{ uri: imageUrl }} style={styles.itemPhotoThumbnail} />
+                      {uploadingImageItemId === item.id && (
+                        <View style={styles.uploadingOverlay}>
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        </View>
+                      )}
+                      {uploadingImageItemId !== item.id && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            // Remove this specific image
+                            const urls = item.imageUrl.split('|||').filter((_, i) => i !== index);
+                            setItems(prev => prev.map(i =>
+                              i.id === item.id
+                                ? { ...i, imageUrl: urls.length > 0 ? urls.join('|||') : undefined }
+                                : i
+                            ));
+                          }}
+                          style={styles.removePhotoButton}
+                        >
+                          <X size={14} color="#EF4444" />
+                        </TouchableOpacity>
+                      )}
                     </View>
-                  )}
-                  {uploadingImageItemId !== item.id && (
-                    <TouchableOpacity onPress={() => removeItemImage(item.id)} style={styles.removePhotoButton}>
-                      <X size={14} color="#EF4444" />
-                    </TouchableOpacity>
-                  )}
+                  ))}
                 </View>
               ) : (
                 <View style={styles.addPhotoButtons}>
@@ -1949,7 +2028,7 @@ export default function EstimateScreen() {
                 <td>
                   <div class="item-name">${itemName}</div>
                   ${item.notes ? `<div class="item-notes">${item.notes}</div>` : ''}
-                  ${item.imageUrl ? `<img src="${item.imageUrl}" class="item-image" alt="Item photo" />` : ''}
+                  ${item.imageUrl ? item.imageUrl.split('|||').map(url => `<img src="${url}" class="item-image" alt="Item photo" />`).join('') : ''}
                 </td>
                 ${showUnitsQty ? `<td>${item.quantity} ${itemUnit}</td>` : ''}
                 ${showUnitsQty ? `<td>$${displayPrice.toFixed(2)}</td>` : ''}
@@ -2693,11 +2772,16 @@ export default function EstimateScreen() {
                         <Text style={styles.previewItemNotes}>Note: {item.notes}</Text>
                       ) : null}
                       {item.imageUrl && (
-                        <Image
-                          source={{ uri: item.imageUrl }}
-                          style={styles.previewItemImage}
-                          resizeMode="contain"
-                        />
+                        <View style={styles.previewItemImages}>
+                          {item.imageUrl.split('|||').map((imageUrl, imgIndex) => (
+                            <Image
+                              key={`preview-${item.id}-${imgIndex}`}
+                              source={{ uri: imageUrl }}
+                              style={styles.previewItemImage}
+                              resizeMode="contain"
+                            />
+                          ))}
+                        </View>
                       )}
                     </View>
                   );
@@ -4787,6 +4871,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 8,
   },
+  itemPhotosGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 0,
+  },
   addPhotoButtons: {
     flexDirection: 'row',
     gap: 8,
@@ -4800,11 +4890,16 @@ const styles = StyleSheet.create({
   },
   itemPhotoPreview: {
     position: 'relative',
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
   },
   itemPhotoThumbnail: {
-    width: 60,
-    height: 60,
-    borderRadius: 6,
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   uploadingOverlay: {
     position: 'absolute',
@@ -4819,11 +4914,19 @@ const styles = StyleSheet.create({
   },
   removePhotoButton: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 10,
-    padding: 2,
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
 
   totalRow: {
@@ -5247,10 +5350,15 @@ const styles = StyleSheet.create({
     fontStyle: 'italic' as const,
     marginTop: 4,
   },
-  previewItemImage: {
-    width: 180,
-    height: 120,
+  previewItemImages: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     marginTop: 8,
+  },
+  previewItemImage: {
+    width: 120,
+    height: 90,
     borderRadius: 4,
   },
   previewTotalsRow: {
