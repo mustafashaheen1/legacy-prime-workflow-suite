@@ -1851,19 +1851,22 @@ export default function EstimateScreen() {
                 </View>
               ) : (
                 <View style={styles.addPhotoButtons}>
-                  <TouchableOpacity
-                    onPress={() => pickItemImage(item.id, 'camera')}
-                    style={styles.addPhotoButton}
-                    disabled={uploadingImageItemId !== null}
-                  >
-                    <Camera size={16} color="#6B7280" />
-                  </TouchableOpacity>
+                  {!isWeb && (
+                    <TouchableOpacity
+                      onPress={() => pickItemImage(item.id, 'camera')}
+                      style={styles.addPhotoButton}
+                      disabled={uploadingImageItemId !== null}
+                    >
+                      <Camera size={16} color="#6B7280" />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     onPress={() => pickItemImage(item.id, 'library')}
                     style={styles.addPhotoButton}
                     disabled={uploadingImageItemId !== null}
                   >
                     <ImageIcon size={16} color="#6B7280" />
+                    {isWeb && <Text style={styles.addPhotoButtonText}>Select Photos (up to 5)</Text>}
                   </TouchableOpacity>
                 </View>
               )}
@@ -5007,11 +5010,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addPhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     padding: 8,
     backgroundColor: '#F3F4F6',
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  addPhotoButtonText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   itemPhotoPreview: {
     position: 'relative',
