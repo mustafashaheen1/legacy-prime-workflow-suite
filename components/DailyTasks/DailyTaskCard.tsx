@@ -90,9 +90,19 @@ export default function DailyTaskCard({ task, onToggleComplete, onDelete }: Dail
 
           {/* Completed timestamp */}
           {task.completed && task.completedAt && (
-            <Text style={styles.completedText}>
-              ✓ Completed {new Date(task.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </Text>
+            <View style={styles.completedContainer}>
+              <Text style={styles.completedText}>
+                ✓ Completed on {new Date(task.completedAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: new Date(task.completedAt).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                })} at {new Date(task.completedAt).toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true
+                })}
+              </Text>
+            </View>
           )}
         </View>
 
@@ -238,11 +248,14 @@ const styles = StyleSheet.create({
   },
 
   // Completed Timestamp
+  completedContainer: {
+    marginTop: 2,
+  },
   completedText: {
     fontSize: 12,
     color: '#10B981',
-    fontWeight: '500',
-    marginBottom: 2,
+    fontWeight: '600',
+    fontStyle: 'italic',
   },
 
   // Delete Button
