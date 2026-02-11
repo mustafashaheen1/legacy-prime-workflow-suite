@@ -54,29 +54,28 @@ export default function DailyTaskCard({ task, onToggleComplete, onDelete }: Dail
           {task.title}
         </Text>
 
-        {/* Date & Time Row */}
-        <View style={styles.infoRow}>
-          <View style={styles.dateTimeContainer}>
-            <Calendar size={14} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.dateText}>{formatTaskDate(task.dueDate)}</Text>
-            {task.dueTime && (
-              <>
-                <Clock size={14} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.timeText}>{formatTime(task.dueTime)}</Text>
-              </>
-            )}
-          </View>
-
-          {/* Reminder Badge */}
-          {task.reminder && (
-            <View style={[styles.reminderBadge, task.reminderSent && styles.reminderBadgeSent]}>
-              <Bell size={12} color={task.reminderSent ? '#10B981' : '#F59E0B'} strokeWidth={2} />
-              <Text style={[styles.reminderText, task.reminderSent && styles.reminderTextSent]}>
-                {task.reminderSent ? 'Sent' : 'Reminder'}
-              </Text>
-            </View>
+        {/* Date & Time */}
+        <View style={styles.dateTimeRow}>
+          <Calendar size={13} color="#6B7280" strokeWidth={2} />
+          <Text style={styles.dateText}>{formatTaskDate(task.dueDate)}</Text>
+          {task.dueTime && (
+            <>
+              <View style={styles.separator} />
+              <Clock size={13} color="#6B7280" strokeWidth={2} />
+              <Text style={styles.timeText}>{formatTime(task.dueTime)}</Text>
+            </>
           )}
         </View>
+
+        {/* Reminder Badge - Separate row */}
+        {task.reminder && (
+          <View style={[styles.reminderBadge, task.reminderSent && styles.reminderBadgeSent]}>
+            <Bell size={11} color={task.reminderSent ? '#10B981' : '#F59E0B'} strokeWidth={2} />
+            <Text style={[styles.reminderText, task.reminderSent && styles.reminderTextSent]}>
+              {task.reminderSent ? 'Reminder sent' : 'Reminder set'}
+            </Text>
+          </View>
+        )}
 
         {/* Notes - Only show if present */}
         {task.notes && !task.completed && (
@@ -88,7 +87,7 @@ export default function DailyTaskCard({ task, onToggleComplete, onDelete }: Dail
         {/* Completed timestamp - Only for completed tasks */}
         {task.completed && task.completedAt && (
           <Text style={styles.completedText}>
-            Completed {new Date(task.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            ✓ Completed {new Date(task.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </Text>
         )}
       </View>
@@ -111,11 +110,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 14,
+    marginBottom: 10,
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -130,13 +130,13 @@ const styles = StyleSheet.create({
 
   // Checkbox
   checkboxContainer: {
-    marginRight: 12,
-    marginTop: 2,
+    marginRight: 10,
+    marginTop: 1,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 7,
     borderWidth: 2,
     borderColor: '#D1D5DB',
     alignItems: 'center',
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   // Content Area
   content: {
     flex: 1,
-    gap: 8,
+    gap: 6,
   },
 
   // Title
@@ -160,26 +160,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
     lineHeight: 20,
+    marginBottom: 2,
   },
   titleCompleted: {
     color: '#9CA3AF',
   },
 
-  // Info Row (Date, Time, Reminder)
-  infoRow: {
+  // Date & Time Row
+  dateTimeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
+    gap: 5,
   },
-
-  // Date & Time
-  dateTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
+  separator: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#D1D5DB',
   },
   dateText: {
     fontSize: 13,
@@ -196,9 +193,10 @@ const styles = StyleSheet.create({
   reminderBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     backgroundColor: '#FEF3C7',
     borderRadius: 6,
   },
@@ -220,19 +218,20 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     lineHeight: 18,
     fontStyle: 'italic',
+    marginTop: -2,
   },
 
   // Completed Timestamp
   completedText: {
     fontSize: 12,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
+    color: '#10B981',
+    fontWeight: '500',
   },
 
   // Delete Button
   deleteButton: {
-    marginLeft: 8,
-    padding: 4,
-    marginTop: 2,
+    marginLeft: 6,
+    padding: 6,
+    marginTop: -2,
   },
 });
