@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   // Content Area
   content: {
     flex: 1,
-    gap: 6,
+    flexDirection: 'column',
   },
 
   // Title
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
     lineHeight: 20,
-    marginBottom: 2,
+    marginBottom: 6,
   },
   titleCompleted: {
     color: '#9CA3AF',
@@ -171,6 +171,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    marginBottom: 6,
   },
   separator: {
     width: 3,
@@ -195,10 +196,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     backgroundColor: '#FEF3C7',
-    borderRadius: 6,
+    borderRadius: 8,
+    marginBottom: 6,
   },
   reminderBadgeSent: {
     backgroundColor: '#D1FAE5',
@@ -218,7 +220,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     lineHeight: 18,
     fontStyle: 'italic',
-    marginTop: -2,
+    marginBottom: 6,
   },
 
   // Completed Timestamp
@@ -226,6 +228,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#10B981',
     fontWeight: '500',
+    marginBottom: 2,
   },
 
   // Delete Button
