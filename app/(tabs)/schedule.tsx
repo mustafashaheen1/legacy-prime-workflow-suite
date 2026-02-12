@@ -21,6 +21,8 @@ import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto } from '@/types';
 import { trpc } from '@/lib/trpc';
 import { Paths, File as FSFile } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const CONSTRUCTION_CATEGORIES = [
   { name: 'Pre-Construction', color: '#8B5CF6' },
@@ -318,33 +320,90 @@ export default function ScheduleScreen() {
 
   const handleTakePhoto = async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Camera', 'Camera access is not available on web. Please use a mobile device.');
+      Alert.alert('Camera Not Available', 'Camera access is only available on mobile devices. Please use the gallery button to upload photos.');
       return;
     }
 
     try {
-      Alert.alert('Photo', 'Camera functionality will be available in the next update.');
-      console.log('[Camera] Opening camera...');
-    } catch (error) {
-      console.error('[Camera] Error:', error);
-      Alert.alert('Error', 'Could not access camera');
-    }
-  };
+      // Request camera permission
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
 
-  const handlePickPhoto = async () => {
-    try {
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please allow camera access to take photos.');
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        console.log('[Camera] User canceled photo capture');
+        return;
+      }
+
+      const asset = result.assets[0];
+
+      // Create photo entry
       const photoEntry: DailyLogPhoto = {
         id: Date.now().toString(),
-        uri: `https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=400`,
+        uri: asset.uri,
         timestamp: new Date().toISOString(),
         author: user?.name || 'Unknown User',
         notes: '',
       };
 
       setPhotos([...photos, photoEntry]);
-      console.log('[Photo] Photo added at:', new Date().toLocaleTimeString());
+      console.log('[Camera] Photo captured and added');
+    } catch (error) {
+      console.error('[Camera] Error:', error);
+      Alert.alert('Error', 'Failed to access camera. Please try again.');
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    try {
+      // Request permission
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to add photos.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: false,
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        console.log('[Photo] User canceled photo selection');
+        return;
+      }
+
+      const asset = result.assets[0];
+
+      // Create photo entry with local URI
+      const photoEntry: DailyLogPhoto = {
+        id: Date.now().toString(),
+        uri: asset.uri,
+        timestamp: new Date().toISOString(),
+        author: user?.name || 'Unknown User',
+        notes: '',
+      };
+
+      setPhotos([...photos, photoEntry]);
+      console.log('[Photo] Photo added:', asset.fileName || 'photo');
     } catch (error) {
       console.error('[Photo Picker] Error:', error);
+      Alert.alert('Error', 'Failed to pick photo. Please try again.');
     }
   };
 
