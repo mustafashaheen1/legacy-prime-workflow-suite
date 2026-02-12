@@ -140,6 +140,7 @@ export default function ScheduleScreen() {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [jumpToDateValue, setJumpToDateValue] = useState<string>('');
   const [showConstructionPhases, setShowConstructionPhases] = useState<boolean>(false);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [showTaskDetailModal, setShowTaskDetailModal] = useState<boolean>(false);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<ScheduledTask | null>(null);
 
@@ -307,21 +308,48 @@ export default function ScheduleScreen() {
     setSelectedDate(nextMonday);
   }, []);
 
-  const handleJumpToDate = () => {
-    if (!jumpToDateValue) return;
-    try {
-      const targetDate = new Date(jumpToDateValue);
-      if (isNaN(targetDate.getTime())) {
-        Alert.alert('Invalid Date', 'Please enter a valid date.');
-        return;
-      }
-      setViewMode('daily');
-      scrollToDate(targetDate);
-      setShowDatePicker(false);
-      setJumpToDateValue('');
-    } catch (error) {
-      Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format.');
+  const handleJumpToDate = (date: Date) => {
+    setViewMode('daily');
+    scrollToDate(date);
+    setShowDatePicker(false);
+  };
+
+  // Calendar helpers
+  const generateCalendarDays = useCallback((month: Date): Date[] => {
+    const year = month.getFullYear();
+    const monthIndex = month.getMonth();
+
+    const firstDay = new Date(year, monthIndex, 1);
+    const lastDay = new Date(year, monthIndex + 1, 0);
+
+    const days: Date[] = [];
+
+    // Add empty cells for days before month starts
+    const startDayOfWeek = firstDay.getDay();
+    for (let i = 0; i < startDayOfWeek; i++) {
+      days.push(new Date(0)); // Placeholder
     }
+
+    // Add all days in month
+    for (let day = 1; day <= lastDay.getDate(); day++) {
+      days.push(new Date(year, monthIndex, day));
+    }
+
+    return days;
+  }, []);
+
+  const calendarDays = useMemo(() => generateCalendarDays(calendarMonth), [calendarMonth, generateCalendarDays]);
+
+  const previousMonth = () => {
+    const newMonth = new Date(calendarMonth);
+    newMonth.setMonth(calendarMonth.getMonth() - 1);
+    setCalendarMonth(newMonth);
+  };
+
+  const nextMonth = () => {
+    const newMonth = new Date(calendarMonth);
+    newMonth.setMonth(calendarMonth.getMonth() + 1);
+    setCalendarMonth(newMonth);
   };
 
   // Get data for selected date in daily view
@@ -2290,55 +2318,75 @@ export default function ScheduleScreen() {
         </View>
       </Modal>
 
-        {/* Jump to Date Modal */}
+        {/* Jump to Date Modal - Calendar Picker */}
       <Modal
         visible={showDatePicker}
-        animationType="fade"
+        animationType="slide"
         transparent={true}
         onRequestClose={() => setShowDatePicker(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.datePickerModal}>
-            <View style={styles.datePickerHeader}>
-              <Text style={styles.datePickerTitle}>Jump to Date</Text>
-              <TouchableOpacity
-                style={styles.datePickerCloseBtn}
-                onPress={() => setShowDatePicker(false)}
-              >
-                <X size={20} color="#6B7280" />
+          <View style={styles.calendarPickerModal}>
+            <View style={styles.calendarPickerHeader}>
+              <TouchableOpacity onPress={previousMonth}>
+                <Text style={styles.calendarNavButton}>←</Text>
+              </TouchableOpacity>
+              <Text style={styles.calendarMonthTitle}>
+                {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </Text>
+              <TouchableOpacity onPress={nextMonth}>
+                <Text style={styles.calendarNavButton}>→</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.datePickerLabel}>Enter Date (YYYY-MM-DD)</Text>
-            <TextInput
-              style={styles.datePickerInput}
-              value={jumpToDateValue}
-              onChangeText={setJumpToDateValue}
-              placeholder="2026-02-15"
-              placeholderTextColor="#9CA3AF"
-            />
-            <Text style={styles.datePickerHint}>
-              Timeline shows next 60 days from today
-            </Text>
-
-            <View style={styles.datePickerActions}>
-              <TouchableOpacity
-                style={styles.datePickerCancelBtn}
-                onPress={() => {
-                  setShowDatePicker(false);
-                  setJumpToDateValue('');
-                }}
-              >
-                <Text style={styles.datePickerCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.datePickerConfirmBtn}
-                onPress={handleJumpToDate}
-              >
-                <Calendar size={16} color="#FFFFFF" />
-                <Text style={styles.datePickerConfirmText}>Jump</Text>
-              </TouchableOpacity>
+            <View style={styles.calendarWeekDays}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <Text key={day} style={styles.calendarWeekDay}>{day}</Text>
+              ))}
             </View>
+
+            <View style={styles.calendarGrid}>
+              {calendarDays.map((date, idx) => {
+                const isPlaceholder = date.getTime() === 0;
+                const isToday = !isPlaceholder && date.toDateString() === new Date().toDateString();
+                const isSelected = !isPlaceholder && selectedDate && date.toDateString() === selectedDate.toDateString();
+
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[
+                      styles.calendarDay,
+                      isPlaceholder && styles.calendarDayPlaceholder,
+                      isToday && styles.calendarDayToday,
+                      isSelected && styles.calendarDaySelected
+                    ]}
+                    onPress={() => {
+                      if (!isPlaceholder) {
+                        handleJumpToDate(date);
+                      }
+                    }}
+                    disabled={isPlaceholder}
+                  >
+                    {!isPlaceholder && (
+                      <Text style={[
+                        styles.calendarDayText,
+                        isToday && styles.calendarDayTextToday,
+                        isSelected && styles.calendarDayTextSelected
+                      ]}>
+                        {date.getDate()}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              style={styles.calendarCloseButton}
+              onPress={() => setShowDatePicker(false)}
+            >
+              <Text style={styles.calendarCloseButtonText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -3769,5 +3817,94 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  // Calendar Picker Styles
+  calendarPickerModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '90%',
+    maxWidth: 400,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  calendarPickerHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 20,
+  },
+  calendarNavButton: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: '#2563EB',
+    paddingHorizontal: 12,
+  },
+  calendarMonthTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  calendarWeekDays: {
+    flexDirection: 'row' as const,
+    marginBottom: 10,
+  },
+  calendarWeekDay: {
+    width: '14.28%' as any,
+    textAlign: 'center' as const,
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    paddingVertical: 8,
+  },
+  calendarGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    marginBottom: 20,
+  },
+  calendarDay: {
+    width: '14.28%' as any,
+    aspectRatio: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  calendarDayPlaceholder: {
+    backgroundColor: 'transparent',
+  },
+  calendarDayToday: {
+    borderWidth: 2,
+    borderColor: '#2563EB',
+  },
+  calendarDaySelected: {
+    backgroundColor: '#2563EB',
+  },
+  calendarDayText: {
+    fontSize: 15,
+    color: '#1F2937',
+    fontWeight: '500' as const,
+  },
+  calendarDayTextToday: {
+    color: '#2563EB',
+    fontWeight: '700' as const,
+  },
+  calendarDayTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700' as const,
+  },
+  calendarCloseButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+  },
+  calendarCloseButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
   },
 });
