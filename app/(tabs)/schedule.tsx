@@ -126,6 +126,8 @@ export default function ScheduleScreen() {
   const [sharedWith, setSharedWith] = useState<string[]>([]);
   const [shareEmail, setShareEmail] = useState<string>('');
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [jumpToDateValue, setJumpToDateValue] = useState<string>('');
 
   // Fetch scheduled tasks from API
   const fetchScheduledTasks = useCallback(async () => {
@@ -181,6 +183,63 @@ export default function ScheduleScreen() {
     const day = date.getDate();
     return `${month} ${day}`;
   };
+
+  // Date navigation functions
+  const scrollToDate = useCallback((targetDate: Date) => {
+    const dateIndex = dates.findIndex(d => d.toDateString() === targetDate.toDateString());
+    if (dateIndex !== -1 && timelineRef.current) {
+      const scrollX = dateIndex * DAY_WIDTH;
+      timelineRef.current.scrollTo({ x: scrollX, animated: true });
+      console.log('[Navigation] Scrolled to date:', formatDate(targetDate));
+    }
+  }, [dates]);
+
+  const scrollToToday = useCallback(() => {
+    scrollToDate(new Date());
+  }, [scrollToDate]);
+
+  const scrollToThisWeek = useCallback(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+    scrollToDate(monday);
+  }, [scrollToDate]);
+
+  const scrollToNextWeek = useCallback(() => {
+    const today = new Date();
+    const nextMonday = new Date(today);
+    const dayOfWeek = today.getDay();
+    const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+    nextMonday.setDate(today.getDate() + daysUntilNextMonday);
+    scrollToDate(nextMonday);
+  }, [scrollToDate]);
+
+  const handleJumpToDate = () => {
+    if (!jumpToDateValue) return;
+    try {
+      const targetDate = new Date(jumpToDateValue);
+      if (isNaN(targetDate.getTime())) {
+        Alert.alert('Invalid Date', 'Please enter a valid date.');
+        return;
+      }
+      scrollToDate(targetDate);
+      setShowDatePicker(false);
+      setJumpToDateValue('');
+    } catch (error) {
+      Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format.');
+    }
+  };
+
+  // Auto-scroll to today on load
+  useEffect(() => {
+    if (selectedProject && timelineRef.current) {
+      const timer = setTimeout(() => {
+        scrollToToday();
+      }, 300); // Small delay to ensure timeline is rendered
+      return () => clearTimeout(timer);
+    }
+  }, [selectedProject, scrollToToday]);
 
   const handleCategoryClick = async (category: string) => {
     const categoryData = CONSTRUCTION_CATEGORIES.find(c => c.name === category);
@@ -816,6 +875,36 @@ export default function ScheduleScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </View>
+
+          {/* Date Navigation Bar */}
+          <View style={styles.dateNavigation}>
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={scrollToToday}
+            >
+              <Calendar size={16} color="#2563EB" />
+              <Text style={styles.navButtonText}>Today</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={scrollToThisWeek}
+            >
+              <Text style={styles.navButtonText}>This Week</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={scrollToNextWeek}
+            >
+              <Text style={styles.navButtonText}>Next Week</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.navButton, styles.navButtonPrimary]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Calendar size={16} color="#FFFFFF" />
+              <Text style={styles.navButtonTextPrimary}>Jump to Date</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.timeline}>
@@ -2030,7 +2119,60 @@ export default function ScheduleScreen() {
         </View>
       </Modal>
 
-      </View>
+        {/* Jump to Date Modal */}
+      <Modal
+        visible={showDatePicker}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.datePickerModal}>
+            <View style={styles.datePickerHeader}>
+              <Text style={styles.datePickerTitle}>Jump to Date</Text>
+              <TouchableOpacity
+                style={styles.datePickerCloseBtn}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <X size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.datePickerLabel}>Enter Date (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.datePickerInput}
+              value={jumpToDateValue}
+              onChangeText={setJumpToDateValue}
+              placeholder="2026-02-15"
+              placeholderTextColor="#9CA3AF"
+            />
+            <Text style={styles.datePickerHint}>
+              Timeline shows next 60 days from today
+            </Text>
+
+            <View style={styles.datePickerActions}>
+              <TouchableOpacity
+                style={styles.datePickerCancelBtn}
+                onPress={() => {
+                  setShowDatePicker(false);
+                  setJumpToDateValue('');
+                }}
+              >
+                <Text style={styles.datePickerCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.datePickerConfirmBtn}
+                onPress={handleJumpToDate}
+              >
+                <Calendar size={16} color="#FFFFFF" />
+                <Text style={styles.datePickerConfirmText}>Jump</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+    </View>
   );
 }
 
@@ -2881,6 +3023,121 @@ const styles = StyleSheet.create({
     backgroundColor: '#059669',
   },
   exportAllButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  // Date Navigation Styles
+  dateNavigation: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  navButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  navButtonPrimary: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  navButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  navButtonTextPrimary: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  // Date Picker Modal Styles
+  datePickerModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  datePickerHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 20,
+  },
+  datePickerTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  datePickerCloseBtn: {
+    padding: 4,
+  },
+  datePickerLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#374151',
+    marginBottom: 8,
+  },
+  datePickerInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#1F2937',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 8,
+  },
+  datePickerHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  datePickerActions: {
+    flexDirection: 'row' as const,
+    gap: 12,
+  },
+  datePickerCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+  },
+  datePickerCancelText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  datePickerConfirmBtn: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+  },
+  datePickerConfirmText: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
