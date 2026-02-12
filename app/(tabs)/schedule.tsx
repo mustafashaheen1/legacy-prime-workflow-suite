@@ -322,45 +322,6 @@ export default function ScheduleScreen() {
     }
   };
 
-  // Auto-fix overlapping tasks
-  const fixOverlaps = useCallback(async () => {
-    console.log('[Schedule] Fixing overlaps...');
-    const tasksToFix = [...scheduledTasks];
-    const fixedTasks: ScheduledTask[] = [];
-
-    // Sort by start date to process in chronological order
-    tasksToFix.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-
-    for (const task of tasksToFix) {
-      const startDate = new Date(task.startDate);
-      const endDate = new Date(task.endDate);
-
-      // Find available row for this task
-      const newRow = findAvailableRow(startDate, endDate, fixedTasks);
-
-      fixedTasks.push({ ...task, row: newRow });
-    }
-
-    setScheduledTasks(fixedTasks);
-
-    // Save all updated tasks to database
-    try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      for (const task of fixedTasks) {
-        if (task.row !== scheduledTasks.find(t => t.id === task.id)?.row) {
-          await fetch(`${baseUrl}/api/update-scheduled-task`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: task.id, row: task.row }),
-          });
-        }
-      }
-      Alert.alert('Success', 'Overlaps fixed! All tasks reorganized.');
-    } catch (error) {
-      console.error('[Schedule] Error fixing overlaps:', error);
-    }
-  }, [scheduledTasks, findAvailableRow]);
-
   // Get data for selected date in daily view
   const selectedDateString = selectedDate.toISOString().split('T')[0];
   const selectedDateTasks = scheduledTasks.filter(task => {
@@ -859,7 +820,7 @@ export default function ScheduleScreen() {
       const deltaY = clientY - drag.startY;
       const rowHeight = ROW_HEIGHT + 16;
       const deltaRows = Math.round(deltaY / rowHeight);
-      const newRow = Math.max(0, drag.initialRow + deltaRows);
+      let newRow = Math.max(0, drag.initialRow + deltaRows);
 
       // Calculate new start date
       const newStartDate = new Date(drag.initialStartDate);
@@ -868,6 +829,20 @@ export default function ScheduleScreen() {
       // Calculate new end date based on duration
       const newEndDate = new Date(newStartDate);
       newEndDate.setDate(newStartDate.getDate() + task.duration);
+
+      // Check for overlaps and auto-shift to next available row
+      const wouldOverlap = prevTasks.some(t =>
+        t.id !== drag.taskId &&
+        t.row === newRow &&
+        new Date(t.startDate) < newEndDate &&
+        new Date(t.endDate) > newStartDate
+      );
+
+      if (wouldOverlap) {
+        // Find next available row
+        newRow = findAvailableRow(newStartDate, newEndDate, prevTasks, drag.taskId);
+        console.log('[Schedule] Overlap detected, auto-shifted to row', newRow);
+      }
 
       // Only update if something changed
       const currentRow = task.row || 0;
@@ -1047,32 +1022,22 @@ export default function ScheduleScreen() {
         <>
           {/* Collapsible Construction Phases */}
           <View style={styles.categoriesSection}>
-            <View style={styles.categoriesSectionTop}>
-              <TouchableOpacity
-                style={styles.categoriesHeader}
-                onPress={() => setShowConstructionPhases(!showConstructionPhases)}
-              >
-                <View style={styles.categoriesHeaderLeft}>
-                  <Text style={styles.sectionTitle}>Construction Phases</Text>
-                  {!showConstructionPhases && (
-                    <Text style={styles.categoriesCount}>({CONSTRUCTION_CATEGORIES.length} phases)</Text>
-                  )}
-                </View>
-                {showConstructionPhases ? (
-                  <ChevronDown size={20} color="#6B7280" />
-                ) : (
-                  <ChevronRight size={20} color="#6B7280" />
+            <TouchableOpacity
+              style={styles.categoriesHeader}
+              onPress={() => setShowConstructionPhases(!showConstructionPhases)}
+            >
+              <View style={styles.categoriesHeaderLeft}>
+                <Text style={styles.sectionTitle}>Construction Phases</Text>
+                {!showConstructionPhases && (
+                  <Text style={styles.categoriesCount}>({CONSTRUCTION_CATEGORIES.length} phases)</Text>
                 )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.fixOverlapsButton}
-                onPress={fixOverlaps}
-              >
-                <Check size={16} color="#FFFFFF" />
-                <Text style={styles.fixOverlapsButtonText}>Fix Overlaps</Text>
-              </TouchableOpacity>
-            </View>
+              </View>
+              {showConstructionPhases ? (
+                <ChevronDown size={20} color="#6B7280" />
+              ) : (
+                <ChevronRight size={20} color="#6B7280" />
+              )}
+            </TouchableOpacity>
 
             {showConstructionPhases && (
               <>
