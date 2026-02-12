@@ -11,7 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[API] Send subcontractor invitation request received');
 
   try {
-    const { companyId, invitedBy } = req.body;
+    const { companyId, invitedBy, subcontractorId } = req.body;
 
     // Validate required fields
     if (!companyId || !invitedBy) {
@@ -61,6 +61,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (tokenError) {
       console.error('[API] Error storing registration token:', tokenError);
       // If table doesn't exist, continue anyway - token is in the URL
+    }
+
+    // Update subcontractor record with invitation details (if subcontractorId provided)
+    if (subcontractorId) {
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { error: subError } = await supabase
+        .from('subcontractors')
+        .update({
+          registration_token: registrationToken,
+          registration_token_expiry: expiresAt,
+          invited_by: invitedBy,
+          invited_at: new Date().toISOString(),
+        })
+        .eq('id', subcontractorId);
+
+      if (subError) {
+        console.error('[API] Error updating subcontractor invitation status:', subError);
+        // Continue anyway - invitation still works
+      } else {
+        console.log('[API] Updated subcontractor invitation status for:', subcontractorId);
+      }
     }
 
     // Generate registration URL

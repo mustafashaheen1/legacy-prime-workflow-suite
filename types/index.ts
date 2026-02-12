@@ -578,6 +578,7 @@ export interface Subcontractor {
   registrationCompleted?: boolean;
   invitedBy?: string;
   invitedAt?: string;
+  invitedAt?: string;
 }
 
 export interface EstimateRequest {

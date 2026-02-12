@@ -429,6 +429,7 @@ export default function SubcontractorsScreen() {
         body: JSON.stringify({
           companyId: user?.companyId,
           invitedBy: user?.id,
+          subcontractorId: subcontractor.id,
         }),
       });
 
@@ -670,6 +671,33 @@ export default function SubcontractorsScreen() {
     }
   };
 
+  const getInvitationStatus = (sub: Subcontractor): 'not-invited' | 'invited-pending' | 'invited-expired' | 'completed' => {
+    // Check if registration completed
+    if (sub.registrationCompleted) {
+      return 'completed';
+    }
+
+    // Check if invited and token not expired
+    if (sub.registrationToken && sub.registrationTokenExpiry) {
+      const expiry = new Date(sub.registrationTokenExpiry);
+      const now = new Date();
+
+      if (expiry > now) {
+        return 'invited-pending';
+      } else {
+        return 'invited-expired';
+      }
+    }
+
+    return 'not-invited';
+  };
+
+  const canSendInvite = (sub: Subcontractor): boolean => {
+    const status = getInvitationStatus(sub);
+    // Cannot send invite if already completed registration
+    return status !== 'completed';
+  };
+
   const toggleSubcontractorSelection = (subId: string) => {
     const newSelection = new Set(selectedSubcontractors);
     if (newSelection.has(subId)) {
@@ -852,6 +880,30 @@ export default function SubcontractorsScreen() {
                           </Text>
                         </View>
                       )}
+                      {(() => {
+                        const status = getInvitationStatus(sub);
+                        if (status === 'invited-pending') {
+                          return (
+                            <View style={styles.invitationBadge}>
+                              <Text style={styles.invitationBadgeText}>Invited</Text>
+                            </View>
+                          );
+                        } else if (status === 'completed') {
+                          return (
+                            <View style={[styles.invitationBadge, styles.invitationBadgeCompleted]}>
+                              <Check size={12} color="#FFFFFF" />
+                              <Text style={styles.invitationBadgeText}>Registered</Text>
+                            </View>
+                          );
+                        } else if (status === 'invited-expired') {
+                          return (
+                            <View style={[styles.invitationBadge, styles.invitationBadgeExpired]}>
+                              <Text style={styles.invitationBadgeText}>Expired</Text>
+                            </View>
+                          );
+                        }
+                        return null;
+                      })()}
                     </View>
                     <View style={styles.subCompanyRow}>
                       <Building2 size={14} color="#6B7280" />
@@ -879,16 +931,23 @@ export default function SubcontractorsScreen() {
                 </View>
                 <View style={styles.subActions}>
                   <TouchableOpacity
-                    style={styles.inviteButton}
+                    style={[
+                      styles.inviteButton,
+                      !canSendInvite(sub) && styles.inviteButtonDisabled
+                    ]}
                     onPress={() => handleSendInviteToSubcontractor(sub)}
-                    disabled={sendingInvitation}
+                    disabled={sendingInvitation || !canSendInvite(sub)}
                   >
                     {sendingInvitation ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <>
                         <Send size={16} color="#FFFFFF" />
-                        <Text style={styles.inviteButtonText}>Send Invite</Text>
+                        <Text style={styles.inviteButtonText}>
+                          {getInvitationStatus(sub) === 'invited-pending'
+                            ? 'Resend Invite'
+                            : 'Send Invite'}
+                        </Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -1959,8 +2018,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#059669',
   },
+  inviteButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+    borderColor: '#6B7280',
+    opacity: 0.5,
+  },
   inviteButtonText: {
     fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
+  },
+  invitationBadge: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 3,
+  },
+  invitationBadgeCompleted: {
+    backgroundColor: '#10B981',
+  },
+  invitationBadgeExpired: {
+    backgroundColor: '#F59E0B',
+  },
+  invitationBadgeText: {
+    fontSize: 11,
     color: '#FFFFFF',
     fontWeight: '600' as const,
   },
