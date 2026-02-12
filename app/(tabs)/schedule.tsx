@@ -230,9 +230,15 @@ export default function ScheduleScreen() {
 
   const scrollToToday = useCallback(() => {
     const today = new Date();
-    setViewMode('daily');
-    scrollToDate(today);
-  }, [scrollToDate]);
+    if (viewMode === 'timeline') {
+      // Just scroll in timeline view
+      scrollToDate(today);
+    } else {
+      // Switch to daily view and select today
+      setViewMode('daily');
+      scrollToDate(today);
+    }
+  }, [scrollToDate, viewMode]);
 
   const scrollToThisWeek = useCallback(() => {
     const today = new Date();
@@ -281,15 +287,20 @@ export default function ScheduleScreen() {
   });
   const selectedDateLog = dailyLogs.find(log => log.logDate === selectedDateString);
 
-  // Auto-scroll to today on load
+  // Auto-scroll to today on initial load (only for timeline view)
   useEffect(() => {
-    if (selectedProject && timelineRef.current) {
+    if (selectedProject && viewMode === 'timeline' && timelineRef.current) {
       const timer = setTimeout(() => {
-        scrollToToday();
-      }, 300); // Small delay to ensure timeline is rendered
+        const today = new Date();
+        const dateIndex = dates.findIndex(d => d.toDateString() === today.toDateString());
+        if (dateIndex !== -1 && timelineRef.current) {
+          const scrollX = dateIndex * DAY_WIDTH;
+          timelineRef.current.scrollTo({ x: scrollX, animated: true });
+        }
+      }, 300);
       return () => clearTimeout(timer);
     }
-  }, [selectedProject, scrollToToday]);
+  }, [selectedProject, viewMode, dates]);
 
   const handleCategoryClick = async (category: string) => {
     const categoryData = CONSTRUCTION_CATEGORIES.find(c => c.name === category);
