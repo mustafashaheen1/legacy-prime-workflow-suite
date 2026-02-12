@@ -139,6 +139,7 @@ export default function ScheduleScreen() {
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [jumpToDateValue, setJumpToDateValue] = useState<string>('');
+  const [showConstructionPhases, setShowConstructionPhases] = useState<boolean>(false);
 
   // Fetch scheduled tasks from API
   const fetchScheduledTasks = useCallback(async () => {
@@ -957,21 +958,42 @@ export default function ScheduleScreen() {
 
       {selectedProject && viewMode === 'timeline' && (
         <>
+          {/* Collapsible Construction Phases */}
           <View style={styles.categoriesSection}>
-            <Text style={styles.sectionTitle}>Construction Phases</Text>
-            <Text style={styles.sectionSubtitle}>Tap to add to schedule</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.categoriesList}>
-              {CONSTRUCTION_CATEGORIES.map(category => (
-                <TouchableOpacity
-                  key={category.name}
-                  style={[styles.categoryChip, { backgroundColor: category.color }]}
-                  onPress={() => handleCategoryClick(category.name)}
-                >
-                  <GripVertical size={16} color="#FFFFFF" />
-                  <Text style={styles.categoryText}>{category.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <TouchableOpacity
+              style={styles.categoriesHeader}
+              onPress={() => setShowConstructionPhases(!showConstructionPhases)}
+            >
+              <View style={styles.categoriesHeaderLeft}>
+                <Text style={styles.sectionTitle}>Construction Phases</Text>
+                {!showConstructionPhases && (
+                  <Text style={styles.categoriesCount}>({CONSTRUCTION_CATEGORIES.length} phases)</Text>
+                )}
+              </View>
+              {showConstructionPhases ? (
+                <ChevronDown size={20} color="#6B7280" />
+              ) : (
+                <ChevronRight size={20} color="#6B7280" />
+              )}
+            </TouchableOpacity>
+
+            {showConstructionPhases && (
+              <>
+                <Text style={styles.sectionSubtitle}>Tap to add to schedule</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.categoriesList}>
+                  {CONSTRUCTION_CATEGORIES.map(category => (
+                    <TouchableOpacity
+                      key={category.name}
+                      style={[styles.categoryChip, { backgroundColor: category.color }]}
+                      onPress={() => handleCategoryClick(category.name)}
+                    >
+                      <GripVertical size={16} color="#FFFFFF" />
+                      <Text style={styles.categoryText}>{category.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
           </View>
 
           <View style={styles.timeline}>
@@ -2467,10 +2489,26 @@ const styles = StyleSheet.create({
   },
   categoriesSection: {
     backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+  },
+  categoriesHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 8,
+  },
+  categoriesHeaderLeft: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  categoriesCount: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500' as const,
   },
   categoriesList: {
     flexDirection: 'row',
