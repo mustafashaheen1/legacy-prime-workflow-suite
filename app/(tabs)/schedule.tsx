@@ -333,9 +333,9 @@ export default function ScheduleScreen() {
         return;
       }
 
-      // Launch camera
+      // Launch camera (using updated API)
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.8,
         base64: false,
@@ -375,9 +375,9 @@ export default function ScheduleScreen() {
         return;
       }
 
-      // Launch image picker
+      // Launch image picker (using updated API)
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsMultipleSelection: false,
         quality: 0.8,
         base64: false,
