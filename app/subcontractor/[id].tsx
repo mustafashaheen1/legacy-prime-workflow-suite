@@ -314,6 +314,24 @@ export default function SubcontractorProfileScreen() {
                 <Text style={styles.infoText}>{subcontractor.address}</Text>
               </View>
             )}
+
+            {/* Contact Action Buttons */}
+            <View style={styles.contactActions}>
+              <TouchableOpacity
+                style={styles.contactButton}
+                onPress={() => Linking.openURL(`mailto:${subcontractor.email}`)}
+              >
+                <Mail size={18} color="#2563EB" />
+                <Text style={styles.contactButtonText}>Email</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.contactButton}
+                onPress={() => Linking.openURL(`tel:${subcontractor.phone}`)}
+              >
+                <Phone size={18} color="#059669" />
+                <Text style={styles.contactButtonText}>Call</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -668,6 +686,29 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#4B5563',
+  },
+  contactActions: {
+    flexDirection: 'row' as const,
+    gap: 12,
+    marginTop: 8,
+  },
+  contactButton: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  contactButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
   },
   emptyFiles: {
     backgroundColor: '#FFFFFF',
