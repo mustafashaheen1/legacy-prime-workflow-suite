@@ -963,36 +963,6 @@ export default function ScheduleScreen() {
             </ScrollView>
           </View>
 
-          {/* Date Navigation Bar */}
-          <View style={styles.dateNavigation}>
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={scrollToToday}
-            >
-              <Calendar size={16} color="#2563EB" />
-              <Text style={styles.navButtonText}>Today</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={scrollToThisWeek}
-            >
-              <Text style={styles.navButtonText}>This Week</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={scrollToNextWeek}
-            >
-              <Text style={styles.navButtonText}>Next Week</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.navButton, styles.navButtonPrimary]}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Calendar size={16} color="#FFFFFF" />
-              <Text style={styles.navButtonTextPrimary}>Jump to Date</Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.timeline}>
             <View style={styles.timelineHeader}>
               <View style={styles.hourLabelHeader} />
