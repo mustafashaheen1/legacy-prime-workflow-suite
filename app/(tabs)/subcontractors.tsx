@@ -412,6 +412,54 @@ export default function SubcontractorsScreen() {
     setShowInviteMethodModal(true);
   };
 
+  const handleSendInviteToSubcontractor = async (subcontractor: Subcontractor) => {
+    if (!user) {
+      Alert.alert('Error', 'User information not found');
+      return;
+    }
+
+    setSendingInvitation(true);
+
+    try {
+      const response = await fetch('/api/send-subcontractor-invitation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyId: user?.companyId,
+          invitedBy: user?.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate invitation');
+      }
+
+      // Pre-fill recipient email in mailto: URL
+      const mailtoUrl = `mailto:${encodeURIComponent(subcontractor.email)}?subject=${encodeURIComponent(data.emailSubject)}&body=${encodeURIComponent(data.emailBody)}`;
+
+      if (Platform.OS === 'web') {
+        window.location.href = mailtoUrl;
+      } else {
+        await Linking.openURL(mailtoUrl);
+      }
+
+      Alert.alert(
+        'Email Client Opened',
+        `Your email client has been opened with the invitation link for ${subcontractor.name} (${subcontractor.email}).`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('[Send Invitation] Error:', error);
+      Alert.alert('Error', error.message || 'Failed to generate invitation. Please try again.');
+    } finally {
+      setSendingInvitation(false);
+    }
+  };
+
   const handleSendInviteViaEmail = async () => {
     setShowInviteMethodModal(false);
     setSendingInvitation(true);
@@ -691,10 +739,6 @@ export default function SubcontractorsScreen() {
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Subcontractor</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.inviteHeaderButton} onPress={handleSendInvite}>
-              <Mail size={20} color="#FFFFFF" />
-              <Text style={styles.inviteHeaderButtonText}>Send Invite</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -834,21 +878,35 @@ export default function SubcontractorsScreen() {
                   </View>
                 </View>
                 <View style={styles.subActions}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
+                    style={styles.inviteButton}
+                    onPress={() => handleSendInviteToSubcontractor(sub)}
+                    disabled={sendingInvitation}
+                  >
+                    {sendingInvitation ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Send size={16} color="#FFFFFF" />
+                        <Text style={styles.inviteButtonText}>Send Invite</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => openMessageModal('email', sub.id)}
                   >
                     <Mail size={16} color="#2563EB" />
                     <Text style={styles.actionButtonText}>Email</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => openMessageModal('sms', sub.id)}
                   >
                     <MessageSquare size={16} color="#059669" />
                     <Text style={styles.actionButtonText}>SMS</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.estimateButton}
                     onPress={() => {
                       setSelectedSubcontractor(sub);
@@ -858,7 +916,7 @@ export default function SubcontractorsScreen() {
                     <FileText size={16} color="#FFFFFF" />
                     <Text style={styles.estimateButtonText}>Request Estimate</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.viewButton}
                     onPress={() => {
                       router.push(`/subcontractor/${sub.id}`);
@@ -1889,6 +1947,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#1F2937',
     fontWeight: '500' as const,
+  },
+  inviteButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+    borderWidth: 1,
+    borderColor: '#059669',
+  },
+  inviteButtonText: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
   },
   estimateButton: {
     flexDirection: 'row' as const,
