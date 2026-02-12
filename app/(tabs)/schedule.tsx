@@ -828,14 +828,30 @@ export default function ScheduleScreen() {
                 style={styles.timelineScroll}
               >
                 <View style={styles.datesContainer}>
-                  {dates.map((date, idx) => (
-                    <View key={idx} style={styles.dateColumn}>
-                      <Text style={styles.dateText}>{formatDate(date)}</Text>
-                      <Text style={styles.dayText}>
-                        {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                      </Text>
-                    </View>
-                  ))}
+                  {dates.map((date, idx) => {
+                    const isToday = date.toDateString() === new Date().toDateString();
+                    return (
+                      <View
+                        key={idx}
+                        style={[
+                          styles.dateColumn,
+                          isToday && styles.dateColumnToday
+                        ]}
+                      >
+                        <Text style={[styles.dateText, isToday && styles.dateTextToday]}>
+                          {formatDate(date)}
+                        </Text>
+                        <Text style={[styles.dayText, isToday && styles.dayTextToday]}>
+                          {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                        </Text>
+                        {isToday && (
+                          <View style={styles.todayBadge}>
+                            <Text style={styles.todayBadgeText}>TODAY</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               </ScrollView>
             </View>
@@ -848,11 +864,10 @@ export default function ScheduleScreen() {
               <View style={styles.tasksContainer}>
                 <View style={styles.hourLabels}>
                   {Array.from({ length: 15 }, (_, i) => {
-                    const hour = i + 6;
                     return (
                       <View key={i} style={styles.hourLabelRow}>
                         <Text style={styles.hourText}>
-                          {hour === 12 ? '12 PM' : hour < 12 ? `${hour} AM` : hour === 24 ? '12 AM' : `${hour - 12} PM`}
+                          Row {i + 1}
                         </Text>
                       </View>
                     );
@@ -866,9 +881,16 @@ export default function ScheduleScreen() {
                   style={styles.tasksScrollView}
                 >
                   <View style={styles.tasksGrid}>
-                    {dates.map((date, idx) => (
-                      <View key={idx} style={styles.dayGridColumn} />
-                    ))}
+                    {dates.map((date, idx) => {
+                      const isToday = date.toDateString() === new Date().toDateString();
+                      return (
+                        <View key={idx} style={styles.dayGridColumn}>
+                          {isToday && (
+                            <View style={styles.todayIndicator} />
+                          )}
+                        </View>
+                      );
+                    })}
                     
                     {projectTasks.map((task) => {
                       const position = getTaskPosition(task);
@@ -2140,6 +2162,11 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: '#F3F4F6',
   },
+  dateColumnToday: {
+    backgroundColor: '#EFF6FF',
+    borderRightColor: '#2563EB',
+    borderRightWidth: 2,
+  },
   dateText: {
     fontSize: 13,
     fontWeight: '600' as const,
@@ -2189,6 +2216,37 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: '#F3F4F6',
     height: 900,
+    position: 'relative' as const,
+  },
+  todayIndicator: {
+    position: 'absolute' as const,
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: '#2563EB',
+    zIndex: 1000,
+  },
+  dateTextToday: {
+    fontWeight: '700' as const,
+    color: '#2563EB',
+  },
+  dayTextToday: {
+    fontWeight: '700' as const,
+    color: '#2563EB',
+  },
+  todayBadge: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+  },
+  todayBadgeText: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   taskBlock: {
     position: 'absolute',
