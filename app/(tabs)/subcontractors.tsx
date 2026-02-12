@@ -734,21 +734,28 @@ export default function SubcontractorsScreen() {
     }
 
     if (type === 'email') {
-      // For single subcontractor, open email compose modal
-      if (subId && recipients.length === 1) {
-        setEmailRecipient(recipients[0]);
-        setEmailSubject('');
-        setEmailMessage('');
-        setShowEmailModal(true);
-        return;
-      }
-
-      // For bulk email, still use mailto: (will be improved later)
       const emails = recipients.map(r => r.email).join(',');
-      const emailUrl = `mailto:${emails}`;
+
+      // Create email template
+      const recipientNames = recipients.map(r => r.name).join(', ');
+      const subject = recipients.length === 1
+        ? `Message from ${company?.name || 'Legacy Prime Workflow Suite'}`
+        : `Group Message from ${company?.name || 'Legacy Prime Workflow Suite'}`;
+
+      const body = `Hi ${recipientNames},
+
+[Your message here]
+
+Best regards,
+${user?.name || 'Team'}
+${company?.name || 'Legacy Prime Workflow Suite'}
+${user?.email || ''}
+${company?.officePhone || ''}`;
+
+      const emailUrl = `mailto:${emails}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
       if (Platform.OS === 'web') {
-        window.open(emailUrl, '_blank');
+        window.location.href = emailUrl;
       } else {
         Linking.openURL(emailUrl).catch(() => {
           Alert.alert('Error', 'Unable to open email client');
