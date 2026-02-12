@@ -1060,7 +1060,6 @@ export default function ScheduleScreen() {
 
           <View style={styles.timeline}>
             <View style={styles.timelineHeader}>
-              <View style={styles.hourLabelHeader} />
               <ScrollView 
                 ref={timelineRef}
                 horizontal 
@@ -1102,17 +1101,6 @@ export default function ScheduleScreen() {
               scrollEnabled={!resizingTask && !draggedTask}
             >
               <View style={styles.tasksContainer}>
-                <View style={styles.hourLabels}>
-                  {Array.from({ length: 15 }, (_, i) => {
-                    return (
-                      <View key={i} style={styles.hourLabelRow}>
-                        <Text style={styles.hourText}>
-                          Row {i + 1}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
                 
                 <ScrollView
                   horizontal
