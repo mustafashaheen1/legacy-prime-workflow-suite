@@ -140,6 +140,8 @@ export default function ScheduleScreen() {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [jumpToDateValue, setJumpToDateValue] = useState<string>('');
   const [showConstructionPhases, setShowConstructionPhases] = useState<boolean>(false);
+  const [showTaskDetailModal, setShowTaskDetailModal] = useState<boolean>(false);
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<ScheduledTask | null>(null);
 
   // Fetch scheduled tasks from API
   const fetchScheduledTasks = useCallback(async () => {
@@ -1127,17 +1129,9 @@ export default function ScheduleScreen() {
                       const isQuickEditing = quickEditTask === task.id;
 
                       const handleTaskTap = () => {
-                        const now = Date.now();
-                        const DOUBLE_TAP_DELAY = 300;
-
-                        if (now - lastTap < DOUBLE_TAP_DELAY) {
-                          setQuickEditTask(task.id);
-                          setQuickNoteText(task.notes || '');
-                          setQuickEditWorkType(task.workType);
-                          setLastTap(0);
-                        } else {
-                          setLastTap(now);
-                        }
+                        // Open task detail modal on single tap
+                        setSelectedTaskDetail(task);
+                        setShowTaskDetailModal(true);
                       };
 
                       const isTouchingRightHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'right';
@@ -2343,6 +2337,87 @@ export default function ScheduleScreen() {
               >
                 <Calendar size={16} color="#FFFFFF" />
                 <Text style={styles.datePickerConfirmText}>Jump</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Task Detail Modal */}
+      <Modal visible={showTaskDetailModal} animationType="slide" transparent={true} onRequestClose={() => setShowTaskDetailModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.taskDetailModal}>
+            <View style={styles.taskDetailHeader}>
+              <View>
+                <Text style={styles.taskDetailTitle}>Task Details</Text>
+                {selectedTaskDetail && (
+                  <View style={[styles.taskDetailCategoryBadge, { backgroundColor: selectedTaskDetail.color }]}>
+                    <Text style={styles.taskDetailCategoryText}>{selectedTaskDetail.category}</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setShowTaskDetailModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedTaskDetail && (
+              <ScrollView style={styles.taskDetailContent}>
+                <View style={styles.taskDetailSection}>
+                  <Text style={styles.taskDetailLabel}>Work Type</Text>
+                  <Text style={styles.taskDetailValue}>
+                    {selectedTaskDetail.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                  </Text>
+                </View>
+                <View style={styles.taskDetailSection}>
+                  <Text style={styles.taskDetailLabel}>Duration</Text>
+                  <Text style={styles.taskDetailValue}>{selectedTaskDetail.duration} days</Text>
+                </View>
+                <View style={styles.taskDetailSection}>
+                  <Text style={styles.taskDetailLabel}>Start Date</Text>
+                  <Text style={styles.taskDetailValue}>
+                    {new Date(selectedTaskDetail.startDate).toLocaleDateString('en-US', {
+                      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+                <View style={styles.taskDetailSection}>
+                  <Text style={styles.taskDetailLabel}>End Date</Text>
+                  <Text style={styles.taskDetailValue}>
+                    {new Date(selectedTaskDetail.endDate).toLocaleDateString('en-US', {
+                      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+                {selectedTaskDetail.notes && (
+                  <View style={styles.taskDetailSection}>
+                    <Text style={styles.taskDetailLabel}>Notes</Text>
+                    <Text style={styles.taskDetailValue}>{selectedTaskDetail.notes}</Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+
+            <View style={styles.taskDetailFooter}>
+              <TouchableOpacity style={styles.taskDetailCloseButton} onPress={() => setShowTaskDetailModal(false)}>
+                <Text style={styles.taskDetailCloseButtonText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.taskDetailDeleteButton}
+                onPress={() => {
+                  if (selectedTaskDetail) {
+                    Alert.alert('Delete Task', `Remove "${selectedTaskDetail.category}" from schedule?`, [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Delete', style: 'destructive', onPress: () => {
+                        handleDeleteTask(selectedTaskDetail.id);
+                        setShowTaskDetailModal(false);
+                      }}
+                    ]);
+                  }
+                }}
+              >
+                <Trash2 size={18} color="#FFFFFF" />
+                <Text style={styles.taskDetailDeleteButtonText}>Delete Task</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3605,5 +3680,94 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 8,
     backgroundColor: '#F3F4F6',
+  },
+  taskDetailModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '90%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  taskDetailHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'flex-start' as const,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  taskDetailTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  taskDetailCategoryBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start' as const,
+  },
+  taskDetailCategoryText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  taskDetailContent: {
+    padding: 20,
+    maxHeight: 400,
+  },
+  taskDetailSection: {
+    marginBottom: 16,
+  },
+  taskDetailLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  taskDetailValue: {
+    fontSize: 15,
+    color: '#1F2937',
+    lineHeight: 22,
+  },
+  taskDetailFooter: {
+    flexDirection: 'row' as const,
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  taskDetailCloseButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+  },
+  taskDetailCloseButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  taskDetailDeleteButton: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+  },
+  taskDetailDeleteButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
 });
