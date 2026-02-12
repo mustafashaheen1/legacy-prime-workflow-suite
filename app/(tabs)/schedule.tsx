@@ -196,6 +196,49 @@ export default function ScheduleScreen() {
     return `${month} ${day}`;
   };
 
+  // Collision detection helper
+  const checkTaskOverlap = useCallback((
+    task1Start: Date,
+    task1End: Date,
+    task1Row: number,
+    task2: ScheduledTask,
+    excludeTaskId?: string
+  ): boolean => {
+    if (task2.id === excludeTaskId) return false;
+    if (task1Row !== task2.row) return false;
+
+    const task2Start = new Date(task2.startDate);
+    const task2End = new Date(task2.endDate);
+
+    // Check if date ranges overlap
+    return task1Start < task2End && task1End > task2Start;
+  }, []);
+
+  // Find first available row without overlaps
+  const findAvailableRow = useCallback((
+    startDate: Date,
+    endDate: Date,
+    tasks: ScheduledTask[],
+    excludeTaskId?: string
+  ): number => {
+    let row = 0;
+    let foundAvailableRow = false;
+
+    while (!foundAvailableRow && row < 20) { // Max 20 rows
+      const hasOverlap = tasks.some(task =>
+        checkTaskOverlap(startDate, endDate, row, task, excludeTaskId)
+      );
+
+      if (!hasOverlap) {
+        foundAvailableRow = true;
+      } else {
+        row++;
+      }
+    }
+
+    return row;
+  }, [checkTaskOverlap]);
+
   // Generate week dates from a start date
   const generateWeekDates = useCallback((startDate: Date): Date[] => {
     const weekDates: Date[] = [];
@@ -279,6 +322,45 @@ export default function ScheduleScreen() {
     }
   };
 
+  // Auto-fix overlapping tasks
+  const fixOverlaps = useCallback(async () => {
+    console.log('[Schedule] Fixing overlaps...');
+    const tasksToFix = [...scheduledTasks];
+    const fixedTasks: ScheduledTask[] = [];
+
+    // Sort by start date to process in chronological order
+    tasksToFix.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+    for (const task of tasksToFix) {
+      const startDate = new Date(task.startDate);
+      const endDate = new Date(task.endDate);
+
+      // Find available row for this task
+      const newRow = findAvailableRow(startDate, endDate, fixedTasks);
+
+      fixedTasks.push({ ...task, row: newRow });
+    }
+
+    setScheduledTasks(fixedTasks);
+
+    // Save all updated tasks to database
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      for (const task of fixedTasks) {
+        if (task.row !== scheduledTasks.find(t => t.id === task.id)?.row) {
+          await fetch(`${baseUrl}/api/update-scheduled-task`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: task.id, row: task.row }),
+          });
+        }
+      }
+      Alert.alert('Success', 'Overlaps fixed! All tasks reorganized.');
+    } catch (error) {
+      console.error('[Schedule] Error fixing overlaps:', error);
+    }
+  }, [scheduledTasks, findAvailableRow]);
+
   // Get data for selected date in daily view
   const selectedDateString = selectedDate.toISOString().split('T')[0];
   const selectedDateTasks = scheduledTasks.filter(task => {
@@ -311,6 +393,11 @@ export default function ScheduleScreen() {
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 7);
 
+    // Find first available row without overlaps
+    const availableRow = findAvailableRow(startDate, endDate, scheduledTasks);
+
+    console.log('[Schedule] Auto-assigned to row', availableRow, 'to avoid overlaps');
+
     // Generate ID that matches backend format
     const taskId = `scheduled-task-${Date.now()}`;
 
@@ -324,7 +411,7 @@ export default function ScheduleScreen() {
       workType: 'in-house' as const,
       notes: '',
       color: categoryData.color,
-      row: projectTasks.length,
+      row: availableRow,
       rowSpan: 1,
     };
 
@@ -960,22 +1047,32 @@ export default function ScheduleScreen() {
         <>
           {/* Collapsible Construction Phases */}
           <View style={styles.categoriesSection}>
-            <TouchableOpacity
-              style={styles.categoriesHeader}
-              onPress={() => setShowConstructionPhases(!showConstructionPhases)}
-            >
-              <View style={styles.categoriesHeaderLeft}>
-                <Text style={styles.sectionTitle}>Construction Phases</Text>
-                {!showConstructionPhases && (
-                  <Text style={styles.categoriesCount}>({CONSTRUCTION_CATEGORIES.length} phases)</Text>
+            <View style={styles.categoriesSectionTop}>
+              <TouchableOpacity
+                style={styles.categoriesHeader}
+                onPress={() => setShowConstructionPhases(!showConstructionPhases)}
+              >
+                <View style={styles.categoriesHeaderLeft}>
+                  <Text style={styles.sectionTitle}>Construction Phases</Text>
+                  {!showConstructionPhases && (
+                    <Text style={styles.categoriesCount}>({CONSTRUCTION_CATEGORIES.length} phases)</Text>
+                  )}
+                </View>
+                {showConstructionPhases ? (
+                  <ChevronDown size={20} color="#6B7280" />
+                ) : (
+                  <ChevronRight size={20} color="#6B7280" />
                 )}
-              </View>
-              {showConstructionPhases ? (
-                <ChevronDown size={20} color="#6B7280" />
-              ) : (
-                <ChevronRight size={20} color="#6B7280" />
-              )}
-            </TouchableOpacity>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.fixOverlapsButton}
+                onPress={fixOverlaps}
+              >
+                <Check size={16} color="#FFFFFF" />
+                <Text style={styles.fixOverlapsButtonText}>Fix Overlaps</Text>
+              </TouchableOpacity>
+            </View>
 
             {showConstructionPhases && (
               <>
@@ -2494,7 +2591,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
+  categoriesSectionTop: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  },
   categoriesHeader: {
+    flex: 1,
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
@@ -2509,6 +2612,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     fontWeight: '500' as const,
+  },
+  fixOverlapsButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  fixOverlapsButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   categoriesList: {
     flexDirection: 'row',
