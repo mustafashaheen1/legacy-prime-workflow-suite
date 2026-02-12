@@ -1166,8 +1166,8 @@ export default function EstimateScreen() {
         const displayPrice = item.customPrice ?? item.unitPrice;
         const notes = item.notes ? `<div style="color: #666; font-size: 12px; margin-top: 4px;">Note: ${item.notes}</div>` : '';
         const imageHtml = item.imageUrl
-          ? `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">${item.imageUrl.split('|||').map(url =>
-              `<img src="${url}" style="width: 120px; height: 90px; object-fit: cover; border-radius: 4px; border: 1px solid #e5e7eb;" />`
+          ? `<div style="display: flex; flex-wrap: nowrap; gap: 6px; margin-top: 8px; overflow-x: auto;">${item.imageUrl.split('|||').map(url =>
+              `<img src="${url}" style="width: 100px; height: 75px; object-fit: cover; border-radius: 4px; border: 1px solid #e5e7eb; flex-shrink: 0;" />`
             ).join('')}</div>`
           : '';
 
@@ -2146,17 +2146,19 @@ export default function EstimateScreen() {
     .item-notes { font-size: 10px; color: #6b7280; font-style: italic; margin-top: 2px; }
     .item-images-container {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 6px;
       margin-top: 8px;
       max-width: 100%;
+      overflow-x: auto;
     }
     .item-image {
-      width: 120px;
-      height: 90px;
+      width: 100px;
+      height: 75px;
       object-fit: cover;
       border-radius: 4px;
       border: 1px solid #e5e7eb;
+      flex-shrink: 0;
     }
     @media print {
       body { padding: 0; }
@@ -2164,9 +2166,12 @@ export default function EstimateScreen() {
       .item-image {
         width: 100px;
         height: 75px;
+        flex-shrink: 0;
       }
       .item-images-container {
         max-width: 100%;
+        flex-wrap: nowrap;
+        overflow-x: visible;
       }
       tbody tr {
         page-break-inside: avoid;
