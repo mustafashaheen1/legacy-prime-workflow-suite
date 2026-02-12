@@ -91,12 +91,33 @@ function RootLayoutNav() {
       <Stack.Screen name="project/[id]/change-orders" options={{ headerShown: false }} />
       <Stack.Screen name="inspection/[token]" options={{ headerShown: false }} />
       <Stack.Screen name="subcontractor-register/[token]" options={{ headerShown: false }} />
+      <Stack.Screen name="register-subcontractor/[token]" options={{ headerShown: false }} />
       <Stack.Screen name="subcontractor/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="reports" options={{ headerShown: false }} />
       <Stack.Screen name="profile" options={{ headerShown: false }} />
       <Stack.Screen name="stripe-test" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
     </Stack>
+  );
+}
+
+function ChatWidgets() {
+  const pathname = usePathname();
+
+  // Hide chat widgets on public registration pages
+  const isPublicRegistrationPage = pathname?.startsWith('/register-subcontractor/') ||
+                                    pathname?.startsWith('/subcontractor-register/') ||
+                                    pathname?.startsWith('/inspection/');
+
+  if (isPublicRegistrationPage) {
+    return null;
+  }
+
+  return (
+    <>
+      <GlobalAIChat />
+      <FloatingChatButton />
+    </>
   );
 }
 
@@ -110,8 +131,7 @@ export default function RootLayout() {
       <LanguageProvider>
         <AppProvider>
           <RootLayoutNav />
-          <GlobalAIChat />
-          <FloatingChatButton />
+          <ChatWidgets />
         </AppProvider>
       </LanguageProvider>
     </GestureHandlerRootView>
