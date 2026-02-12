@@ -38,6 +38,13 @@ export default function SubcontractorsScreen() {
   const [smsPhoneError, setSmsPhoneError] = useState<string>('');
   const [sendingSms, setSendingSms] = useState<boolean>(false);
 
+  // Email compose modal state
+  const [showEmailModal, setShowEmailModal] = useState<boolean>(false);
+  const [emailRecipient, setEmailRecipient] = useState<Subcontractor | null>(null);
+  const [emailSubject, setEmailSubject] = useState<string>('');
+  const [emailMessage, setEmailMessage] = useState<string>('');
+  const [sendingEmail, setSendingEmail] = useState<boolean>(false);
+
   const [formData, setFormData] = useState({
     name: '',
     companyName: '',
@@ -717,7 +724,7 @@ export default function SubcontractorsScreen() {
   };
 
   const openMessageModal = (type: 'email' | 'sms', subId?: string) => {
-    const recipients = subId 
+    const recipients = subId
       ? [subcontractors.find(s => s.id === subId)!]
       : subcontractors.filter(s => selectedSubcontractors.has(s.id));
 
@@ -727,9 +734,19 @@ export default function SubcontractorsScreen() {
     }
 
     if (type === 'email') {
+      // For single subcontractor, open email compose modal
+      if (subId && recipients.length === 1) {
+        setEmailRecipient(recipients[0]);
+        setEmailSubject('');
+        setEmailMessage('');
+        setShowEmailModal(true);
+        return;
+      }
+
+      // For bulk email, still use mailto: (will be improved later)
       const emails = recipients.map(r => r.email).join(',');
       const emailUrl = `mailto:${emails}`;
-      
+
       if (Platform.OS === 'web') {
         window.open(emailUrl, '_blank');
       } else {
@@ -744,6 +761,62 @@ export default function SubcontractorsScreen() {
           Alert.alert('Error', 'Unable to open messaging app');
         });
       });
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailRecipient || !emailSubject.trim() || !emailMessage.trim()) {
+      Alert.alert('Missing Information', 'Please fill in subject and message.');
+      return;
+    }
+
+    setSendingEmail(true);
+
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: emailRecipient.email,
+          subject: emailSubject,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <p>Hi ${emailRecipient.name},</p>
+              <div style="margin: 20px 0; white-space: pre-wrap;">${emailMessage}</div>
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;" />
+              <p style="color: #666; font-size: 12px;">
+                Sent from ${company?.name || 'Legacy Prime Workflow Suite'}<br/>
+                ${user?.email || ''}
+              </p>
+            </div>
+          `,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send email');
+      }
+
+      console.log('[Email] Sent successfully:', data.id);
+
+      setShowEmailModal(false);
+      setEmailRecipient(null);
+      setEmailSubject('');
+      setEmailMessage('');
+
+      Alert.alert(
+        'Email Sent!',
+        `Your email has been sent to ${emailRecipient.name} (${emailRecipient.email}).`
+      );
+    } catch (error: any) {
+      console.error('[Email] Error:', error);
+      Alert.alert('Error', error.message || 'Failed to send email. Please try again.');
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -1687,6 +1760,95 @@ export default function SubcontractorsScreen() {
                   <>
                     <Send size={18} color="#FFFFFF" />
                     <Text style={styles.smsPhoneSendText}>Send SMS</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Email Compose Modal */}
+      <Modal
+        visible={showEmailModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEmailModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.emailModal}>
+            <View style={styles.emailHeader}>
+              <View>
+                <Text style={styles.emailTitle}>Send Email</Text>
+                {emailRecipient && (
+                  <Text style={styles.emailRecipientText}>
+                    To: {emailRecipient.name} ({emailRecipient.email})
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.emailCloseBtn}
+                onPress={() => setShowEmailModal(false)}
+              >
+                <X size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.emailFormContainer}>
+              {/* Subject */}
+              <View style={styles.emailInputGroup}>
+                <Text style={styles.emailLabel}>Subject</Text>
+                <TextInput
+                  style={styles.emailInput}
+                  value={emailSubject}
+                  onChangeText={setEmailSubject}
+                  placeholder="Enter email subject..."
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              {/* Message */}
+              <View style={[styles.emailInputGroup, { flex: 1 }]}>
+                <Text style={styles.emailLabel}>Message</Text>
+                <TextInput
+                  style={[styles.emailInput, styles.emailTextArea]}
+                  value={emailMessage}
+                  onChangeText={setEmailMessage}
+                  placeholder="Type your message here..."
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.emailActions}>
+              <TouchableOpacity
+                style={styles.emailCancelBtn}
+                onPress={() => {
+                  setShowEmailModal(false);
+                  setEmailSubject('');
+                  setEmailMessage('');
+                }}
+              >
+                <Text style={styles.emailCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.emailSendBtn,
+                  (!emailSubject.trim() || !emailMessage.trim() || sendingEmail) && styles.emailSendBtnDisabled
+                ]}
+                onPress={handleSendEmail}
+                disabled={!emailSubject.trim() || !emailMessage.trim() || sendingEmail}
+              >
+                {sendingEmail ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Send size={18} color="#FFFFFF" />
+                    <Text style={styles.emailSendText}>Send Email</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -2682,6 +2844,102 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   smsPhoneSendText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  // Email Modal Styles
+  emailModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 600,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  emailHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'flex-start' as const,
+    marginBottom: 20,
+  },
+  emailTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  emailRecipientText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  emailCloseBtn: {
+    padding: 4,
+  },
+  emailFormContainer: {
+    flex: 1,
+    gap: 16,
+    marginBottom: 20,
+  },
+  emailInputGroup: {
+    gap: 8,
+  },
+  emailLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#374151',
+  },
+  emailInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#1F2937',
+    backgroundColor: '#FFFFFF',
+  },
+  emailTextArea: {
+    height: 150,
+    paddingTop: 12,
+    textAlignVertical: 'top' as const,
+  },
+  emailActions: {
+    flexDirection: 'row' as const,
+    gap: 12,
+  },
+  emailCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  emailCancelText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  emailSendBtn: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#2563EB',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+  },
+  emailSendBtnDisabled: {
+    opacity: 0.5,
+  },
+  emailSendText: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
