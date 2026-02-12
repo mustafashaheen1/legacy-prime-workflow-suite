@@ -2337,7 +2337,14 @@ export default function EstimateScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              // No history - navigate to CRM if client-based, otherwise home
+              router.push(clientId ? '/crm' : '/');
+            }
+          }}
         >
           <ArrowLeft size={24} color="#1F2937" />
         </TouchableOpacity>
