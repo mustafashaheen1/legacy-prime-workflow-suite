@@ -754,12 +754,23 @@ ${company?.officePhone || ''}`;
 
       const emailUrl = `mailto:${emails}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-      if (Platform.OS === 'web') {
-        window.location.href = emailUrl;
-      } else {
-        Linking.openURL(emailUrl).catch(() => {
-          Alert.alert('Error', 'Unable to open email client');
-        });
+      console.log('[Email] Opening email client with URL:', emailUrl.substring(0, 100) + '...');
+
+      try {
+        if (Platform.OS === 'web') {
+          // Try multiple methods to handle mailto: on web
+          const link = document.createElement('a');
+          link.href = emailUrl;
+          link.click();
+        } else {
+          Linking.openURL(emailUrl);
+        }
+      } catch (error) {
+        console.error('[Email] Error opening email client:', error);
+        Alert.alert(
+          'Email Client Required',
+          'Please configure your default email application or copy the email address:\n\n' + emails
+        );
       }
     } else {
       recipients.forEach(recipient => {
