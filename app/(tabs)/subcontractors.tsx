@@ -880,6 +880,30 @@ export default function SubcontractorsScreen() {
                           </Text>
                         </View>
                       )}
+                      {(() => {
+                        const status = getInvitationStatus(sub);
+                        if (status === 'invited-pending') {
+                          return (
+                            <View style={styles.invitationBadge}>
+                              <Text style={styles.invitationBadgeText}>Invited</Text>
+                            </View>
+                          );
+                        } else if (status === 'completed') {
+                          return (
+                            <View style={[styles.invitationBadge, styles.invitationBadgeCompleted]}>
+                              <Check size={12} color="#FFFFFF" />
+                              <Text style={styles.invitationBadgeText}>Registered</Text>
+                            </View>
+                          );
+                        } else if (status === 'invited-expired') {
+                          return (
+                            <View style={[styles.invitationBadge, styles.invitationBadgeExpired]}>
+                              <Text style={styles.invitationBadgeText}>Expired</Text>
+                            </View>
+                          );
+                        }
+                        return null;
+                      })()}
                     </View>
                     <View style={styles.subCompanyRow}>
                       <Building2 size={14} color="#6B7280" />
