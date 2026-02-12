@@ -52,6 +52,17 @@ export default function ScheduleScreen() {
   const [selectedProject, setSelectedProject] = useState<string | null>(
     projects.length > 0 ? projects[0].id : null
   );
+
+  // View mode state
+  const [viewMode, setViewMode] = useState<'timeline' | 'daily'>('daily');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [weekStartDate, setWeekStartDate] = useState<Date>(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+    return monday;
+  });
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [showModal, setShowModal] = useState<boolean>(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
@@ -184,18 +195,43 @@ export default function ScheduleScreen() {
     return `${month} ${day}`;
   };
 
+  // Generate week dates from a start date
+  const generateWeekDates = useCallback((startDate: Date): Date[] => {
+    const weekDates: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      weekDates.push(date);
+    }
+    return weekDates;
+  }, []);
+
+  const weekDates = useMemo(() => generateWeekDates(weekStartDate), [weekStartDate, generateWeekDates]);
+
   // Date navigation functions
   const scrollToDate = useCallback((targetDate: Date) => {
-    const dateIndex = dates.findIndex(d => d.toDateString() === targetDate.toDateString());
-    if (dateIndex !== -1 && timelineRef.current) {
-      const scrollX = dateIndex * DAY_WIDTH;
-      timelineRef.current.scrollTo({ x: scrollX, animated: true });
-      console.log('[Navigation] Scrolled to date:', formatDate(targetDate));
+    if (viewMode === 'timeline') {
+      const dateIndex = dates.findIndex(d => d.toDateString() === targetDate.toDateString());
+      if (dateIndex !== -1 && timelineRef.current) {
+        const scrollX = dateIndex * DAY_WIDTH;
+        timelineRef.current.scrollTo({ x: scrollX, animated: true });
+        console.log('[Navigation] Scrolled to date:', formatDate(targetDate));
+      }
+    } else {
+      // Daily view - set selected date
+      setSelectedDate(targetDate);
+      // Update week to contain this date
+      const dayOfWeek = targetDate.getDay();
+      const monday = new Date(targetDate);
+      monday.setDate(targetDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+      setWeekStartDate(monday);
     }
-  }, [dates]);
+  }, [dates, viewMode]);
 
   const scrollToToday = useCallback(() => {
-    scrollToDate(new Date());
+    const today = new Date();
+    setViewMode('daily');
+    scrollToDate(today);
   }, [scrollToDate]);
 
   const scrollToThisWeek = useCallback(() => {
@@ -203,8 +239,10 @@ export default function ScheduleScreen() {
     const dayOfWeek = today.getDay();
     const monday = new Date(today);
     monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-    scrollToDate(monday);
-  }, [scrollToDate]);
+    setViewMode('daily');
+    setWeekStartDate(monday);
+    setSelectedDate(today);
+  }, []);
 
   const scrollToNextWeek = useCallback(() => {
     const today = new Date();
@@ -212,8 +250,10 @@ export default function ScheduleScreen() {
     const dayOfWeek = today.getDay();
     const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
     nextMonday.setDate(today.getDate() + daysUntilNextMonday);
-    scrollToDate(nextMonday);
-  }, [scrollToDate]);
+    setViewMode('daily');
+    setWeekStartDate(nextMonday);
+    setSelectedDate(nextMonday);
+  }, []);
 
   const handleJumpToDate = () => {
     if (!jumpToDateValue) return;
@@ -223,6 +263,7 @@ export default function ScheduleScreen() {
         Alert.alert('Invalid Date', 'Please enter a valid date.');
         return;
       }
+      setViewMode('daily');
       scrollToDate(targetDate);
       setShowDatePicker(false);
       setJumpToDateValue('');
@@ -230,6 +271,15 @@ export default function ScheduleScreen() {
       Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DD format.');
     }
   };
+
+  // Get data for selected date in daily view
+  const selectedDateString = selectedDate.toISOString().split('T')[0];
+  const selectedDateTasks = scheduledTasks.filter(task => {
+    const taskStart = new Date(task.startDate);
+    const taskEnd = new Date(task.endDate);
+    return selectedDate >= taskStart && selectedDate <= taskEnd;
+  });
+  const selectedDateLog = dailyLogs.find(log => log.logDate === selectedDateString);
 
   // Auto-scroll to today on load
   useEffect(() => {
@@ -851,6 +901,42 @@ export default function ScheduleScreen() {
         </ScrollView>
       </View>
 
+      {/* View Mode Toggle */}
+      {selectedProject && (
+        <View style={styles.viewToggle}>
+          <TouchableOpacity
+            style={[
+              styles.viewToggleButton,
+              viewMode === 'timeline' && styles.viewToggleButtonActive
+            ]}
+            onPress={() => setViewMode('timeline')}
+          >
+            <Calendar size={18} color={viewMode === 'timeline' ? '#FFFFFF' : '#6B7280'} />
+            <Text style={[
+              styles.viewToggleText,
+              viewMode === 'timeline' && styles.viewToggleTextActive
+            ]}>
+              Timeline View
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.viewToggleButton,
+              viewMode === 'daily' && styles.viewToggleButtonActive
+            ]}
+            onPress={() => setViewMode('daily')}
+          >
+            <BookOpen size={18} color={viewMode === 'daily' ? '#FFFFFF' : '#6B7280'} />
+            <Text style={[
+              styles.viewToggleText,
+              viewMode === 'daily' && styles.viewToggleTextActive
+            ]}>
+              Daily View
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {!selectedProject && (
         <View style={styles.emptyState}>
           <Calendar size={48} color="#9CA3AF" />
@@ -858,7 +944,7 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {selectedProject && (
+      {selectedProject && viewMode === 'timeline' && (
         <>
           <View style={styles.categoriesSection}>
             <Text style={styles.sectionTitle}>Construction Phases</Text>
@@ -1297,6 +1383,150 @@ export default function ScheduleScreen() {
               </View>
             </ScrollView>
           </View>
+        </>
+      )}
+
+      {/* Daily View */}
+      {selectedProject && viewMode === 'daily' && (
+        <>
+          {/* Date Navigation Bar */}
+          <View style={styles.dateNavigation}>
+            <TouchableOpacity style={styles.navButton} onPress={scrollToToday}>
+              <Calendar size={16} color="#2563EB" />
+              <Text style={styles.navButtonText}>Today</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navButton} onPress={scrollToThisWeek}>
+              <Text style={styles.navButtonText}>This Week</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navButton} onPress={scrollToNextWeek}>
+              <Text style={styles.navButtonText}>Next Week</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.navButton, styles.navButtonPrimary]} onPress={() => setShowDatePicker(true)}>
+              <Calendar size={16} color="#FFFFFF" />
+              <Text style={styles.navButtonTextPrimary}>Jump to Date</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Week Date Selector */}
+          <View style={styles.weekSelector}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.weekDatesContainer}>
+                {weekDates.map((date, idx) => {
+                  const isSelected = date.toDateString() === selectedDate.toDateString();
+                  const isToday = date.toDateString() === new Date().toDateString();
+                  return (
+                    <TouchableOpacity key={idx} style={[styles.dateSelector, isSelected && styles.dateSelectorActive, isToday && !isSelected && styles.dateSelectorToday]} onPress={() => setSelectedDate(date)}>
+                      <Text style={[styles.dateSelectorDay, isSelected && styles.dateSelectorDayActive]}>
+                        {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                      </Text>
+                      <Text style={[styles.dateSelectorDate, isSelected && styles.dateSelectorDateActive]}>
+                        {date.getDate()}
+                      </Text>
+                      {isToday && !isSelected && <View style={styles.todayDot} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+
+          <ScrollView style={styles.dailyContent} showsVerticalScrollIndicator={true}>
+            <View style={styles.dailyHeader}>
+              <Text style={styles.dailyDateTitle}>
+                {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </Text>
+              {selectedDate.toDateString() === new Date().toDateString() && (
+                <View style={styles.todayBadgeLarge}>
+                  <Text style={styles.todayBadgeLargeText}>TODAY</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.dailySection}>
+              <Text style={styles.dailySectionTitle}>Scheduled Tasks</Text>
+              {selectedDateTasks.length === 0 ? (
+                <View style={styles.dailyEmptyState}>
+                  <Calendar size={32} color="#D1D5DB" />
+                  <Text style={styles.dailyEmptyText}>No tasks scheduled for this date</Text>
+                </View>
+              ) : (
+                selectedDateTasks.map(task => (
+                  <View key={task.id} style={[styles.dailyTaskCard, { borderLeftColor: task.color }]}>
+                    <View style={styles.dailyTaskHeader}>
+                      <Text style={styles.dailyTaskCategory}>{task.category}</Text>
+                      <Text style={styles.dailyTaskType}>
+                        {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
+                      </Text>
+                    </View>
+                    {task.notes && <Text style={styles.dailyTaskNotes}>{task.notes}</Text>}
+                    <Text style={styles.dailyTaskDuration}>
+                      Duration: {task.duration} days ({new Date(task.startDate).toLocaleDateString()} - {new Date(task.endDate).toLocaleDateString()})
+                    </Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            <View style={styles.dailySection}>
+              <View style={styles.dailySectionHeader}>
+                <Text style={styles.dailySectionTitle}>Daily Log</Text>
+                <TouchableOpacity style={styles.addDailyLogButton} onPress={handleOpenDailyLogs}>
+                  <Plus size={16} color="#FFFFFF" />
+                  <Text style={styles.addDailyLogButtonText}>{selectedDateLog ? 'Edit Log' : 'Add Log'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {selectedDateLog ? (
+                <View style={styles.dailyLogCard}>
+                  {selectedDateLog.workPerformed && (
+                    <View style={styles.dailyLogSection}>
+                      <Text style={styles.dailyLogLabel}>Work Performed:</Text>
+                      <Text style={styles.dailyLogText}>{selectedDateLog.workPerformed}</Text>
+                    </View>
+                  )}
+                  {selectedDateLog.issues && (
+                    <View style={styles.dailyLogSection}>
+                      <Text style={styles.dailyLogLabel}>Issues:</Text>
+                      <Text style={styles.dailyLogText}>{selectedDateLog.issues}</Text>
+                    </View>
+                  )}
+                  {selectedDateLog.tasks && selectedDateLog.tasks.length > 0 && (
+                    <View style={styles.dailyLogSection}>
+                      <Text style={styles.dailyLogLabel}>Tasks:</Text>
+                      {selectedDateLog.tasks.map(task => (
+                        <View key={task.id} style={styles.dailyLogTask}>
+                          <View style={[styles.dailyLogTaskCheck, task.completed && styles.dailyLogTaskCheckCompleted]}>
+                            {task.completed && <Check size={12} color="#FFFFFF" />}
+                          </View>
+                          <Text style={[styles.dailyLogTaskText, task.completed && styles.dailyLogTaskTextCompleted]}>
+                            {task.description}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {selectedDateLog.photos && selectedDateLog.photos.length > 0 && (
+                    <View style={styles.dailyLogSection}>
+                      <Text style={styles.dailyLogLabel}>Photos ({selectedDateLog.photos.length}):</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <View style={styles.dailyLogPhotos}>
+                          {selectedDateLog.photos.map(photo => (
+                            <Image key={photo.id} source={{ uri: photo.uri }} style={styles.dailyLogPhoto} />
+                          ))}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.dailyEmptyState}>
+                  <BookOpen size={32} color="#D1D5DB" />
+                  <Text style={styles.dailyEmptyText}>No daily log for this date</Text>
+                  <Text style={styles.dailyEmptySubtext}>Tap "Add Log" to create one</Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
         </>
       )}
 
@@ -3141,5 +3371,256 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  // View Toggle Styles
+  viewToggle: {
+    flexDirection: 'row' as const,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  viewToggleButton: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  viewToggleButtonActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  viewToggleText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  viewToggleTextActive: {
+    color: '#FFFFFF',
+  },
+  // Daily View Styles
+  weekSelector: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingVertical: 12,
+  },
+  weekDatesContainer: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  dateSelector: {
+    width: 70,
+    paddingVertical: 12,
+    alignItems: 'center' as const,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  dateSelectorActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  dateSelectorToday: {
+    borderColor: '#2563EB',
+  },
+  dateSelectorDay: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  dateSelectorDayActive: {
+    color: '#FFFFFF',
+  },
+  dateSelectorDate: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  dateSelectorDateActive: {
+    color: '#FFFFFF',
+  },
+  todayDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#2563EB',
+    marginTop: 4,
+  },
+  dailyContent: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  dailyHeader: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+  },
+  dailyDateTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  todayBadgeLarge: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  todayBadgeLargeText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  dailySection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  dailySectionHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 12,
+  },
+  dailySectionTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  dailyEmptyState: {
+    alignItems: 'center' as const,
+    paddingVertical: 32,
+  },
+  dailyEmptyText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+  },
+  dailyEmptySubtext: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  dailyTaskCard: {
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+  },
+  dailyTaskHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 6,
+  },
+  dailyTaskCategory: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  dailyTaskType: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  dailyTaskNotes: {
+    fontSize: 13,
+    color: '#4B5563',
+    marginBottom: 6,
+  },
+  dailyTaskDuration: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  addDailyLogButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  addDailyLogButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  dailyLogCard: {
+    gap: 16,
+  },
+  dailyLogSection: {
+    gap: 6,
+  },
+  dailyLogLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  dailyLogText: {
+    fontSize: 14,
+    color: '#1F2937',
+    lineHeight: 20,
+  },
+  dailyLogTask: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingVertical: 4,
+  },
+  dailyLogTaskCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  dailyLogTaskCheckCompleted: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  dailyLogTaskText: {
+    fontSize: 14,
+    color: '#1F2937',
+    flex: 1,
+  },
+  dailyLogTaskTextCompleted: {
+    textDecorationLine: 'line-through' as const,
+    color: '#9CA3AF',
+  },
+  dailyLogPhotos: {
+    flexDirection: 'row' as const,
+    gap: 8,
+  },
+  dailyLogPhoto: {
+    width: 120,
+    height: 90,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
   },
 });
