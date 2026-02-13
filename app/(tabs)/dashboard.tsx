@@ -1583,10 +1583,19 @@ export default function DashboardScreen() {
                     onPress={() => handleAIReportGeneration(selectedProjects.length > 0 ? 'selected' : 'all')}
                     disabled={isGeneratingAI}
                   >
-                    <Sparkles size={18} color="#FFFFFF" />
-                    <Text style={styles.aiGenerateButtonText}>
-                      {isGeneratingAI ? 'Generating...' : `Generate Report ${selectedProjects.length > 0 ? `(${selectedProjects.length} Projects)` : '(All Projects)'}`}
-                    </Text>
+                    {isGeneratingAI ? (
+                      <>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={styles.aiGenerateButtonText}>Generating...</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={18} color="#FFFFFF" />
+                        <Text style={styles.aiGenerateButtonText}>
+                          Generate Report {selectedProjects.length > 0 ? `(${selectedProjects.length} Projects)` : '(All Projects)'}
+                        </Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </View>
 

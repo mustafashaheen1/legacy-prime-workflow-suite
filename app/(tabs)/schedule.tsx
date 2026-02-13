@@ -10,19 +10,36 @@ import {
   Alert,
   Image,
   Switch,
-  Share
+  Share,
+  ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
-import { Calendar, X, GripVertical, BookOpen, Plus, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronRight, FileText } from 'lucide-react-native';
+import { Calendar, X, GripVertical, BookOpen, Plus, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronRight, FileText, ArrowLeft } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto } from '@/types';
 import { trpc } from '@/lib/trpc';
 import { Paths, File as FSFile } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+
+// Helper function to get API base URL for both web and mobile
+const getApiBaseUrl = () => {
+  // Check for environment variable first (works on mobile)
+  const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+  if (rorkApi) {
+    return rorkApi;
+  }
+  // Fallback to window.location on web
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  // Development fallback
+  return 'http://localhost:8081';
+};
 
 const CONSTRUCTION_CATEGORIES = [
   { name: 'Pre-Construction', color: '#8B5CF6' },
@@ -116,12 +133,14 @@ export default function ScheduleScreen() {
   } | null>(null);
 
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
+  const [isSavingLog, setIsSavingLog] = useState<boolean>(false);
+  const [isLoadingTasks, setIsLoadingTasks] = useState<boolean>(false);
   const [equipmentExpanded, setEquipmentExpanded] = useState<boolean>(false);
   const [materialExpanded, setMaterialExpanded] = useState<boolean>(false);
   const [officialExpanded, setOfficialExpanded] = useState<boolean>(false);
   const [subsExpanded, setSubsExpanded] = useState<boolean>(false);
   const [employeesExpanded, setEmployeesExpanded] = useState<boolean>(false);
-  
+
   const [equipmentNote, setEquipmentNote] = useState<string>('');
   const [materialNote, setMaterialNote] = useState<string>('');
   const [officialNote, setOfficialNote] = useState<string>('');
@@ -148,8 +167,11 @@ export default function ScheduleScreen() {
   const fetchScheduledTasks = useCallback(async () => {
     if (!selectedProject) return;
 
+    setIsLoadingTasks(true);
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
+      console.log('[Schedule] Fetching tasks from:', `${baseUrl}/api/get-scheduled-tasks`);
+
       const response = await fetch(`${baseUrl}/api/get-scheduled-tasks?projectId=${selectedProject}`);
 
       if (!response.ok) {
@@ -168,6 +190,10 @@ export default function ScheduleScreen() {
       }
     } catch (error: any) {
       console.error('[Schedule] Error fetching tasks:', error);
+      // Don't break the UI if API fails
+      setScheduledTasks([]);
+    } finally {
+      setIsLoadingTasks(false);
     }
   }, [selectedProject]);
 
@@ -413,7 +439,7 @@ export default function ScheduleScreen() {
 
     // Save to database via API
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/save-scheduled-task`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -458,7 +484,7 @@ export default function ScheduleScreen() {
 
     // Delete from database via API
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/delete-scheduled-task?id=${taskId}`, {
         method: 'DELETE',
       });
@@ -629,27 +655,28 @@ export default function ScheduleScreen() {
   const handleSaveDailyLog = async () => {
     if (!selectedProject || !user) return;
 
-    const logId = Date.now().toString();
-    const log: DailyLog = {
-      id: logId,
-      projectId: selectedProject,
-      logDate: new Date().toISOString().split('T')[0],
-      createdBy: user.name,
-      equipmentNote: equipmentExpanded ? equipmentNote : undefined,
-      materialNote: materialExpanded ? materialNote : undefined,
-      officialNote: officialExpanded ? officialNote : undefined,
-      subsNote: subsExpanded ? subsNote : undefined,
-      employeesNote: employeesExpanded ? employeesNote : undefined,
-      workPerformed,
-      issues,
-      generalNotes,
-      tasks,
-      photos,
-      sharedWith,
-      createdAt: new Date().toISOString(),
-    };
-
+    setIsSavingLog(true);
     try {
+      const logId = Date.now().toString();
+      const log: DailyLog = {
+        id: logId,
+        projectId: selectedProject,
+        logDate: new Date().toISOString().split('T')[0],
+        createdBy: user.name,
+        equipmentNote: equipmentExpanded ? equipmentNote : undefined,
+        materialNote: materialExpanded ? materialNote : undefined,
+        officialNote: officialExpanded ? officialNote : undefined,
+        subsNote: subsExpanded ? subsNote : undefined,
+        employeesNote: employeesExpanded ? employeesNote : undefined,
+        workPerformed,
+        issues,
+        generalNotes,
+        tasks,
+        photos,
+        sharedWith,
+        createdAt: new Date().toISOString(),
+      };
+
       await addDailyLog(log); // Now returns Promise
 
       if (sharedWith.length > 0) {
@@ -668,6 +695,8 @@ export default function ScheduleScreen() {
         'Saved Locally',
         'Daily log saved to your device. It will sync when connection is restored.'
       );
+    } finally {
+      setIsSavingLog(false);
     }
   };
 
@@ -774,7 +803,7 @@ export default function ScheduleScreen() {
 
         // Save changes to database
         try {
-          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          const baseUrl = getApiBaseUrl();
           const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -923,7 +952,7 @@ export default function ScheduleScreen() {
 
         // Save all drag-related changes to database
         try {
-          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          const baseUrl = getApiBaseUrl();
           const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -957,30 +986,48 @@ export default function ScheduleScreen() {
 
 
 
+  const router = useRouter();
+
   return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.bgArea} />
       <View style={styles.header}>
-        <Text style={styles.title}>Project Schedule</Text>
-        {selectedProject && (
-          <View style={styles.headerButtons}>
-            <DailyTasksButton />
-            <TouchableOpacity
-              style={styles.dailyLogHeaderButton}
-              onPress={handleOpenDailyLogs}
-            >
-              <BookOpen size={20} color="#2563EB" />
-              <Text style={styles.dailyLogHeaderButtonText}>Daily Log</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.historyButton}
-              onPress={() => setShowHistoryModal(true)}
-            >
-              <History size={20} color="#059669" />
-            </TouchableOpacity>
-          </View>
+        {Platform.OS !== 'web' && (
+          <TouchableOpacity
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/more');
+              }
+            }}
+            style={{ paddingRight: 12 }}
+          >
+            <ArrowLeft size={24} color="#1F2937" />
+          </TouchableOpacity>
         )}
+        <Text style={styles.title}>Project Schedule</Text>
       </View>
+
+      {/* Action Buttons Row */}
+      {selectedProject && (
+        <View style={styles.actionButtonsRow}>
+          <DailyTasksButton />
+          <TouchableOpacity
+            style={styles.dailyLogHeaderButton}
+            onPress={handleOpenDailyLogs}
+          >
+            <BookOpen size={20} color="#2563EB" />
+            <Text style={styles.dailyLogHeaderButtonText}>Daily Log</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.historyButton}
+            onPress={() => setShowHistoryModal(true)}
+          >
+            <History size={20} color="#059669" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.projectSelector}>
         <Text style={styles.sectionTitle}>Select Project</Text>
@@ -994,10 +1041,14 @@ export default function ScheduleScreen() {
               ]}
               onPress={() => setSelectedProject(project.id)}
             >
-              <Text style={[
-                styles.projectChipText,
-                selectedProject === project.id && styles.projectChipTextSelected
-              ]}>
+              <Text
+                style={[
+                  styles.projectChipText,
+                  selectedProject === project.id && styles.projectChipTextSelected
+                ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {project.name}
               </Text>
             </TouchableOpacity>
@@ -1016,11 +1067,14 @@ export default function ScheduleScreen() {
             onPress={() => setViewMode('timeline')}
           >
             <Calendar size={18} color={viewMode === 'timeline' ? '#FFFFFF' : '#6B7280'} />
-            <Text style={[
-              styles.viewToggleText,
-              viewMode === 'timeline' && styles.viewToggleTextActive
-            ]}>
-              Timeline View
+            <Text
+              style={[
+                styles.viewToggleText,
+                viewMode === 'timeline' && styles.viewToggleTextActive
+              ]}
+              numberOfLines={1}
+            >
+              Timeline
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1031,11 +1085,14 @@ export default function ScheduleScreen() {
             onPress={() => setViewMode('daily')}
           >
             <BookOpen size={18} color={viewMode === 'daily' ? '#FFFFFF' : '#6B7280'} />
-            <Text style={[
-              styles.viewToggleText,
-              viewMode === 'daily' && styles.viewToggleTextActive
-            ]}>
-              Daily View
+            <Text
+              style={[
+                styles.viewToggleText,
+                viewMode === 'daily' && styles.viewToggleTextActive
+              ]}
+              numberOfLines={1}
+            >
+              Daily
             </Text>
           </TouchableOpacity>
         </View>
@@ -1298,7 +1355,7 @@ export default function ScheduleScreen() {
 
                                     // Save to database via API
                                     try {
-                                      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                                      const baseUrl = getApiBaseUrl();
                                       const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
                                         method: 'PUT',
                                         headers: { 'Content-Type': 'application/json' },
@@ -1365,14 +1422,14 @@ export default function ScheduleScreen() {
               <Text style={styles.navButtonText}>Today</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.navButton} onPress={scrollToThisWeek}>
-              <Text style={styles.navButtonText}>This Week</Text>
+              <Text style={styles.navButtonText} numberOfLines={1}>This Week</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.navButton} onPress={scrollToNextWeek}>
-              <Text style={styles.navButtonText}>Next Week</Text>
+              <Text style={styles.navButtonText} numberOfLines={1}>Next</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.navButton, styles.navButtonPrimary]} onPress={() => setShowDatePicker(true)}>
               <Calendar size={16} color="#FFFFFF" />
-              <Text style={styles.navButtonTextPrimary}>Jump to Date</Text>
+              <Text style={styles.navButtonTextPrimary} numberOfLines={1}>Jump</Text>
             </TouchableOpacity>
           </View>
 
@@ -1413,7 +1470,12 @@ export default function ScheduleScreen() {
 
             <View style={styles.dailySection}>
               <Text style={styles.dailySectionTitle}>Scheduled Tasks</Text>
-              {selectedDateTasks.length === 0 ? (
+              {isLoadingTasks ? (
+                <View style={styles.dailyEmptyState}>
+                  <ActivityIndicator size="large" color="#2563EB" />
+                  <Text style={styles.dailyEmptyText}>Loading tasks...</Text>
+                </View>
+              ) : selectedDateTasks.length === 0 ? (
                 <View style={styles.dailyEmptyState}>
                   <Calendar size={32} color="#D1D5DB" />
                   <Text style={styles.dailyEmptyText}>No tasks scheduled for this date</Text>
@@ -1506,18 +1568,21 @@ export default function ScheduleScreen() {
         onRequestClose={() => setShowDailyLogsModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+            <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, 16) }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                 <BookOpen size={24} color="#2563EB" />
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.modalTitle}>Daily Log</Text>
                   <Text style={styles.modalSubtitle}>
                     {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={() => setShowDailyLogsModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowDailyLogsModal(false)}
+                style={{ padding: 8 }}
+              >
                 <X size={24} color="#1F2937" />
               </TouchableOpacity>
             </View>
@@ -1774,17 +1839,23 @@ export default function ScheduleScreen() {
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setShowDailyLogsModal(false)}
+                disabled={isSavingLog}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.saveButton}
+              <TouchableOpacity
+                style={[styles.saveButton, isSavingLog && styles.saveButtonDisabled]}
                 onPress={handleSaveDailyLog}
+                disabled={isSavingLog}
               >
-                <Text style={styles.saveButtonText}>Save Log</Text>
+                {isSavingLog ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Log</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -2491,28 +2562,40 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700' as const,
     color: '#2563EB',
+    flex: 1,
+  },
+  actionButtonsRow: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    justifyContent: 'flex-start',
   },
   projectSelector: {
     backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600' as const,
     color: '#1F2937',
     marginBottom: 8,
@@ -2531,6 +2614,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#F3F4F6',
     marginRight: 8,
+    maxWidth: 200,
   },
   projectChipSelected: {
     backgroundColor: '#2563EB',
@@ -2943,19 +3027,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    maxHeight: '80%',
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
@@ -2970,10 +3061,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   modalBody: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   toggleSection: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -3026,12 +3118,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   photoSection: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   photoButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#EFF6FF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3041,9 +3133,13 @@ const styles = StyleSheet.create({
   photosList: {
     flexDirection: 'row',
     gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   photoItem: {
     position: 'relative',
+    marginRight: 8,
+    marginTop: 4,
   },
   photoThumbnail: {
     width: 80,
@@ -3053,14 +3149,21 @@ const styles = StyleSheet.create({
   },
   photoRemoveButton: {
     position: 'absolute',
-    top: -8,
-    right: -8,
+    top: -4,
+    right: -4,
     backgroundColor: '#EF4444',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+    borderRadius: 15,
+    width: 30,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
   },
   tasksSection: {
     marginBottom: 16,
@@ -3159,15 +3262,20 @@ const styles = StyleSheet.create({
   modalFooter: {
     flexDirection: 'row',
     gap: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 20,
+    paddingBottom: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
+    paddingVertical: 16,
+    borderRadius: 12,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
@@ -3176,10 +3284,14 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
+    paddingVertical: 16,
+    borderRadius: 12,
     backgroundColor: '#2563EB',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
   saveButtonText: {
     fontSize: 16,
@@ -3366,18 +3478,20 @@ const styles = StyleSheet.create({
   // Date Navigation Styles
   dateNavigation: {
     flexDirection: 'row' as const,
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: 6,
+    paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   navButton: {
+    flex: 1,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 6,
-    paddingHorizontal: 14,
+    justifyContent: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 8,
     paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: '#F3F4F6',
@@ -3632,25 +3746,37 @@ const styles = StyleSheet.create({
   },
   dailyTaskCard: {
     backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
     borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   dailyTaskHeader: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    marginBottom: 6,
+    alignItems: 'flex-start' as const,
+    marginBottom: 8,
+    flexWrap: 'wrap' as const,
+    gap: 8,
   },
   dailyTaskCategory: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600' as const,
     color: '#1F2937',
+    flex: 1,
   },
   dailyTaskType: {
     fontSize: 13,
     color: '#6B7280',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   dailyTaskNotes: {
     fontSize: 13,

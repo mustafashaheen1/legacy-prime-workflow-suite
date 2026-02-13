@@ -21,6 +21,8 @@ export default function ExpensesScreen() {
   const [receiptType, setReceiptType] = useState<'image' | 'file' | null>(null);
   const [receiptFileName, setReceiptFileName] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState<boolean>(false);
   const [showProjectPicker, setShowProjectPicker] = useState<boolean>(false);
   const [showExpenseTypePicker, setShowExpenseTypePicker] = useState<boolean>(false);
   const [showSubcategoryPicker, setShowSubcategoryPicker] = useState<boolean>(false);
@@ -136,6 +138,7 @@ export default function ExpensesScreen() {
       return;
     }
 
+    setIsSaving(true);
     try {
       // Generate duplicate detection fields if we have receipt data
       const imageHash = receiptBase64
@@ -199,6 +202,8 @@ export default function ExpensesScreen() {
       } else {
         Alert.alert('Error', errorMessage);
       }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -662,8 +667,16 @@ export default function ExpensesScreen() {
             </View>
           )}
 
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>Save</Text>
+          <TouchableOpacity
+            style={[styles.saveButton, (isSaving || isScanning) && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={isSaving || isScanning}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save</Text>
+            )}
           </TouchableOpacity>
         </View>
 

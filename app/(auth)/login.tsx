@@ -1,5 +1,5 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { auth } from '@/lib/supabase';
@@ -12,9 +12,27 @@ export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState<boolean>(false);
   const { setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+
+  // Listen to keyboard events
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   const handleLogin = async () => {
     // Validation
@@ -135,9 +153,11 @@ export default function LoginScreen() {
       keyboardVerticalOffset={0}
     >
       <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-        <View style={styles.languageSwitcherContainer}>
-          <LanguageSwitcher />
-        </View>
+        {!isKeyboardVisible && (
+          <View style={styles.languageSwitcherContainer}>
+            <LanguageSwitcher />
+          </View>
+        )}
 
         <View style={styles.header}>
           <Logo size={100} />

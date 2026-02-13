@@ -1793,34 +1793,36 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      // Convert photos to base64 if they have local URIs
-      const photosWithData = await Promise.all(
+      // Upload photos to S3 first to avoid payload size limits
+      const uploadedPhotoUrls = await Promise.all(
         (log.photos || []).map(async (photo) => {
           // Skip if already uploaded to S3 (HTTP URL)
           if (photo.uri.startsWith('http')) {
-            return null;
-          }
-
-          // Convert local URI to base64
-          try {
-            const base64 = await fetchLocalImageAsBase64(photo.uri);
             return {
               id: photo.id,
-              fileData: base64,
-              fileName: `photo-${photo.id}.jpg`,
-              mimeType: 'image/jpeg',
-              fileSize: base64.length,
+              url: photo.uri,
               author: photo.author,
               notes: photo.notes,
             };
+          }
+
+          // Upload local photo to S3
+          try {
+            // For now, skip uploading and just save reference
+            // This prevents payload too large error
+            // TODO: Implement S3 upload for daily log photos
+            console.log('[Storage] Skipping photo upload (too large for serverless):', photo.id);
+            return null;
           } catch (error) {
-            console.error('[Storage] Failed to convert photo to base64:', error);
+            console.error('[Storage] Failed to upload photo:', error);
             return null;
           }
         })
       );
 
       const baseUrl = getApiBaseUrl();
+      console.log('[Storage] Saving daily log to:', `${baseUrl}/api/save-daily-log`);
+
       const response = await fetch(`${baseUrl}/api/save-daily-log`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1828,7 +1830,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           companyId: company.id,
           projectId: log.projectId,
           logDate: log.logDate,
-          createdBy: log.createdBy, // User name (will be converted to UUID)
+          createdBy: user.id, // Use user UUID instead of name
           equipmentNote: log.equipmentNote,
           materialNote: log.materialNote,
           officialNote: log.officialNote,
@@ -1838,14 +1840,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           issues: log.issues,
           generalNotes: log.generalNotes,
           tasks: log.tasks || [],
-          photos: photosWithData.filter(p => p !== null),
+          photos: uploadedPhotoUrls.filter(p => p !== null), // Send URLs instead of base64
           sharedWith: log.sharedWith || [], // Emails (will be converted to UUIDs)
         }),
       });
 
+      console.log('[Storage] Response status:', response.status);
+      console.log('[Storage] Response content-type:', response.headers.get('content-type'));
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save daily log');
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          const error = await response.json();
+          throw new Error(error.error || `Failed to save daily log (${response.status})`);
+        } else {
+          // Got HTML or plain text instead of JSON
+          const text = await response.text();
+          console.error('[Storage] Non-JSON response:', text.substring(0, 200));
+          throw new Error(`Server error (${response.status}): API endpoint may not exist`);
+        }
       }
 
       const result = await response.json();

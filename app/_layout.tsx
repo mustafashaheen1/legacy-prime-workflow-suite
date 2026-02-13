@@ -79,22 +79,59 @@ function RootLayoutNav() {
   }, [user, segments, pathname]);
 
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back" }}>
+    <Stack
+      screenOptions={{
+        headerBackTitle: "Back",
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: '#FFFFFF',
+        },
+        headerTintColor: '#1F2937',
+        headerShadowVisible: true,
+        headerBackTitleVisible: false,
+        ...(Platform.OS === 'ios' && {
+          headerLargeTitle: false,
+        }),
+      }}
+    >
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      {/* Project screens with custom headers */}
       <Stack.Screen name="project/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="project/[id]/estimate" options={{ headerShown: false }} />
       <Stack.Screen name="project/[id]/takeoff" options={{ headerShown: false }} />
       <Stack.Screen name="project/[id]/expenses" options={{ headerShown: false }} />
       <Stack.Screen name="project/[id]/files-navigation" options={{ headerShown: false }} />
       <Stack.Screen name="project/[id]/change-orders" options={{ headerShown: false }} />
+      <Stack.Screen name="project/[id]/costs" options={{ headerShown: false }} />
+      {/* Public pages - no header */}
       <Stack.Screen name="inspection/[token]" options={{ headerShown: false }} />
       <Stack.Screen name="subcontractor-register/[token]" options={{ headerShown: false }} />
       <Stack.Screen name="register-subcontractor/[token]" options={{ headerShown: false }} />
-      <Stack.Screen name="subcontractor/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="reports" options={{ headerShown: false }} />
-      <Stack.Screen name="profile" options={{ headerShown: false }} />
+      {/* These now get automatic back buttons */}
+      <Stack.Screen
+        name="subcontractor/[id]"
+        options={{
+          headerShown: false, // Using custom ScreenHeader
+          title: 'Subcontractor'
+        }}
+      />
+      <Stack.Screen
+        name="reports"
+        options={{
+          title: 'Reports Library',
+          headerLargeTitle: false
+        }}
+      />
+      <Stack.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          headerLargeTitle: false
+        }}
+      />
+      <Stack.Screen name="admin/employee-management" options={{ title: 'Employee Management' }} />
       <Stack.Screen name="stripe-test" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
     </Stack>
@@ -104,12 +141,26 @@ function RootLayoutNav() {
 function ChatWidgets() {
   const pathname = usePathname();
 
-  // Hide chat widgets on public registration pages
-  const isPublicRegistrationPage = pathname?.startsWith('/register-subcontractor/') ||
-                                    pathname?.startsWith('/subcontractor-register/') ||
-                                    pathname?.startsWith('/inspection/');
+  // Hide chat widgets on pages where they don't make sense
+  const shouldHideChat =
+    // Public/registration pages
+    pathname?.startsWith('/register-subcontractor/') ||
+    pathname?.startsWith('/subcontractor-register/') ||
+    pathname?.startsWith('/inspection/') ||
+    // Auth pages
+    pathname?.startsWith('/login') ||
+    pathname?.startsWith('/signup') ||
+    pathname === '/' ||
+    // Settings/Profile pages
+    pathname?.startsWith('/profile') ||
+    pathname?.includes('/settings') ||
+    // Admin/Reports pages (can be re-enabled if needed)
+    pathname?.startsWith('/admin/') ||
+    pathname?.startsWith('/reports') ||
+    // More menu
+    pathname?.endsWith('/more');
 
-  if (isPublicRegistrationPage) {
+  if (shouldHideChat) {
     return null;
   }
 

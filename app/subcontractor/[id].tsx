@@ -9,6 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
 import { trpc } from '@/lib/trpc';
 import { supabase } from '@/lib/supabase';
+import ScreenHeader from '@/components/ScreenHeader';
 
 export default function SubcontractorProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -266,8 +267,9 @@ export default function SubcontractorProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: subcontractor.name }} />
-      
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title={subcontractor.name} />
+
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.avatar}>

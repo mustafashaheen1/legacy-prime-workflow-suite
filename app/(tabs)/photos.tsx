@@ -586,11 +586,13 @@ export default function PhotosScreen() {
 
             <ScrollView style={styles.previewModalScroll} showsVerticalScrollIndicator={false}>
               {selectedImage && (
-                <Image 
-                  source={{ uri: selectedImage }} 
-                  style={styles.previewModalImage} 
-                  contentFit="cover" 
-                />
+                <View style={styles.previewImageContainer}>
+                  <Image
+                    source={{ uri: selectedImage }}
+                    style={styles.previewModalImage}
+                    contentFit="contain"
+                  />
+                </View>
               )}
 
               <View style={styles.previewFormSection}>
@@ -881,30 +883,37 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   galleryItem: {
-    width: '30%',
+    width: '47%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   thumbnail: {
     width: '100%',
-    height: 120,
+    height: 140,
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 10,
+    backgroundColor: '#F3F4F6',
   },
   thumbnailLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#1F2937',
+    fontWeight: '600' as const,
     flex: 1,
   },
   thumbnailFooter: {
-    marginTop: 8,
+    marginTop: 4,
   },
   // 🎯 CLIENT DESIGN: Uploader row styles
   uploaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     marginBottom: 8,
   },
   uploaderAvatar: {
@@ -932,20 +941,23 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#1F2937',
     flex: 1,
+    marginLeft: 8,
   },
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 6,
+    marginTop: 4,
   },
   editButton: {
     padding: 4,
   },
   photoNotes: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#6B7280',
-    marginTop: 4,
+    marginTop: 6,
+    lineHeight: 16,
   },
   modalOverlay: {
     flex: 1,
@@ -1194,10 +1206,16 @@ const styles = StyleSheet.create({
   previewModalScroll: {
     flex: 1,
   },
+  previewImageContainer: {
+    width: '100%',
+    height: 300,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   previewModalImage: {
     width: '100%',
-    height: 250,
-    marginBottom: 16,
+    height: '100%',
   },
   previewFormSection: {
     padding: 20,

@@ -11,17 +11,26 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { PriceListItem } from '@/mocks/priceList';
 import { TakeoffMeasurement, TakeoffPlan, EstimateItem, Estimate, AnnotationElement } from '@/types';
 import Svg, { Circle, Polygon, Path, Line, Rect, Text as SvgText } from 'react-native-svg';
-import * as pdfjsLib from 'pdfjs-dist';
 import ImageAnnotation from '@/components/ImageAnnotation';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+
+// Platform-specific imports - only import web libraries on web platform
+let pdfjsLib: any = null;
+let jsPDF: any = null;
+let html2canvas: any = null;
+
+if (Platform.OS === 'web') {
+  // Dynamic imports for web-only libraries
+  pdfjsLib = require('pdfjs-dist');
+  jsPDF = require('jspdf').default || require('jspdf');
+  html2canvas = require('html2canvas').default || require('html2canvas');
+
+  // Configure PDF.js worker for web
+  if (typeof window !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+  }
+}
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Configure PDF.js worker for web
-if (Platform.OS === 'web' && typeof window !== 'undefined') {
-  (pdfjsLib as any).GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-}
 
 const MEASUREMENT_COLORS = ['#EF4444', '#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
 
@@ -426,7 +435,7 @@ export default function TakeoffScreen() {
   };
 
   const convertPdfToImages = async (pdfUri: string): Promise<{ blobs: Blob[], pageCount: number }> => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== 'web' || !pdfjsLib) {
       throw new Error('PDF conversion only supported on web');
     }
 
@@ -759,7 +768,7 @@ export default function TakeoffScreen() {
       return;
     }
 
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== 'web' || !html2canvas || !jsPDF) {
       Alert.alert('Export', 'Export is currently only supported on web');
       return;
     }
