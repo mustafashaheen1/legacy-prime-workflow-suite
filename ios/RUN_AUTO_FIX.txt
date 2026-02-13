@@ -1,0 +1,37 @@
+╔═══════════════════════════════════════════════════════════════╗
+║           🤖 AUTOMATIC FIX - RUN THIS COMMAND                 ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Copy and paste this command:
+
+bash /Users/codercrewllc/Downloads/legacy-prime-workflow-suite/auto-fix-receipt-file.sh
+
+
+This will:
+  1. Find the receipt-duplicate-detection.ts file
+  2. Create a backup
+  3. Add expo-crypto import
+  4. Replace require('crypto') with expo-crypto code
+  5. Fix the file automatically
+
+═══════════════════════════════════════════════════════════════
+
+THEN RUN:
+
+cd /Users/codercrewllc/Downloads/legacy-prime-workflow-suite
+
+Press 'r' in the Metro terminal to reload
+
+Or restart Metro:
+  Ctrl+C
+  npx expo start --clear
+
+═══════════════════════════════════════════════════════════════
+
+THEN BUILD:
+
+In Xcode, press ⌘R to build and run
+
+✅ The crypto error will be fixed!
+
+═══════════════════════════════════════════════════════════════

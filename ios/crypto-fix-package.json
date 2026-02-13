@@ -1,0 +1,8 @@
+{
+  "name": "crypto-fix-installer",
+  "version": "1.0.0",
+  "description": "Auto-install script for crypto fix",
+  "scripts": {
+    "fix-crypto": "npm install expo-crypto && cd ios && pod install && cd .. && echo 'Crypto fix installed! Run: npx expo start --clear'"
+  }
+}

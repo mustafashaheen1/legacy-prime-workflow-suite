@@ -7,4 +7,109 @@
    <FileRef
       location = "group:Pods/Pods.xcodeproj">
    </FileRef>
+   <FileRef
+      location = "group:start-metro.sh">
+   </FileRef>
+   <FileRef
+      location = "group:METRO_BUNDLER_FIX.md">
+   </FileRef>
+   <FileRef
+      location = "group:check-metro.sh">
+   </FileRef>
+   <FileRef
+      location = "group:libcrypto-polyfill.ts">
+   </FileRef>
+   <FileRef
+      location = "group:CRYPTO_ERROR_FIX.md">
+   </FileRef>
+   <FileRef
+      location = "group:libreceipt-duplicate-detection-fixed.ts">
+   </FileRef>
+   <FileRef
+      location = "group:fix-crypto-error.sh">
+   </FileRef>
+   <FileRef
+      location = "group:quick-fix-crypto.sh">
+   </FileRef>
+   <FileRef
+      location = "group:QUICKSTART_CRYPTO_FIX.md">
+   </FileRef>
+   <FileRef
+      location = "group:metro.config.js">
+   </FileRef>
+   <FileRef
+      location = "group:crypto-shim.js">
+   </FileRef>
+   <FileRef
+      location = "group:crypto-fix-package.json">
+   </FileRef>
+   <FileRef
+      location = "group:auto-fix-crypto.sh">
+   </FileRef>
+   <FileRef
+      location = "group:one-line-fix.sh">
+   </FileRef>
+   <FileRef
+      location = "group:RUN_THIS_COMMAND.md">
+   </FileRef>
+   <FileRef
+      location = "group:CRYPTO_FIX_COMPLETE.txt">
+   </FileRef>
+   <FileRef
+      location = "group:install-with-npm.sh">
+   </FileRef>
+   <FileRef
+      location = "group:complete-install.sh">
+   </FileRef>
+   <FileRef
+      location = "group:FINAL_INSTRUCTIONS.txt">
+   </FileRef>
+   <FileRef
+      location = "group:fix.sh">
+   </FileRef>
+   <FileRef
+      location = "group:start-app.sh">
+   </FileRef>
+   <FileRef
+      location = "group:crypto-shim 2.js">
+   </FileRef>
+   <FileRef
+      location = "group:SUCCESS.txt">
+   </FileRef>
+   <FileRef
+      location = "group:NEXT_COMMAND.txt">
+   </FileRef>
+   <FileRef
+      location = "group:SANDBOX_FIXED.txt">
+   </FileRef>
+   <FileRef
+      location = "group:ALL_FIXES_COMPLETE.txt">
+   </FileRef>
+   <FileRef
+      location = "group:crypto-shim 3.js">
+   </FileRef>
+   <FileRef
+      location = "group:restart-metro.sh">
+   </FileRef>
+   <FileRef
+      location = "group:CRYPTO_FILES_RECREATED.txt">
+   </FileRef>
+   <FileRef
+      location = "group:RUN_THIS_NOW.txt">
+   </FileRef>
+   <FileRef
+      location = "group:DIRECT_FIX_NEEDED.md">
+   </FileRef>
+   <FileRef
+      location = "group:find-crypto-file.sh">
+   </FileRef>
+   <FileRef
+      location = "group:auto-fix-receipt-file.sh">
+   </FileRef>
+   <FileRef
+      location = "group:simple-crypto-fix.sh">
+   </FileRef>
+   <FileRef
+      location = "group:RUN_AUTO_FIX.txt">
+   </FileRef>
 </Workspace>

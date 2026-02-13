@@ -1,0 +1,33 @@
+═══════════════════════════════════════════════════════════════
+              ⚡ QUICK FIX - CRYPTO ERROR
+═══════════════════════════════════════════════════════════════
+
+COPY AND PASTE THIS COMMAND:
+
+cd /Users/codercrewllc/Downloads/legacy-prime-workflow-suite && bash restart-metro.sh
+
+
+OR RUN THESE MANUAL COMMANDS:
+
+cd /Users/codercrewllc/Downloads/legacy-prime-workflow-suite
+pkill -9 node
+rm -rf node_modules/.cache .expo /tmp/metro-* /tmp/react-*
+npx expo start --clear
+
+
+═══════════════════════════════════════════════════════════════
+
+WHAT THIS DOES:
+  ✓ Stops any running Metro instances
+  ✓ Clears Metro cache
+  ✓ Restarts Metro with metro.config.js
+  ✓ Metro will now use crypto-shim.js for crypto imports
+
+═══════════════════════════════════════════════════════════════
+
+AFTER METRO STARTS:
+  → Metro will show "Metro waiting on..."
+  → Build in Xcode (⌘R)
+  → ✅ No more crypto errors!
+
+═══════════════════════════════════════════════════════════════
