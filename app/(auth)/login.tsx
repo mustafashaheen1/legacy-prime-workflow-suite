@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { auth } from '@/lib/supabase';
-import { Wrench } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import Logo from '@/components/Logo';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
@@ -140,7 +140,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.header}>
-          <Wrench size={40} color="#2563EB" strokeWidth={2.5} />
+          <Logo size={100} />
           <Text style={styles.title}>Legacy Prime</Text>
           <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
         </View>

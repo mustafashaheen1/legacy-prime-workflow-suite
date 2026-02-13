@@ -1,12 +1,13 @@
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Wrench, ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTranslation } from 'react-i18next';
 import { useApp } from '@/contexts/AppContext';
 import { auth } from '@/lib/supabase';
+import Logo from '@/components/Logo';
 
 export default function SignupScreen() {
   const [accountType, setAccountType] = useState<'company' | 'employee' | null>(null);
@@ -329,7 +330,7 @@ export default function SignupScreen() {
           keyboardShouldPersistTaps="handled"
         >
         <View style={styles.header}>
-          <Wrench size={40} color="#2563EB" strokeWidth={2.5} />
+          <Logo size={80} />
           <Text style={styles.title}>{t('signup.title')}</Text>
           <Text style={styles.subtitle}>{accountType ? (accountType === 'company' ? t('signup.subtitleCompany') : t('signup.subtitleEmployee')) : t('signup.subtitle')}</Text>
         </View>
