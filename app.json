@@ -4,7 +4,7 @@
     "slug": "legacy-prime-workflow-suite",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
+    "icon": "./assets/images/app-icon-1024.png",
     "scheme": "legacyprime",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.rork.legacy-prime-workflow-suite",
-      "icon": "./assets/images/logo.png",
+      "icon": "./assets/images/app-icon-1024.png",
       "infoPlist": {
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to use your location.",
         "NSLocationAlwaysUsageDescription": "Allow $(PRODUCT_NAME) to use your location.",
@@ -42,7 +42,7 @@
         "foregroundImage": "./assets/images/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "icon": "./assets/images/logo.png",
+      "icon": "./assets/images/app-icon-1024.png",
       "package": "app.rork.legacy-prime-workflow-suite",
       "permissions": [
         "ACCESS_COARSE_LOCATION",

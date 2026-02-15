@@ -7,7 +7,7 @@ module.exports = {
     slug: "legacy-prime-workflow-suite",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/logo.png",
+    icon: "./assets/images/app-icon-1024.png",
     scheme: "legacyprime",
     splash: {
       image: "./assets/images/logo.png",
@@ -26,7 +26,7 @@ module.exports = {
         foregroundImage: "./assets/images/logo.png",
         backgroundColor: "#ffffff"
       },
-      icon: "./assets/images/logo.png",
+      icon: "./assets/images/app-icon-1024.png",
       package: "app.rork.legacy_prime_workflow_suite"
     },
     web: {
