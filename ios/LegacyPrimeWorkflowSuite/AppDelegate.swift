@@ -62,15 +62,7 @@ class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    // Try the Expo virtual metro entry first
-    let expoURL = RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry")
-    
-    // If that fails, try the standard main entry point
-    if expoURL == nil {
-      return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
-    }
-    
-    return expoURL
+    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry")
 #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif

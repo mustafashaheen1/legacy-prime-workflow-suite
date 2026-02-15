@@ -19,6 +19,7 @@ export default function ChatScreen() {
   const { user, conversations, clients, addConversation, addMessageToConversation } = useApp();
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 768;
+  const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'https://legacy-prime-workflow-suite.vercel.app';
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messageText, setMessageText] = useState<string>('');
@@ -59,7 +60,7 @@ export default function ChatScreen() {
     try {
       console.log('[Chat] Clearing AI chat history...');
 
-      const response = await fetch('/api/clear-chat-history', {
+      const response = await fetch(`${rorkApi}/api/clear-chat-history`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -146,7 +147,7 @@ export default function ChatScreen() {
         console.log('[Chat] Fetching team members for user:', user.id, 'role:', user.role);
 
         const response = await fetch(
-          `/api/team/get-members?userId=${user.id}&userRole=${user.role}`
+          `${rorkApi}/api/team/get-members?userId=${user.id}&userRole=${user.role}`
         );
 
         const result = await response.json();
@@ -182,7 +183,7 @@ export default function ChatScreen() {
         console.log('[Chat] Fetching conversations for user:', user.id);
 
         const response = await fetch(
-          `/api/team/get-conversations?userId=${user.id}`
+          `${rorkApi}/api/team/get-conversations?userId=${user.id}`
         );
 
         const result = await response.json();
@@ -238,7 +239,7 @@ export default function ChatScreen() {
         console.log('[Chat] Fetching messages for conversation:', selectedChat);
 
         const response = await fetch(
-          `/api/team/get-messages?conversationId=${selectedChat}&userId=${user.id}`
+          `${rorkApi}/api/team/get-messages?conversationId=${selectedChat}&userId=${user.id}`
         );
 
         const result = await response.json();
@@ -341,7 +342,7 @@ export default function ChatScreen() {
       console.log('[Chat] Creating conversation with participants:', selectedParticipants);
 
       // Call API to create or find existing conversation
-      const response = await fetch('/api/team/create-conversation', {
+      const response = await fetch(`${rorkApi}/api/team/create-conversation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -490,7 +491,7 @@ export default function ChatScreen() {
         }
 
         // Get presigned URL
-        const urlResponse = await fetch('/api/get-upload-url', {
+        const urlResponse = await fetch(`${rorkApi}/api/get-upload-url`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -522,7 +523,7 @@ export default function ChatScreen() {
         console.log('[Chat] Image uploaded to S3:', urlResult.publicUrl);
 
         // Send message via API
-        const messageResponse = await fetch('/api/team/send-message', {
+        const messageResponse = await fetch(`${rorkApi}/api/team/send-message`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -610,7 +611,7 @@ export default function ChatScreen() {
           }
 
           // Get presigned URL
-          const urlResponse = await fetch('/api/get-upload-url', {
+          const urlResponse = await fetch(`${rorkApi}/api/get-upload-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -642,7 +643,7 @@ export default function ChatScreen() {
           console.log('[Chat] Document uploaded to S3:', urlResult.publicUrl);
 
           // Send message via API
-          const messageResponse = await fetch('/api/team/send-message', {
+          const messageResponse = await fetch(`${rorkApi}/api/team/send-message`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -840,7 +841,7 @@ export default function ChatScreen() {
           }
 
           // Upload to S3
-          const uploadResponse = await fetch('/api/upload-audio', {
+          const uploadResponse = await fetch(`${rorkApi}/api/upload-audio`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -859,7 +860,7 @@ export default function ChatScreen() {
           console.log('[Voice] Audio uploaded to S3:', uploadResult.url);
 
           // Send message via API
-          const messageResponse = await fetch('/api/team/send-message', {
+          const messageResponse = await fetch(`${rorkApi}/api/team/send-message`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -953,7 +954,7 @@ export default function ChatScreen() {
       if (isTeamChat) {
         // Team chat: Send via API
         try {
-          const response = await fetch('/api/team/send-message', {
+          const response = await fetch(`${rorkApi}/api/team/send-message`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

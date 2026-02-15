@@ -27,6 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
+          <string>legacyprime</string>
           <string>app.rork.legacy-prime-workflow-suite</string>
         </array>
       </dict>

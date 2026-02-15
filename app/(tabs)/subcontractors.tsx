@@ -851,9 +851,7 @@ ${company?.officePhone || ''}`;
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Subcontractor Directory</Text>
           <View style={styles.headerActions}>
-            <DailyTasksButton />
             <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Subcontractor</Text>
@@ -1021,60 +1019,64 @@ ${company?.officePhone || ''}`;
                   </View>
                 </View>
                 <View style={styles.subActions}>
-                  <TouchableOpacity
-                    style={[
-                      styles.inviteButton,
-                      !canSendInvite(sub) && styles.inviteButtonDisabled
-                    ]}
-                    onPress={() => handleSendInviteToSubcontractor(sub)}
-                    disabled={sendingInvitation || !canSendInvite(sub)}
-                  >
-                    {sendingInvitation ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Send size={16} color="#FFFFFF" />
-                        <Text style={styles.inviteButtonText}>
-                          {getInvitationStatus(sub) === 'invited-pending'
-                            ? 'Resend Invite'
-                            : 'Send Invite'}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => openMessageModal('email', sub.id)}
-                  >
-                    <Mail size={16} color="#2563EB" />
-                    <Text style={styles.actionButtonText}>Email</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => openMessageModal('sms', sub.id)}
-                  >
-                    <MessageSquare size={16} color="#059669" />
-                    <Text style={styles.actionButtonText}>SMS</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.estimateButton}
-                    onPress={() => {
-                      setSelectedSubcontractor(sub);
-                      setShowRequestModal(true);
-                    }}
-                  >
-                    <FileText size={16} color="#FFFFFF" />
-                    <Text style={styles.estimateButtonText}>Request Estimate</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.viewButton}
-                    onPress={() => {
-                      router.push(`/subcontractor/${sub.id}`);
-                    }}
-                  >
-                    <FileCheck size={16} color="#8B5CF6" />
-                    <Text style={styles.viewButtonText}>View Profile</Text>
-                  </TouchableOpacity>
+                  <View style={styles.actionsRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.inviteButton,
+                        !canSendInvite(sub) && styles.inviteButtonDisabled
+                      ]}
+                      onPress={() => handleSendInviteToSubcontractor(sub)}
+                      disabled={sendingInvitation || !canSendInvite(sub)}
+                    >
+                      {sendingInvitation ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Send size={16} color="#FFFFFF" />
+                          <Text style={styles.inviteButtonText}>
+                            {getInvitationStatus(sub) === 'invited-pending'
+                              ? 'Resend Invite'
+                              : 'Send Invite'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => openMessageModal('email', sub.id)}
+                    >
+                      <Mail size={16} color="#2563EB" />
+                      <Text style={styles.actionButtonText}>Email</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => openMessageModal('sms', sub.id)}
+                    >
+                      <MessageSquare size={16} color="#059669" />
+                      <Text style={styles.actionButtonText}>SMS</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.actionsRow}>
+                    <TouchableOpacity
+                      style={styles.estimateButton}
+                      onPress={() => {
+                        setSelectedSubcontractor(sub);
+                        setShowRequestModal(true);
+                      }}
+                    >
+                      <FileText size={16} color="#FFFFFF" />
+                      <Text style={styles.estimateButtonText}>Request Estimate</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.viewButton}
+                      onPress={() => {
+                        router.push(`/subcontractor/${sub.id}`);
+                      }}
+                    >
+                      <FileCheck size={16} color="#8B5CF6" />
+                      <Text style={styles.viewButtonText}>View Profile</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             ))
@@ -1888,7 +1890,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
@@ -1902,7 +1905,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     gap: 8,
     flexWrap: 'wrap' as const,
-    marginTop: 12,
+    justifyContent: 'flex-end' as const,
   },
   addButton: {
     flexDirection: 'row' as const,
@@ -2167,6 +2170,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   subActions: {
+    flexDirection: 'column' as const,
+    gap: 8,
+  },
+  actionsRow: {
     flexDirection: 'row' as const,
     gap: 8,
     flexWrap: 'wrap' as const,
@@ -2174,29 +2181,34 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
     backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    flexShrink: 1,
+    minWidth: 80,
   },
   actionButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#1F2937',
     fontWeight: '500' as const,
   },
   inviteButton: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
     backgroundColor: '#10B981',
     borderWidth: 1,
     borderColor: '#059669',
+    flexShrink: 1,
   },
   inviteButtonDisabled: {
     backgroundColor: '#9CA3AF',
@@ -2204,7 +2216,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   inviteButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#FFFFFF',
     fontWeight: '600' as const,
   },
@@ -2229,32 +2241,37 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   estimateButton: {
+    flex: 1,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     gap: 4,
     backgroundColor: '#2563EB',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    minWidth: 120,
   },
   estimateButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
   },
   viewButton: {
+    flex: 1,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
     backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
   viewButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#1F2937',
     fontWeight: '500' as const,
   },

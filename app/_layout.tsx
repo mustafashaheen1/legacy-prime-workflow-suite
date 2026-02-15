@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import GlobalAIChat from "@/components/GlobalAIChatSimple";
 import FloatingChatButton from "@/components/FloatingChatButton";
+import AnimatedSplashScreen from "@/components/AnimatedSplashScreen";
 import { trpc, trpcClient } from "@/lib/trpc";
 import '@/lib/i18n';
 
@@ -173,16 +174,29 @@ function ChatWidgets() {
 }
 
 export default function RootLayout() {
+  const [showSplash, setShowSplash] = useState(true);
+
   useEffect(() => {
+    // Hide native splash immediately so we can show our custom animated one
     SplashScreen.hideAsync();
   }, []);
+
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+  };
 
   const content = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <LanguageProvider>
         <AppProvider>
-          <RootLayoutNav />
-          <ChatWidgets />
+          {showSplash ? (
+            <AnimatedSplashScreen onAnimationComplete={handleSplashComplete} />
+          ) : (
+            <>
+              <RootLayoutNav />
+              <ChatWidgets />
+            </>
+          )}
         </AppProvider>
       </LanguageProvider>
     </GestureHandlerRootView>
