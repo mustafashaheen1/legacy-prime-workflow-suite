@@ -8,219 +8,206 @@ import {
   Modal,
   Platform,
   Alert,
-  Image,
+  ActivityIndicator,
+  PanResponder,
+  Dimensions,
   Switch,
-  Share,
-  ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
-import { Calendar, X, GripVertical, BookOpen, Plus, Trash2, Check, Share2, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronRight, FileText, ArrowLeft } from 'lucide-react-native';
+import {
+  Calendar,
+  X,
+  Plus,
+  Trash2,
+  Check,
+  Share2,
+  History,
+  Download,
+  Camera,
+  ImageIcon,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Shovel,
+  Mountain,
+  Home,
+  Droplets,
+  Hammer,
+  Triangle,
+  DoorOpen,
+  Shield,
+  Wrench,
+  Zap,
+  Wind,
+  Snowflake,
+  Layers,
+  Paintbrush,
+  Bath,
+  Lightbulb,
+  Fan,
+  Trees,
+  Sparkles,
+  ClipboardCheck,
+  BookOpen,
+  Printer,
+  Eye,
+  EyeOff,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto } from '@/types';
-import { trpc } from '@/lib/trpc';
-import { Paths, File as FSFile } from 'expo-file-system';
+import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto, DailyTask } from '@/types';
 import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { GanttSchedule } from '@/components/GanttChart';
 
 // Helper function to get API base URL for both web and mobile
 const getApiBaseUrl = () => {
-  // Check for environment variable first (works on mobile)
   const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
   if (rorkApi) {
     return rorkApi;
   }
-  // Fallback to window.location on web
   if (typeof window !== 'undefined') {
     return window.location.origin;
   }
-  // Development fallback
   return 'http://localhost:8081';
 };
 
-const CONSTRUCTION_CATEGORIES = [
-  { name: 'Pre-Construction', color: '#8B5CF6' },
-  { name: 'Foundation', color: '#EF4444' },
-  { name: 'Framing', color: '#F59E0B' },
-  { name: 'Asphalt', color: '#1F2937' },
-  { name: 'Roofing', color: '#7C3AED' },
-  { name: 'Electrical', color: '#F97316' },
-  { name: 'Plumbing', color: '#3B82F6' },
-  { name: 'HVAC', color: '#10B981' },
-  { name: 'Drywall', color: '#6366F1' },
-  { name: 'Painting', color: '#EC4899' },
-  { name: 'Flooring', color: '#84CC16' },
-  { name: 'Exterior', color: '#14B8A6' },
-  { name: 'Landscaping', color: '#22C55E' },
-  { name: 'Final Inspection', color: '#06B6D4' },
+// Construction phases with icons
+const CONSTRUCTION_PHASES = [
+  { id: 'pre-construction', name: 'Pre-Construction', icon: FileText, color: '#8B5CF6' },
+  { id: 'site-prep', name: 'Site Preparation', icon: Shovel, color: '#EF4444' },
+  { id: 'earthwork', name: 'Earthwork & Excavation', icon: Mountain, color: '#F59E0B' },
+  { id: 'foundation', name: 'Foundation', icon: Home, color: '#DC2626' },
+  { id: 'utilities', name: 'Underground Utilities', icon: Droplets, color: '#3B82F6' },
+  { id: 'framing', name: 'Framing', icon: Hammer, color: '#D97706' },
+  { id: 'roofing', name: 'Roofing', icon: Triangle, color: '#7C3AED' },
+  { id: 'windows-doors', name: 'Windows & Exterior Doors', icon: DoorOpen, color: '#06B6D4' },
+  { id: 'exterior', name: 'Exterior Envelope', icon: Shield, color: '#14B8A6' },
+  { id: 'plumbing-rough', name: 'Plumbing Rough-In', icon: Wrench, color: '#0EA5E9' },
+  { id: 'electrical-rough', name: 'Electrical Rough-In', icon: Zap, color: '#F97316' },
+  { id: 'hvac-rough', name: 'HVAC Rough-In', icon: Wind, color: '#10B981' },
+  { id: 'insulation', name: 'Insulation', icon: Snowflake, color: '#38BDF8' },
+  { id: 'drywall', name: 'Drywall', icon: Layers, color: '#6366F1' },
+  { id: 'interior-finishes', name: 'Interior Finishes', icon: Sparkles, color: '#F472B6' },
+  { id: 'painting', name: 'Painting', icon: Paintbrush, color: '#EC4899' },
+  { id: 'plumbing-fixtures', name: 'Plumbing Fixtures', icon: Bath, color: '#0284C7' },
+  { id: 'electrical-fixtures', name: 'Electrical Fixtures', icon: Lightbulb, color: '#EA580C' },
+  { id: 'hvac-final', name: 'HVAC Final', icon: Fan, color: '#059669' },
+  { id: 'exterior-improvements', name: 'Exterior Improvements', icon: Trees, color: '#22C55E' },
+  { id: 'final-touches', name: 'Final Touches', icon: Sparkles, color: '#A855F7' },
+  { id: 'inspections', name: 'Inspections & Closeout', icon: ClipboardCheck, color: '#0891B2' },
 ];
 
-const DAY_WIDTH = 80;
-const ROW_HEIGHT = 80;
-const HOUR_HEIGHT = 80;
-const LEFT_MARGIN = 60;
+// Layout constants
+const SIDEBAR_WIDTH = 140;
+const BASE_DAY_WIDTH = 80;
+const BASE_ROW_HEIGHT = 60;
+const BASE_BAR_HEIGHT = 40;
+const HEADER_HEIGHT = 50;
 
-// Feature flag for new Gantt Chart UI
-const USE_GANTT_V2 = process.env.EXPO_PUBLIC_ENABLE_GANTT_V2 === 'true';
+// Zoom constants
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2.5;
+const ZOOM_STEP = 0.1;
+
+// Extended ScheduledTask to include completed status
+interface ScheduledTaskWithStatus extends ScheduledTask {
+  completed?: boolean;
+  completedAt?: string;
+  visibleToClient?: boolean;
+}
 
 export default function ScheduleScreen() {
   const { user, projects, dailyLogs, addDailyLog, updateDailyLog, deleteDailyLog } = useApp();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  // State management
   const [selectedProject, setSelectedProject] = useState<string | null>(
     projects.length > 0 ? projects[0].id : null
   );
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTaskWithStatus[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState<boolean>(false);
+
+  // Phase management
+  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(
+    new Set(CONSTRUCTION_PHASES.map(p => p.id))
+  );
+  const [customPhases, setCustomPhases] = useState<Array<{ id: string; name: string; parentId?: string; color: string }>>([]);
+  const [contextMenuPhase, setContextMenuPhase] = useState<string | null>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Modals
+  const [showTasksModal, setShowTasksModal] = useState<boolean>(false);
+  const [showDailyLogModal, setShowDailyLogModal] = useState<boolean>(false);
+  const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
+  const [showShareModal, setShowShareModal] = useState<boolean>(false);
+  const [showAddSubPhaseModal, setShowAddSubPhaseModal] = useState<boolean>(false);
+
+  // Task editing
+  const [editingTask, setEditingTask] = useState<ScheduledTaskWithStatus | null>(null);
+  const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
+  const [taskFormData, setTaskFormData] = useState({
+    category: '',
+    startDate: '',
+    endDate: '',
+    workType: 'in-house' as 'in-house' | 'subcontractor',
+    notes: '',
+    visibleToClient: true,
+  });
+
+  // Daily Log state
+  const [equipmentNote, setEquipmentNote] = useState<string>('');
+  const [materialNote, setMaterialNote] = useState<string>('');
+  const [officialNote, setOfficialNote] = useState<string>('');
+  const [subsNote, setSubsNote] = useState<string>('');
+  const [employeesNote, setEmployeesNote] = useState<string>('');
+  const [workPerformed, setWorkPerformed] = useState<string>('');
+  const [issues, setIssues] = useState<string>('');
+  const [generalNotes, setGeneralNotes] = useState<string>('');
+  const [logTasks, setLogTasks] = useState<DailyLogTask[]>([]);
+  const [logPhotos, setLogPhotos] = useState<DailyLogPhoto[]>([]);
+  const [sharedWith, setSharedWith] = useState<string[]>([]);
+  const [isSavingLog, setIsSavingLog] = useState<boolean>(false);
+
+  // Zoom state
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+
+  // Drag and resize state
+  const [draggedTask, setDraggedTask] = useState<string | null>(null);
+  const [resizingTask, setResizingTask] = useState<{ id: string; type: 'left' | 'right' } | null>(null);
+
+  // Computed dimensions based on zoom
+  const DAY_WIDTH = BASE_DAY_WIDTH * zoomLevel;
+  const ROW_HEIGHT = BASE_ROW_HEIGHT * zoomLevel;
+  const BAR_HEIGHT = BASE_BAR_HEIGHT * zoomLevel;
 
   // Get selected project details
   const selectedProjectData = useMemo(() => {
     return projects.find(p => p.id === selectedProject);
   }, [projects, selectedProject]);
 
-  // NEW GANTT V2 RENDER
-  if (USE_GANTT_V2) {
-    return (
-      <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: '#F9FAFB' }}>
-        {/* Project Selector */}
-        <View style={styles.projectSelectorContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.projectSelector}
-          >
-            {projects.map((project) => (
-              <TouchableOpacity
-                key={project.id}
-                style={[
-                  styles.projectTab,
-                  selectedProject === project.id && styles.projectTabActive,
-                ]}
-                onPress={() => setSelectedProject(project.id)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.projectTabText,
-                    selectedProject === project.id && styles.projectTabTextActive,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {project.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Gantt Chart V2 */}
-        <GanttSchedule
-          projectId={selectedProject}
-          projectName={selectedProjectData?.name}
-          viewMode={user?.role === 'client' ? 'client' : 'internal'}
-        />
-
-        {/* Daily Tasks Button */}
-        <DailyTasksButton />
-      </View>
-    );
-  }
-
-  // LEGACY SCHEDULE VIEW (existing code continues below)
-
-  // View mode state
-  const [viewMode, setViewMode] = useState<'timeline' | 'daily'>('daily');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [weekStartDate, setWeekStartDate] = useState<Date>(() => {
+  // Generate timeline dates (next 120 days)
+  const timelineDates = useMemo(() => {
+    const dates: Date[] = [];
     const today = new Date();
-    const dayOfWeek = today.getDay();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-    return monday;
-  });
-  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
-  const [showModal, setShowModal] = useState<boolean>(false);
-  const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
-  const [workType, setWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
-  const [notes, setNotes] = useState<string>('');
-  const [draggedTask, setDraggedTask] = useState<string | null>(null);
-  const [resizingTask, setResizingTask] = useState<{ id: string; type: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' } | null>(null);
-  const [touchingHandle, setTouchingHandle] = useState<{ id: string; type: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' } | null>(null);
-  const [quickEditTask, setQuickEditTask] = useState<string | null>(null);
-  const [quickNoteText, setQuickNoteText] = useState<string>('');
-  const [quickEditWorkType, setQuickEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
-  const [lastTap, setLastTap] = useState<number>(0);
+    for (let i = 0; i < 120; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      dates.push(date);
+    }
+    return dates;
+  }, []);
 
-  // Resize tracking state
-  const [activeResize, setActiveResize] = useState<{
-    taskId: string;
-    type: 'right' | 'bottom';
-    startX: number;
-    startY: number;
-    initialDuration: number;
-    initialRowSpan: number;
-  } | null>(null);
-
-  // Drag tracking state
-  const [activeDrag, setActiveDrag] = useState<{
-    taskId: string;
-    startX: number;
-    startY: number;
-    initialRow: number;
-    initialStartDate: Date;
-    initialDayIndex: number;
-  } | null>(null);
-
-  // Refs to track current state inside event listeners (prevents stale closure issues)
-  const activeResizeRef = useRef<{
-    taskId: string;
-    type: 'right' | 'bottom';
-    startX: number;
-    startY: number;
-    initialDuration: number;
-    initialRowSpan: number;
-  } | null>(null);
-
-  const activeDragRef = useRef<{
-    taskId: string;
-    startX: number;
-    startY: number;
-    initialRow: number;
-    initialStartDate: Date;
-    initialDayIndex: number;
-  } | null>(null);
-
-  const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
-  const [isSavingLog, setIsSavingLog] = useState<boolean>(false);
-  const [isLoadingTasks, setIsLoadingTasks] = useState<boolean>(false);
-  const [equipmentExpanded, setEquipmentExpanded] = useState<boolean>(false);
-  const [materialExpanded, setMaterialExpanded] = useState<boolean>(false);
-  const [officialExpanded, setOfficialExpanded] = useState<boolean>(false);
-  const [subsExpanded, setSubsExpanded] = useState<boolean>(false);
-  const [employeesExpanded, setEmployeesExpanded] = useState<boolean>(false);
-
-  const [equipmentNote, setEquipmentNote] = useState<string>('');
-  const [materialNote, setMaterialNote] = useState<string>('');
-  const [officialNote, setOfficialNote] = useState<string>('');
-  const [subsNote, setSubsNote] = useState<string>('');
-  const [employeesNote, setEmployeesNote] = useState<string>('');
-  
-  const [workPerformed, setWorkPerformed] = useState<string>('');
-  const [issues, setIssues] = useState<string>('');
-  const [generalNotes, setGeneralNotes] = useState<string>('');
-  
-  const [tasks, setTasks] = useState<DailyLogTask[]>([]);
-  const [photos, setPhotos] = useState<DailyLogPhoto[]>([]);
-  const [sharedWith, setSharedWith] = useState<string[]>([]);
-  const [shareEmail, setShareEmail] = useState<string>('');
-  const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
-  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
-  const [jumpToDateValue, setJumpToDateValue] = useState<string>('');
-  const [showConstructionPhases, setShowConstructionPhases] = useState<boolean>(false);
-  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
-  const [showTaskDetailModal, setShowTaskDetailModal] = useState<boolean>(false);
-  const [selectedTaskDetail, setSelectedTaskDetail] = useState<ScheduledTask | null>(null);
+  const formatDate = (date: Date): string => {
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const day = date.getDate();
+    return `${month} ${day}`;
+  };
 
   // Fetch scheduled tasks from API
   const fetchScheduledTasks = useCallback(async () => {
@@ -229,8 +216,6 @@ export default function ScheduleScreen() {
     setIsLoadingTasks(true);
     try {
       const baseUrl = getApiBaseUrl();
-      console.log('[Schedule] Fetching tasks from:', `${baseUrl}/api/get-scheduled-tasks`);
-
       const response = await fetch(`${baseUrl}/api/get-scheduled-tasks?projectId=${selectedProject}`);
 
       if (!response.ok) {
@@ -240,269 +225,28 @@ export default function ScheduleScreen() {
       const data = await response.json();
 
       if (data.success && data.scheduledTasks) {
-        console.log('[Schedule] Fetched tasks from database:', data.scheduledTasks);
-        // Log each task's row value
-        data.scheduledTasks.forEach((task: any) => {
-          console.log(`[Schedule] Task ${task.category}: row=${task.row}, rowSpan=${task.rowSpan}`);
-        });
         setScheduledTasks(data.scheduledTasks);
       }
     } catch (error: any) {
       console.error('[Schedule] Error fetching tasks:', error);
-      // Don't break the UI if API fails
       setScheduledTasks([]);
     } finally {
       setIsLoadingTasks(false);
     }
   }, [selectedProject]);
 
-  // Load tasks when project changes
   useEffect(() => {
     fetchScheduledTasks();
   }, [fetchScheduledTasks]);
 
-  const timelineRef = useRef<ScrollView>(null);
-  const projectTasks = scheduledTasks.filter(t => t.projectId === selectedProject);
-  const projectDailyLogs = (dailyLogs && Array.isArray(dailyLogs)) ? dailyLogs.filter(log => log.projectId === selectedProject) : [];
-
-  const generateDates = (numDays: number): Date[] => {
-    const dates: Date[] = [];
-    const today = new Date();
-    for (let i = 0; i < numDays; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      dates.push(date);
-    }
-    return dates;
-  };
-
-  const dates = useMemo(() => generateDates(60), []);
-
-  const formatDate = (date: Date): string => {
-    const month = date.toLocaleDateString('en-US', { month: 'short' });
-    const day = date.getDate();
-    return `${month} ${day}`;
-  };
-
-  // Collision detection helper
-  const checkTaskOverlap = useCallback((
-    task1Start: Date,
-    task1End: Date,
-    task1Row: number,
-    task2: ScheduledTask,
-    excludeTaskId?: string
-  ): boolean => {
-    if (task2.id === excludeTaskId) return false;
-    if (task1Row !== task2.row) return false;
-
-    const task2Start = new Date(task2.startDate);
-    const task2End = new Date(task2.endDate);
-
-    // Check if date ranges overlap
-    return task1Start < task2End && task1End > task2Start;
-  }, []);
-
-  // Find first available row without overlaps
-  const findAvailableRow = useCallback((
-    startDate: Date,
-    endDate: Date,
-    tasks: ScheduledTask[],
-    excludeTaskId?: string
-  ): number => {
-    let row = 0;
-    let foundAvailableRow = false;
-
-    while (!foundAvailableRow && row < 20) { // Max 20 rows
-      const hasOverlap = tasks.some(task =>
-        checkTaskOverlap(startDate, endDate, row, task, excludeTaskId)
-      );
-
-      if (!hasOverlap) {
-        foundAvailableRow = true;
-      } else {
-        row++;
-      }
-    }
-
-    return row;
-  }, [checkTaskOverlap]);
-
-  // Generate week dates from a start date
-  const generateWeekDates = useCallback((startDate: Date): Date[] => {
-    const weekDates: Date[] = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      weekDates.push(date);
-    }
-    return weekDates;
-  }, []);
-
-  const weekDates = useMemo(() => generateWeekDates(weekStartDate), [weekStartDate, generateWeekDates]);
-
-  // Date navigation functions
-  const scrollToDate = useCallback((targetDate: Date) => {
-    if (viewMode === 'timeline') {
-      const dateIndex = dates.findIndex(d => d.toDateString() === targetDate.toDateString());
-      if (dateIndex !== -1 && timelineRef.current) {
-        const scrollX = dateIndex * DAY_WIDTH;
-        timelineRef.current.scrollTo({ x: scrollX, animated: true });
-        console.log('[Navigation] Scrolled to date:', formatDate(targetDate));
-      }
-    } else {
-      // Daily view - set selected date
-      setSelectedDate(targetDate);
-      // Update week to contain this date
-      const dayOfWeek = targetDate.getDay();
-      const monday = new Date(targetDate);
-      monday.setDate(targetDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-      setWeekStartDate(monday);
-    }
-  }, [dates, viewMode]);
-
-  const scrollToToday = useCallback(() => {
-    const today = new Date();
-    if (viewMode === 'timeline') {
-      // Just scroll in timeline view
-      scrollToDate(today);
-    } else {
-      // Switch to daily view and select today
-      setViewMode('daily');
-      scrollToDate(today);
-    }
-  }, [scrollToDate, viewMode]);
-
-  const scrollToThisWeek = useCallback(() => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-    setViewMode('daily');
-    setWeekStartDate(monday);
-    setSelectedDate(today);
-  }, []);
-
-  const scrollToNextWeek = useCallback(() => {
-    const today = new Date();
-    const nextMonday = new Date(today);
-    const dayOfWeek = today.getDay();
-    const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-    nextMonday.setDate(today.getDate() + daysUntilNextMonday);
-    setViewMode('daily');
-    setWeekStartDate(nextMonday);
-    setSelectedDate(nextMonday);
-  }, []);
-
-  const handleJumpToDate = (date: Date) => {
-    setViewMode('daily');
-    scrollToDate(date);
-    setShowDatePicker(false);
-  };
-
-  // Calendar helpers
-  const generateCalendarDays = useCallback((month: Date): Date[] => {
-    const year = month.getFullYear();
-    const monthIndex = month.getMonth();
-
-    const firstDay = new Date(year, monthIndex, 1);
-    const lastDay = new Date(year, monthIndex + 1, 0);
-
-    const days: Date[] = [];
-
-    // Add empty cells for days before month starts
-    const startDayOfWeek = firstDay.getDay();
-    for (let i = 0; i < startDayOfWeek; i++) {
-      days.push(new Date(0)); // Placeholder
-    }
-
-    // Add all days in month
-    for (let day = 1; day <= lastDay.getDate(); day++) {
-      days.push(new Date(year, monthIndex, day));
-    }
-
-    return days;
-  }, []);
-
-  const calendarDays = useMemo(() => generateCalendarDays(calendarMonth), [calendarMonth, generateCalendarDays]);
-
-  const previousMonth = () => {
-    const newMonth = new Date(calendarMonth);
-    newMonth.setMonth(calendarMonth.getMonth() - 1);
-    setCalendarMonth(newMonth);
-  };
-
-  const nextMonth = () => {
-    const newMonth = new Date(calendarMonth);
-    newMonth.setMonth(calendarMonth.getMonth() + 1);
-    setCalendarMonth(newMonth);
-  };
-
-  // Get data for selected date in daily view
-  const selectedDateString = selectedDate.toISOString().split('T')[0];
-  const selectedDateTasks = scheduledTasks.filter(task => {
-    const taskStart = new Date(task.startDate);
-    const taskEnd = new Date(task.endDate);
-    return selectedDate >= taskStart && selectedDate <= taskEnd;
-  });
-  const selectedDateLog = dailyLogs.find(log => log.logDate === selectedDateString);
-
-  // Auto-scroll to today on initial load (only for timeline view)
-  useEffect(() => {
-    if (selectedProject && viewMode === 'timeline' && timelineRef.current) {
-      const timer = setTimeout(() => {
-        const today = new Date();
-        const dateIndex = dates.findIndex(d => d.toDateString() === today.toDateString());
-        if (dateIndex !== -1 && timelineRef.current) {
-          const scrollX = dateIndex * DAY_WIDTH;
-          timelineRef.current.scrollTo({ x: scrollX, animated: true });
-        }
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedProject, viewMode, dates]);
-
-  const handleCategoryClick = async (category: string) => {
-    const categoryData = CONSTRUCTION_CATEGORIES.find(c => c.name === category);
-    if (!categoryData || !selectedProject) return;
-
-    const startDate = new Date();
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 7);
-
-    // Find first available row without overlaps
-    const availableRow = findAvailableRow(startDate, endDate, scheduledTasks);
-
-    console.log('[Schedule] Auto-assigned to row', availableRow, 'to avoid overlaps');
-
-    // Generate ID that matches backend format
-    const taskId = `scheduled-task-${Date.now()}`;
-
-    const newTask = {
-      id: taskId,
-      projectId: selectedProject,
-      category: category,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      duration: 7,
-      workType: 'in-house' as const,
-      notes: '',
-      color: categoryData.color,
-      row: availableRow,
-      rowSpan: 1,
-    };
-
-    console.log('[Schedule] Adding task to database:', newTask);
-
-    // Update local state optimistically first
-    setScheduledTasks(prev => [...prev, newTask]);
-
-    // Save to database via API
+  // Save task to API
+  const saveTask = async (task: ScheduledTaskWithStatus) => {
     try {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/save-scheduled-task`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify(task),
       });
 
       if (!response.ok) {
@@ -510,64 +254,121 @@ export default function ScheduleScreen() {
       }
 
       const data = await response.json();
-      console.log('[Schedule] Task saved successfully:', data);
-
-      // Refresh tasks from database
-      await fetchScheduledTasks();
-    } catch (error: any) {
-      console.error('[Schedule] Error saving task:', error);
-      Alert.alert('Error', 'Failed to save task to database');
-      // Remove optimistic update on error
-      setScheduledTasks(prev => prev.filter(t => t.id !== taskId));
-    }
-  };
-
-  const handleSaveTask = () => {
-    if (editingTask) {
-      const existingIndex = scheduledTasks.findIndex(t => t.id === editingTask.id);
-      if (existingIndex >= 0) {
-        const updated = [...scheduledTasks];
-        updated[existingIndex] = { ...editingTask, workType, notes };
-        setScheduledTasks(updated);
-      } else {
-        setScheduledTasks([...scheduledTasks, { ...editingTask, workType, notes }]);
+      if (data.success) {
+        await fetchScheduledTasks();
       }
+    } catch (error) {
+      console.error('[Schedule] Error saving task:', error);
+      Alert.alert('Error', 'Failed to save task');
     }
-    setShowModal(false);
-    setEditingTask(null);
   };
 
-  const handleDeleteTask = async (taskId: string) => {
-    // Remove from local state optimistically
-    setScheduledTasks(prev => prev.filter(t => t.id !== taskId));
-
-    // Delete from database via API
+  // Update task in API
+  const updateTask = async (taskId: string, updates: Partial<ScheduledTaskWithStatus>) => {
     try {
       const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/delete-scheduled-task?id=${taskId}`, {
-        method: 'DELETE',
+      const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskId, ...updates }),
       });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      console.log('[Schedule] Task deleted successfully');
-    } catch (error: any) {
-      console.error('[Schedule] Error deleting task:', error);
-      Alert.alert('Error', 'Failed to delete task from database');
-      // Refresh to restore correct state
-      await fetchScheduledTasks();
+      const data = await response.json();
+      if (data.success) {
+        await fetchScheduledTasks();
+      }
+    } catch (error) {
+      console.error('[Schedule] Error updating task:', error);
+      Alert.alert('Error', 'Failed to update task');
     }
   };
 
-  const handleOpenDailyLogs = () => {
-    setShowDailyLogsModal(true);
-    setEquipmentExpanded(false);
-    setMaterialExpanded(false);
-    setOfficialExpanded(false);
-    setSubsExpanded(false);
-    setEmployeesExpanded(false);
+  // Toggle phase expansion
+  const togglePhase = (phaseId: string) => {
+    setExpandedPhases(prev => {
+      const next = new Set(prev);
+      if (next.has(phaseId)) {
+        next.delete(phaseId);
+      } else {
+        next.add(phaseId);
+      }
+      return next;
+    });
+  };
+
+  // Zoom controls
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
+  };
+
+  const handleZoomReset = () => {
+    setZoomLevel(1.0);
+  };
+
+  // Context menu for adding sub-phases
+  const openContextMenu = (phaseId: string, x: number, y: number) => {
+    setContextMenuPhase(phaseId);
+    setContextMenuPosition({ x, y });
+  };
+
+  const closeContextMenu = () => {
+    setContextMenuPhase(null);
+    setContextMenuPosition(null);
+  };
+
+  const handleAddSubPhase = () => {
+    if (contextMenuPhase) {
+      setShowAddSubPhaseModal(true);
+      closeContextMenu();
+    }
+  };
+
+  // Daily Log handlers
+  const handleSaveDailyLog = async () => {
+    if (!selectedProject || !user) return;
+
+    setIsSavingLog(true);
+    try {
+      const newLog: DailyLog = {
+        id: `log-${Date.now()}`,
+        projectId: selectedProject,
+        logDate: new Date().toISOString().split('T')[0],
+        createdBy: user.id,
+        equipmentNote,
+        materialNote,
+        officialNote,
+        subsNote,
+        employeesNote,
+        workPerformed,
+        issues,
+        generalNotes,
+        tasks: logTasks,
+        photos: logPhotos,
+        sharedWith,
+        createdAt: new Date().toISOString(),
+      };
+
+      await addDailyLog(newLog);
+      Alert.alert('Success', 'Daily log saved successfully');
+      setShowDailyLogModal(false);
+      resetDailyLogForm();
+    } catch (error) {
+      console.error('[Schedule] Error saving daily log:', error);
+      Alert.alert('Error', 'Failed to save daily log');
+    } finally {
+      setIsSavingLog(false);
+    }
+  };
+
+  const resetDailyLogForm = () => {
     setEquipmentNote('');
     setMaterialNote('');
     setOfficialNote('');
@@ -576,537 +377,161 @@ export default function ScheduleScreen() {
     setWorkPerformed('');
     setIssues('');
     setGeneralNotes('');
-    setTasks([]);
-    setPhotos([]);
+    setLogTasks([]);
+    setLogPhotos([]);
     setSharedWith([]);
   };
 
-  const handleAddTask = () => {
-    const newTask: DailyLogTask = {
-      id: Date.now().toString(),
-      description: '',
-      completed: false,
-    };
-    setTasks([...tasks, newTask]);
-  };
+  const handleAddLogPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images' as any,
+      allowsEditing: false,
+      quality: 0.8,
+    });
 
-  const handleUpdateTask = (id: string, description: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, description } : t));
-  };
-
-  const handleToggleTaskComplete = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  };
-
-  const handleDeleteTaskRow = (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
-  };
-
-  const handleTakePhoto = async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Camera Not Available', 'Camera access is only available on mobile devices. Please use the gallery button to upload photos.');
-      return;
-    }
-
-    try {
-      // Request camera permission
-      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-
-      if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'Please allow camera access to take photos.');
-        return;
-      }
-
-      // Launch camera (using updated API)
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.8,
-        base64: false,
-      });
-
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        console.log('[Camera] User canceled photo capture');
-        return;
-      }
-
-      const asset = result.assets[0];
-
-      // Create photo entry
-      const photoEntry: DailyLogPhoto = {
-        id: Date.now().toString(),
-        uri: asset.uri,
+    if (!result.canceled && result.assets[0] && user) {
+      const photo: DailyLogPhoto = {
+        id: `photo-${Date.now()}`,
+        uri: result.assets[0].uri,
         timestamp: new Date().toISOString(),
-        author: user?.name || 'Unknown User',
-        notes: '',
+        author: user.name,
       };
-
-      setPhotos([...photos, photoEntry]);
-      console.log('[Camera] Photo captured and added');
-    } catch (error) {
-      console.error('[Camera] Error:', error);
-      Alert.alert('Error', 'Failed to access camera. Please try again.');
+      setLogPhotos([...logPhotos, photo]);
     }
   };
 
-  const handlePickPhoto = async () => {
+  // Share functionality
+  const handleShare = async () => {
     try {
-      // Request permission
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'Please allow access to your photo library to add photos.');
+      if (Platform.OS === 'web') {
+        Alert.alert('Share', 'Sharing is not available on web');
         return;
       }
 
-      // Launch image picker (using updated API)
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsMultipleSelection: false,
-        quality: 0.8,
-        base64: false,
+      // Generate a simple text summary
+      const summary = `Schedule for ${selectedProjectData?.name}\n${scheduledTasks.length} tasks scheduled`;
+
+      await Sharing.shareAsync(summary, {
+        mimeType: 'text/plain',
+        dialogTitle: 'Share Schedule',
       });
-
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        console.log('[Photo] User canceled photo selection');
-        return;
-      }
-
-      const asset = result.assets[0];
-
-      // Create photo entry with local URI
-      const photoEntry: DailyLogPhoto = {
-        id: Date.now().toString(),
-        uri: asset.uri,
-        timestamp: new Date().toISOString(),
-        author: user?.name || 'Unknown User',
-        notes: '',
-      };
-
-      setPhotos([...photos, photoEntry]);
-      console.log('[Photo] Photo added:', asset.fileName || 'photo');
     } catch (error) {
-      console.error('[Photo Picker] Error:', error);
-      Alert.alert('Error', 'Failed to pick photo. Please try again.');
+      console.error('[Schedule] Error sharing:', error);
+      Alert.alert('Error', 'Failed to share schedule');
     }
   };
 
-  const handleRemovePhoto = (photoId: string) => {
-    setPhotos(prev => prev.filter(p => p.id !== photoId));
+  // Print functionality
+  const handlePrint = () => {
+    Alert.alert('Print', 'Print functionality coming soon');
   };
 
-  const handleAddTeamMember = () => {
-    if (!shareEmail.trim()) return;
-    if (sharedWith.includes(shareEmail.trim())) {
-      console.log('[Share] User already added');
-      return;
-    }
-    setSharedWith([...sharedWith, shareEmail.trim()]);
-    setShareEmail('');
-    console.log('[Share] Added team member:', shareEmail);
+  // Get all phases (built-in + custom)
+  const allPhases = useMemo(() => {
+    return [
+      ...CONSTRUCTION_PHASES,
+      ...customPhases.map(cp => ({
+        id: cp.id,
+        name: cp.name,
+        icon: Plus,
+        color: cp.color,
+      })),
+    ];
+  }, [customPhases]);
+
+  // Get sub-phases for a phase
+  const getSubPhases = (parentId: string) => {
+    return customPhases.filter(cp => cp.parentId === parentId);
   };
 
-  const handleRemoveTeamMember = (email: string) => {
-    setSharedWith(prev => prev.filter(e => e !== email));
-    console.log('[Share] Removed team member:', email);
-  };
-
-  const handleSaveDailyLog = async () => {
-    if (!selectedProject || !user) return;
-
-    setIsSavingLog(true);
-    try {
-      const logId = Date.now().toString();
-      const log: DailyLog = {
-        id: logId,
-        projectId: selectedProject,
-        logDate: new Date().toISOString().split('T')[0],
-        createdBy: user.name,
-        equipmentNote: equipmentExpanded ? equipmentNote : undefined,
-        materialNote: materialExpanded ? materialNote : undefined,
-        officialNote: officialExpanded ? officialNote : undefined,
-        subsNote: subsExpanded ? subsNote : undefined,
-        employeesNote: employeesExpanded ? employeesNote : undefined,
-        workPerformed,
-        issues,
-        generalNotes,
-        tasks,
-        photos,
-        sharedWith,
-        createdAt: new Date().toISOString(),
-      };
-
-      await addDailyLog(log); // Now returns Promise
-
-      if (sharedWith.length > 0) {
-        console.log('[Share] Daily log shared with:', sharedWith.join(', '));
-      }
-
-      setShowDailyLogsModal(false);
-      console.log('[Daily Log] Created with', tasks.length, 'tasks and', photos.length, 'photos');
-
-      // Show success message
-      Alert.alert('Success', 'Daily log saved successfully');
-    } catch (error: any) {
-      console.error('[Daily Log] Error saving:', error);
-      // Log was saved locally, show appropriate message
-      Alert.alert(
-        'Saved Locally',
-        'Daily log saved to your device. It will sync when connection is restored.'
-      );
-    } finally {
-      setIsSavingLog(false);
-    }
-  };
-
-  const getTaskPosition = (task: ScheduledTask) => {
-    const startIdx = dates.findIndex(d => 
-      d.toDateString() === new Date(task.startDate).toDateString()
-    );
-    if (startIdx === -1) return null;
-    
-    const rowSpan = task.rowSpan || 1;
-    const height = rowSpan * ROW_HEIGHT + (rowSpan - 1) * 16;
-    
-    return {
-      left: LEFT_MARGIN + startIdx * DAY_WIDTH,
-      width: task.duration * DAY_WIDTH,
-      top: (task.row || 0) * (ROW_HEIGHT + 16),
-      height,
-    };
-  };
-
-  // Resize handler functions
-  const handleResizeStart = (task: ScheduledTask, resizeType: 'right' | 'bottom', clientX: number, clientY: number) => {
-    const resizeState = {
-      taskId: task.id,
-      type: resizeType,
-      startX: clientX,
-      startY: clientY,
-      initialDuration: task.duration,
-      initialRowSpan: task.rowSpan || 1,
-    };
-
-    // Store in ref for event listeners
-    activeResizeRef.current = resizeState;
-
-    // Also update state for UI
-    setActiveResize(resizeState);
-    setResizingTask({ id: task.id, type: resizeType });
-    setTouchingHandle({ id: task.id, type: resizeType });
-  };
-
-  const handleResizeMove = (clientX: number, clientY: number) => {
-    // Read from ref to avoid stale closure
-    const resize = activeResizeRef.current;
-    if (!resize) return;
-
-    // Use functional setState to always get latest tasks
-    setScheduledTasks(prevTasks => {
-      const task = prevTasks.find(t => t.id === resize.taskId);
-      if (!task) return prevTasks;
-
-      if (resize.type === 'right') {
-        // Calculate delta from initial position
-        const deltaX = clientX - resize.startX;
-        const deltaDays = Math.round(deltaX / DAY_WIDTH);
-        const newDuration = Math.max(1, resize.initialDuration + deltaDays);
-
-        if (newDuration !== task.duration) {
-          const newEndDate = new Date(task.startDate);
-          newEndDate.setDate(newEndDate.getDate() + newDuration);
-
-          return prevTasks.map(t =>
-            t.id === resize.taskId ? {
-              ...t,
-              duration: newDuration,
-              endDate: newEndDate.toISOString(),
-            } : t
-          );
-        }
-      } else if (resize.type === 'bottom') {
-        // Calculate delta from initial position
-        const deltaY = clientY - resize.startY;
-        const rowHeight = ROW_HEIGHT + 16;
-        const deltaRows = Math.round(deltaY / rowHeight);
-        const newRowSpan = Math.max(1, resize.initialRowSpan + deltaRows);
-
-        if (newRowSpan !== (task.rowSpan || 1)) {
-          return prevTasks.map(t =>
-            t.id === resize.taskId ? { ...t, rowSpan: newRowSpan } : t
-          );
-        }
-      }
-
-      return prevTasks;
+  // Get tasks for a phase
+  const getTasksForPhase = (phaseId: string) => {
+    return scheduledTasks.filter(task => {
+      const phase = CONSTRUCTION_PHASES.find(p => p.name === task.category);
+      return phase?.id === phaseId;
     });
   };
 
-  const handleResizeEnd = async () => {
-    const resize = activeResizeRef.current;
-    if (resize) {
-      // Use functional setState to get the latest task data
-      let taskToSave: ScheduledTask | null = null;
-
-      setScheduledTasks(prevTasks => {
-        taskToSave = prevTasks.find(t => t.id === resize.taskId) || null;
-        return prevTasks; // Don't modify state, just read it
-      });
-
-      if (taskToSave) {
-        console.log('[Schedule] Saving task after resize:', {
-          id: taskToSave.id,
-          duration: taskToSave.duration,
-          rowSpan: taskToSave.rowSpan,
-        });
-
-        // Save changes to database
-        try {
-          const baseUrl = getApiBaseUrl();
-          const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: taskToSave.id,
-              startDate: taskToSave.startDate,
-              endDate: taskToSave.endDate,
-              duration: taskToSave.duration,
-              rowSpan: taskToSave.rowSpan,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-
-          const result = await response.json();
-          console.log('[Schedule] Task updated after resize - response:', result);
-        } catch (error: any) {
-          console.error('[Schedule] Error updating task:', error);
-          // Refresh to restore correct state
-          await fetchScheduledTasks();
-        }
-      }
-    }
-
-    activeResizeRef.current = null;
-    setActiveResize(null);
-    setResizingTask(null);
-    setTouchingHandle(null);
+  // Calculate task position on timeline
+  const getTaskPosition = (task: ScheduledTaskWithStatus) => {
+    const startDate = new Date(task.startDate);
+    const daysSinceStart = Math.floor((startDate.getTime() - timelineDates[0].getTime()) / (1000 * 60 * 60 * 24));
+    return daysSinceStart * DAY_WIDTH;
   };
 
-  // Drag handlers
-  const handleDragStart = (task: ScheduledTask, clientX: number, clientY: number) => {
-    // Find the initial day index
-    const taskStartDate = new Date(task.startDate);
-    const initialDayIndex = dates.findIndex(d =>
-      d.toDateString() === taskStartDate.toDateString()
-    );
+  const getTaskWidth = (task: ScheduledTaskWithStatus) => {
+    return task.duration * DAY_WIDTH;
+  };
 
-    const dragState = {
-      taskId: task.id,
-      startX: clientX,
-      startY: clientY,
-      initialRow: task.row || 0,
-      initialStartDate: taskStartDate,
-      initialDayIndex: initialDayIndex,
+  // Toggle task completion
+  const toggleTaskCompletion = async (taskId: string) => {
+    const task = scheduledTasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updates: Partial<ScheduledTaskWithStatus> = {
+      completed: !task.completed,
+      completedAt: !task.completed ? new Date().toISOString() : undefined,
     };
 
-    // Store in ref for event listeners
-    activeDragRef.current = dragState;
-
-    // Also update state for UI
-    setDraggedTask(task.id);
-    setActiveDrag(dragState);
+    await updateTask(taskId, updates);
   };
 
-  const handleDragMove = (clientX: number, clientY: number) => {
-    // Read from ref to avoid stale closure
-    const drag = activeDragRef.current;
-    if (!drag) return;
-
-    // Use functional setState to always get latest tasks
-    setScheduledTasks(prevTasks => {
-      const task = prevTasks.find(t => t.id === drag.taskId);
-      if (!task) return prevTasks;
-
-      // Calculate horizontal movement (days)
-      const deltaX = clientX - drag.startX;
-      const deltaDays = Math.round(deltaX / DAY_WIDTH);
-
-      // Calculate vertical movement (rows)
-      const deltaY = clientY - drag.startY;
-      const rowHeight = ROW_HEIGHT + 16;
-      const deltaRows = Math.round(deltaY / rowHeight);
-      let newRow = Math.max(0, drag.initialRow + deltaRows);
-
-      // Calculate new start date
-      const newStartDate = new Date(drag.initialStartDate);
-      newStartDate.setDate(drag.initialStartDate.getDate() + deltaDays);
-
-      // Calculate new end date based on duration
-      const newEndDate = new Date(newStartDate);
-      newEndDate.setDate(newStartDate.getDate() + task.duration);
-
-      // Check for overlaps and auto-shift to next available row
-      const wouldOverlap = prevTasks.some(t =>
-        t.id !== drag.taskId &&
-        t.row === newRow &&
-        new Date(t.startDate) < newEndDate &&
-        new Date(t.endDate) > newStartDate
-      );
-
-      if (wouldOverlap) {
-        // Find next available row
-        newRow = findAvailableRow(newStartDate, newEndDate, prevTasks, drag.taskId);
-        console.log('[Schedule] Overlap detected, auto-shifted to row', newRow);
-      }
-
-      // Only update if something changed
-      const currentRow = task.row || 0;
-      const currentStartDate = new Date(task.startDate).toDateString();
-      const newStartDateString = newStartDate.toDateString();
-
-      if (newRow !== currentRow || currentStartDate !== newStartDateString) {
-        console.log('[Schedule] Drag move - updating:', {
-          rowChange: `${currentRow} → ${newRow}`,
-          dateChange: `${currentStartDate} → ${newStartDateString}`,
-          newStartDate: newStartDate.toISOString(),
-          newEndDate: newEndDate.toISOString(),
-        });
-        return prevTasks.map(t =>
-          t.id === drag.taskId
-            ? {
-                ...t,
-                row: newRow,
-                startDate: newStartDate.toISOString(),
-                endDate: newEndDate.toISOString(),
-              }
-            : t
-        );
-      }
-
-      return prevTasks;
-    });
-  };
-
-  const handleDragEnd = async () => {
-    console.log('[Schedule] ✅ NEW handleDragEnd called - version b828f4b');
-    const drag = activeDragRef.current;
-    if (drag) {
-      // Use functional setState to get the latest task data
-      let taskToSave: ScheduledTask | null = null;
-
-      setScheduledTasks(prevTasks => {
-        taskToSave = prevTasks.find(t => t.id === drag.taskId) || null;
-        return prevTasks; // Don't modify state, just read it
-      });
-
-      if (taskToSave) {
-        console.log('[Schedule] Saving task after drag:', {
-          id: taskToSave.id,
-          row: taskToSave.row,
-          startDate: taskToSave.startDate,
-        });
-
-        // Save all drag-related changes to database
-        try {
-          const baseUrl = getApiBaseUrl();
-          const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: taskToSave.id,
-              startDate: taskToSave.startDate,
-              endDate: taskToSave.endDate,
-              duration: taskToSave.duration,
-              row: taskToSave.row,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-
-          const result = await response.json();
-          console.log('[Schedule] Task updated after drag - response:', result);
-        } catch (error: any) {
-          console.error('[Schedule] Error updating task:', error);
-          // Refresh to restore correct state
-          await fetchScheduledTasks();
-        }
-      }
-    }
-
-    activeDragRef.current = null;
-    setActiveDrag(null);
-    setDraggedTask(null);
-  };
-
-
-
-  const router = useRouter();
+  // Project daily logs
+  const projectDailyLogs = useMemo(() => {
+    return (dailyLogs && Array.isArray(dailyLogs))
+      ? dailyLogs.filter(log => log.projectId === selectedProject)
+      : [];
+  }, [dailyLogs, selectedProject]);
 
   return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.bgArea} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
       <View style={styles.header}>
-        {Platform.OS !== 'web' && (
-          <TouchableOpacity
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/(tabs)/more');
-              }
-            }}
-            style={{ paddingRight: 12 }}
-          >
-            <ArrowLeft size={24} color="#1F2937" />
+        <Text style={styles.headerTitle}>Schedule</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerButton} onPress={() => setShowTasksModal(true)}>
+            <BookOpen size={20} color="#6B7280" />
+            <Text style={styles.headerButtonText}>Tasks</Text>
           </TouchableOpacity>
-        )}
-        <Text style={styles.title}>Project Schedule</Text>
-      </View>
-
-      {/* Action Buttons Row */}
-      {selectedProject && (
-        <View style={styles.actionButtonsRow}>
-          <DailyTasksButton />
-          <TouchableOpacity
-            style={styles.dailyLogHeaderButton}
-            onPress={handleOpenDailyLogs}
-          >
-            <BookOpen size={20} color="#2563EB" />
-            <Text style={styles.dailyLogHeaderButtonText}>Daily Log</Text>
+          <TouchableOpacity style={styles.headerButton} onPress={() => setShowDailyLogModal(true)}>
+            <Calendar size={20} color="#6B7280" />
+            <Text style={styles.headerButtonText}>Log</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => setShowHistoryModal(true)}
-          >
-            <History size={20} color="#059669" />
+          <TouchableOpacity style={styles.headerButton} onPress={() => setShowHistoryModal(true)}>
+            <History size={20} color="#6B7280" />
+            <Text style={styles.headerButtonText}>History</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton} onPress={handlePrint}>
+            <Printer size={20} color="#6B7280" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton} onPress={() => setShowShareModal(true)}>
+            <Share2 size={20} color="#6B7280" />
           </TouchableOpacity>
         </View>
-      )}
+      </View>
 
-      <View style={styles.projectSelector}>
-        <Text style={styles.sectionTitle}>Select Project</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectList}>
-          {projects.filter(p => p.status === 'active').map(project => (
+      {/* Project Tabs */}
+      <View style={styles.projectTabsContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.projectTabs}
+        >
+          {projects.map(project => (
             <TouchableOpacity
               key={project.id}
               style={[
-                styles.projectChip,
-                selectedProject === project.id && styles.projectChipSelected
+                styles.projectTab,
+                selectedProject === project.id && styles.projectTabActive,
               ]}
               onPress={() => setSelectedProject(project.id)}
             >
               <Text
                 style={[
-                  styles.projectChipText,
-                  selectedProject === project.id && styles.projectChipTextSelected
+                  styles.projectTabText,
+                  selectedProject === project.id && styles.projectTabTextActive,
                 ]}
                 numberOfLines={1}
-                ellipsizeMode="tail"
               >
                 {project.name}
               </Text>
@@ -1115,1493 +540,492 @@ export default function ScheduleScreen() {
         </ScrollView>
       </View>
 
-      {/* View Mode Toggle */}
-      {selectedProject && (
-        <View style={styles.viewToggle}>
-          <TouchableOpacity
-            style={[
-              styles.viewToggleButton,
-              viewMode === 'timeline' && styles.viewToggleButtonActive
-            ]}
-            onPress={() => setViewMode('timeline')}
-          >
-            <Calendar size={18} color={viewMode === 'timeline' ? '#FFFFFF' : '#6B7280'} />
-            <Text
-              style={[
-                styles.viewToggleText,
-                viewMode === 'timeline' && styles.viewToggleTextActive
-              ]}
-              numberOfLines={1}
-            >
-              Timeline
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.viewToggleButton,
-              viewMode === 'daily' && styles.viewToggleButtonActive
-            ]}
-            onPress={() => setViewMode('daily')}
-          >
-            <BookOpen size={18} color={viewMode === 'daily' ? '#FFFFFF' : '#6B7280'} />
-            <Text
-              style={[
-                styles.viewToggleText,
-                viewMode === 'daily' && styles.viewToggleTextActive
-              ]}
-              numberOfLines={1}
-            >
-              Daily
-            </Text>
-          </TouchableOpacity>
+      {/* Main Content */}
+      {isLoadingTasks ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7C3AED" />
+          <Text style={styles.loadingText}>Loading schedule...</Text>
         </View>
-      )}
+      ) : (
+        <View style={styles.scheduleContainer}>
+          {/* Phase Sidebar */}
+          <View style={[styles.phaseSidebar, { width: SIDEBAR_WIDTH }]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {allPhases.map(phase => {
+                const isExpanded = expandedPhases.has(phase.id);
+                const subPhases = getSubPhases(phase.id);
+                const Icon = phase.icon;
 
-      {!selectedProject && (
-        <View style={styles.emptyState}>
-          <Calendar size={48} color="#9CA3AF" />
-          <Text style={styles.emptyText}>Select a project to view schedule</Text>
-        </View>
-      )}
-
-      {selectedProject && viewMode === 'timeline' && (
-        <>
-          {/* Collapsible Construction Phases */}
-          <View style={styles.categoriesSection}>
-            <TouchableOpacity
-              style={styles.categoriesHeader}
-              onPress={() => setShowConstructionPhases(!showConstructionPhases)}
-            >
-              <View style={styles.categoriesHeaderLeft}>
-                <Text style={styles.sectionTitle}>Construction Phases</Text>
-                {!showConstructionPhases && (
-                  <Text style={styles.categoriesCount}>({CONSTRUCTION_CATEGORIES.length} phases)</Text>
-                )}
-              </View>
-              {showConstructionPhases ? (
-                <ChevronDown size={20} color="#6B7280" />
-              ) : (
-                <ChevronRight size={20} color="#6B7280" />
-              )}
-            </TouchableOpacity>
-
-            {showConstructionPhases && (
-              <>
-                <Text style={styles.sectionSubtitle}>Tap to add to schedule</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.categoriesList}>
-                  {CONSTRUCTION_CATEGORIES.map(category => (
+                return (
+                  <View key={phase.id}>
                     <TouchableOpacity
-                      key={category.name}
-                      style={[styles.categoryChip, { backgroundColor: category.color }]}
-                      onPress={() => handleCategoryClick(category.name)}
+                      style={styles.phaseRow}
+                      onPress={() => togglePhase(phase.id)}
+                      onLongPress={(e) => {
+                        const { pageX, pageY } = e.nativeEvent;
+                        openContextMenu(phase.id, pageX, pageY);
+                      }}
                     >
-                      <GripVertical size={16} color="#FFFFFF" />
-                      <Text style={styles.categoryText}>{category.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </>
-            )}
-          </View>
-
-          <View style={styles.timeline}>
-            <View style={styles.timelineHeader}>
-              <ScrollView 
-                ref={timelineRef}
-                horizontal 
-                showsHorizontalScrollIndicator={true}
-                style={styles.timelineScroll}
-              >
-                <View style={styles.datesContainer}>
-                  {dates.map((date, idx) => {
-                    const isToday = date.toDateString() === new Date().toDateString();
-                    return (
-                      <View
-                        key={idx}
-                        style={[
-                          styles.dateColumn,
-                          isToday && styles.dateColumnToday
-                        ]}
-                      >
-                        <Text style={[styles.dateText, isToday && styles.dateTextToday]}>
-                          {formatDate(date)}
+                      <View style={styles.phaseHeader}>
+                        <Icon size={16} color={phase.color} />
+                        <Text style={styles.phaseName} numberOfLines={2}>
+                          {phase.name}
                         </Text>
-                        <Text style={[styles.dayText, isToday && styles.dayTextToday]}>
-                          {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                        </Text>
-                        {isToday && (
-                          <View style={styles.todayBadge}>
-                            <Text style={styles.todayBadgeText}>TODAY</Text>
-                          </View>
-                        )}
                       </View>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            </View>
-
-            <ScrollView
-              style={styles.tasksArea}
-              showsVerticalScrollIndicator={true}
-              scrollEnabled={!resizingTask && !draggedTask}
-            >
-              <View style={styles.tasksContainer}>
-                
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={true}
-                  scrollEnabled={!resizingTask && !draggedTask}
-                  style={styles.tasksScrollView}
-                >
-                  <View style={styles.tasksGrid}>
-                    {dates.map((date, idx) => {
-                      const isToday = date.toDateString() === new Date().toDateString();
-                      return (
-                        <View key={idx} style={styles.dayGridColumn}>
-                          {isToday && (
-                            <View style={styles.todayIndicator} />
+                      {subPhases.length > 0 && (
+                        <View style={styles.phaseToggle}>
+                          {isExpanded ? (
+                            <ChevronDown size={16} color="#9CA3AF" />
+                          ) : (
+                            <ChevronRight size={16} color="#9CA3AF" />
                           )}
                         </View>
-                      );
-                    })}
-                    
-                    {projectTasks.map((task) => {
-                      const position = getTaskPosition(task);
-                      if (!position) return null;
-
-                      const isQuickEditing = quickEditTask === task.id;
-
-                      const handleTaskTap = () => {
-                        // Open task detail modal on single tap
-                        setSelectedTaskDetail(task);
-                        setShowTaskDetailModal(true);
-                      };
-
-                      const isTouchingRightHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'right';
-                      const isTouchingBottomHandle = touchingHandle?.id === task.id && touchingHandle?.type === 'bottom';
-
-                      return (
-                        <View
-                          key={task.id}
-                          style={[
-                            styles.taskBlock,
-                            {
-                              left: position.left,
-                              top: position.top,
-                              width: position.width,
-                              height: position.height,
-                              backgroundColor: task.color,
-                            },
-                            activeDrag?.taskId === task.id && styles.taskBlockDragging,
-                            activeResize?.taskId === task.id && styles.taskBlockResizing,
-                          ]}
-                        >
-                          {/* Main draggable content */}
-                          <View
-                            style={[
-                              styles.taskContentWrapper,
-                              activeDrag?.taskId === task.id && styles.taskDragging,
-                            ]}
-                            onStartShouldSetResponder={() => true}
-                            onResponderGrant={(e) => {
-                              if (Platform.OS !== 'web') {
-                                const { pageX, pageY } = e.nativeEvent;
-                                handleDragStart(task, pageX, pageY);
-                              }
-                            }}
-                            onResponderMove={(e) => {
-                              if (Platform.OS !== 'web' && activeDrag) {
-                                const { pageX, pageY } = e.nativeEvent;
-                                handleDragMove(pageX, pageY);
-                              }
-                            }}
-                            onResponderRelease={() => {
-                              if (Platform.OS !== 'web') {
-                                handleDragEnd();
-                              }
-                            }}
-                            {...(Platform.OS === 'web' ? {
-                              onPointerDown: (e: any) => {
-                                e.stopPropagation();
-                                const clientX = e.clientX;
-                                const clientY = e.clientY;
-                                handleDragStart(task, clientX, clientY);
-
-                                const onMove = (moveEvent: PointerEvent) => {
-                                  handleDragMove(moveEvent.clientX, moveEvent.clientY);
-                                };
-                                const onUp = () => {
-                                  handleDragEnd();
-                                  document.removeEventListener('pointermove', onMove);
-                                  document.removeEventListener('pointerup', onUp);
-                                  document.body.style.cursor = '';
-                                };
-                                document.addEventListener('pointermove', onMove);
-                                document.addEventListener('pointerup', onUp);
-                                document.body.style.cursor = 'grabbing';
-                              },
-                              onClick: handleTaskTap,
-                            } : {})}
-                          >
-                            <Text style={styles.taskTitle} numberOfLines={1}>
-                              {task.category}
-                            </Text>
-                            <Text style={styles.taskSubtitle} numberOfLines={1}>
-                              {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                            </Text>
-                            <Text style={styles.taskDuration}>
-                              {task.duration} days
-                            </Text>
-                            {task.notes && !isQuickEditing && (
-                              <Text style={styles.taskNotes} numberOfLines={2}>
-                                {task.notes}
-                              </Text>
-                            )}
-                          </View>
-
-                          {isQuickEditing && (
-                            <View style={styles.quickEditContainer}>
-                              <ScrollView style={styles.quickEditScroll}>
-                                <Text style={styles.quickEditLabel}>Work Type</Text>
-                                <View style={styles.quickEditWorkTypeRow}>
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.quickEditWorkTypeButton,
-                                      quickEditWorkType === 'in-house' && styles.quickEditWorkTypeButtonActive
-                                    ]}
-                                    onPress={() => setQuickEditWorkType('in-house')}
-                                  >
-                                    <Text style={[
-                                      styles.quickEditWorkTypeText,
-                                      quickEditWorkType === 'in-house' && styles.quickEditWorkTypeTextActive
-                                    ]}>🏠 In-House</Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.quickEditWorkTypeButton,
-                                      quickEditWorkType === 'subcontractor' && styles.quickEditWorkTypeButtonActive
-                                    ]}
-                                    onPress={() => setQuickEditWorkType('subcontractor')}
-                                  >
-                                    <Text style={[
-                                      styles.quickEditWorkTypeText,
-                                      quickEditWorkType === 'subcontractor' && styles.quickEditWorkTypeTextActive
-                                    ]}>👷 Sub</Text>
-                                  </TouchableOpacity>
-                                </View>
-
-                                <Text style={styles.quickEditLabel}>Notes</Text>
-                                <TextInput
-                                  style={styles.quickEditInput}
-                                  value={quickNoteText}
-                                  onChangeText={setQuickNoteText}
-                                  placeholder="Add notes..."
-                                  placeholderTextColor="rgba(255,255,255,0.6)"
-                                  multiline
-                                  autoFocus
-                                />
-                              </ScrollView>
-                              <View style={styles.quickEditButtons}>
-                                <TouchableOpacity
-                                  style={styles.quickEditButton}
-                                  onPress={async () => {
-                                    // Update local state
-                                    const updatedTasks = scheduledTasks.map(t =>
-                                      t.id === task.id ? { ...t, notes: quickNoteText, workType: quickEditWorkType } : t
-                                    );
-                                    setScheduledTasks(updatedTasks);
-
-                                    // Save to database via API
-                                    try {
-                                      const baseUrl = getApiBaseUrl();
-                                      const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
-                                        method: 'PUT',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          id: task.id,
-                                          notes: quickNoteText,
-                                          workType: quickEditWorkType,
-                                        }),
-                                      });
-
-                                      if (!response.ok) {
-                                        throw new Error(`HTTP ${response.status}`);
-                                      }
-
-                                      console.log('[Schedule] Task notes updated');
-                                    } catch (error: any) {
-                                      console.error('[Schedule] Error updating task notes:', error);
-                                      Alert.alert('Error', 'Failed to update task notes');
-                                    }
-
-                                    setQuickEditTask(null);
-                                    setQuickNoteText('');
-                                  }}
-                                >
-                                  <Text style={styles.quickEditButtonText}>Save</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  style={[styles.quickEditButton, styles.quickEditButtonCancel]}
-                                  onPress={() => {
-                                    setQuickEditTask(null);
-                                    setQuickNoteText('');
-                                  }}
-                                >
-                                  <Text style={styles.quickEditButtonText}>Cancel</Text>
-                                </TouchableOpacity>
-                              </View>
-                            </View>
-                          )}
-
-                          <TouchableOpacity
-                            style={styles.deleteTaskButton}
-                            onPress={() => handleDeleteTask(task.id)}
-                          >
-                            <X size={14} color="#FFFFFF" />
-                          </TouchableOpacity>
-                        </View>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              </View>
-            </ScrollView>
-          </View>
-        </>
-      )}
-
-      {/* Daily View */}
-      {selectedProject && viewMode === 'daily' && (
-        <>
-          {/* Date Navigation Bar */}
-          <View style={styles.dateNavigation}>
-            <TouchableOpacity style={styles.navButton} onPress={scrollToToday}>
-              <Calendar size={16} color="#2563EB" />
-              <Text style={styles.navButtonText}>Today</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navButton} onPress={scrollToThisWeek}>
-              <Text style={styles.navButtonText} numberOfLines={1}>This Week</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navButton} onPress={scrollToNextWeek}>
-              <Text style={styles.navButtonText} numberOfLines={1}>Next</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.navButton, styles.navButtonPrimary]} onPress={() => setShowDatePicker(true)}>
-              <Calendar size={16} color="#FFFFFF" />
-              <Text style={styles.navButtonTextPrimary} numberOfLines={1}>Jump</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Week Date Selector */}
-          <View style={styles.weekSelector}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.weekDatesContainer}>
-                {weekDates.map((date, idx) => {
-                  const isSelected = date.toDateString() === selectedDate.toDateString();
-                  const isToday = date.toDateString() === new Date().toDateString();
-                  return (
-                    <TouchableOpacity key={idx} style={[styles.dateSelector, isSelected && styles.dateSelectorActive, isToday && !isSelected && styles.dateSelectorToday]} onPress={() => setSelectedDate(date)}>
-                      <Text style={[styles.dateSelectorDay, isSelected && styles.dateSelectorDayActive]}>
-                        {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                      </Text>
-                      <Text style={[styles.dateSelectorDate, isSelected && styles.dateSelectorDateActive]}>
-                        {date.getDate()}
-                      </Text>
-                      {isToday && !isSelected && <View style={styles.todayDot} />}
+                      )}
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
+
+                    {/* Sub-phases */}
+                    {isExpanded && subPhases.map(subPhase => (
+                      <View key={subPhase.id} style={styles.subPhaseRow}>
+                        <View style={styles.subPhaseIndent} />
+                        <Text style={styles.subPhaseName} numberOfLines={1}>
+                          {subPhase.name}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })}
             </ScrollView>
           </View>
 
-          <ScrollView style={styles.dailyContent} showsVerticalScrollIndicator={true}>
-            <View style={styles.dailyHeader}>
-              <Text style={styles.dailyDateTitle}>
-                {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-              </Text>
-              {selectedDate.toDateString() === new Date().toDateString() && (
-                <View style={styles.todayBadgeLarge}>
-                  <Text style={styles.todayBadgeLargeText}>TODAY</Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.dailySection}>
-              <Text style={styles.dailySectionTitle}>Scheduled Tasks</Text>
-              {isLoadingTasks ? (
-                <View style={styles.dailyEmptyState}>
-                  <ActivityIndicator size="large" color="#2563EB" />
-                  <Text style={styles.dailyEmptyText}>Loading tasks...</Text>
-                </View>
-              ) : selectedDateTasks.length === 0 ? (
-                <View style={styles.dailyEmptyState}>
-                  <Calendar size={32} color="#D1D5DB" />
-                  <Text style={styles.dailyEmptyText}>No tasks scheduled for this date</Text>
-                </View>
-              ) : (
-                selectedDateTasks.map(task => (
-                  <View key={task.id} style={[styles.dailyTaskCard, { borderLeftColor: task.color }]}>
-                    <View style={styles.dailyTaskHeader}>
-                      <Text style={styles.dailyTaskCategory}>{task.category}</Text>
-                      <Text style={styles.dailyTaskType}>
-                        {task.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                      </Text>
-                    </View>
-                    {task.notes && <Text style={styles.dailyTaskNotes}>{task.notes}</Text>}
-                    <Text style={styles.dailyTaskDuration}>
-                      Duration: {task.duration} days ({new Date(task.startDate).toLocaleDateString()} - {new Date(task.endDate).toLocaleDateString()})
-                    </Text>
-                  </View>
-                ))
-              )}
-            </View>
-
-            <View style={styles.dailySection}>
-              <View style={styles.dailySectionHeader}>
-                <Text style={styles.dailySectionTitle}>Daily Log</Text>
-                <TouchableOpacity style={styles.addDailyLogButton} onPress={handleOpenDailyLogs}>
-                  <Plus size={16} color="#FFFFFF" />
-                  <Text style={styles.addDailyLogButtonText}>{selectedDateLog ? 'Edit Log' : 'Add Log'}</Text>
-                </TouchableOpacity>
-              </View>
-
-              {selectedDateLog ? (
-                <View style={styles.dailyLogCard}>
-                  {selectedDateLog.workPerformed && (
-                    <View style={styles.dailyLogSection}>
-                      <Text style={styles.dailyLogLabel}>Work Performed:</Text>
-                      <Text style={styles.dailyLogText}>{selectedDateLog.workPerformed}</Text>
-                    </View>
-                  )}
-                  {selectedDateLog.issues && (
-                    <View style={styles.dailyLogSection}>
-                      <Text style={styles.dailyLogLabel}>Issues:</Text>
-                      <Text style={styles.dailyLogText}>{selectedDateLog.issues}</Text>
-                    </View>
-                  )}
-                  {selectedDateLog.tasks && selectedDateLog.tasks.length > 0 && (
-                    <View style={styles.dailyLogSection}>
-                      <Text style={styles.dailyLogLabel}>Tasks:</Text>
-                      {selectedDateLog.tasks.map(task => (
-                        <View key={task.id} style={styles.dailyLogTask}>
-                          <View style={[styles.dailyLogTaskCheck, task.completed && styles.dailyLogTaskCheckCompleted]}>
-                            {task.completed && <Check size={12} color="#FFFFFF" />}
-                          </View>
-                          <Text style={[styles.dailyLogTaskText, task.completed && styles.dailyLogTaskTextCompleted]}>
-                            {task.description}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                  {selectedDateLog.photos && selectedDateLog.photos.length > 0 && (
-                    <View style={styles.dailyLogSection}>
-                      <Text style={styles.dailyLogLabel}>Photos ({selectedDateLog.photos.length}):</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        <View style={styles.dailyLogPhotos}>
-                          {selectedDateLog.photos.map(photo => (
-                            <Image key={photo.id} source={{ uri: photo.uri }} style={styles.dailyLogPhoto} />
-                          ))}
-                        </View>
-                      </ScrollView>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <View style={styles.dailyEmptyState}>
-                  <BookOpen size={32} color="#D1D5DB" />
-                  <Text style={styles.dailyEmptyText}>No daily log for this date</Text>
-                  <Text style={styles.dailyEmptySubtext}>Tap "Add Log" to create one</Text>
-                </View>
-              )}
-            </View>
-          </ScrollView>
-        </>
-      )}
-
-      <Modal
-        visible={showDailyLogsModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowDailyLogsModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
-            <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, 16) }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                <BookOpen size={24} color="#2563EB" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.modalTitle}>Daily Log</Text>
-                  <Text style={styles.modalSubtitle}>
-                    {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowDailyLogsModal(false)}
-                style={{ padding: 8 }}
-              >
-                <X size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <View style={styles.toggleSection}>
-                <TouchableOpacity 
-                  style={styles.toggleRow}
-                  onPress={() => setEquipmentExpanded(!equipmentExpanded)}
-                >
-                  {equipmentExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
-                  <Text style={styles.toggleLabel}>🚜 Equipment</Text>
-                </TouchableOpacity>
-                {equipmentExpanded && (
-                  <TextInput
-                    style={styles.oneLineInput}
-                    value={equipmentNote}
-                    onChangeText={setEquipmentNote}
-                    placeholder="Quick note about equipment..."
-                    placeholderTextColor="#9CA3AF"
-                  />
-                )}
-              </View>
-
-              <View style={styles.toggleSection}>
-                <TouchableOpacity 
-                  style={styles.toggleRow}
-                  onPress={() => setMaterialExpanded(!materialExpanded)}
-                >
-                  {materialExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
-                  <Text style={styles.toggleLabel}>📦 Material</Text>
-                </TouchableOpacity>
-                {materialExpanded && (
-                  <TextInput
-                    style={styles.oneLineInput}
-                    value={materialNote}
-                    onChangeText={setMaterialNote}
-                    placeholder="Quick note about materials..."
-                    placeholderTextColor="#9CA3AF"
-                  />
-                )}
-              </View>
-
-              <View style={styles.toggleSection}>
-                <TouchableOpacity 
-                  style={styles.toggleRow}
-                  onPress={() => setOfficialExpanded(!officialExpanded)}
-                >
-                  {officialExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
-                  <Text style={styles.toggleLabel}>📋 Official</Text>
-                </TouchableOpacity>
-                {officialExpanded && (
-                  <TextInput
-                    style={styles.oneLineInput}
-                    value={officialNote}
-                    onChangeText={setOfficialNote}
-                    placeholder="Quick note about official matters..."
-                    placeholderTextColor="#9CA3AF"
-                  />
-                )}
-              </View>
-
-              <View style={styles.toggleSection}>
-                <TouchableOpacity 
-                  style={styles.toggleRow}
-                  onPress={() => setSubsExpanded(!subsExpanded)}
-                >
-                  {subsExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
-                  <Text style={styles.toggleLabel}>👷 Subs</Text>
-                </TouchableOpacity>
-                {subsExpanded && (
-                  <TextInput
-                    style={styles.oneLineInput}
-                    value={subsNote}
-                    onChangeText={setSubsNote}
-                    placeholder="Quick note about subcontractors..."
-                    placeholderTextColor="#9CA3AF"
-                  />
-                )}
-              </View>
-
-              <View style={styles.toggleSection}>
-                <TouchableOpacity 
-                  style={styles.toggleRow}
-                  onPress={() => setEmployeesExpanded(!employeesExpanded)}
-                >
-                  {employeesExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
-                  <Text style={styles.toggleLabel}>👥 Employees</Text>
-                </TouchableOpacity>
-                {employeesExpanded && (
-                  <TextInput
-                    style={styles.oneLineInput}
-                    value={employeesNote}
-                    onChangeText={setEmployeesNote}
-                    placeholder="Quick note about employees..."
-                    placeholderTextColor="#9CA3AF"
-                  />
-                )}
-              </View>
-
-              <View style={styles.divider} />
-
-              <Text style={styles.label}>Work Performed</Text>
-              <TextInput
-                style={styles.textArea}
-                value={workPerformed}
-                onChangeText={setWorkPerformed}
-                placeholder="Describe what was completed today..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={3}
-              />
-
-              <Text style={styles.label}>Issues</Text>
-              <TextInput
-                style={styles.textArea}
-                value={issues}
-                onChangeText={setIssues}
-                placeholder="Any issues or concerns..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={3}
-              />
-
-              <Text style={styles.label}>General Notes</Text>
-              <TextInput
-                style={styles.textArea}
-                value={generalNotes}
-                onChangeText={setGeneralNotes}
-                placeholder="Additional notes..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={3}
-              />
-
-              <View style={styles.divider} />
-
-              <View style={styles.photoSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <Text style={styles.label}>Photo Attachments</Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity 
-                      style={styles.photoButton}
-                      onPress={handleTakePhoto}
-                    >
-                      <Camera size={18} color="#2563EB" />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={styles.photoButton}
-                      onPress={handlePickPhoto}
-                    >
-                      <ImageIcon size={18} color="#2563EB" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                
-                {photos.length > 0 && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={styles.photosList}>
-                      {photos.map((photo) => (
-                        <View key={photo.id} style={styles.photoItem}>
-                          <Image 
-                            source={{ uri: photo.uri }} 
-                            style={styles.photoThumbnail}
-                          />
-                          <TouchableOpacity
-                            style={styles.photoRemoveButton}
-                            onPress={() => handleRemovePhoto(photo.id)}
-                          >
-                            <X size={14} color="#FFFFFF" />
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
-                  </ScrollView>
-                )}
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.tasksSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <Text style={styles.label}>Tasks</Text>
-                  <TouchableOpacity 
-                    style={styles.addTaskButton}
-                    onPress={handleAddTask}
+          {/* Timeline Grid */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={true}
+            style={styles.timelineContainer}
+          >
+            <View>
+              {/* Timeline Header */}
+              <View style={[styles.timelineHeader, { height: HEADER_HEIGHT }]}>
+                {timelineDates.map((date, index) => (
+                  <View
+                    key={index}
+                    style={[styles.dateCell, { width: DAY_WIDTH }]}
                   >
-                    <Plus size={18} color="#FFFFFF" />
-                    <Text style={styles.addTaskButtonText}>Add Row</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                {tasks.map((task) => (
-                  <View key={task.id} style={styles.taskRow}>
-                    <TouchableOpacity 
-                      onPress={() => handleToggleTaskComplete(task.id)}
-                      style={[styles.taskCheckbox, task.completed && styles.taskCheckboxCompleted]}
-                    >
-                      {task.completed && <Check size={14} color="#FFFFFF" />}
-                    </TouchableOpacity>
-                    <TextInput
-                      style={[styles.taskInput, task.completed && styles.taskInputCompleted]}
-                      value={task.description}
-                      onChangeText={(text) => handleUpdateTask(task.id, text)}
-                      placeholder="Task description..."
-                      placeholderTextColor="#9CA3AF"
-                    />
-                    <TouchableOpacity onPress={() => handleDeleteTaskRow(task.id)}>
-                      <Trash2 size={18} color="#EF4444" />
-                    </TouchableOpacity>
+                    <Text style={styles.dateText}>{formatDate(date)}</Text>
                   </View>
                 ))}
               </View>
 
-              <View style={styles.divider} />
+              {/* Timeline Rows */}
+              <ScrollView showsVerticalScrollIndicator={true}>
+                {allPhases.map((phase, phaseIndex) => {
+                  const isExpanded = expandedPhases.has(phase.id);
+                  const subPhases = getSubPhases(phase.id);
+                  const phaseTasks = getTasksForPhase(phase.id);
 
-              <View style={styles.shareSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <Users size={20} color="#2563EB" />
-                  <Text style={styles.label}>Share with Team</Text>
-                </View>
-                
-                {sharedWith.length > 0 && (
-                  <View style={styles.sharedList}>
-                    {sharedWith.map((email, idx) => (
-                      <View key={idx} style={styles.sharedItem}>
-                        <Text style={styles.sharedEmail}>{email}</Text>
-                        <TouchableOpacity onPress={() => handleRemoveTeamMember(email)}>
-                          <X size={18} color="#EF4444" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
-                )}
+                  return (
+                    <View key={phase.id}>
+                      {/* Main phase row */}
+                      <View
+                        style={[
+                          styles.timelineRow,
+                          { height: ROW_HEIGHT },
+                        ]}
+                      >
+                        {/* Grid cells */}
+                        {timelineDates.map((_, index) => (
+                          <View
+                            key={index}
+                            style={[
+                              styles.gridCell,
+                              { width: DAY_WIDTH, height: ROW_HEIGHT },
+                            ]}
+                          />
+                        ))}
 
-                <View style={styles.addShareContainer}>
-                  <TextInput
-                    style={styles.shareInput}
-                    value={shareEmail}
-                    onChangeText={setShareEmail}
-                    placeholder="Team member email..."
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity 
-                    style={styles.addShareButton}
-                    onPress={handleAddTeamMember}
-                  >
-                    <Plus size={20} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setShowDailyLogsModal(false)}
-                disabled={isSavingLog}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.saveButton, isSavingLog && styles.saveButtonDisabled]}
-                onPress={handleSaveDailyLog}
-                disabled={isSavingLog}
-              >
-                {isSavingLog ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.saveButtonText}>Save Log</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showHistoryModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowHistoryModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <History size={24} color="#059669" />
-                <Text style={styles.modalTitle}>Daily Logs History</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
-                <X size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {projectDailyLogs.length === 0 ? (
-                <View style={styles.emptyHistoryState}>
-                  <BookOpen size={48} color="#9CA3AF" />
-                  <Text style={styles.emptyHistoryText}>No daily logs yet</Text>
-                  <Text style={styles.emptyHistorySubtext}>Start creating daily logs to track project progress</Text>
-                </View>
-              ) : (
-                <View style={styles.historyList}>
-                  {projectDailyLogs
-                    .sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime())
-                    .map((log) => (
-                    <View key={log.id} style={styles.historyItem}>
-                      <View style={styles.historyItemHeader}>
-                        <View>
-                          <Text style={styles.historyDate}>
-                            {new Date(log.logDate).toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </Text>
-                          <Text style={styles.historyCreatedBy}>
-                            By {user?.id === log.createdBy ? user.name : 'Team Member'} • {new Date(log.createdAt).toLocaleTimeString('en-US', {
-                              hour: 'numeric',
-                              minute: '2-digit',
-                              hour12: true
-                            })}
-                          </Text>
-                        </View>
-                        <View style={{ flexDirection: 'row' }}>
+                        {/* Task bars */}
+                        {phaseTasks.map(task => (
                           <TouchableOpacity
+                            key={task.id}
+                            style={[
+                              styles.taskBar,
+                              {
+                                left: getTaskPosition(task),
+                                width: getTaskWidth(task),
+                                height: BAR_HEIGHT,
+                                top: (ROW_HEIGHT - BAR_HEIGHT) / 2,
+                                backgroundColor: task.completed ? '#10B981' : task.color,
+                                opacity: task.completed ? 0.6 : 1,
+                              },
+                            ]}
                             onPress={() => {
-                              Alert.alert(
-                                'Delete Daily Log',
-                                'Are you sure you want to delete this daily log? This action cannot be undone.',
-                                [
-                                  { text: 'Cancel', style: 'cancel' },
-                                  {
-                                    text: 'Delete',
-                                    style: 'destructive',
-                                    onPress: async () => {
-                                      try {
-                                        await deleteDailyLog(log.id);
-                                        Alert.alert('Success', 'Daily log deleted successfully');
-                                      } catch (error) {
-                                        Alert.alert('Error', 'Failed to delete daily log');
-                                      }
-                                    },
-                                  },
-                                ],
-                              );
+                              setEditingTask(task);
+                              setShowTaskModal(true);
                             }}
-                            style={[styles.exportButton, { marginRight: 8 }]}
                           >
-                            <Trash2 size={18} color="#EF4444" />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => {
-                              Alert.alert(
-                                'Export Daily Log',
-                                'Choose export format',
-                                [
-                                  {
-                                    text: 'CSV',
-                                    onPress: async () => {
-                                      try {
-                                        // CSV format
-                                        let csvContent = 'DAILY LOG\n\n';
-                                        csvContent += `Date,${new Date(log.logDate).toLocaleDateString()}\n`;
-                                        csvContent += `Created By,${user?.id === log.createdBy ? user.name : 'Team Member'}\n\n`;
-
-                                        if (log.equipmentNote) csvContent += `Equipment,"${log.equipmentNote.replace(/"/g, '""')}"\n`;
-                                        if (log.materialNote) csvContent += `Material,"${log.materialNote.replace(/"/g, '""')}"\n`;
-                                        if (log.officialNote) csvContent += `Official,"${log.officialNote.replace(/"/g, '""')}"\n`;
-                                        if (log.subsNote) csvContent += `Subs,"${log.subsNote.replace(/"/g, '""')}"\n`;
-                                        if (log.employeesNote) csvContent += `Employees,"${log.employeesNote.replace(/"/g, '""')}"\n`;
-
-                                        csvContent += `\nWork Performed,"${(log.workPerformed || '').replace(/"/g, '""')}"\n`;
-                                        csvContent += `Issues,"${(log.issues || '').replace(/"/g, '""')}"\n`;
-                                        csvContent += `General Notes,"${(log.generalNotes || '').replace(/"/g, '""')}"\n`;
-
-                                        if (log.tasks.length > 0) {
-                                          csvContent += `\nTasks\n`;
-                                          csvContent += 'Status,Description\n';
-                                          log.tasks.forEach(t => {
-                                            csvContent += `${t.completed ? 'Completed' : 'Pending'},"${t.description.replace(/"/g, '""')}"\n`;
-                                          });
-                                        }
-
-                                        if (Platform.OS === 'web') {
-                                          const blob = new Blob([csvContent], { type: 'text/csv' });
-                                          const url = URL.createObjectURL(blob);
-                                          const link = document.createElement('a');
-                                          link.href = url;
-                                          link.download = `daily-log-${new Date(log.logDate).toISOString().split('T')[0]}.csv`;
-                                          link.click();
-                                          URL.revokeObjectURL(url);
-                                        } else {
-                                          const fileName = `daily-log-${new Date(log.logDate).toISOString().split('T')[0]}.csv`;
-                                          const file = new FSFile(Paths.cache, fileName);
-                                          await file.write(csvContent);
-
-                                          if (await Sharing.isAvailableAsync()) {
-                                            await Sharing.shareAsync(file.uri);
-                                          } else {
-                                            await Share.share({ message: csvContent });
-                                          }
-                                        }
-                                      } catch (error) {
-                                        console.error('[Export CSV] Error:', error);
-                                        Alert.alert('Export Error', 'Failed to export daily log as CSV');
-                                      }
-                                    }
-                                  },
-                                  {
-                                    text: 'PDF',
-                                    onPress: async () => {
-                                      try {
-                                        // Generate PDF using Print API
-                                        const htmlContent = `
-                                          <!DOCTYPE html>
-                                          <html>
-                                            <head>
-                                              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
-                                              <style>
-                                                body { font-family: Arial, sans-serif; padding: 20px; }
-                                                h1 { color: #2563EB; border-bottom: 2px solid #2563EB; padding-bottom: 10px; }
-                                                .section { margin-bottom: 20px; }
-                                                .label { font-weight: bold; color: #555; }
-                                                .value { margin-top: 5px; }
-                                                .task { padding: 5px 0; }
-                                                .completed { color: green; }
-                                                .pending { color: orange; }
-                                              </style>
-                                            </head>
-                                            <body>
-                                              <h1>Daily Log</h1>
-                                              <div class="section">
-                                                <div class="label">Date:</div>
-                                                <div class="value">${new Date(log.logDate).toLocaleDateString()}</div>
-                                              </div>
-                                              <div class="section">
-                                                <div class="label">Created By:</div>
-                                                <div class="value">${user?.id === log.createdBy ? user.name : 'Team Member'}</div>
-                                              </div>
-                                              ${log.equipmentNote ? `
-                                              <div class="section">
-                                                <div class="label">Equipment:</div>
-                                                <div class="value">${log.equipmentNote}</div>
-                                              </div>` : ''}
-                                              ${log.materialNote ? `
-                                              <div class="section">
-                                                <div class="label">Material:</div>
-                                                <div class="value">${log.materialNote}</div>
-                                              </div>` : ''}
-                                              ${log.officialNote ? `
-                                              <div class="section">
-                                                <div class="label">Official:</div>
-                                                <div class="value">${log.officialNote}</div>
-                                              </div>` : ''}
-                                              ${log.subsNote ? `
-                                              <div class="section">
-                                                <div class="label">Subs:</div>
-                                                <div class="value">${log.subsNote}</div>
-                                              </div>` : ''}
-                                              ${log.employeesNote ? `
-                                              <div class="section">
-                                                <div class="label">Employees:</div>
-                                                <div class="value">${log.employeesNote}</div>
-                                              </div>` : ''}
-                                              <div class="section">
-                                                <div class="label">Work Performed:</div>
-                                                <div class="value">${log.workPerformed || 'N/A'}</div>
-                                              </div>
-                                              <div class="section">
-                                                <div class="label">Issues:</div>
-                                                <div class="value">${log.issues || 'None'}</div>
-                                              </div>
-                                              <div class="section">
-                                                <div class="label">General Notes:</div>
-                                                <div class="value">${log.generalNotes || 'N/A'}</div>
-                                              </div>
-                                              ${log.tasks.length > 0 ? `
-                                              <div class="section">
-                                                <div class="label">Tasks:</div>
-                                                ${log.tasks.map(t => `
-                                                  <div class="task ${t.completed ? 'completed' : 'pending'}">
-                                                    ${t.completed ? '✓' : '○'} ${t.description}
-                                                  </div>
-                                                `).join('')}
-                                              </div>` : ''}
-                                            </body>
-                                          </html>
-                                        `;
-
-                                        if (Platform.OS === 'web') {
-                                          // Web: Open print dialog
-                                          const printWindow = window.open('', '_blank');
-                                          if (printWindow) {
-                                            printWindow.document.write(htmlContent);
-                                            printWindow.document.close();
-                                            printWindow.print();
-                                          }
-                                        } else {
-                                          // Mobile: Use expo-print
-                                          const Print = await import('expo-print');
-                                          const { uri } = await Print.printToFileAsync({ html: htmlContent });
-
-                                          if (await Sharing.isAvailableAsync()) {
-                                            await Sharing.shareAsync(uri);
-                                          } else {
-                                            Alert.alert('PDF Generated', 'PDF saved to device');
-                                          }
-                                        }
-                                      } catch (error) {
-                                        console.error('[Export PDF] Error:', error);
-                                        Alert.alert('Export Error', 'Failed to export daily log as PDF');
-                                      }
-                                    }
-                                  },
-                                  {
-                                    text: 'Cancel',
-                                    style: 'cancel'
-                                  }
-                                ]
-                              );
-                            }}
-                            style={styles.exportButton}
-                          >
-                            <Download size={18} color="#2563EB" />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      {(log.equipmentNote || log.materialNote || log.officialNote || log.subsNote || log.employeesNote) && (
-                        <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Quick Notes:</Text>
-                          {log.equipmentNote && <Text style={styles.quickNoteItem}>🚜 Equipment: {log.equipmentNote}</Text>}
-                          {log.materialNote && <Text style={styles.quickNoteItem}>📦 Material: {log.materialNote}</Text>}
-                          {log.officialNote && <Text style={styles.quickNoteItem}>📋 Official: {log.officialNote}</Text>}
-                          {log.subsNote && <Text style={styles.quickNoteItem}>👷 Subs: {log.subsNote}</Text>}
-                          {log.employeesNote && <Text style={styles.quickNoteItem}>👥 Employees: {log.employeesNote}</Text>}
-                        </View>
-                      )}
-
-                      {log.workPerformed && (
-                        <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Work Performed:</Text>
-                          <Text style={styles.historySectionText}>{log.workPerformed}</Text>
-                        </View>
-                      )}
-
-                      {log.issues && (
-                        <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Issues:</Text>
-                          <Text style={styles.historySectionText}>{log.issues}</Text>
-                        </View>
-                      )}
-
-                      {log.generalNotes && (
-                        <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>General Notes:</Text>
-                          <Text style={styles.historySectionText}>{log.generalNotes}</Text>
-                        </View>
-                      )}
-
-                      {log.tasks.length > 0 && (
-                        <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Tasks:</Text>
-                          {log.tasks.map((task) => (
-                            <View key={task.id} style={styles.historyTaskItem}>
-                              <View style={[styles.historyTaskCheck, task.completed && styles.historyTaskCheckCompleted]}>
-                                {task.completed && <Check size={12} color="#FFFFFF" />}
-                              </View>
-                              <Text style={[styles.historyTaskText, task.completed && styles.historyTaskTextCompleted]}>
-                                {task.description}
+                            <View style={styles.taskBarContent}>
+                              <Text style={styles.taskBarText} numberOfLines={1}>
+                                {task.category}
                               </Text>
+                              {task.completed && (
+                                <Check size={14} color="#FFF" />
+                              )}
+                              {!task.visibleToClient && (
+                                <EyeOff size={14} color="#FFF" />
+                              )}
                             </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      {/* Sub-phase rows */}
+                      {isExpanded && subPhases.map(subPhase => (
+                        <View
+                          key={subPhase.id}
+                          style={[
+                            styles.timelineRow,
+                            { height: ROW_HEIGHT },
+                          ]}
+                        >
+                          {timelineDates.map((_, index) => (
+                            <View
+                              key={index}
+                              style={[
+                                styles.gridCell,
+                                { width: DAY_WIDTH, height: ROW_HEIGHT },
+                              ]}
+                            />
                           ))}
                         </View>
-                      )}
-
-                      {log.photos.length > 0 && (
-                        <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Photos ({log.photos.length}):</Text>
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            <View style={styles.historyPhotosList}>
-                              {log.photos.map((photo) => (
-                                <View key={photo.id} style={styles.historyPhotoItem}>
-                                  <Image 
-                                    source={{ uri: photo.uri }} 
-                                    style={styles.historyPhotoImage}
-                                  />
-                                </View>
-                              ))}
-                            </View>
-                          </ScrollView>
-                        </View>
-                      )}
-
-                      {log.sharedWith.length > 0 && (
-                        <View style={styles.historySection}>
-                          <Text style={styles.historySectionTitle}>Shared with:</Text>
-                          <Text style={styles.historySectionText}>{log.sharedWith.join(', ')}</Text>
-                        </View>
-                      )}
+                      ))}
                     </View>
-                  ))}
-                </View>
-              )}
-            </ScrollView>
-
-            <View style={styles.historyFooter}>
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={() => setShowHistoryModal(false)}
-              >
-                <Text style={styles.closeButtonText}>Close</Text>
-              </TouchableOpacity>
-              {projectDailyLogs.length > 0 && (
-                <TouchableOpacity
-                  style={styles.exportAllButton}
-                  onPress={() => {
-                    Alert.alert(
-                      'Export All Daily Logs',
-                      'Choose export format',
-                      [
-                        {
-                          text: 'CSV',
-                          onPress: async () => {
-                            try {
-                              const sortedLogs = projectDailyLogs.sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime());
-
-                              // CSV format with all logs
-                              let csvContent = 'DAILY LOGS REPORT\n\n';
-                              csvContent += 'Date,Created By,Equipment,Material,Official,Subs,Employees,Work Performed,Issues,General Notes,Tasks\n';
-
-                              sortedLogs.forEach(log => {
-                                const tasks = log.tasks.map(t => `${t.completed ? 'Done' : 'Pending'}: ${t.description}`).join('; ');
-                                csvContent += `"${new Date(log.logDate).toLocaleDateString()}",`;
-                                csvContent += `"${user?.id === log.createdBy ? user.name : 'Team Member'}",`;
-                                csvContent += `"${(log.equipmentNote || '').replace(/"/g, '""')}",`;
-                                csvContent += `"${(log.materialNote || '').replace(/"/g, '""')}",`;
-                                csvContent += `"${(log.officialNote || '').replace(/"/g, '""')}",`;
-                                csvContent += `"${(log.subsNote || '').replace(/"/g, '""')}",`;
-                                csvContent += `"${(log.employeesNote || '').replace(/"/g, '""')}",`;
-                                csvContent += `"${(log.workPerformed || '').replace(/"/g, '""')}",`;
-                                csvContent += `"${(log.issues || '').replace(/"/g, '""')}",`;
-                                csvContent += `"${(log.generalNotes || '').replace(/"/g, '""')}",`;
-                                csvContent += `"${tasks.replace(/"/g, '""')}"\n`;
-                              });
-
-                              if (Platform.OS === 'web') {
-                                const blob = new Blob([csvContent], { type: 'text/csv' });
-                                const url = URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = `daily-logs-all-${new Date().toISOString().split('T')[0]}.csv`;
-                                link.click();
-                                URL.revokeObjectURL(url);
-                              } else {
-                                const fileName = `daily-logs-all-${new Date().toISOString().split('T')[0]}.csv`;
-                                const file = new FSFile(Paths.cache, fileName);
-                                await file.write(csvContent);
-
-                                if (await Sharing.isAvailableAsync()) {
-                                  await Sharing.shareAsync(file.uri);
-                                } else {
-                                  await Share.share({ message: csvContent });
-                                }
-                              }
-                            } catch (error) {
-                              console.error('[Export All CSV] Error:', error);
-                              Alert.alert('Export Error', 'Failed to export daily logs as CSV');
-                            }
-                          }
-                        },
-                        {
-                          text: 'PDF',
-                          onPress: async () => {
-                            try {
-                              const sortedLogs = projectDailyLogs.sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime());
-
-                              // Generate PDF with all logs
-                              const htmlContent = `
-                                <!DOCTYPE html>
-                                <html>
-                                  <head>
-                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
-                                    <style>
-                                      body { font-family: Arial, sans-serif; padding: 20px; }
-                                      h1 { color: #2563EB; border-bottom: 3px solid #2563EB; padding-bottom: 10px; margin-bottom: 30px; }
-                                      .log-entry { margin-bottom: 40px; page-break-inside: avoid; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
-                                      .log-header { background: #2563EB; color: white; padding: 10px; margin: -15px -15px 15px -15px; border-radius: 8px 8px 0 0; }
-                                      .section { margin-bottom: 15px; }
-                                      .label { font-weight: bold; color: #555; display: inline-block; min-width: 150px; }
-                                      .value { display: inline-block; }
-                                      .task { padding: 5px 0; margin-left: 20px; }
-                                      .completed { color: green; }
-                                      .pending { color: orange; }
-                                    </style>
-                                  </head>
-                                  <body>
-                                    <h1>Daily Logs Report</h1>
-                                    <p><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
-                                    <p><strong>Total Logs:</strong> ${sortedLogs.length}</p>
-                                    <hr style="margin: 30px 0;" />
-                                    ${sortedLogs.map(log => `
-                                      <div class="log-entry">
-                                        <div class="log-header">
-                                          <h2 style="margin: 0; color: white;">Daily Log - ${new Date(log.logDate).toLocaleDateString()}</h2>
-                                          <div style="font-size: 14px; margin-top: 5px;">Created by: ${user?.id === log.createdBy ? user.name : 'Team Member'}</div>
-                                        </div>
-                                        ${log.equipmentNote ? `
-                                        <div class="section">
-                                          <span class="label">Equipment:</span>
-                                          <span class="value">${log.equipmentNote}</span>
-                                        </div>` : ''}
-                                        ${log.materialNote ? `
-                                        <div class="section">
-                                          <span class="label">Material:</span>
-                                          <span class="value">${log.materialNote}</span>
-                                        </div>` : ''}
-                                        ${log.officialNote ? `
-                                        <div class="section">
-                                          <span class="label">Official:</span>
-                                          <span class="value">${log.officialNote}</span>
-                                        </div>` : ''}
-                                        ${log.subsNote ? `
-                                        <div class="section">
-                                          <span class="label">Subs:</span>
-                                          <span class="value">${log.subsNote}</span>
-                                        </div>` : ''}
-                                        ${log.employeesNote ? `
-                                        <div class="section">
-                                          <span class="label">Employees:</span>
-                                          <span class="value">${log.employeesNote}</span>
-                                        </div>` : ''}
-                                        <div class="section">
-                                          <div class="label">Work Performed:</div>
-                                          <div class="value">${log.workPerformed || 'N/A'}</div>
-                                        </div>
-                                        <div class="section">
-                                          <div class="label">Issues:</div>
-                                          <div class="value">${log.issues || 'None'}</div>
-                                        </div>
-                                        <div class="section">
-                                          <div class="label">General Notes:</div>
-                                          <div class="value">${log.generalNotes || 'N/A'}</div>
-                                        </div>
-                                        ${log.tasks.length > 0 ? `
-                                        <div class="section">
-                                          <div class="label">Tasks:</div>
-                                          ${log.tasks.map(t => `
-                                            <div class="task ${t.completed ? 'completed' : 'pending'}">
-                                              ${t.completed ? '✓' : '○'} ${t.description}
-                                            </div>
-                                          `).join('')}
-                                        </div>` : ''}
-                                      </div>
-                                    `).join('')}
-                                  </body>
-                                </html>
-                              `;
-
-                              if (Platform.OS === 'web') {
-                                // Web: Open print dialog
-                                const printWindow = window.open('', '_blank');
-                                if (printWindow) {
-                                  printWindow.document.write(htmlContent);
-                                  printWindow.document.close();
-                                  printWindow.print();
-                                }
-                              } else {
-                                // Mobile: Use expo-print
-                                const Print = await import('expo-print');
-                                const { uri } = await Print.printToFileAsync({ html: htmlContent });
-
-                                if (await Sharing.isAvailableAsync()) {
-                                  await Sharing.shareAsync(uri);
-                                } else {
-                                  Alert.alert('PDF Generated', 'PDF saved to device');
-                                }
-                              }
-                            } catch (error) {
-                              console.error('[Export All PDF] Error:', error);
-                              Alert.alert('Export Error', 'Failed to export daily logs as PDF');
-                            }
-                          }
-                        },
-                        {
-                          text: 'Cancel',
-                          style: 'cancel'
-                        }
-                      ]
-                    );
-                  }}
-                >
-                  <Download size={18} color="#FFFFFF" />
-                  <Text style={styles.exportAllButtonText}>Export All</Text>
-                </TouchableOpacity>
-              )}
+                  );
+                })}
+              </ScrollView>
             </View>
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Zoom Controls */}
+      <View style={styles.zoomControls}>
+        <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut}>
+          <ZoomOut size={20} color="#6B7280" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.zoomReset} onPress={handleZoomReset}>
+          <Text style={styles.zoomResetText}>{Math.round(zoomLevel * 100)}%</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn}>
+          <ZoomIn size={20} color="#6B7280" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Context Menu */}
+      {contextMenuPhase && contextMenuPosition && (
+        <Modal
+          transparent
+          visible={!!contextMenuPhase}
+          onRequestClose={closeContextMenu}
+        >
+          <TouchableOpacity
+            style={styles.contextMenuOverlay}
+            activeOpacity={1}
+            onPress={closeContextMenu}
+          >
+            <View
+              style={[
+                styles.contextMenu,
+                {
+                  top: contextMenuPosition.y,
+                  left: contextMenuPosition.x,
+                },
+              ]}
+            >
+              <TouchableOpacity style={styles.contextMenuItem} onPress={handleAddSubPhase}>
+                <Plus size={18} color="#374151" />
+                <Text style={styles.contextMenuText}>Add Sub-Phase</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {/* Tasks Modal */}
+      <Modal
+        visible={showTasksModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowTasksModal(false)}
+      >
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Tasks</Text>
+            <TouchableOpacity onPress={() => setShowTasksModal(false)}>
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
           </View>
+          <ScrollView style={styles.modalContent}>
+            {scheduledTasks.map(task => (
+              <TouchableOpacity
+                key={task.id}
+                style={styles.taskItem}
+                onPress={() => toggleTaskCompletion(task.id)}
+              >
+                <View style={styles.taskItemHeader}>
+                  <View style={[styles.taskColorDot, { backgroundColor: task.color }]} />
+                  <Text style={styles.taskItemTitle}>{task.category}</Text>
+                  {task.completed && <Check size={20} color="#10B981" />}
+                </View>
+                <Text style={styles.taskItemDate}>
+                  {new Date(task.startDate).toLocaleDateString()} - {new Date(task.endDate).toLocaleDateString()}
+                </Text>
+                {task.notes && (
+                  <Text style={styles.taskItemNotes}>{task.notes}</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       </Modal>
 
-        {/* Jump to Date Modal - Calendar Picker */}
+      {/* Daily Log Modal */}
       <Modal
-        visible={showDatePicker}
+        visible={showDailyLogModal}
         animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowDatePicker(false)}
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowDailyLogModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.calendarPickerModal}>
-            <View style={styles.calendarPickerHeader}>
-              <TouchableOpacity onPress={previousMonth}>
-                <Text style={styles.calendarNavButton}>←</Text>
-              </TouchableOpacity>
-              <Text style={styles.calendarMonthTitle}>
-                {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </Text>
-              <TouchableOpacity onPress={nextMonth}>
-                <Text style={styles.calendarNavButton}>→</Text>
-              </TouchableOpacity>
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Daily Log</Text>
+            <TouchableOpacity onPress={() => setShowDailyLogModal(false)}>
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.logSection}>
+              <Text style={styles.logLabel}>Work Performed</Text>
+              <TextInput
+                style={styles.logInput}
+                multiline
+                numberOfLines={4}
+                value={workPerformed}
+                onChangeText={setWorkPerformed}
+                placeholder="Describe work completed today..."
+              />
             </View>
 
-            <View style={styles.calendarWeekDays}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <Text key={day} style={styles.calendarWeekDay}>{day}</Text>
-              ))}
+            <View style={styles.logSection}>
+              <Text style={styles.logLabel}>Equipment Notes</Text>
+              <TextInput
+                style={styles.logInput}
+                multiline
+                numberOfLines={3}
+                value={equipmentNote}
+                onChangeText={setEquipmentNote}
+                placeholder="Equipment used or issues..."
+              />
             </View>
 
-            <View style={styles.calendarGrid}>
-              {calendarDays.map((date, idx) => {
-                const isPlaceholder = date.getTime() === 0;
-                const isToday = !isPlaceholder && date.toDateString() === new Date().toDateString();
-                const isSelected = !isPlaceholder && selectedDate && date.toDateString() === selectedDate.toDateString();
+            <View style={styles.logSection}>
+              <Text style={styles.logLabel}>Material Notes</Text>
+              <TextInput
+                style={styles.logInput}
+                multiline
+                numberOfLines={3}
+                value={materialNote}
+                onChangeText={setMaterialNote}
+                placeholder="Materials delivered or used..."
+              />
+            </View>
 
-                return (
-                  <TouchableOpacity
-                    key={idx}
-                    style={[
-                      styles.calendarDay,
-                      isPlaceholder && styles.calendarDayPlaceholder,
-                      isToday && styles.calendarDayToday,
-                      isSelected && styles.calendarDaySelected
-                    ]}
-                    onPress={() => {
-                      if (!isPlaceholder) {
-                        handleJumpToDate(date);
-                      }
-                    }}
-                    disabled={isPlaceholder}
-                  >
-                    {!isPlaceholder && (
-                      <Text style={[
-                        styles.calendarDayText,
-                        isToday && styles.calendarDayTextToday,
-                        isSelected && styles.calendarDayTextSelected
-                      ]}>
-                        {date.getDate()}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.logSection}>
+              <Text style={styles.logLabel}>Issues</Text>
+              <TextInput
+                style={styles.logInput}
+                multiline
+                numberOfLines={3}
+                value={issues}
+                onChangeText={setIssues}
+                placeholder="Any issues or concerns..."
+              />
+            </View>
+
+            <View style={styles.logSection}>
+              <Text style={styles.logLabel}>General Notes</Text>
+              <TextInput
+                style={styles.logInput}
+                multiline
+                numberOfLines={3}
+                value={generalNotes}
+                onChangeText={setGeneralNotes}
+                placeholder="Additional notes..."
+              />
+            </View>
+
+            <View style={styles.logSection}>
+              <TouchableOpacity style={styles.addPhotoButton} onPress={handleAddLogPhoto}>
+                <Camera size={20} color="#7C3AED" />
+                <Text style={styles.addPhotoText}>Add Photos</Text>
+              </TouchableOpacity>
+              {logPhotos.length > 0 && (
+                <Text style={styles.photoCount}>{logPhotos.length} photo(s) added</Text>
+              )}
             </View>
 
             <TouchableOpacity
-              style={styles.calendarCloseButton}
-              onPress={() => setShowDatePicker(false)}
+              style={styles.saveButton}
+              onPress={handleSaveDailyLog}
+              disabled={isSavingLog}
             >
-              <Text style={styles.calendarCloseButtonText}>Cancel</Text>
+              {isSavingLog ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save Daily Log</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* History Modal */}
+      <Modal
+        visible={showHistoryModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowHistoryModal(false)}
+      >
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Daily Log History</Text>
+            <TouchableOpacity onPress={() => setShowHistoryModal(false)}>
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalContent}>
+            {projectDailyLogs.length === 0 ? (
+              <View style={styles.emptyState}>
+                <History size={48} color="#D1D5DB" />
+                <Text style={styles.emptyStateText}>No daily logs yet</Text>
+              </View>
+            ) : (
+              projectDailyLogs.map(log => (
+                <View key={log.id} style={styles.historyItem}>
+                  <Text style={styles.historyDate}>
+                    {new Date(log.logDate).toLocaleDateString()}
+                  </Text>
+                  {log.workPerformed && (
+                    <Text style={styles.historyText} numberOfLines={2}>
+                      {log.workPerformed}
+                    </Text>
+                  )}
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Share Modal */}
+      <Modal
+        visible={showShareModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowShareModal(false)}
+      >
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Share Schedule</Text>
+            <TouchableOpacity onPress={() => setShowShareModal(false)}>
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.modalContent}>
+            <TouchableOpacity style={styles.shareOption} onPress={handleShare}>
+              <Share2 size={24} color="#7C3AED" />
+              <Text style={styles.shareOptionText}>Share via System</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shareOption} onPress={handlePrint}>
+              <Download size={24} color="#7C3AED" />
+              <Text style={styles.shareOptionText}>Export as PDF</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Task Detail Modal */}
-      <Modal visible={showTaskDetailModal} animationType="slide" transparent={true} onRequestClose={() => setShowTaskDetailModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.taskDetailModal}>
-            <View style={styles.taskDetailHeader}>
-              <View>
-                <Text style={styles.taskDetailTitle}>Task Details</Text>
-                {selectedTaskDetail && (
-                  <View style={[styles.taskDetailCategoryBadge, { backgroundColor: selectedTaskDetail.color }]}>
-                    <Text style={styles.taskDetailCategoryText}>{selectedTaskDetail.category}</Text>
-                  </View>
-                )}
-              </View>
-              <TouchableOpacity onPress={() => setShowTaskDetailModal(false)}>
+      {/* Task Edit Modal */}
+      {editingTask && (
+        <Modal
+          visible={showTaskModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => {
+            setShowTaskModal(false);
+            setEditingTask(null);
+          }}
+        >
+          <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Task Details</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowTaskModal(false);
+                  setEditingTask(null);
+                }}
+              >
                 <X size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
+            <ScrollView style={styles.modalContent}>
+              <View style={styles.taskDetailSection}>
+                <Text style={styles.taskDetailLabel}>Category</Text>
+                <Text style={styles.taskDetailValue}>{editingTask.category}</Text>
+              </View>
 
-            {selectedTaskDetail && (
-              <ScrollView style={styles.taskDetailContent}>
-                <View style={styles.taskDetailSection}>
-                  <Text style={styles.taskDetailLabel}>Work Type</Text>
-                  <Text style={styles.taskDetailValue}>
-                    {selectedTaskDetail.workType === 'in-house' ? '🏠 In-House' : '👷 Subcontractor'}
-                  </Text>
-                </View>
-                <View style={styles.taskDetailSection}>
-                  <Text style={styles.taskDetailLabel}>Duration</Text>
-                  <Text style={styles.taskDetailValue}>{selectedTaskDetail.duration} days</Text>
-                </View>
-                <View style={styles.taskDetailSection}>
-                  <Text style={styles.taskDetailLabel}>Start Date</Text>
-                  <Text style={styles.taskDetailValue}>
-                    {new Date(selectedTaskDetail.startDate).toLocaleDateString('en-US', {
-                      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
-                    })}
-                  </Text>
-                </View>
-                <View style={styles.taskDetailSection}>
-                  <Text style={styles.taskDetailLabel}>End Date</Text>
-                  <Text style={styles.taskDetailValue}>
-                    {new Date(selectedTaskDetail.endDate).toLocaleDateString('en-US', {
-                      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
-                    })}
-                  </Text>
-                </View>
-                {selectedTaskDetail.notes && (
-                  <View style={styles.taskDetailSection}>
-                    <Text style={styles.taskDetailLabel}>Notes</Text>
-                    <Text style={styles.taskDetailValue}>{selectedTaskDetail.notes}</Text>
-                  </View>
-                )}
-              </ScrollView>
-            )}
+              <View style={styles.taskDetailSection}>
+                <Text style={styles.taskDetailLabel}>Duration</Text>
+                <Text style={styles.taskDetailValue}>{editingTask.duration} days</Text>
+              </View>
 
-            <View style={styles.taskDetailFooter}>
-              <TouchableOpacity style={styles.taskDetailCloseButton} onPress={() => setShowTaskDetailModal(false)}>
-                <Text style={styles.taskDetailCloseButtonText}>Close</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.taskDetailDeleteButton}
-                onPress={() => {
-                  if (selectedTaskDetail) {
-                    Alert.alert('Delete Task', `Remove "${selectedTaskDetail.category}" from schedule?`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Delete', style: 'destructive', onPress: () => {
-                        handleDeleteTask(selectedTaskDetail.id);
-                        setShowTaskDetailModal(false);
-                      }}
-                    ]);
-                  }
-                }}
-              >
-                <Trash2 size={18} color="#FFFFFF" />
-                <Text style={styles.taskDetailDeleteButtonText}>Delete Task</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.taskDetailSection}>
+                <Text style={styles.taskDetailLabel}>Work Type</Text>
+                <Text style={styles.taskDetailValue}>
+                  {editingTask.workType === 'in-house' ? 'In-House' : 'Subcontractor'}
+                </Text>
+              </View>
+
+              <View style={styles.taskDetailSection}>
+                <Text style={styles.taskDetailLabel}>Visible to Client</Text>
+                <Switch
+                  value={editingTask.visibleToClient !== false}
+                  onValueChange={(value) => {
+                    updateTask(editingTask.id, { visibleToClient: value });
+                  }}
+                />
+              </View>
+
+              <View style={styles.taskDetailSection}>
+                <Text style={styles.taskDetailLabel}>Completed</Text>
+                <Switch
+                  value={editingTask.completed || false}
+                  onValueChange={() => toggleTaskCompletion(editingTask.id)}
+                />
+              </View>
+
+              {editingTask.notes && (
+                <View style={styles.taskDetailSection}>
+                  <Text style={styles.taskDetailLabel}>Notes</Text>
+                  <Text style={styles.taskDetailValue}>{editingTask.notes}</Text>
+                </View>
+              )}
+            </ScrollView>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
+      {/* Daily Tasks Button */}
+      <DailyTasksButton />
     </View>
   );
 }
@@ -2609,1487 +1033,399 @@ export default function ScheduleScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2563EB',
-  },
-  bgArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 200,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#F9FAFB',
   },
   header: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: '#2563EB',
-    flex: 1,
-  },
-  actionButtonsRow: {
-    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  headerActions: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
-    justifyContent: 'flex-start',
   },
-  projectSelector: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  headerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  headerButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  projectTabsContainer: {
+    backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 8,
-  },
-  projectList: {
-    flexDirection: 'row',
-  },
-  projectChip: {
+  projectTabs: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
+    gap: 8,
+  },
+  projectTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
     backgroundColor: '#F3F4F6',
-    marginRight: 8,
-    maxWidth: 200,
+    minWidth: 120,
   },
-  projectChipSelected: {
-    backgroundColor: '#2563EB',
+  projectTabActive: {
+    backgroundColor: '#7C3AED',
   },
-  projectChipText: {
+  projectTabText: {
     fontSize: 14,
-    fontWeight: '500' as const,
-    color: '#1F2937',
+    fontWeight: '500',
+    color: '#6B7280',
+    textAlign: 'center',
   },
-  projectChipTextSelected: {
-    color: '#FFFFFF',
+  projectTabTextActive: {
+    color: '#FFF',
   },
-  emptyState: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
   },
-  emptyText: {
+  loadingText: {
+    marginTop: 12,
     fontSize: 16,
     color: '#6B7280',
-    marginTop: 16,
   },
-  categoriesSection: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  categoriesSectionTop: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-  },
-  categoriesHeader: {
+  scheduleContainer: {
     flex: 1,
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    paddingVertical: 8,
-  },
-  categoriesHeaderLeft: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 8,
-  },
-  categoriesCount: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500' as const,
-  },
-  fixOverlapsButton: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-    backgroundColor: '#10B981',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  fixOverlapsButtonText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  categoriesList: {
     flexDirection: 'row',
   },
-  categoryChip: {
+  phaseSidebar: {
+    backgroundColor: '#FFF',
+    borderRightWidth: 1,
+    borderRightColor: '#E5E7EB',
+  },
+  phaseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginRight: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    minHeight: 60,
+  },
+  phaseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-  },
-  categoryText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  timeline: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+  },
+  phaseName: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#374151',
+    flex: 1,
+  },
+  phaseToggle: {
+    marginLeft: 4,
+  },
+  subPhaseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    backgroundColor: '#F9FAFB',
+  },
+  subPhaseIndent: {
+    width: 16,
+  },
+  subPhaseName: {
+    fontSize: 11,
+    color: '#6B7280',
+    flex: 1,
+  },
+  timelineContainer: {
+    flex: 1,
   },
   timelineHeader: {
     flexDirection: 'row',
-    borderBottomWidth: 2,
-    borderBottomColor: '#E5E7EB',
-  },
-  hourLabelHeader: {
-    width: LEFT_MARGIN,
-    backgroundColor: '#FFFFFF',
-  },
-  timelineScroll: {
-    maxHeight: 60,
-  },
-  datesContainer: {
-    flexDirection: 'row',
-  },
-  dateColumn: {
-    width: DAY_WIDTH,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRightWidth: 1,
-    borderRightColor: '#F3F4F6',
-  },
-  dateColumnToday: {
-    backgroundColor: '#EFF6FF',
-    borderRightColor: '#2563EB',
-    borderRightWidth: 2,
-  },
-  dateText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  dayText: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  tasksArea: {
-    flex: 1,
-  },
-  tasksContainer: {
-    flexDirection: 'row',
-    overflow: 'visible',
-  },
-  hourLabels: {
-    width: LEFT_MARGIN,
-    backgroundColor: '#F9FAFB',
-    borderRightWidth: 2,
-    borderRightColor: '#E5E7EB',
-  },
-  hourLabelRow: {
-    height: HOUR_HEIGHT,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  hourText: {
-    fontSize: 11,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-  },
-  tasksScrollView: {
-    flex: 1,
-  },
-  tasksGrid: {
-    flexDirection: 'row',
-    minHeight: 900,
-    position: 'relative',
-    overflow: 'visible',
-  },
-  dayGridColumn: {
-    width: DAY_WIDTH,
+  dateCell: {
+    justifyContent: 'center',
+    alignItems: 'center',
     borderRightWidth: 1,
     borderRightColor: '#F3F4F6',
-    height: 900,
-    position: 'relative' as const,
   },
-  todayIndicator: {
-    position: 'absolute' as const,
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 3,
-    backgroundColor: '#2563EB',
-    zIndex: 1000,
+  dateText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6B7280',
   },
-  dateTextToday: {
-    fontWeight: '700' as const,
-    color: '#2563EB',
+  timelineRow: {
+    flexDirection: 'row',
+    position: 'relative',
   },
-  dayTextToday: {
-    fontWeight: '700' as const,
-    color: '#2563EB',
+  gridCell: {
+    borderRightWidth: 1,
+    borderRightColor: '#F3F4F6',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-  todayBadge: {
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 4,
-  },
-  todayBadgeText: {
-    fontSize: 9,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  taskBlock: {
+  taskBar: {
     position: 'absolute',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  taskBarContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  taskBarText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFF',
+    flex: 1,
+  },
+  zoomControls: {
+    position: 'absolute',
+    bottom: 80,
+    right: 16,
+    flexDirection: 'row',
+    backgroundColor: '#FFF',
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
-    padding: 10,
-    minHeight: 70,
+    elevation: 4,
   },
-  taskContentWrapper: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 34,
-    bottom: 34,
-    cursor: 'grab' as any,
-  },
-  taskDragging: {
-    cursor: 'grabbing' as any,
-  },
-  taskContent: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 24,
-    bottom: 24,
-    zIndex: 1,
-  },
-  taskContentInner: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  taskDragArea: {
-    flex: 1,
-  },
-  taskTitle: {
-    fontSize: 12,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
-    marginBottom: 1,
-  },
-  taskSubtitle: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginBottom: 1,
-  },
-  taskDuration: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    opacity: 0.8,
-  },
-  deleteTaskButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 300,
-  },
-  taskBlockDragging: {
-    opacity: 0.85,
-    transform: [{ scale: 1.02 }],
-    zIndex: 1000,
-  },
-  taskBlockResizing: {
-    opacity: 0.9,
-  },
-  taskNotes: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    opacity: 0.85,
-    marginTop: 4,
-  },
-  quickEditContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.92)',
-    borderRadius: 8,
+  zoomButton: {
     padding: 12,
-    justifyContent: 'space-between',
+    borderRadius: 8,
   },
-  quickEditScroll: {
+  zoomReset: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  zoomResetText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  contextMenuOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
-  quickEditLabel: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600' as const,
-    marginBottom: 6,
-    opacity: 0.9,
-  },
-  quickEditWorkTypeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  quickEditWorkTypeButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-  },
-  quickEditWorkTypeButtonActive: {
-    backgroundColor: '#2563EB',
-  },
-  quickEditWorkTypeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600' as const,
-    opacity: 0.8,
-  },
-  quickEditWorkTypeTextActive: {
-    opacity: 1,
-  },
-  quickEditInput: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    textAlignVertical: 'top',
-    padding: 8,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 6,
-    minHeight: 60,
-    maxHeight: 100,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  quickEditButtons: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 4,
-  },
-  quickEditButton: {
-    flex: 1,
-    backgroundColor: '#10B981',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  quickEditButtonCancel: {
-    backgroundColor: '#6B7280',
-  },
-  quickEditButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700' as const,
-  },
-  resizeHandleRight: {
+  contextMenu: {
     position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 24,
-    width: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 200,
-    backgroundColor: 'transparent',
-    cursor: 'ew-resize' as any,
-  },
-  resizeHandleBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 28,
-    height: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 200,
-    backgroundColor: 'transparent',
-    cursor: 'ns-resize' as any,
-  },
-  resizeHandleActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  resizeIndicatorVertical: {
-    width: 4,
-    height: 40,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 2,
+    backgroundColor: '#FFF',
+    borderRadius: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  resizeIndicatorHorizontal: {
-    height: 4,
-    width: 40,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  resizeIndicatorActive: {
-    backgroundColor: '#F3F4F6',
-    transform: [{ scale: 1.1 }],
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    maxHeight: '85%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
     elevation: 8,
+    minWidth: 160,
+  },
+  contextMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  contextMenuText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFF',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700' as const,
-    color: '#1F2937',
+    fontWeight: '700',
+    color: '#111827',
   },
-  modalSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
+  modalContent: {
+    flex: 1,
+    padding: 16,
   },
-  modalBody: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+  taskItem: {
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    marginBottom: 12,
   },
-  toggleSection: {
-    marginBottom: 20,
-  },
-  toggleRow: {
+  taskItemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
+    marginBottom: 4,
   },
-  toggleLabel: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+  taskColorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  taskItemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
     flex: 1,
   },
-  oneLineInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+  taskItemDate: {
     fontSize: 14,
-    color: '#1F2937',
-    marginTop: 8,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  textArea: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    fontSize: 14,
-    color: '#1F2937',
-    minHeight: 80,
-    textAlignVertical: 'top',
-    marginBottom: 16,
-  },
-  photoSection: {
-    marginBottom: 20,
-  },
-  photoButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  photosList: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-  },
-  photoItem: {
-    position: 'relative',
-    marginRight: 8,
+    color: '#6B7280',
     marginTop: 4,
   },
-  photoThumbnail: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: '#E5E7EB',
-  },
-  photoRemoveButton: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#EF4444',
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2.5,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 6,
-  },
-  tasksSection: {
-    marginBottom: 16,
-  },
-  addTaskButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#2563EB',
-    borderRadius: 6,
-  },
-  addTaskButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600' as const,
-  },
-  taskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 8,
-  },
-  taskCheckbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#2563EB',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  taskCheckboxCompleted: {
-    backgroundColor: '#2563EB',
-  },
-  taskInput: {
-    flex: 1,
+  taskItemNotes: {
     fontSize: 14,
-    color: '#1F2937',
-    paddingVertical: 4,
-  },
-  taskInputCompleted: {
-    textDecorationLine: 'line-through',
     color: '#9CA3AF',
+    marginTop: 4,
   },
-  shareSection: {
-    marginBottom: 16,
+  logSection: {
+    marginBottom: 20,
   },
-  sharedList: {
-    marginBottom: 12,
-    gap: 8,
+  logLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 8,
   },
-  sharedItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    backgroundColor: '#F0F9FF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  sharedEmail: {
-    fontSize: 14,
-    fontWeight: '500' as const,
-    color: '#0C4A6E',
-  },
-  addShareContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  shareInput: {
-    flex: 1,
+  logInput: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    padding: 12,
     fontSize: 14,
-    color: '#1F2937',
+    color: '#111827',
+    textAlignVertical: 'top',
   },
-  addShareButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalFooter: {
+  addPhotoButton: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderWidth: 2,
+    borderColor: '#7C3AED',
+    borderRadius: 8,
+    borderStyle: 'dashed',
   },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+  addPhotoText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#7C3AED',
+  },
+  photoCount: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
   },
   saveButton: {
-    flex: 1,
+    backgroundColor: '#7C3AED',
     paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: '#2563EB',
+    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
+    marginTop: 8,
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
+    fontWeight: '600',
+    color: '#FFF',
   },
-  dailyLogHeaderButton: {
-    flexDirection: 'row',
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
+    paddingVertical: 48,
   },
-  dailyLogHeaderButtonText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#2563EB',
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  historyButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  historyList: {
-    gap: 16,
+  emptyStateText: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    marginTop: 12,
   },
   historyItem: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  historyItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
     marginBottom: 12,
   },
   historyDate: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  historyCreatedBy: {
-    fontSize: 12,
-    fontWeight: '500' as const,
-    color: '#6B7280',
-  },
-  historySection: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  historySectionTitle: {
-    fontSize: 12,
-    fontWeight: '700' as const,
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  historySectionText: {
     fontSize: 14,
-    color: '#1F2937',
-    lineHeight: 20,
-  },
-  quickNoteItem: {
-    fontSize: 13,
-    color: '#1F2937',
-    marginTop: 4,
-  },
-  historyTaskItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: 8,
-  },
-  historyTaskCheck: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  historyTaskCheckCompleted: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  historyTaskText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#1F2937',
-  },
-  historyTaskTextCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#9CA3AF',
-  },
-  historyPhotosList: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingVertical: 8,
-  },
-  historyPhotoItem: {
-    width: 100,
-  },
-  historyPhotoImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: '#E5E7EB',
-  },
-  exportButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: '#EFF6FF',
-  },
-  emptyHistoryState: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyHistoryText: {
-    fontSize: 18,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-    marginTop: 16,
-  },
-  emptyHistorySubtext: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  historyFooter: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  closeButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  exportAllButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 8,
-    backgroundColor: '#059669',
-  },
-  exportAllButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  // Date Navigation Styles
-  dateNavigation: {
-    flexDirection: 'row' as const,
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  navButton: {
-    flex: 1,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  navButtonPrimary: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  navButtonText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  navButtonTextPrimary: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  // Date Picker Modal Styles
-  datePickerModal: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    width: '90%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  datePickerHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    marginBottom: 20,
-  },
-  datePickerTitle: {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-  },
-  datePickerCloseBtn: {
-    padding: 4,
-  },
-  datePickerLabel: {
-    fontSize: 14,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#374151',
-    marginBottom: 8,
-  },
-  datePickerInput: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: '#1F2937',
-    backgroundColor: '#FFFFFF',
-    marginBottom: 8,
-  },
-  datePickerHint: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 20,
-  },
-  datePickerActions: {
-    flexDirection: 'row' as const,
-    gap: 12,
-  },
-  datePickerCancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center' as const,
-  },
-  datePickerCancelText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-  },
-  datePickerConfirmBtn: {
-    flex: 1,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#2563EB',
-  },
-  datePickerConfirmText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  // View Toggle Styles
-  viewToggle: {
-    flexDirection: 'row' as const,
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  viewToggleButton: {
-    flex: 1,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-  },
-  viewToggleButtonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  viewToggleText: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-  },
-  viewToggleTextActive: {
-    color: '#FFFFFF',
-  },
-  // Daily View Styles
-  weekSelector: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingVertical: 12,
-  },
-  weekDatesContainer: {
-    flexDirection: 'row' as const,
-    gap: 8,
-    paddingHorizontal: 16,
-  },
-  dateSelector: {
-    width: 70,
-    paddingVertical: 12,
-    alignItems: 'center' as const,
-    borderRadius: 12,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-  },
-  dateSelectorActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  dateSelectorToday: {
-    borderColor: '#2563EB',
-  },
-  dateSelectorDay: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#6B7280',
     marginBottom: 4,
   },
-  dateSelectorDayActive: {
-    color: '#FFFFFF',
+  historyText: {
+    fontSize: 14,
+    color: '#6B7280',
   },
-  dateSelectorDate: {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-  },
-  dateSelectorDateActive: {
-    color: '#FFFFFF',
-  },
-  todayDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#2563EB',
-    marginTop: 4,
-  },
-  dailyContent: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  dailyHeader: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
+  shareOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'space-between' as const,
-  },
-  dailyDateTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-  },
-  todayBadgeLarge: {
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  todayBadgeLargeText: {
-    fontSize: 11,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  dailySection: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  dailySectionHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    marginBottom: 12,
-  },
-  dailySectionTitle: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  dailyEmptyState: {
-    alignItems: 'center' as const,
-    paddingVertical: 32,
-  },
-  dailyEmptyText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 8,
-  },
-  dailyEmptySubtext: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 4,
-  },
-  dailyTaskCard: {
+    paddingHorizontal: 16,
     backgroundColor: '#F9FAFB',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  dailyTaskHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'flex-start' as const,
-    marginBottom: 8,
-    flexWrap: 'wrap' as const,
-    gap: 8,
-  },
-  dailyTaskCategory: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-    flex: 1,
-  },
-  dailyTaskType: {
-    fontSize: 13,
-    color: '#6B7280',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  dailyTaskNotes: {
-    fontSize: 13,
-    color: '#4B5563',
-    marginBottom: 6,
-  },
-  dailyTaskDuration: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  addDailyLogButton: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-    backgroundColor: '#10B981',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  addDailyLogButtonText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  dailyLogCard: {
-    gap: 16,
-  },
-  dailyLogSection: {
-    gap: 6,
-  },
-  dailyLogLabel: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-  },
-  dailyLogText: {
-    fontSize: 14,
-    color: '#1F2937',
-    lineHeight: 20,
-  },
-  dailyLogTask: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 8,
-    paddingVertical: 4,
-  },
-  dailyLogTaskCheck: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  dailyLogTaskCheckCompleted: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  dailyLogTaskText: {
-    fontSize: 14,
-    color: '#1F2937',
-    flex: 1,
-  },
-  dailyLogTaskTextCompleted: {
-    textDecorationLine: 'line-through' as const,
-    color: '#9CA3AF',
-  },
-  dailyLogPhotos: {
-    flexDirection: 'row' as const,
-    gap: 8,
-  },
-  dailyLogPhoto: {
-    width: 120,
-    height: 90,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
+    marginBottom: 12,
   },
-  taskDetailModal: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    width: '90%',
-    maxWidth: 500,
-    maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  taskDetailHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'flex-start' as const,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  taskDetailTitle: {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  taskDetailCategoryBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: 'flex-start' as const,
-  },
-  taskDetailCategoryText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  taskDetailContent: {
-    padding: 20,
-    maxHeight: 400,
+  shareOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
   },
   taskDetailSection: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   taskDetailLabel: {
-    fontSize: 13,
-    fontWeight: '600' as const,
+    fontSize: 14,
+    fontWeight: '600',
     color: '#6B7280',
-    marginBottom: 6,
-  },
-  taskDetailValue: {
-    fontSize: 15,
-    color: '#1F2937',
-    lineHeight: 22,
-  },
-  taskDetailFooter: {
-    flexDirection: 'row' as const,
-    gap: 12,
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  taskDetailCloseButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center' as const,
-  },
-  taskDetailCloseButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-  },
-  taskDetailDeleteButton: {
-    flex: 1,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#EF4444',
-  },
-  taskDetailDeleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  // Calendar Picker Styles
-  calendarPickerModal: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    width: '90%',
-    maxWidth: 400,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  calendarPickerHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    marginBottom: 20,
-  },
-  calendarNavButton: {
-    fontSize: 24,
-    fontWeight: '700' as const,
-    color: '#2563EB',
-    paddingHorizontal: 12,
-  },
-  calendarMonthTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-  },
-  calendarWeekDays: {
-    flexDirection: 'row' as const,
-    marginBottom: 10,
-  },
-  calendarWeekDay: {
-    width: '14.28%' as any,
-    textAlign: 'center' as const,
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-    paddingVertical: 8,
-  },
-  calendarGrid: {
-    flexDirection: 'row' as const,
-    flexWrap: 'wrap' as const,
-    marginBottom: 20,
-  },
-  calendarDay: {
-    width: '14.28%' as any,
-    aspectRatio: 1,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-    borderRadius: 8,
     marginBottom: 4,
   },
-  calendarDayPlaceholder: {
-    backgroundColor: 'transparent',
-  },
-  calendarDayToday: {
-    borderWidth: 2,
-    borderColor: '#2563EB',
-  },
-  calendarDaySelected: {
-    backgroundColor: '#2563EB',
-  },
-  calendarDayText: {
-    fontSize: 15,
-    color: '#1F2937',
-    fontWeight: '500' as const,
-  },
-  calendarDayTextToday: {
-    color: '#2563EB',
-    fontWeight: '700' as const,
-  },
-  calendarDayTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700' as const,
-  },
-  calendarCloseButton: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center' as const,
-  },
-  calendarCloseButtonText: {
+  taskDetailValue: {
     fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#6B7280',
+    color: '#111827',
   },
 });
