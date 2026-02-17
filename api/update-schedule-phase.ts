@@ -7,13 +7,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  console.log('[API] Update scheduled task request received');
+  console.log('[API] Update schedule phase request received');
 
   try {
     const { id, ...updates } = req.body;
 
     if (!id) {
-      return res.status(400).json({ error: 'Task ID is required' });
+      return res.status(400).json({ error: 'Phase ID is required' });
     }
 
     // Initialize Supabase client
@@ -29,19 +29,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Build update object (convert camelCase to snake_case)
     const updateData: any = {};
-    if (updates.startDate !== undefined) updateData.start_date = updates.startDate;
-    if (updates.endDate !== undefined) updateData.end_date = updates.endDate;
-    if (updates.duration !== undefined) updateData.duration = updates.duration;
-    if (updates.workType !== undefined) updateData.work_type = updates.workType;
-    if (updates.notes !== undefined) updateData.notes = updates.notes;
-    if (updates.row !== undefined) updateData.row = updates.row;
-    if (updates.rowSpan !== undefined) updateData.row_span = updates.rowSpan;
-    if (updates.phaseId !== undefined) updateData.phase_id = updates.phaseId;
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.parentPhaseId !== undefined) updateData.parent_phase_id = updates.parentPhaseId;
+    if (updates.order !== undefined) updateData.order_index = updates.order;
+    if (updates.color !== undefined) updateData.color = updates.color;
     if (updates.visibleToClient !== undefined) updateData.visible_to_client = updates.visibleToClient;
 
     // Update in database
     const { data, error } = await supabase
-      .from('scheduled_tasks')
+      .from('schedule_phases')
       .update(updateData)
       .eq('id', id)
       .select()
@@ -50,34 +46,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (error) {
       console.error('[API] Database error:', error);
       return res.status(500).json({
-        error: 'Failed to update scheduled task',
+        error: 'Failed to update schedule phase',
         details: error.message
       });
     }
 
-    console.log('[API] Scheduled task updated successfully:', id);
+    console.log('[API] Schedule phase updated successfully:', id);
 
-    // Return the updated task
+    // Return the updated phase
     return res.status(200).json({
       success: true,
-      scheduledTask: {
+      phase: {
         id: data.id,
         projectId: data.project_id,
-        category: data.category,
-        startDate: data.start_date,
-        endDate: data.end_date,
-        duration: data.duration,
-        workType: data.work_type,
-        notes: data.notes,
+        name: data.name,
+        parentPhaseId: data.parent_phase_id,
+        order: data.order_index,
         color: data.color,
-        row: data.row,
-        rowSpan: data.row_span,
-        phaseId: data.phase_id,
         visibleToClient: data.visible_to_client,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
       },
     });
   } catch (error: any) {
-    console.error('[API] Error updating scheduled task:', error);
+    console.error('[API] Error updating schedule phase:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: error.message

@@ -7,30 +7,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  console.log('[API] Save scheduled task request received');
+  console.log('[API] Save schedule phase request received');
 
   try {
     const {
       id,
       projectId,
-      category,
-      startDate,
-      endDate,
-      duration,
-      workType,
-      notes,
+      name,
+      parentPhaseId,
+      order,
       color,
-      row,
-      rowSpan,
-      phaseId,
       visibleToClient,
     } = req.body;
 
     // Validate required fields
-    if (!projectId || !category || !startDate || !endDate || !duration || !workType || !color) {
+    if (!projectId || !name || !color) {
       return res.status(400).json({
         error: 'Missing required fields',
-        required: ['projectId', 'category', 'startDate', 'endDate', 'duration', 'workType', 'color']
+        required: ['projectId', 'name', 'color']
       });
     }
 
@@ -46,24 +40,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Generate ID if not provided
-    const taskId = id || `scheduled-task-${Date.now()}`;
+    const phaseId = id || `phase-${Date.now()}`;
 
     // Insert into database
     const { data, error } = await supabase
-      .from('scheduled_tasks')
+      .from('schedule_phases')
       .insert({
-        id: taskId,
+        id: phaseId,
         project_id: projectId,
-        category,
-        start_date: startDate,
-        end_date: endDate,
-        duration,
-        work_type: workType,
-        notes: notes || null,
+        name,
+        parent_phase_id: parentPhaseId || null,
+        order_index: order !== undefined ? order : 0,
         color,
-        row: row || 0,
-        row_span: rowSpan || 1,
-        phase_id: phaseId || null,
         visible_to_client: visibleToClient !== undefined ? visibleToClient : true,
       })
       .select()
@@ -72,34 +60,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (error) {
       console.error('[API] Database error:', error);
       return res.status(500).json({
-        error: 'Failed to save scheduled task',
+        error: 'Failed to save schedule phase',
         details: error.message
       });
     }
 
-    console.log('[API] Scheduled task saved successfully:', taskId);
+    console.log('[API] Schedule phase saved successfully:', phaseId);
 
-    // Return the saved task
+    // Return the saved phase
     return res.status(200).json({
       success: true,
-      scheduledTask: {
+      phase: {
         id: data.id,
         projectId: data.project_id,
-        category: data.category,
-        startDate: data.start_date,
-        endDate: data.end_date,
-        duration: data.duration,
-        workType: data.work_type,
-        notes: data.notes,
+        name: data.name,
+        parentPhaseId: data.parent_phase_id,
+        order: data.order_index,
         color: data.color,
-        row: data.row,
-        rowSpan: data.row_span,
-        phaseId: data.phase_id,
         visibleToClient: data.visible_to_client,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
       },
     });
   } catch (error: any) {
-    console.error('[API] Error saving scheduled task:', error);
+    console.error('[API] Error saving schedule phase:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: error.message

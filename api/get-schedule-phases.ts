@@ -7,7 +7,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  console.log('[API] Get scheduled tasks request received');
+  console.log('[API] Get schedule phases request received');
 
   try {
     const { projectId } = req.query;
@@ -25,9 +25,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Query database
     let query = supabase
-      .from('scheduled_tasks')
+      .from('schedule_phases')
       .select('*')
-      .order('start_date', { ascending: true });
+      .order('order_index', { ascending: true });
 
     // Filter by project if provided
     if (projectId && typeof projectId === 'string') {
@@ -39,36 +39,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (error) {
       console.error('[API] Database error:', error);
       return res.status(500).json({
-        error: 'Failed to fetch scheduled tasks',
+        error: 'Failed to fetch schedule phases',
         details: error.message
       });
     }
 
-    console.log(`[API] Found ${data?.length || 0} scheduled tasks`);
+    console.log(`[API] Found ${data?.length || 0} schedule phases`);
 
     // Convert snake_case to camelCase
-    const scheduledTasks = (data || []).map((row: any) => ({
+    const phases = (data || []).map((row: any) => ({
       id: row.id,
       projectId: row.project_id,
-      category: row.category,
-      startDate: row.start_date,
-      endDate: row.end_date,
-      duration: row.duration,
-      workType: row.work_type,
-      notes: row.notes,
+      name: row.name,
+      parentPhaseId: row.parent_phase_id,
+      order: row.order_index,
       color: row.color,
-      row: row.row,
-      rowSpan: row.row_span,
-      phaseId: row.phase_id,
       visibleToClient: row.visible_to_client,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     }));
 
     return res.status(200).json({
       success: true,
-      scheduledTasks,
+      phases,
     });
   } catch (error: any) {
-    console.error('[API] Error fetching scheduled tasks:', error);
+    console.error('[API] Error fetching schedule phases:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: error.message

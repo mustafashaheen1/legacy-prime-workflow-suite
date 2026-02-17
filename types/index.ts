@@ -457,6 +457,42 @@ export interface ScheduledTask {
   updatedAt?: string;       // NEW: Timestamp when task was last updated (ISO string)
 }
 
+/**
+ * Schedule Phase - Hierarchical organization for Gantt chart
+ * Supports main phases and sub-phases for project scheduling
+ */
+export interface SchedulePhase {
+  id: string;
+  projectId: string;
+  name: string;
+  parentPhaseId?: string;
+  order: number;
+  color: string;
+  isExpanded?: boolean;      // UI state: whether phase accordion is expanded
+  visibleToClient: boolean;  // Whether clients can see this phase
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Gantt Task - Enhanced scheduled task with phase relationship
+ * Extends ScheduledTask with additional Gantt-specific fields
+ */
+export interface GanttTask extends ScheduledTask {
+  phaseId: string;           // Reference to parent schedule phase
+  visibleToClient: boolean;  // Whether clients can see this task
+}
+
+/**
+ * Zoom Level - Timeline scale for Gantt chart
+ */
+export type ZoomLevel = 'day' | 'week' | 'month';
+
+/**
+ * Schedule View Mode - Role-based view filtering
+ */
+export type ScheduleViewMode = 'internal' | 'client';
+
 export interface Payment {
   id: string;
   projectId: string;

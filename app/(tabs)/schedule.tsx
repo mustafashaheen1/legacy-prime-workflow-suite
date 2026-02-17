@@ -25,6 +25,7 @@ import { Paths, File as FSFile } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { GanttSchedule } from '@/components/GanttChart';
 
 // Helper function to get API base URL for both web and mobile
 const getApiBaseUrl = () => {
@@ -63,12 +64,70 @@ const ROW_HEIGHT = 80;
 const HOUR_HEIGHT = 80;
 const LEFT_MARGIN = 60;
 
+// Feature flag for new Gantt Chart UI
+const USE_GANTT_V2 = process.env.EXPO_PUBLIC_ENABLE_GANTT_V2 === 'true';
+
 export default function ScheduleScreen() {
   const { user, projects, dailyLogs, addDailyLog, updateDailyLog, deleteDailyLog } = useApp();
   const insets = useSafeAreaInsets();
   const [selectedProject, setSelectedProject] = useState<string | null>(
     projects.length > 0 ? projects[0].id : null
   );
+
+  // Get selected project details
+  const selectedProjectData = useMemo(() => {
+    return projects.find(p => p.id === selectedProject);
+  }, [projects, selectedProject]);
+
+  // NEW GANTT V2 RENDER
+  if (USE_GANTT_V2) {
+    return (
+      <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: '#F9FAFB' }}>
+        {/* Project Selector */}
+        <View style={styles.projectSelectorContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.projectSelector}
+          >
+            {projects.map((project) => (
+              <TouchableOpacity
+                key={project.id}
+                style={[
+                  styles.projectTab,
+                  selectedProject === project.id && styles.projectTabActive,
+                ]}
+                onPress={() => setSelectedProject(project.id)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.projectTabText,
+                    selectedProject === project.id && styles.projectTabTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {project.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Gantt Chart V2 */}
+        <GanttSchedule
+          projectId={selectedProject}
+          projectName={selectedProjectData?.name}
+          viewMode={user?.role === 'client' ? 'client' : 'internal'}
+        />
+
+        {/* Daily Tasks Button */}
+        <DailyTasksButton />
+      </View>
+    );
+  }
+
+  // LEGACY SCHEDULE VIEW (existing code continues below)
 
   // View mode state
   const [viewMode, setViewMode] = useState<'timeline' | 'daily'>('daily');
