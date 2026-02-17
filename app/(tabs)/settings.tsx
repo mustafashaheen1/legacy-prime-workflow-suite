@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image, Platform, ActivityIndicator, Clipboard } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
 import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permissions';
 import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, Wrench, DollarSign } from 'lucide-react-native';
-import { trpc } from '@/lib/trpc';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
-import { supabase } from '@/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 
 // Validation helpers
@@ -79,98 +77,94 @@ export default function SettingsScreen() {
   }>({});
   const [showRateChangeModal, setShowRateChangeModal] = useState<boolean>(false);
   const [requestedRate, setRequestedRate] = useState<string>('');
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
+  const [isUpdatingUser, setIsUpdatingUser] = useState<boolean>(false);
 
-  const usersQuery = trpc.users.getUsers.useQuery(
-    { companyId: company?.id },
-    { enabled: !!company?.id }
-  );
+  // Helper to get API base URL
+  const getApiBaseUrl = () => {
+    const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
+    if (rorkApi) return rorkApi;
+    if (typeof window !== 'undefined') return window.location.origin;
+    return 'http://localhost:8081';
+  };
 
-  const updateUserMutation = trpc.users.updateUser.useMutation({
-    onMutate: (variables) => {
-      console.log('[Settings] onMutate called with:', variables);
-    },
-    onSuccess: (data) => {
-      console.log('[Settings] onSuccess called with data:', data);
-      console.log('[Settings] User updated successfully', data);
-      console.log('[Settings] Platform.OS:', Platform.OS);
-      console.log('[Settings] About to show alert...');
+  // Fetch users from Vercel backend
+  const fetchUsers = async () => {
+    if (!company?.id) return;
+
+    setIsLoadingUsers(true);
+    try {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/get-users?companyId=${company.id}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.users) {
+        setUsers(data.users);
+      }
+    } catch (error: any) {
+      console.error('[Settings] Error fetching users:', error);
+      setUsers([]);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  // Fetch users on mount and when company changes
+  useEffect(() => {
+    fetchUsers();
+  }, [company?.id]);
+
+  const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    if (newRole === 'employee' || newRole === 'field-employee' || newRole === 'salesperson' || newRole === 'admin') {
+      setIsUpdatingUser(true);
       try {
+        const baseUrl = getApiBaseUrl();
+        const response = await fetch(`${baseUrl}/api/update-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            updates: { role: newRole },
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error('Failed to update user');
+        }
+
+        // Refresh users list
+        await fetchUsers();
+
         if (Platform.OS === 'web') {
-          console.log('[Settings] Calling alert...');
           alert('User updated successfully');
         } else {
           Alert.alert('Success', 'User updated successfully');
         }
-      } catch (e) {
-        console.error('[Settings] Error showing alert:', e);
-      }
-      usersQuery.refetch();
-      setShowRoleModal(false);
-      setSelectedUser(null);
-    },
-    onError: (error) => {
-      console.error('[Settings] onError called with:', error);
-      console.error('[Settings] Error updating user:', error);
-      console.log('[Settings] Platform.OS:', Platform.OS);
-      try {
+        setShowRoleModal(false);
+        setSelectedUser(null);
+      } catch (error: any) {
+        console.error('[Settings] Error updating user:', error);
         if (Platform.OS === 'web') {
           alert(`Error: ${error.message}`);
         } else {
           Alert.alert('Error', error.message);
         }
-      } catch (e) {
-        console.error('[Settings] Error showing error alert:', e);
+      } finally {
+        setIsUpdatingUser(false);
       }
-    },
-    onSettled: (data, error) => {
-      console.log('[Settings] onSettled called with data:', data, 'error:', error);
-    },
-  });
-
-  const deleteUserMutation = trpc.users.deleteUser.useMutation({
-    onMutate: (variables) => {
-      console.log('[Settings] deleteUser onMutate called with:', variables);
-    },
-    onSuccess: (data) => {
-      console.log('[Settings] deleteUser onSuccess called with data:', data);
-      console.log('[Settings] User deleted successfully', data);
-      console.log('[Settings] Platform.OS:', Platform.OS);
-      try {
-        if (Platform.OS === 'web') {
-          alert('Employee account rejected and deleted');
-        } else {
-          Alert.alert('Success', 'Employee account rejected and deleted');
-        }
-      } catch (e) {
-        console.error('[Settings] Error showing alert:', e);
-      }
-      usersQuery.refetch();
-    },
-    onError: (error) => {
-      console.error('[Settings] deleteUser onError called with:', error);
-      console.error('[Settings] Error deleting user:', error);
-      console.log('[Settings] Platform.OS:', Platform.OS);
-      try {
-        if (Platform.OS === 'web') {
-          alert(`Error: ${error.message}`);
-        } else {
-          Alert.alert('Error', error.message);
-        }
-      } catch (e) {
-        console.error('[Settings] Error showing error alert:', e);
-      }
-    },
-    onSettled: (data, error) => {
-      console.log('[Settings] deleteUser onSettled called with data:', data, 'error:', error);
-    },
-  });
-
-  const handleRoleChange = (userId: string, newRole: UserRole) => {
-    if (newRole === 'employee' || newRole === 'field-employee' || newRole === 'salesperson' || newRole === 'admin') {
-      updateUserMutation.mutate({
-        userId,
-        updates: { role: newRole },
-      });
     }
   };
 
@@ -190,26 +184,33 @@ export default function SettingsScreen() {
     if (!currentUser) return;
 
     try {
-      // Update user with rate change request
-      const updatedUser = {
-        ...currentUser,
-        rateChangeRequest: {
-          newRate: rate,
-          requestDate: new Date().toISOString(),
-          status: 'pending' as const,
-        },
-      };
-
-      await updateUserMutation.mutateAsync({
-        userId: currentUser.id,
-        updates: {
-          rateChangeRequest: {
-            newRate: rate,
-            requestDate: new Date().toISOString(),
-            status: 'pending',
-          }
-        },
+      // Update user with rate change request via Vercel API
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/update-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          updates: {
+            rateChangeRequest: {
+              newRate: rate,
+              requestDate: new Date().toISOString(),
+              status: 'pending',
+            }
+          },
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error('Failed to submit rate change request');
+      }
 
       setShowRateChangeModal(false);
       setRequestedRate('');
@@ -226,6 +227,17 @@ export default function SettingsScreen() {
       } else {
         Alert.alert('Error', error.message || 'Failed to submit rate change request');
       }
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      setIsLoggingOut(false);
     }
   };
 
@@ -525,8 +537,12 @@ export default function SettingsScreen() {
     setIsSavingProfile(true);
 
     try {
-      // Use direct API endpoint to avoid tRPC timeout
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      // Use Vercel API endpoint (works in production)
+      const baseUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+                      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+
+      console.log('[Settings] Updating company via:', `${baseUrl}/api/update-company`);
+
       const response = await fetch(`${baseUrl}/api/update-company`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -536,14 +552,19 @@ export default function SettingsScreen() {
         }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update company profile');
+      if (!data.success || !data.company) {
+        throw new Error('Invalid response from server');
       }
 
       // Update local state with the returned company data
-      await setCompany(data.company);
+      setCompany(data.company);
 
       if (Platform.OS === 'web') {
         alert('Company profile updated successfully!');
@@ -578,17 +599,6 @@ export default function SettingsScreen() {
     });
     setValidationErrors({}); // Clear any previous validation errors
     setShowCompanyProfileModal(true);
-  };
-
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      await logout();
-      router.replace('/(auth)/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-      setIsLoggingOut(false);
-    }
   };
 
   return (
@@ -698,13 +708,13 @@ export default function SettingsScreen() {
 
           <Text style={styles.subsectionTitle}>{t('settings.teamMembers')}</Text>
 
-          {usersQuery.isLoading ? (
+          {isLoadingUsers ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>{t('common.loading')}</Text>
             </View>
-          ) : usersQuery.data?.users && usersQuery.data.users.length > 0 ? (
+          ) : users && users.length > 0 ? (
             <View style={styles.usersList}>
-              {usersQuery.data.users.map((user: User) => (
+              {users.map((user: User) => (
                 <TouchableOpacity
                   key={user.id}
                   style={styles.userItem}
@@ -755,20 +765,28 @@ export default function SettingsScreen() {
                             if (confirmed) {
                               (async () => {
                                 try {
-                                  console.log('[Settings] Deleting user directly with Supabase:', user.id);
+                                  console.log('[Settings] Deleting user via API:', user.id);
 
-                                  const { error } = await supabase
-                                    .from('users')
-                                    .delete()
-                                    .eq('id', user.id);
+                                  const baseUrl = getApiBaseUrl();
+                                  const response = await fetch(`${baseUrl}/api/delete-user`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ userId: user.id }),
+                                  });
 
-                                  if (error) {
-                                    console.error('[Settings] Delete error:', error);
-                                    throw error;
+                                  if (!response.ok) {
+                                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                                    throw new Error(errorData.error || `HTTP ${response.status}`);
+                                  }
+
+                                  const data = await response.json();
+
+                                  if (!data.success) {
+                                    throw new Error('Failed to delete user');
                                   }
 
                                   console.log('[Settings] User deleted, refetching...');
-                                  await usersQuery.refetch();
+                                  await fetchUsers();
 
                                   alert('Employee account rejected and deleted');
                                 } catch (error: any) {
@@ -785,20 +803,28 @@ export default function SettingsScreen() {
                           style={styles.approveButton}
                           onPress={async () => {
                             try {
-                              console.log('[Settings] Approving user:', user.id, user.name);
+                              console.log('[Settings] Approving user via API:', user.id, user.name);
 
-                              const { error } = await supabase
-                                .from('users')
-                                .update({ is_active: true })
-                                .eq('id', user.id);
+                              const baseUrl = getApiBaseUrl();
+                              const response = await fetch(`${baseUrl}/api/approve-user`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: user.id }),
+                              });
 
-                              if (error) {
-                                console.error('[Settings] Approve error:', error);
-                                throw error;
+                              if (!response.ok) {
+                                const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                                throw new Error(errorData.error || `HTTP ${response.status}`);
+                              }
+
+                              const data = await response.json();
+
+                              if (!data.success) {
+                                throw new Error('Failed to approve user');
                               }
 
                               console.log('[Settings] User approved, refetching...');
-                              await usersQuery.refetch();
+                              await fetchUsers();
 
                               alert('User approved successfully');
                             } catch (error: any) {
@@ -874,7 +900,7 @@ export default function SettingsScreen() {
         onRequestClose={() => setShowCompanyProfileModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+          <View style={[styles.modalContent, { height: '90%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Company Profile</Text>
               <TouchableOpacity onPress={() => setShowCompanyProfileModal(false)}>
@@ -882,7 +908,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.companyFormScroll} showsVerticalScrollIndicator>
+            <ScrollView style={styles.companyFormScroll} showsVerticalScrollIndicator={true}>
               <Text style={styles.formLabel}>Company Logo</Text>
               <View style={styles.logoUploadSection}>
                 {companyForm.logo ? (
@@ -1110,7 +1136,7 @@ export default function SettingsScreen() {
                           );
                         }
                       }}
-                      disabled={updateUserMutation.isPending}
+                      disabled={isUpdatingUser}
                     >
                       <View style={[styles.roleColorDot, { backgroundColor: getRoleColor(role) }]} />
                       <View style={styles.roleOptionContent}>
