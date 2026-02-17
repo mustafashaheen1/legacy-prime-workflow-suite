@@ -1,130 +1,111 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  PanResponder,
-  Dimensions,
-  Switch,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, Alert, ActivityIndicator, PanResponder, Switch, Pressable, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
-import {
-  Calendar,
-  X,
-  Plus,
-  Trash2,
-  Check,
-  Share2,
-  History,
-  Download,
-  Camera,
-  ImageIcon,
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Shovel,
-  Mountain,
-  Home,
-  Droplets,
-  Hammer,
-  Triangle,
-  DoorOpen,
-  Shield,
-  Wrench,
-  Zap,
-  Wind,
-  Snowflake,
-  Layers,
-  Paintbrush,
-  Bath,
-  Lightbulb,
-  Fan,
-  Trees,
-  Sparkles,
-  ClipboardCheck,
-  BookOpen,
-  Printer,
-  Eye,
-  EyeOff,
-  ZoomIn,
-  ZoomOut,
-} from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { Calendar, X, Plus, Trash2, Check, Share2, History, Printer, CheckSquare, BookOpen, FileText, Shovel, Mountain, Home, Droplets, Hammer, Triangle, DoorOpen, Shield, Wrench, Zap, Wind, Snowflake, Layers, Paintbrush, Bath, Lightbulb, Fan, Trees, Sparkles, ClipboardCheck, ChevronDown, ChevronRight, Eye, EyeOff, CircleCheck, Pencil } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto, DailyTask } from '@/types';
-import * as Sharing from 'expo-sharing';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as Clipboard from 'expo-clipboard';
 
 // Helper function to get API base URL for both web and mobile
 const getApiBaseUrl = () => {
   const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-  if (rorkApi) {
-    return rorkApi;
-  }
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
+  if (rorkApi) return rorkApi;
+  if (typeof window !== 'undefined') return window.location.origin;
   return 'http://localhost:8081';
 };
 
-// Construction phases with icons
-const CONSTRUCTION_PHASES = [
-  { id: 'pre-construction', name: 'Pre-Construction', icon: FileText, color: '#8B5CF6' },
-  { id: 'site-prep', name: 'Site Preparation', icon: Shovel, color: '#EF4444' },
-  { id: 'earthwork', name: 'Earthwork & Excavation', icon: Mountain, color: '#F59E0B' },
-  { id: 'foundation', name: 'Foundation', icon: Home, color: '#DC2626' },
-  { id: 'utilities', name: 'Underground Utilities', icon: Droplets, color: '#3B82F6' },
-  { id: 'framing', name: 'Framing', icon: Hammer, color: '#D97706' },
-  { id: 'roofing', name: 'Roofing', icon: Triangle, color: '#7C3AED' },
-  { id: 'windows-doors', name: 'Windows & Exterior Doors', icon: DoorOpen, color: '#06B6D4' },
-  { id: 'exterior', name: 'Exterior Envelope', icon: Shield, color: '#14B8A6' },
-  { id: 'plumbing-rough', name: 'Plumbing Rough-In', icon: Wrench, color: '#0EA5E9' },
-  { id: 'electrical-rough', name: 'Electrical Rough-In', icon: Zap, color: '#F97316' },
-  { id: 'hvac-rough', name: 'HVAC Rough-In', icon: Wind, color: '#10B981' },
-  { id: 'insulation', name: 'Insulation', icon: Snowflake, color: '#38BDF8' },
-  { id: 'drywall', name: 'Drywall', icon: Layers, color: '#6366F1' },
-  { id: 'interior-finishes', name: 'Interior Finishes', icon: Sparkles, color: '#F472B6' },
-  { id: 'painting', name: 'Painting', icon: Paintbrush, color: '#EC4899' },
-  { id: 'plumbing-fixtures', name: 'Plumbing Fixtures', icon: Bath, color: '#0284C7' },
-  { id: 'electrical-fixtures', name: 'Electrical Fixtures', icon: Lightbulb, color: '#EA580C' },
-  { id: 'hvac-final', name: 'HVAC Final', icon: Fan, color: '#059669' },
-  { id: 'exterior-improvements', name: 'Exterior Improvements', icon: Trees, color: '#22C55E' },
-  { id: 'final-touches', name: 'Final Touches', icon: Sparkles, color: '#A855F7' },
-  { id: 'inspections', name: 'Inspections & Closeout', icon: ClipboardCheck, color: '#0891B2' },
+// Predefined sub-phases for each main category
+const PREDEFINED_SUB_PHASES: Record<string, string[]> = {
+  'Pre-Construction': ['Feasibility', 'Site Visit', 'Budgeting', 'Design Development', 'Engineering', 'Permitting', 'Procurement'],
+  'Site Preparation': ['Surveying', 'Site Clearing', 'Demolition', 'Temporary Utilities', 'Erosion Control', 'Layout & Staking'],
+  'Earthwork & Excavation': ['Excavation', 'Grading', 'Soil Compaction', 'Trenching', 'Import / Export Soil'],
+  'Foundation': ['Footings', 'Stem Walls', 'Slab Prep', 'Vapor Barrier', 'Rebar', 'Concrete Pour', 'Waterproofing', 'Foundation Inspection'],
+  'Underground Utilities': ['Sewer', 'Water Line', 'Storm Drain', 'Electrical Conduit', 'Gas Line'],
+  'Framing': ['Subfloor', 'Exterior Walls', 'Interior Walls', 'Beams', 'Roof Framing', 'Sheathing', 'Stairs'],
+  'Roofing': ['Underlayment', 'Flashing', 'Shingles / Metal / TPO', 'Roof Penetrations'],
+  'Windows & Exterior Doors': [],
+  'Exterior Envelope': ['House Wrap', 'Siding', 'Exterior Trim', 'Exterior Caulking'],
+  'Plumbing Rough-In': [],
+  'Electrical Rough-In': [],
+  'HVAC Rough-In': [],
+  'Insulation': [],
+  'Drywall': ['Hang', 'Tape', 'Texture'],
+  'Interior Finishes': ['Interior Doors', 'Trim', 'Baseboard', 'Crown Molding', 'Cabinet Installation', 'Flooring', 'Tile', 'Countertops'],
+  'Painting': ['Interior', 'Exterior'],
+  'Plumbing Fixtures': [],
+  'Electrical Fixtures': ['Switches', 'Outlets', 'Lighting', 'Panel Final'],
+  'HVAC Final': [],
+  'Exterior Improvements': ['Driveway', 'Walkways', 'Deck', 'Fence', 'Landscaping', 'Irrigation'],
+  'Final Touches': ['Hardware', 'Mirrors', 'Accessories', 'Cleaning'],
+  'Inspections & Closeout': ['Final Inspection', 'Punch List', 'Corrections', 'Client Walkthrough', 'Project Closeout'],
+};
+
+// 22 Construction phases with icons
+const CONSTRUCTION_CATEGORIES = [
+  { name: 'Pre-Construction', color: '#8B5CF6', icon: FileText },
+  { name: 'Site Preparation', color: '#A16207', icon: Shovel },
+  { name: 'Earthwork & Excavation', color: '#92400E', icon: Mountain },
+  { name: 'Foundation', color: '#991B1B', icon: Home },
+  { name: 'Underground Utilities', color: '#1E3A8A', icon: Droplets },
+  { name: 'Framing', color: '#F59E0B', icon: Hammer },
+  { name: 'Roofing', color: '#7C3AED', icon: Triangle },
+  { name: 'Windows & Exterior Doors', color: '#0369A1', icon: DoorOpen },
+  { name: 'Exterior Envelope', color: '#065F46', icon: Shield },
+  { name: 'Plumbing Rough-In', color: '#1E40AF', icon: Wrench },
+  { name: 'Electrical Rough-In', color: '#F97316', icon: Zap },
+  { name: 'HVAC Rough-In', color: '#059669', icon: Wind },
+  { name: 'Insulation', color: '#0891B2', icon: Snowflake },
+  { name: 'Drywall', color: '#6366F1', icon: Layers },
+  { name: 'Interior Finishes', color: '#DB2777', icon: Sparkles },
+  { name: 'Painting', color: '#EC4899', icon: Paintbrush },
+  { name: 'Plumbing Fixtures', color: '#0284C7', icon: Bath },
+  { name: 'Electrical Fixtures', color: '#EAB308', icon: Lightbulb },
+  { name: 'HVAC Final', color: '#10B981', icon: Fan },
+  { name: 'Exterior Improvements', color: '#22C55E', icon: Trees },
+  { name: 'Final Touches', color: '#A855F7', icon: Sparkles },
+  { name: 'Inspections & Closeout', color: '#06B6D4', icon: ClipboardCheck },
 ];
 
 // Layout constants
 const SIDEBAR_WIDTH = 140;
-const BASE_DAY_WIDTH = 80;
-const BASE_ROW_HEIGHT = 60;
-const BASE_BAR_HEIGHT = 40;
+const ROW_HEIGHT = 46;
+const BAR_HEIGHT = 34;
+const DAY_WIDTH = 72;
 const HEADER_HEIGHT = 50;
-
-// Zoom constants
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2.5;
 const ZOOM_STEP = 0.1;
 
-// Extended ScheduledTask to include completed status
 interface ScheduledTaskWithStatus extends ScheduledTask {
   completed?: boolean;
   completedAt?: string;
   visibleToClient?: boolean;
 }
 
+interface SubPhase {
+  id: string;
+  name: string;
+  parentId: string;
+  color: string;
+}
+
 export default function ScheduleScreen() {
-  const { user, projects, dailyLogs, addDailyLog, updateDailyLog, deleteDailyLog } = useApp();
+  const {
+    user,
+    projects,
+    dailyLogs,
+    addDailyLog,
+    addDailyTaskReminder,
+    updateDailyTaskReminder,
+    deleteDailyTaskReminder,
+    getDailyTaskReminders,
+    generateShareLink,
+    disableShareLink,
+    regenerateShareLink,
+    getShareLinkByProject
+  } = useApp();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
 
   // State management
   const [selectedProject, setSelectedProject] = useState<string | null>(
@@ -135,9 +116,13 @@ export default function ScheduleScreen() {
 
   // Phase management
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(
-    new Set(CONSTRUCTION_PHASES.map(p => p.id))
+    new Set(CONSTRUCTION_CATEGORIES.map((_, i) => i.toString()))
   );
-  const [customPhases, setCustomPhases] = useState<Array<{ id: string; name: string; parentId?: string; color: string }>>([]);
+  const [customSubPhases, setCustomSubPhases] = useState<SubPhase[]>([]);
+  const [customMainCategories, setCustomMainCategories] = useState<Array<{ name: string; color: string; icon: any }>>([]);
+
+  // UI state
+  const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [contextMenuPhase, setContextMenuPhase] = useState<string | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
@@ -146,19 +131,16 @@ export default function ScheduleScreen() {
   const [showDailyLogModal, setShowDailyLogModal] = useState<boolean>(false);
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
+  const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
   const [showAddSubPhaseModal, setShowAddSubPhaseModal] = useState<boolean>(false);
+  const [showRenamePhaseModal, setShowRenamePhaseModal] = useState<boolean>(false);
+  const [showAddMainCategoryModal, setShowAddMainCategoryModal] = useState<boolean>(false);
 
   // Task editing
   const [editingTask, setEditingTask] = useState<ScheduledTaskWithStatus | null>(null);
-  const [showTaskModal, setShowTaskModal] = useState<boolean>(false);
-  const [taskFormData, setTaskFormData] = useState({
-    category: '',
-    startDate: '',
-    endDate: '',
-    workType: 'in-house' as 'in-house' | 'subcontractor',
-    notes: '',
-    visibleToClient: true,
-  });
+  const [newSubPhaseName, setNewSubPhaseName] = useState<string>('');
+  const [newCategoryName, setNewCategoryName] = useState<string>('');
+  const [newCategoryColor, setNewCategoryColor] = useState<string>('#7C3AED');
 
   // Daily Log state
   const [equipmentNote, setEquipmentNote] = useState<string>('');
@@ -176,26 +158,23 @@ export default function ScheduleScreen() {
 
   // Zoom state
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
-
-  // Drag and resize state
-  const [draggedTask, setDraggedTask] = useState<string | null>(null);
-  const [resizingTask, setResizingTask] = useState<{ id: string; type: 'left' | 'right' } | null>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   // Computed dimensions based on zoom
-  const DAY_WIDTH = BASE_DAY_WIDTH * zoomLevel;
-  const ROW_HEIGHT = BASE_ROW_HEIGHT * zoomLevel;
-  const BAR_HEIGHT = BASE_BAR_HEIGHT * zoomLevel;
+  const dayWidth = DAY_WIDTH * zoomLevel;
+  const rowHeight = ROW_HEIGHT;
+  const barHeight = BAR_HEIGHT;
 
   // Get selected project details
   const selectedProjectData = useMemo(() => {
     return projects.find(p => p.id === selectedProject);
   }, [projects, selectedProject]);
 
-  // Generate timeline dates (next 120 days)
+  // Generate timeline dates (90 days from today)
   const timelineDates = useMemo(() => {
     const dates: Date[] = [];
     const today = new Date();
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 90; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       dates.push(date);
@@ -204,15 +183,22 @@ export default function ScheduleScreen() {
   }, []);
 
   const formatDate = (date: Date): string => {
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
     const month = date.toLocaleDateString('en-US', { month: 'short' });
     const day = date.getDate();
-    return `${month} ${day}`;
+    return `${weekday} ${month} ${day}`;
+  };
+
+  const isToday = (date: Date): boolean => {
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
   };
 
   // Fetch scheduled tasks from API
   const fetchScheduledTasks = useCallback(async () => {
     if (!selectedProject) return;
 
+    console.log('[Schedule] Fetching tasks for project:', selectedProject);
     setIsLoadingTasks(true);
     try {
       const baseUrl = getApiBaseUrl();
@@ -223,9 +209,12 @@ export default function ScheduleScreen() {
       }
 
       const data = await response.json();
+      console.log('[Schedule] Fetched tasks:', data);
 
       if (data.success && data.scheduledTasks) {
         setScheduledTasks(data.scheduledTasks);
+      } else {
+        setScheduledTasks([]);
       }
     } catch (error: any) {
       console.error('[Schedule] Error fetching tasks:', error);
@@ -241,6 +230,7 @@ export default function ScheduleScreen() {
 
   // Save task to API
   const saveTask = async (task: ScheduledTaskWithStatus) => {
+    console.log('[Schedule] Saving task:', task);
     try {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/save-scheduled-task`, {
@@ -254,6 +244,8 @@ export default function ScheduleScreen() {
       }
 
       const data = await response.json();
+      console.log('[Schedule] Save task response:', data);
+
       if (data.success) {
         await fetchScheduledTasks();
       }
@@ -265,6 +257,7 @@ export default function ScheduleScreen() {
 
   // Update task in API
   const updateTask = async (taskId: string, updates: Partial<ScheduledTaskWithStatus>) => {
+    console.log('[Schedule] Updating task:', taskId, updates);
     try {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/update-scheduled-task`, {
@@ -278,6 +271,8 @@ export default function ScheduleScreen() {
       }
 
       const data = await response.json();
+      console.log('[Schedule] Update task response:', data);
+
       if (data.success) {
         await fetchScheduledTasks();
       }
@@ -287,14 +282,39 @@ export default function ScheduleScreen() {
     }
   };
 
+  // Delete task from API
+  const deleteTask = async (taskId: string) => {
+    console.log('[Schedule] Deleting task:', taskId);
+    try {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/delete-scheduled-task?id=${taskId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[Schedule] Delete task response:', data);
+
+      if (data.success) {
+        await fetchScheduledTasks();
+      }
+    } catch (error) {
+      console.error('[Schedule] Error deleting task:', error);
+      Alert.alert('Error', 'Failed to delete task');
+    }
+  };
+
   // Toggle phase expansion
-  const togglePhase = (phaseId: string) => {
+  const togglePhase = (phaseIndex: string) => {
     setExpandedPhases(prev => {
       const next = new Set(prev);
-      if (next.has(phaseId)) {
-        next.delete(phaseId);
+      if (next.has(phaseIndex)) {
+        next.delete(phaseIndex);
       } else {
-        next.add(phaseId);
+        next.add(phaseIndex);
       }
       return next;
     });
@@ -313,9 +333,9 @@ export default function ScheduleScreen() {
     setZoomLevel(1.0);
   };
 
-  // Context menu for adding sub-phases
-  const openContextMenu = (phaseId: string, x: number, y: number) => {
-    setContextMenuPhase(phaseId);
+  // Context menu for phase management
+  const openContextMenu = (phaseIndex: string, x: number, y: number) => {
+    setContextMenuPhase(phaseIndex);
     setContextMenuPosition({ x, y });
   };
 
@@ -325,10 +345,94 @@ export default function ScheduleScreen() {
   };
 
   const handleAddSubPhase = () => {
-    if (contextMenuPhase) {
-      setShowAddSubPhaseModal(true);
-      closeContextMenu();
-    }
+    setShowAddSubPhaseModal(true);
+    closeContextMenu();
+  };
+
+  const handleRenamePhase = () => {
+    setShowRenamePhaseModal(true);
+    closeContextMenu();
+  };
+
+  const saveSubPhase = () => {
+    if (!contextMenuPhase || !newSubPhaseName.trim()) return;
+
+    const parentPhase = CONSTRUCTION_CATEGORIES[parseInt(contextMenuPhase)];
+    const newSubPhase: SubPhase = {
+      id: `sub-${Date.now()}`,
+      name: newSubPhaseName.trim(),
+      parentId: contextMenuPhase,
+      color: parentPhase.color,
+    };
+
+    setCustomSubPhases([...customSubPhases, newSubPhase]);
+    setNewSubPhaseName('');
+    setShowAddSubPhaseModal(false);
+  };
+
+  // Task creation on grid click
+  const handleGridCellPress = (phaseIndex: number, dateIndex: number) => {
+    if (!selectedProject) return;
+
+    const phase = CONSTRUCTION_CATEGORIES[phaseIndex];
+    const startDate = timelineDates[dateIndex];
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 1);
+
+    const newTask: ScheduledTaskWithStatus = {
+      id: `task-${Date.now()}`,
+      projectId: selectedProject,
+      category: phase.name,
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+      duration: 1,
+      workType: 'in-house',
+      color: phase.color,
+      notes: '',
+      visibleToClient: true,
+      completed: false,
+    };
+
+    saveTask(newTask);
+  };
+
+  // Task editing
+  const handleTaskPress = (task: ScheduledTaskWithStatus) => {
+    setEditingTask(task);
+    setShowTaskModal(true);
+  };
+
+  const handleDeleteTask = () => {
+    if (!editingTask) return;
+
+    Alert.alert(
+      'Delete Task',
+      'Are you sure you want to delete this task?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteTask(editingTask.id);
+            setShowTaskModal(false);
+            setEditingTask(null);
+          },
+        },
+      ]
+    );
+  };
+
+  const toggleTaskCompletion = async (taskId: string) => {
+    const task = scheduledTasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updates: Partial<ScheduledTaskWithStatus> = {
+      completed: !task.completed,
+      completedAt: !task.completed ? new Date().toISOString() : undefined,
+    };
+
+    await updateTask(taskId, updates);
   };
 
   // Daily Log handlers
@@ -382,106 +486,65 @@ export default function ScheduleScreen() {
     setSharedWith([]);
   };
 
-  const handleAddLogPhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images' as any,
-      allowsEditing: false,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0] && user) {
-      const photo: DailyLogPhoto = {
-        id: `photo-${Date.now()}`,
-        uri: result.assets[0].uri,
-        timestamp: new Date().toISOString(),
-        author: user.name,
-      };
-      setLogPhotos([...logPhotos, photo]);
-    }
-  };
-
   // Share functionality
   const handleShare = async () => {
     try {
-      if (Platform.OS === 'web') {
-        Alert.alert('Share', 'Sharing is not available on web');
-        return;
+      if (!selectedProject) return;
+
+      const shareLink = await generateShareLink(selectedProject, 'schedule');
+      if (shareLink) {
+        await Clipboard.setStringAsync(shareLink);
+        Alert.alert('Success', 'Share link copied to clipboard');
+        setShowShareModal(false);
       }
-
-      // Generate a simple text summary
-      const summary = `Schedule for ${selectedProjectData?.name}\n${scheduledTasks.length} tasks scheduled`;
-
-      await Sharing.shareAsync(summary, {
-        mimeType: 'text/plain',
-        dialogTitle: 'Share Schedule',
-      });
     } catch (error) {
       console.error('[Schedule] Error sharing:', error);
-      Alert.alert('Error', 'Failed to share schedule');
+      Alert.alert('Error', 'Failed to generate share link');
     }
-  };
-
-  // Print functionality
-  const handlePrint = () => {
-    Alert.alert('Print', 'Print functionality coming soon');
   };
 
   // Get all phases (built-in + custom)
   const allPhases = useMemo(() => {
-    return [
-      ...CONSTRUCTION_PHASES,
-      ...customPhases.map(cp => ({
-        id: cp.id,
-        name: cp.name,
-        icon: Plus,
-        color: cp.color,
-      })),
-    ];
-  }, [customPhases]);
+    return [...CONSTRUCTION_CATEGORIES, ...customMainCategories];
+  }, [customMainCategories]);
 
   // Get sub-phases for a phase
-  const getSubPhases = (parentId: string) => {
-    return customPhases.filter(cp => cp.parentId === parentId);
+  const getSubPhases = (phaseIndex: string) => {
+    const builtInSubPhases = PREDEFINED_SUB_PHASES[CONSTRUCTION_CATEGORIES[parseInt(phaseIndex)]?.name] || [];
+    const customSubs = customSubPhases.filter(sp => sp.parentId === phaseIndex);
+    return [...builtInSubPhases, ...customSubs.map(cs => cs.name)];
   };
 
   // Get tasks for a phase
-  const getTasksForPhase = (phaseId: string) => {
-    return scheduledTasks.filter(task => {
-      const phase = CONSTRUCTION_PHASES.find(p => p.name === task.category);
-      return phase?.id === phaseId;
-    });
+  const getTasksForPhase = (phaseName: string) => {
+    return scheduledTasks.filter(task => task.category === phaseName);
   };
 
   // Calculate task position on timeline
   const getTaskPosition = (task: ScheduledTaskWithStatus) => {
     const startDate = new Date(task.startDate);
     const daysSinceStart = Math.floor((startDate.getTime() - timelineDates[0].getTime()) / (1000 * 60 * 60 * 24));
-    return daysSinceStart * DAY_WIDTH;
+    return Math.max(0, daysSinceStart * dayWidth);
   };
 
   const getTaskWidth = (task: ScheduledTaskWithStatus) => {
-    return task.duration * DAY_WIDTH;
-  };
-
-  // Toggle task completion
-  const toggleTaskCompletion = async (taskId: string) => {
-    const task = scheduledTasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const updates: Partial<ScheduledTaskWithStatus> = {
-      completed: !task.completed,
-      completedAt: !task.completed ? new Date().toISOString() : undefined,
-    };
-
-    await updateTask(taskId, updates);
+    return task.duration * dayWidth;
   };
 
   // Project daily logs
   const projectDailyLogs = useMemo(() => {
     return (dailyLogs && Array.isArray(dailyLogs))
-      ? dailyLogs.filter(log => log.projectId === selectedProject)
+      ? dailyLogs.filter(log => log.projectId === selectedProject).sort((a, b) =>
+          new Date(b.logDate).getTime() - new Date(a.logDate).getTime()
+        )
       : [];
   }, [dailyLogs, selectedProject]);
+
+  // Get daily task reminders
+  const dailyTaskReminders = useMemo(() => {
+    if (!selectedProject) return [];
+    return getDailyTaskReminders?.(selectedProject) || [];
+  }, [selectedProject, getDailyTaskReminders]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -489,23 +552,38 @@ export default function ScheduleScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Schedule</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => setShowTasksModal(true)}>
-            <BookOpen size={20} color="#6B7280" />
-            <Text style={styles.headerButtonText}>Tasks</Text>
+          <TouchableOpacity
+            style={[styles.headerButton, { backgroundColor: '#E0F2FE' }]}
+            onPress={() => setShowTasksModal(true)}
+          >
+            <CheckSquare size={18} color="#0EA5E9" />
+            <Text style={[styles.headerButtonText, { color: '#0EA5E9' }]}>Tasks</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={() => setShowDailyLogModal(true)}>
-            <Calendar size={20} color="#6B7280" />
-            <Text style={styles.headerButtonText}>Log</Text>
+          <TouchableOpacity
+            style={[styles.headerButton, { backgroundColor: '#DBEAFE' }]}
+            onPress={() => setShowDailyLogModal(true)}
+          >
+            <BookOpen size={18} color="#2563EB" />
+            <Text style={[styles.headerButtonText, { color: '#2563EB' }]}>Log</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={() => setShowHistoryModal(true)}>
-            <History size={20} color="#6B7280" />
-            <Text style={styles.headerButtonText}>History</Text>
+          <TouchableOpacity
+            style={[styles.headerButton, { backgroundColor: '#D1FAE5' }]}
+            onPress={() => setShowHistoryModal(true)}
+          >
+            <History size={18} color="#059669" />
+            <Text style={[styles.headerButtonText, { color: '#059669' }]}>History</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={handlePrint}>
-            <Printer size={20} color="#6B7280" />
+          <TouchableOpacity
+            style={[styles.headerButton, { backgroundColor: '#E0E7FF' }]}
+            onPress={() => Alert.alert('Print', 'Print functionality coming soon')}
+          >
+            <Printer size={18} color="#1E3A5F" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={() => setShowShareModal(true)}>
-            <Share2 size={20} color="#6B7280" />
+          <TouchableOpacity
+            style={[styles.headerButton, { backgroundColor: '#EDE9FE' }]}
+            onPress={() => setShowShareModal(true)}
+          >
+            <Share2 size={18} color="#7C3AED" />
           </TouchableOpacity>
         </View>
       </View>
@@ -551,23 +629,31 @@ export default function ScheduleScreen() {
           {/* Phase Sidebar */}
           <View style={[styles.phaseSidebar, { width: SIDEBAR_WIDTH }]}>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {allPhases.map(phase => {
-                const isExpanded = expandedPhases.has(phase.id);
-                const subPhases = getSubPhases(phase.id);
+              {CONSTRUCTION_CATEGORIES.map((phase, phaseIndex) => {
+                const isExpanded = expandedPhases.has(phaseIndex.toString());
+                const subPhases = getSubPhases(phaseIndex.toString());
                 const Icon = phase.icon;
 
                 return (
-                  <View key={phase.id}>
+                  <View key={phaseIndex}>
                     <TouchableOpacity
-                      style={styles.phaseRow}
-                      onPress={() => togglePhase(phase.id)}
+                      style={[
+                        styles.phaseRow,
+                        selectedPhase === phaseIndex.toString() && styles.phaseRowSelected,
+                      ]}
+                      onPress={() => {
+                        setSelectedPhase(phaseIndex.toString());
+                        if (subPhases.length > 0) {
+                          togglePhase(phaseIndex.toString());
+                        }
+                      }}
                       onLongPress={(e) => {
                         const { pageX, pageY } = e.nativeEvent;
-                        openContextMenu(phase.id, pageX, pageY);
+                        openContextMenu(phaseIndex.toString(), pageX, pageY);
                       }}
                     >
-                      <View style={styles.phaseHeader}>
-                        <Icon size={16} color={phase.color} />
+                      <View style={styles.phaseContent}>
+                        <Icon size={14} color={phase.color} />
                         <Text style={styles.phaseName} numberOfLines={2}>
                           {phase.name}
                         </Text>
@@ -575,22 +661,36 @@ export default function ScheduleScreen() {
                       {subPhases.length > 0 && (
                         <View style={styles.phaseToggle}>
                           {isExpanded ? (
-                            <ChevronDown size={16} color="#9CA3AF" />
+                            <ChevronDown size={14} color="#9CA3AF" />
                           ) : (
-                            <ChevronRight size={16} color="#9CA3AF" />
+                            <ChevronRight size={14} color="#9CA3AF" />
                           )}
                         </View>
                       )}
+                      <TouchableOpacity
+                        style={styles.phaseAddButton}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          const { pageX, pageY } = e.nativeEvent;
+                          openContextMenu(phaseIndex.toString(), pageX, pageY);
+                        }}
+                      >
+                        <Plus size={12} color="#9CA3AF" />
+                      </TouchableOpacity>
                     </TouchableOpacity>
 
                     {/* Sub-phases */}
-                    {isExpanded && subPhases.map(subPhase => (
-                      <View key={subPhase.id} style={styles.subPhaseRow}>
+                    {isExpanded && subPhases.map((subPhase, subIndex) => (
+                      <TouchableOpacity
+                        key={`${phaseIndex}-${subIndex}`}
+                        style={styles.subPhaseRow}
+                        onPress={() => setSelectedPhase(`${phaseIndex}-${subIndex}`)}
+                      >
                         <View style={styles.subPhaseIndent} />
                         <Text style={styles.subPhaseName} numberOfLines={1}>
-                          {subPhase.name}
+                          {typeof subPhase === 'string' ? subPhase : subPhase}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 );
@@ -601,7 +701,7 @@ export default function ScheduleScreen() {
           {/* Timeline Grid */}
           <ScrollView
             horizontal
-            showsHorizontalScrollIndicator={true}
+            showsHorizontalScrollIndicator={Platform.OS === 'web'}
             style={styles.timelineContainer}
           >
             <View>
@@ -610,37 +710,49 @@ export default function ScheduleScreen() {
                 {timelineDates.map((date, index) => (
                   <View
                     key={index}
-                    style={[styles.dateCell, { width: DAY_WIDTH }]}
+                    style={[
+                      styles.dateCell,
+                      { width: dayWidth },
+                      isToday(date) && styles.dateCellToday,
+                    ]}
                   >
-                    <Text style={styles.dateText}>{formatDate(date)}</Text>
+                    <Text style={[
+                      styles.dateText,
+                      isToday(date) && styles.dateTextToday,
+                    ]}>
+                      {formatDate(date)}
+                    </Text>
                   </View>
                 ))}
               </View>
 
               {/* Timeline Rows */}
               <ScrollView showsVerticalScrollIndicator={true}>
-                {allPhases.map((phase, phaseIndex) => {
-                  const isExpanded = expandedPhases.has(phase.id);
-                  const subPhases = getSubPhases(phase.id);
-                  const phaseTasks = getTasksForPhase(phase.id);
+                {CONSTRUCTION_CATEGORIES.map((phase, phaseIndex) => {
+                  const isExpanded = expandedPhases.has(phaseIndex.toString());
+                  const subPhases = getSubPhases(phaseIndex.toString());
+                  const phaseTasks = getTasksForPhase(phase.name);
 
                   return (
-                    <View key={phase.id}>
+                    <View key={phaseIndex}>
                       {/* Main phase row */}
                       <View
                         style={[
                           styles.timelineRow,
-                          { height: ROW_HEIGHT },
+                          { height: rowHeight },
+                          phaseIndex % 2 === 0 && styles.timelineRowAlternate,
                         ]}
                       >
                         {/* Grid cells */}
-                        {timelineDates.map((_, index) => (
-                          <View
-                            key={index}
+                        {timelineDates.map((date, dateIndex) => (
+                          <Pressable
+                            key={dateIndex}
                             style={[
                               styles.gridCell,
-                              { width: DAY_WIDTH, height: ROW_HEIGHT },
+                              { width: dayWidth, height: rowHeight },
+                              isToday(date) && styles.gridCellToday,
                             ]}
+                            onPress={() => handleGridCellPress(phaseIndex, dateIndex)}
                           />
                         ))}
 
@@ -653,26 +765,23 @@ export default function ScheduleScreen() {
                               {
                                 left: getTaskPosition(task),
                                 width: getTaskWidth(task),
-                                height: BAR_HEIGHT,
-                                top: (ROW_HEIGHT - BAR_HEIGHT) / 2,
+                                height: barHeight,
+                                top: (rowHeight - barHeight) / 2,
                                 backgroundColor: task.completed ? '#10B981' : task.color,
-                                opacity: task.completed ? 0.6 : 1,
+                                opacity: task.completed ? 0.7 : 1,
                               },
                             ]}
-                            onPress={() => {
-                              setEditingTask(task);
-                              setShowTaskModal(true);
-                            }}
+                            onPress={() => handleTaskPress(task)}
                           >
                             <View style={styles.taskBarContent}>
                               <Text style={styles.taskBarText} numberOfLines={1}>
                                 {task.category}
                               </Text>
                               {task.completed && (
-                                <Check size={14} color="#FFF" />
+                                <CircleCheck size={12} color="#FFF" />
                               )}
                               {!task.visibleToClient && (
-                                <EyeOff size={14} color="#FFF" />
+                                <EyeOff size={12} color="#FFF" />
                               )}
                             </View>
                           </TouchableOpacity>
@@ -680,21 +789,24 @@ export default function ScheduleScreen() {
                       </View>
 
                       {/* Sub-phase rows */}
-                      {isExpanded && subPhases.map(subPhase => (
+                      {isExpanded && subPhases.map((subPhase, subIndex) => (
                         <View
-                          key={subPhase.id}
+                          key={`${phaseIndex}-${subIndex}`}
                           style={[
                             styles.timelineRow,
-                            { height: ROW_HEIGHT },
+                            styles.subPhaseTimelineRow,
+                            { height: rowHeight },
                           ]}
                         >
-                          {timelineDates.map((_, index) => (
-                            <View
-                              key={index}
+                          {timelineDates.map((date, dateIndex) => (
+                            <Pressable
+                              key={dateIndex}
                               style={[
                                 styles.gridCell,
-                                { width: DAY_WIDTH, height: ROW_HEIGHT },
+                                { width: dayWidth, height: rowHeight },
+                                isToday(date) && styles.gridCellToday,
                               ]}
+                              onPress={() => handleGridCellPress(phaseIndex, dateIndex)}
                             />
                           ))}
                         </View>
@@ -708,37 +820,38 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {/* Zoom Controls */}
-      <View style={styles.zoomControls}>
-        <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut}>
-          <ZoomOut size={20} color="#6B7280" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.zoomReset} onPress={handleZoomReset}>
-          <Text style={styles.zoomResetText}>{Math.round(zoomLevel * 100)}%</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn}>
-          <ZoomIn size={20} color="#6B7280" />
-        </TouchableOpacity>
-      </View>
+      {/* Zoom Controls (Web only) */}
+      {Platform.OS === 'web' && (
+        <View style={styles.zoomControls}>
+          <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut}>
+            <Text style={styles.zoomButtonText}>-</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.zoomReset} onPress={handleZoomReset}>
+            <Text style={styles.zoomResetText}>{Math.round(zoomLevel * 100)}%</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn}>
+            <Text style={styles.zoomButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Context Menu */}
-      {contextMenuPhase && contextMenuPosition && (
+      {contextMenuPhase !== null && contextMenuPosition && (
         <Modal
           transparent
-          visible={!!contextMenuPhase}
+          visible={true}
           onRequestClose={closeContextMenu}
         >
-          <TouchableOpacity
+          <Pressable
             style={styles.contextMenuOverlay}
-            activeOpacity={1}
             onPress={closeContextMenu}
           >
             <View
               style={[
                 styles.contextMenu,
                 {
-                  top: contextMenuPosition.y,
-                  left: contextMenuPosition.x,
+                  top: Math.min(contextMenuPosition.y, 600),
+                  left: Math.min(contextMenuPosition.x, 300),
                 },
               ]}
             >
@@ -746,10 +859,61 @@ export default function ScheduleScreen() {
                 <Plus size={18} color="#374151" />
                 <Text style={styles.contextMenuText}>Add Sub-Phase</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.contextMenuItem} onPress={handleRenamePhase}>
+                <Pencil size={18} color="#374151" />
+                <Text style={styles.contextMenuText}>Rename Phase</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </Pressable>
         </Modal>
       )}
+
+      {/* Add Sub-Phase Modal */}
+      <Modal
+        visible={showAddSubPhaseModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddSubPhaseModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Sub-Phase</Text>
+              <TouchableOpacity onPress={() => setShowAddSubPhaseModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Sub-Phase Name</Text>
+              <TextInput
+                style={styles.input}
+                value={newSubPhaseName}
+                onChangeText={setNewSubPhaseName}
+                placeholder="Enter sub-phase name"
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonSecondary]}
+                  onPress={() => {
+                    setNewSubPhaseName('');
+                    setShowAddSubPhaseModal(false);
+                  }}
+                >
+                  <Text style={styles.buttonSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonPrimary]}
+                  onPress={saveSubPhase}
+                  disabled={!newSubPhaseName.trim()}
+                >
+                  <Text style={styles.buttonPrimaryText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Tasks Modal */}
       <Modal
@@ -760,31 +924,34 @@ export default function ScheduleScreen() {
       >
         <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Tasks</Text>
+            <Text style={styles.modalTitle}>Daily Task Reminders</Text>
             <TouchableOpacity onPress={() => setShowTasksModal(false)}>
               <X size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalContent}>
-            {scheduledTasks.map(task => (
-              <TouchableOpacity
-                key={task.id}
-                style={styles.taskItem}
-                onPress={() => toggleTaskCompletion(task.id)}
-              >
-                <View style={styles.taskItemHeader}>
-                  <View style={[styles.taskColorDot, { backgroundColor: task.color }]} />
-                  <Text style={styles.taskItemTitle}>{task.category}</Text>
-                  {task.completed && <Check size={20} color="#10B981" />}
+            {dailyTaskReminders.length === 0 ? (
+              <View style={styles.emptyState}>
+                <CheckSquare size={48} color="#D1D5DB" />
+                <Text style={styles.emptyStateText}>No task reminders yet</Text>
+              </View>
+            ) : (
+              dailyTaskReminders.map(task => (
+                <View key={task.id} style={styles.taskItem}>
+                  <View style={styles.taskItemHeader}>
+                    <Text style={styles.taskItemTitle}>{task.title}</Text>
+                    {task.completed && <CircleCheck size={20} color="#10B981" />}
+                  </View>
+                  <Text style={styles.taskItemDate}>
+                    {new Date(task.dueDate).toLocaleDateString()}
+                    {task.dueTime && ` at ${task.dueTime}`}
+                  </Text>
+                  {task.notes && (
+                    <Text style={styles.taskItemNotes}>{task.notes}</Text>
+                  )}
                 </View>
-                <Text style={styles.taskItemDate}>
-                  {new Date(task.startDate).toLocaleDateString()} - {new Date(task.endDate).toLocaleDateString()}
-                </Text>
-                {task.notes && (
-                  <Text style={styles.taskItemNotes}>{task.notes}</Text>
-                )}
-              </TouchableOpacity>
-            ))}
+              ))
+            )}
           </ScrollView>
         </View>
       </Modal>
@@ -864,16 +1031,6 @@ export default function ScheduleScreen() {
               />
             </View>
 
-            <View style={styles.logSection}>
-              <TouchableOpacity style={styles.addPhotoButton} onPress={handleAddLogPhoto}>
-                <Camera size={20} color="#7C3AED" />
-                <Text style={styles.addPhotoText}>Add Photos</Text>
-              </TouchableOpacity>
-              {logPhotos.length > 0 && (
-                <Text style={styles.photoCount}>{logPhotos.length} photo(s) added</Text>
-              )}
-            </View>
-
             <TouchableOpacity
               style={styles.saveButton}
               onPress={handleSaveDailyLog}
@@ -913,12 +1070,25 @@ export default function ScheduleScreen() {
               projectDailyLogs.map(log => (
                 <View key={log.id} style={styles.historyItem}>
                   <Text style={styles.historyDate}>
-                    {new Date(log.logDate).toLocaleDateString()}
+                    {new Date(log.logDate).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
                   </Text>
                   {log.workPerformed && (
-                    <Text style={styles.historyText} numberOfLines={2}>
+                    <Text style={styles.historyText} numberOfLines={3}>
                       {log.workPerformed}
                     </Text>
+                  )}
+                  {log.issues && (
+                    <View style={styles.historyIssues}>
+                      <Text style={styles.historyIssuesLabel}>Issues:</Text>
+                      <Text style={styles.historyIssuesText} numberOfLines={2}>
+                        {log.issues}
+                      </Text>
+                    </View>
                   )}
                 </View>
               ))
@@ -931,25 +1101,28 @@ export default function ScheduleScreen() {
       <Modal
         visible={showShareModal}
         animationType="slide"
-        presentationStyle="pageSheet"
+        transparent
         onRequestClose={() => setShowShareModal(false)}
       >
-        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Share Schedule</Text>
-            <TouchableOpacity onPress={() => setShowShareModal(false)}>
-              <X size={24} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.modalContent}>
-            <TouchableOpacity style={styles.shareOption} onPress={handleShare}>
-              <Share2 size={24} color="#7C3AED" />
-              <Text style={styles.shareOptionText}>Share via System</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.shareOption} onPress={handlePrint}>
-              <Download size={24} color="#7C3AED" />
-              <Text style={styles.shareOptionText}>Export as PDF</Text>
-            </TouchableOpacity>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Share Schedule</Text>
+              <TouchableOpacity onPress={() => setShowShareModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <TouchableOpacity style={styles.shareOption} onPress={handleShare}>
+                <Share2 size={24} color="#7C3AED" />
+                <View style={styles.shareOptionContent}>
+                  <Text style={styles.shareOptionTitle}>Generate Share Link</Text>
+                  <Text style={styles.shareOptionDescription}>
+                    Create a secure link to share this schedule
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -984,6 +1157,20 @@ export default function ScheduleScreen() {
               </View>
 
               <View style={styles.taskDetailSection}>
+                <Text style={styles.taskDetailLabel}>Start Date</Text>
+                <Text style={styles.taskDetailValue}>
+                  {new Date(editingTask.startDate).toLocaleDateString()}
+                </Text>
+              </View>
+
+              <View style={styles.taskDetailSection}>
+                <Text style={styles.taskDetailLabel}>End Date</Text>
+                <Text style={styles.taskDetailValue}>
+                  {new Date(editingTask.endDate).toLocaleDateString()}
+                </Text>
+              </View>
+
+              <View style={styles.taskDetailSection}>
                 <Text style={styles.taskDetailLabel}>Duration</Text>
                 <Text style={styles.taskDetailValue}>{editingTask.duration} days</Text>
               </View>
@@ -995,7 +1182,7 @@ export default function ScheduleScreen() {
                 </Text>
               </View>
 
-              <View style={styles.taskDetailSection}>
+              <View style={styles.taskDetailRow}>
                 <Text style={styles.taskDetailLabel}>Visible to Client</Text>
                 <Switch
                   value={editingTask.visibleToClient !== false}
@@ -1005,7 +1192,7 @@ export default function ScheduleScreen() {
                 />
               </View>
 
-              <View style={styles.taskDetailSection}>
+              <View style={styles.taskDetailRow}>
                 <Text style={styles.taskDetailLabel}>Completed</Text>
                 <Switch
                   value={editingTask.completed || false}
@@ -1019,6 +1206,14 @@ export default function ScheduleScreen() {
                   <Text style={styles.taskDetailValue}>{editingTask.notes}</Text>
                 </View>
               )}
+
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={handleDeleteTask}
+              >
+                <Trash2 size={18} color="#FFF" />
+                <Text style={styles.deleteButtonText}>Delete Task</Text>
+              </TouchableOpacity>
             </ScrollView>
           </View>
         </Modal>
@@ -1058,15 +1253,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
   },
   headerButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+    fontSize: 13,
+    fontWeight: '600',
   },
   projectTabsContainer: {
     backgroundColor: '#FFF',
@@ -1075,7 +1268,7 @@ const styles = StyleSheet.create({
   },
   projectTabs: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     gap: 8,
   },
   projectTab: {
@@ -1090,7 +1283,7 @@ const styles = StyleSheet.create({
   },
   projectTabText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#6B7280',
     textAlign: 'center',
   },
@@ -1119,44 +1312,55 @@ const styles = StyleSheet.create({
   phaseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
-    minHeight: 60,
+    height: ROW_HEIGHT,
   },
-  phaseHeader: {
+  phaseRowSelected: {
+    backgroundColor: '#F3F4F6',
+  },
+  phaseContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flex: 1,
   },
   phaseName: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: '#374151',
     flex: 1,
+    lineHeight: 12,
   },
   phaseToggle: {
-    marginLeft: 4,
+    marginLeft: 2,
+  },
+  phaseAddButton: {
+    padding: 2,
+    marginLeft: 2,
   },
   subPhaseRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
     backgroundColor: '#F9FAFB',
+    height: ROW_HEIGHT,
   },
   subPhaseIndent: {
     width: 16,
   },
   subPhaseName: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#6B7280',
     flex: 1,
+  },
+  subPhaseTimelineRow: {
+    backgroundColor: '#F9FAFB',
   },
   timelineContainer: {
     flex: 1,
@@ -1164,7 +1368,7 @@ const styles = StyleSheet.create({
   timelineHeader: {
     flexDirection: 'row',
     backgroundColor: '#FFF',
-    borderBottomWidth: 1,
+    borderBottomWidth: 2,
     borderBottomColor: '#E5E7EB',
   },
   dateCell: {
@@ -1173,14 +1377,24 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: '#F3F4F6',
   },
+  dateCellToday: {
+    backgroundColor: '#DBEAFE',
+  },
   dateText: {
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 10,
+    fontWeight: '600',
     color: '#6B7280',
+    textAlign: 'center',
+  },
+  dateTextToday: {
+    color: '#2563EB',
   },
   timelineRow: {
     flexDirection: 'row',
     position: 'relative',
+  },
+  timelineRowAlternate: {
+    backgroundColor: '#FAFAFA',
   },
   gridCell: {
     borderRightWidth: 1,
@@ -1188,15 +1402,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
+  gridCellToday: {
+    backgroundColor: '#EFF6FF',
+  },
   taskBar: {
     position: 'absolute',
     borderRadius: 6,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 6,
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 2,
     elevation: 2,
   },
@@ -1223,48 +1440,74 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    overflow: 'hidden',
   },
   zoomButton: {
-    padding: 12,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
   },
   zoomReset: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 60,
   },
   zoomResetText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#374151',
   },
   contextMenuOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   contextMenu: {
     position: 'absolute',
     backgroundColor: '#FFF',
-    borderRadius: 8,
+    borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
-    minWidth: 160,
+    minWidth: 180,
+    overflow: 'hidden',
   },
   contextMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   contextMenuText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '500',
     color: '#374151',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34,
   },
   modalContainer: {
     flex: 1,
@@ -1274,8 +1517,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
@@ -1284,26 +1527,67 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
+  modalBody: {
+    padding: 20,
+  },
   modalContent: {
     flex: 1,
-    padding: 16,
+    padding: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  inputLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  buttonPrimary: {
+    backgroundColor: '#7C3AED',
+  },
+  buttonSecondary: {
+    backgroundColor: '#F3F4F6',
+  },
+  buttonPrimaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  buttonSecondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
   },
   taskItem: {
     padding: 16,
     backgroundColor: '#F9FAFB',
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 12,
   },
   taskItemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  taskColorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   taskItemTitle: {
     fontSize: 16,
@@ -1314,7 +1598,7 @@ const styles = StyleSheet.create({
   taskItemDate: {
     fontSize: 14,
     color: '#6B7280',
-    marginTop: 4,
+    marginBottom: 4,
   },
   taskItemNotes: {
     fontSize: 14,
@@ -1334,98 +1618,121 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 15,
     color: '#111827',
     textAlignVertical: 'top',
-  },
-  addPhotoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderWidth: 2,
-    borderColor: '#7C3AED',
-    borderRadius: 8,
-    borderStyle: 'dashed',
-  },
-  addPhotoText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#7C3AED',
-  },
-  photoCount: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 8,
   },
   saveButton: {
     backgroundColor: '#7C3AED',
     paddingVertical: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 12,
   },
   saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#FFF',
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 48,
+    paddingVertical: 60,
   },
   emptyStateText: {
     fontSize: 16,
     color: '#9CA3AF',
-    marginTop: 12,
+    marginTop: 16,
   },
   historyItem: {
     padding: 16,
     backgroundColor: '#F9FAFB',
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 12,
   },
   historyDate: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#374151',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   historyText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  historyIssues: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  historyIssuesLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#EF4444',
+    marginBottom: 4,
+  },
+  historyIssuesText: {
     fontSize: 14,
     color: '#6B7280',
   },
   shareOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    gap: 16,
+    padding: 16,
     backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    marginBottom: 12,
+    borderRadius: 12,
   },
-  shareOptionText: {
+  shareOptionContent: {
+    flex: 1,
+  },
+  shareOptionTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  shareOptionDescription: {
+    fontSize: 14,
+    color: '#6B7280',
   },
   taskDetailSection: {
     marginBottom: 20,
   },
+  taskDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   taskDetailLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#6B7280',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   taskDetailValue: {
     fontSize: 16,
     color: '#111827',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#EF4444',
+    paddingVertical: 16,
+    borderRadius: 10,
+    marginTop: 20,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
   },
 });
