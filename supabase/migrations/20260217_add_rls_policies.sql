@@ -7,7 +7,7 @@ CREATE POLICY "Users can view their company's schedule phases"
   FOR SELECT
   USING (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
@@ -21,7 +21,7 @@ CREATE POLICY "Users can create schedule phases for their company"
   FOR INSERT
   WITH CHECK (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
@@ -35,7 +35,7 @@ CREATE POLICY "Users can update their company's schedule phases"
   FOR UPDATE
   USING (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
@@ -44,7 +44,7 @@ CREATE POLICY "Users can update their company's schedule phases"
   )
   WITH CHECK (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
@@ -58,7 +58,7 @@ CREATE POLICY "Users can delete their company's schedule phases"
   FOR DELETE
   USING (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
@@ -82,7 +82,7 @@ CREATE POLICY "Users can view their company's scheduled tasks"
   FOR SELECT
   USING (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
@@ -96,7 +96,7 @@ CREATE POLICY "Users can create scheduled tasks for their company"
   FOR INSERT
   WITH CHECK (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
@@ -108,7 +108,7 @@ CREATE POLICY "Users can create scheduled tasks for their company"
       phase_id IN (
         SELECT sp.id
         FROM schedule_phases sp
-        JOIN projects p ON sp.project_id = p.id
+        JOIN projects p ON sp.project_id::text = p.id::text
         WHERE p.company_id = (
           SELECT company_id FROM users WHERE id = auth.uid()
         )
@@ -122,7 +122,7 @@ CREATE POLICY "Users can update their company's scheduled tasks"
   FOR UPDATE
   USING (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
@@ -131,7 +131,7 @@ CREATE POLICY "Users can update their company's scheduled tasks"
   )
   WITH CHECK (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
@@ -143,7 +143,7 @@ CREATE POLICY "Users can update their company's scheduled tasks"
       phase_id IN (
         SELECT sp.id
         FROM schedule_phases sp
-        JOIN projects p ON sp.project_id = p.id
+        JOIN projects p ON sp.project_id::text = p.id::text
         WHERE p.company_id = (
           SELECT company_id FROM users WHERE id = auth.uid()
         )
@@ -157,7 +157,7 @@ CREATE POLICY "Users can delete their company's scheduled tasks"
   FOR DELETE
   USING (
     project_id IN (
-      SELECT p.id
+      SELECT p.id::text
       FROM projects p
       WHERE p.company_id = (
         SELECT company_id FROM users WHERE id = auth.uid()
