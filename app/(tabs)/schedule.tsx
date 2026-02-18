@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
-import { Calendar, X, Plus, Trash2, Check, Share2, History, Printer, CheckSquare, BookOpen, FileText, Shovel, Mountain, Home, Droplets, Hammer, Triangle, DoorOpen, Shield, Wrench, Zap, Wind, Snowflake, Layers, Paintbrush, Bath, Lightbulb, Fan, Trees, Sparkles, ClipboardCheck, ChevronDown, ChevronRight, Eye, EyeOff, CircleCheck, Pencil } from 'lucide-react-native';
+import { Calendar, X, Plus, Trash2, Check, Share2, History, Printer, CheckSquare, BookOpen, FileText, Shovel, Mountain, Home, Droplets, Hammer, Triangle, DoorOpen, Shield, Wrench, Zap, Wind, Snowflake, Layers, Paintbrush, Bath, Lightbulb, Fan, Trees, Sparkles, ClipboardCheck, ChevronDown, ChevronRight, Eye, EyeOff, CircleCheck, Pencil, Clock } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto, DailyTask } from '@/types';
 import * as Clipboard from 'expo-clipboard';
 
@@ -68,7 +68,7 @@ const CONSTRUCTION_CATEGORIES = [
 ];
 
 // Layout constants
-const SIDEBAR_WIDTH = 140;
+const SIDEBAR_WIDTH = 150;
 const ROW_HEIGHT = 46;
 const BAR_HEIGHT = 34;
 const DAY_WIDTH = 72;
@@ -183,10 +183,13 @@ export default function ScheduleScreen() {
   }, []);
 
   const formatDate = (date: Date): string => {
-    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
     const month = date.toLocaleDateString('en-US', { month: 'short' });
     const day = date.getDate();
-    return `${weekday} ${month} ${day}`;
+    return `${month} ${day}`;
+  };
+
+  const formatDayOfWeek = (date: Date): string => {
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
   };
 
   const isToday = (date: Date): boolean => {
@@ -556,34 +559,33 @@ export default function ScheduleScreen() {
             style={[styles.headerButton, { backgroundColor: '#E0F2FE' }]}
             onPress={() => setShowTasksModal(true)}
           >
-            <CheckSquare size={18} color="#0EA5E9" />
+            <CheckSquare size={16} color="#0EA5E9" />
             <Text style={[styles.headerButtonText, { color: '#0EA5E9' }]}>Tasks</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.headerButton, { backgroundColor: '#DBEAFE' }]}
             onPress={() => setShowDailyLogModal(true)}
           >
-            <BookOpen size={18} color="#2563EB" />
+            <BookOpen size={16} color="#2563EB" />
             <Text style={[styles.headerButtonText, { color: '#2563EB' }]}>Log</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerButton, { backgroundColor: '#D1FAE5' }]}
+            style={[styles.headerButtonIconOnly, { backgroundColor: '#D1FAE5' }]}
             onPress={() => setShowHistoryModal(true)}
           >
-            <History size={18} color="#059669" />
-            <Text style={[styles.headerButtonText, { color: '#059669' }]}>History</Text>
+            <Clock size={16} color="#059669" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerButton, { backgroundColor: '#E0E7FF' }]}
+            style={[styles.headerButtonIconOnly, { backgroundColor: '#E2E8F0' }]}
             onPress={() => Alert.alert('Print', 'Print functionality coming soon')}
           >
-            <Printer size={18} color="#1E3A5F" />
+            <Printer size={16} color="#64748B" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.headerButton, { backgroundColor: '#EDE9FE' }]}
+            style={[styles.headerButtonIconOnly, { backgroundColor: '#EDE9FE' }]}
             onPress={() => setShowShareModal(true)}
           >
-            <Share2 size={18} color="#7C3AED" />
+            <Share2 size={16} color="#7C3AED" />
           </TouchableOpacity>
         </View>
       </View>
@@ -628,6 +630,10 @@ export default function ScheduleScreen() {
         <View style={styles.scheduleContainer}>
           {/* Phase Sidebar */}
           <View style={[styles.phaseSidebar, { width: SIDEBAR_WIDTH }]}>
+            {/* PHASES Header */}
+            <View style={styles.phasesHeader}>
+              <Text style={styles.phasesHeaderText}>PHASES</Text>
+            </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               {CONSTRUCTION_CATEGORIES.map((phase, phaseIndex) => {
                 const isExpanded = expandedPhases.has(phaseIndex.toString());
@@ -639,6 +645,7 @@ export default function ScheduleScreen() {
                     <TouchableOpacity
                       style={[
                         styles.phaseRow,
+                        phaseIndex % 2 === 1 && styles.phaseRowAlternate,
                         selectedPhase === phaseIndex.toString() && styles.phaseRowSelected,
                       ]}
                       onPress={() => {
@@ -652,21 +659,22 @@ export default function ScheduleScreen() {
                         openContextMenu(phaseIndex.toString(), pageX, pageY);
                       }}
                     >
+                      <View style={[styles.phaseColorStripe, { backgroundColor: phase.color }]} />
                       <View style={styles.phaseContent}>
+                        {subPhases.length > 0 && (
+                          <View style={styles.phaseChevron}>
+                            {isExpanded ? (
+                              <ChevronRight size={12} color="#9CA3AF" style={{ transform: [{ rotate: '90deg' }] }} />
+                            ) : (
+                              <ChevronRight size={12} color="#9CA3AF" />
+                            )}
+                          </View>
+                        )}
                         <Icon size={14} color={phase.color} />
-                        <Text style={styles.phaseName} numberOfLines={2}>
+                        <Text style={styles.phaseName} numberOfLines={1}>
                           {phase.name}
                         </Text>
                       </View>
-                      {subPhases.length > 0 && (
-                        <View style={styles.phaseToggle}>
-                          {isExpanded ? (
-                            <ChevronDown size={14} color="#9CA3AF" />
-                          ) : (
-                            <ChevronRight size={14} color="#9CA3AF" />
-                          )}
-                        </View>
-                      )}
                       <TouchableOpacity
                         style={styles.phaseAddButton}
                         onPress={(e) => {
@@ -675,7 +683,7 @@ export default function ScheduleScreen() {
                           openContextMenu(phaseIndex.toString(), pageX, pageY);
                         }}
                       >
-                        <Plus size={12} color="#9CA3AF" />
+                        <Plus size={10} color="#9CA3AF" />
                       </TouchableOpacity>
                     </TouchableOpacity>
 
@@ -721,6 +729,12 @@ export default function ScheduleScreen() {
                       isToday(date) && styles.dateTextToday,
                     ]}>
                       {formatDate(date)}
+                    </Text>
+                    <Text style={[
+                      styles.dayText,
+                      isToday(date) && styles.dayTextToday,
+                    ]}>
+                      {formatDayOfWeek(date)}
                     </Text>
                   </View>
                 ))}
@@ -1243,11 +1257,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: '#1E3A5F',
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   headerButton: {
     flexDirection: 'row',
@@ -1255,10 +1269,17 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 6,
+  },
+  headerButtonIconOnly: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 6,
   },
   headerButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   projectTabsContainer: {
@@ -1273,18 +1294,18 @@ const styles = StyleSheet.create({
   },
   projectTab: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#E5E7EB',
     minWidth: 120,
   },
   projectTabActive: {
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#1E3A5F',
   },
   projectTabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#475569',
     textAlign: 'center',
   },
   projectTabTextActive: {
@@ -1305,59 +1326,93 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   phaseSidebar: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#F8FAFC',
     borderRightWidth: 1,
     borderRightColor: '#E5E7EB',
+  },
+  phasesHeader: {
+    height: HEADER_HEIGHT,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 2,
+    borderBottomColor: '#E5E7EB',
+  },
+  phasesHeaderText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
   },
   phaseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E5E7EB',
     height: ROW_HEIGHT,
+    backgroundColor: '#FFF',
+  },
+  phaseRowAlternate: {
+    backgroundColor: '#FAFBFC',
   },
   phaseRowSelected: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#EFF6FF',
+  },
+  phaseColorStripe: {
+    width: 3,
+    height: '100%',
   },
   phaseContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     flex: 1,
+    paddingLeft: 6,
+  },
+  phaseChevron: {
+    width: 12,
+    alignItems: 'center',
   },
   phaseName: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     color: '#374151',
     flex: 1,
-    lineHeight: 12,
+    lineHeight: 13,
   },
   phaseToggle: {
     marginLeft: 2,
   },
   phaseAddButton: {
-    padding: 2,
-    marginLeft: 2,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
   },
   subPhaseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    backgroundColor: '#F9FAFB',
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FAFBFC',
     height: ROW_HEIGHT,
   },
   subPhaseIndent: {
-    width: 16,
+    width: 3,
+    height: '100%',
+    backgroundColor: 'transparent',
+    marginLeft: 20,
   },
   subPhaseName: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#6B7280',
     flex: 1,
+    paddingLeft: 6,
   },
   subPhaseTimelineRow: {
     backgroundColor: '#F9FAFB',
@@ -1375,18 +1430,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRightWidth: 1,
-    borderRightColor: '#F3F4F6',
+    borderRightColor: '#E5E7EB',
+    paddingVertical: 8,
   },
   dateCellToday: {
     backgroundColor: '#DBEAFE',
   },
   dateText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#374151',
     textAlign: 'center',
   },
   dateTextToday: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
+  dayText: {
+    fontSize: 9,
+    fontWeight: '400',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  dayTextToday: {
     color: '#2563EB',
   },
   timelineRow: {
@@ -1398,12 +1465,12 @@ const styles = StyleSheet.create({
   },
   gridCell: {
     borderRightWidth: 1,
-    borderRightColor: '#F3F4F6',
+    borderRightColor: '#E5E7EB',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E5E7EB',
   },
   gridCellToday: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#DBEAFE',
   },
   taskBar: {
     position: 'absolute',
