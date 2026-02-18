@@ -24,6 +24,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rowSpan,
       phaseId,
       visibleToClient,
+      completed,
+      completedAt,
     } = req.body;
 
     // Validate required fields
@@ -65,6 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         row_span: rowSpan || 1,
         phase_id: phaseId || null,
         visible_to_client: visibleToClient !== undefined ? visibleToClient : true,
+        completed: completed !== undefined ? completed : false,
+        completed_at: completedAt || null,
       })
       .select()
       .single();
@@ -96,6 +100,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         rowSpan: data.row_span,
         phaseId: data.phase_id,
         visibleToClient: data.visible_to_client,
+        completed: data.completed,
+        completedAt: data.completed_at,
       },
     });
   } catch (error: any) {

@@ -61,6 +61,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rowSpan: row.row_span,
       phaseId: row.phase_id,
       visibleToClient: row.visible_to_client,
+      completed: row.completed,
+      completedAt: row.completed_at,
     }));
 
     return res.status(200).json({

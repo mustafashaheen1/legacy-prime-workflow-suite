@@ -38,6 +38,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (updates.rowSpan !== undefined) updateData.row_span = updates.rowSpan;
     if (updates.phaseId !== undefined) updateData.phase_id = updates.phaseId;
     if (updates.visibleToClient !== undefined) updateData.visible_to_client = updates.visibleToClient;
+    if (updates.completed !== undefined) updateData.completed = updates.completed;
+    if (updates.completedAt !== undefined) updateData.completed_at = updates.completedAt;
 
     // Update in database
     const { data, error } = await supabase
@@ -74,6 +76,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         rowSpan: data.row_span,
         phaseId: data.phase_id,
         visibleToClient: data.visible_to_client,
+        completed: data.completed,
+        completedAt: data.completed_at,
       },
     });
   } catch (error: any) {
