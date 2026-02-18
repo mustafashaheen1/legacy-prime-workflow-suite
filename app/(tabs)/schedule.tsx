@@ -134,17 +134,14 @@ export default function ScheduleScreen() {
   const [showRenamePhaseModal, setShowRenamePhaseModal] = useState<boolean>(false);
   const [showAddMainCategoryModal, setShowAddMainCategoryModal] = useState<boolean>(false);
 
-  // Task editing
+  // Task editing - separate state variables
   const [editingTask, setEditingTask] = useState<ScheduledTaskWithStatus | null>(null);
-  const [taskFormData, setTaskFormData] = useState({
-    category: '',
-    startDate: '',
-    endDate: '',
-    workType: 'in-house' as 'in-house' | 'subcontractor',
-    notes: '',
-    visibleToClient: true,
-    completed: false,
-  });
+  const [editNoteText, setEditNoteText] = useState<string>('');
+  const [editWorkType, setEditWorkType] = useState<'in-house' | 'subcontractor'>('in-house');
+  const [editDuration, setEditDuration] = useState<string>('1');
+  const [editClientVisibleNote, setEditClientVisibleNote] = useState<boolean>(false);
+  const [editCompleted, setEditCompleted] = useState<boolean>(false);
+  const [editCompletedDate, setEditCompletedDate] = useState<string>('');
   const [newSubPhaseName, setNewSubPhaseName] = useState<string>('');
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [newCategoryColor, setNewCategoryColor] = useState<string>('#7C3AED');
@@ -437,19 +434,43 @@ export default function ScheduleScreen() {
   };
 
   // Task editing
-  const handleTaskPress = (task: ScheduledTaskWithStatus) => {
+  const handleEditTask = useCallback((task: ScheduledTaskWithStatus) => {
     setEditingTask(task);
-    setTaskFormData({
-      category: task.category,
-      startDate: task.startDate,
-      endDate: task.endDate,
-      workType: task.workType,
-      notes: task.notes || '',
-      visibleToClient: task.visibleToClient ?? true,
-      completed: task.completed ?? false,
-    });
+    setEditNoteText(task.notes || '');
+    setEditWorkType(task.workType);
+    setEditDuration(String(task.duration));
+    setEditClientVisibleNote(task.visibleToClient ?? true);  // Note: use visibleToClient not clientVisibleNote
+    setEditCompleted(task.completed ?? false);
+    setEditCompletedDate(task.completed && task.completedAt ? task.completedAt.split('T')[0] : new Date().toISOString().split('T')[0]);
     setShowTaskModal(true);
-  };
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingTask) return;
+
+    const newDuration = Math.max(1, parseInt(editDuration) || 1);
+    const startDate = new Date(editingTask.startDate);
+    const newEndDate = new Date(startDate);
+    newEndDate.setDate(startDate.getDate() + newDuration);
+
+    try {
+      await updateTask(editingTask.id, {
+        notes: editNoteText,
+        workType: editWorkType,
+        duration: newDuration,
+        endDate: newEndDate.toISOString().split('T')[0],
+        visibleToClient: editClientVisibleNote,
+        completed: editCompleted,
+        completedAt: editCompleted ? editCompletedDate : undefined,
+      });
+
+      setShowTaskModal(false);
+      setEditingTask(null);
+    } catch (error) {
+      console.error('[Schedule] Save failed:', error);
+      Alert.alert('Error', 'Failed to save task');
+    }
+  }, [editingTask, editNoteText, editWorkType, editDuration, editClientVisibleNote, editCompleted, editCompletedDate]);
 
   const handleDeleteTask = async () => {
     if (!editingTask) return;
@@ -968,7 +989,7 @@ export default function ScheduleScreen() {
                                       opacity: task.completed ? 0.7 : 1,
                                     },
                                   ]}
-                                  onPress={() => handleTaskPress(task)}
+                                  onPress={() => handleEditTask(task)}
                                 >
                                   {/* Left resize handle */}
                                   <View {...leftResizer.panHandlers} style={styles.resizeHandleLeft}>
@@ -1383,11 +1404,8 @@ export default function ScheduleScreen() {
                   <Text style={styles.taskModalLabel}>Duration (days)</Text>
                   <TextInput
                     style={styles.taskModalInput}
-                    value={String(editingTask.duration)}
-                    onChangeText={(value) => {
-                      const duration = parseInt(value) || 1;
-                      setEditingTask({ ...editingTask, duration });
-                    }}
+                    value={editDuration}
+                    onChangeText={setEditDuration}
                     keyboardType="number-pad"
                     placeholder="Duration"
                   />
@@ -1400,13 +1418,13 @@ export default function ScheduleScreen() {
                     <TouchableOpacity
                       style={[
                         styles.taskModalToggleButton,
-                        editingTask.workType === 'in-house' && styles.taskModalToggleButtonSelected
+                        editWorkType === 'in-house' && styles.taskModalToggleButtonSelected
                       ]}
-                      onPress={() => setEditingTask({ ...editingTask, workType: 'in-house' })}
+                      onPress={() => setEditWorkType('in-house')}
                     >
                       <Text style={[
                         styles.taskModalToggleText,
-                        editingTask.workType === 'in-house' && styles.taskModalToggleTextSelected
+                        editWorkType === 'in-house' && styles.taskModalToggleTextSelected
                       ]}>
                         🏠 In-House
                       </Text>
@@ -1414,13 +1432,13 @@ export default function ScheduleScreen() {
                     <TouchableOpacity
                       style={[
                         styles.taskModalToggleButton,
-                        editingTask.workType === 'subcontractor' && styles.taskModalToggleButtonSelected
+                        editWorkType === 'subcontractor' && styles.taskModalToggleButtonSelected
                       ]}
-                      onPress={() => setEditingTask({ ...editingTask, workType: 'subcontractor' })}
+                      onPress={() => setEditWorkType('subcontractor')}
                     >
                       <Text style={[
                         styles.taskModalToggleText,
-                        editingTask.workType === 'subcontractor' && styles.taskModalToggleTextSelected
+                        editWorkType === 'subcontractor' && styles.taskModalToggleTextSelected
                       ]}>
                         👷 Subcontractor
                       </Text>
@@ -1433,8 +1451,8 @@ export default function ScheduleScreen() {
                   <Text style={styles.taskModalLabel}>Notes</Text>
                   <TextInput
                     style={styles.taskModalTextarea}
-                    value={editingTask.notes || ''}
-                    onChangeText={(value) => setEditingTask({ ...editingTask, notes: value })}
+                    value={editNoteText}
+                    onChangeText={setEditNoteText}
                     placeholder="Add notes visible on the block..."
                     multiline
                     numberOfLines={4}
@@ -1452,27 +1470,55 @@ export default function ScheduleScreen() {
                     </View>
                   </View>
                   <Switch
-                    value={taskFormData.visibleToClient}
-                    onValueChange={(value) => setTaskFormData(prev => ({ ...prev, visibleToClient: value }))}
+                    value={editClientVisibleNote}
+                    onValueChange={setEditClientVisibleNote}
                     trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-                    thumbColor={taskFormData.visibleToClient ? '#10B981' : '#F3F4F6'}
+                    thumbColor={editClientVisibleNote ? '#10B981' : '#F3F4F6'}
                   />
                 </View>
 
-                {/* Mark as Completed */}
-                <TouchableOpacity
-                  style={styles.completedRow}
-                  onPress={() => setTaskFormData(prev => ({ ...prev, completed: !prev.completed }))}
-                  activeOpacity={0.7}
-                >
-                  <View style={[
-                    styles.completedCheckbox,
-                    taskFormData.completed && styles.completedCheckboxActive,
-                  ]}>
-                    {taskFormData.completed && <Check size={18} color="#FFF" />}
-                  </View>
-                  <Text style={styles.completedLabel}>Mark as Completed</Text>
-                </TouchableOpacity>
+                {/* Completion Section */}
+                <View style={styles.completionSection}>
+                  <TouchableOpacity
+                    style={[styles.completionToggle, editCompleted && styles.completionToggleActive]}
+                    onPress={() => {
+                      const newVal = !editCompleted;
+                      setEditCompleted(newVal);
+                      if (newVal && !editCompletedDate) {
+                        setEditCompletedDate(new Date().toISOString().split('T')[0]);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.completionCheckbox, editCompleted && styles.completionCheckboxActive]}>
+                      {editCompleted && <Check size={14} color="#FFFFFF" />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.completionLabel, editCompleted && styles.completionLabelActive]}>
+                        {editCompleted ? 'Phase Completed' : 'Mark as Completed'}
+                      </Text>
+                      {editCompleted && editCompletedDate && (
+                        <Text style={styles.completionDateDisplay}>
+                          Completed: {new Date(editCompletedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Completion Date Input (shows when completed is checked) */}
+                  {editCompleted && (
+                    <View style={styles.completionDateRow}>
+                      <Text style={styles.completionDateLabel}>Completion Date</Text>
+                      <TextInput
+                        style={styles.completionDateInput}
+                        value={editCompletedDate}
+                        onChangeText={setEditCompletedDate}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    </View>
+                  )}
+                </View>
               </ScrollView>
 
               {/* Footer */}
@@ -1499,18 +1545,7 @@ export default function ScheduleScreen() {
                 {/* Save Button */}
                 <TouchableOpacity
                   style={styles.taskModalSaveButton}
-                  onPress={async () => {
-                    await updateTask(editingTask.id, {
-                      duration: editingTask.duration,
-                      workType: editingTask.workType,
-                      notes: editingTask.notes,
-                      visibleToClient: taskFormData.visibleToClient,
-                      completed: taskFormData.completed,
-                      completedAt: taskFormData.completed ? new Date().toISOString() : undefined,
-                    });
-                    setShowTaskModal(false);
-                    setEditingTask(null);
-                  }}
+                  onPress={handleSaveEdit}
                 >
                   <Check size={16} color="#FFF" />
                   <Text style={styles.taskModalSaveText}>Save</Text>
@@ -2392,5 +2427,75 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
+  },
+  completionSection: {
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  completionToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#F8FAFC',
+  },
+  completionToggleActive: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  completionCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  completionCheckboxActive: {
+    backgroundColor: '#16A34A',
+    borderColor: '#16A34A',
+  },
+  completionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  completionLabelActive: {
+    color: '#15803D',
+  },
+  completionDateDisplay: {
+    fontSize: 11,
+    color: '#16A34A',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  completionDateRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    backgroundColor: '#FAFFFE',
+  },
+  completionDateLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 6,
+  },
+  completionDateInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#1E293B',
   },
 });
