@@ -882,7 +882,37 @@ export default function ScheduleScreen() {
 
   // Helper to get phase by ID
   const getPhaseById = (phaseId: string): PhaseStructure | undefined => {
-    return allPhases.find(p => p.id === phaseId);
+    // Try allPhases first
+    let found = allPhases.find(p => p.id === phaseId);
+    if (found) return found;
+
+    // Try custom sub-phases
+    found = customSubPhases.find(sp => sp.id === phaseId);
+    if (found) return found;
+
+    // Try custom main categories
+    const customMain = customMainCategories.find(cm => cm.id === phaseId);
+    if (customMain) return { ...customMain, isSubPhase: false };
+
+    // Reconstruct predefined sub-phases from ID
+    if (phaseId.startsWith('predefined-')) {
+      const [_, mainIndex, subIndex] = phaseId.split('-');
+      const category = CONSTRUCTION_CATEGORIES[parseInt(mainIndex)];
+      const subPhases = PREDEFINED_SUB_PHASES[category?.name] || [];
+      const subPhaseName = subPhases[parseInt(subIndex)];
+      if (subPhaseName && category) {
+        return {
+          id: phaseId,
+          name: subPhaseName,
+          color: category.color,
+          icon: category.icon,
+          isSubPhase: true,
+          parentId: `main-${mainIndex}`,
+        };
+      }
+    }
+
+    return undefined;
   };
 
   // Get sub-phases for a phase (returns mixed array of strings and PhaseStructure objects)
