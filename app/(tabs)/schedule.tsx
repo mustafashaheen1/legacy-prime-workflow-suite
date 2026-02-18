@@ -1168,35 +1168,45 @@ export default function ScheduleScreen() {
                               <Text style={styles.subPhaseName} numberOfLines={1}>
                                 {subPhaseName}
                               </Text>
-                              {isCustomSubPhase && (
-                                <TouchableOpacity
-                                  style={styles.subPhaseMenuButton}
-                                  onPress={() => {
-                                    Alert.alert(
-                                      subPhaseName,
-                                      'Choose an action',
-                                      [
-                                        {
-                                          text: 'Rename',
-                                          onPress: () => {
-                                            setRenamePhaseId(actualSubPhaseId);
-                                            setRenameValue(subPhaseName);
-                                            setShowRenameModal(true);
-                                          },
-                                        },
-                                        {
-                                          text: 'Delete',
-                                          style: 'destructive',
-                                          onPress: () => handleDeletePhase(actualSubPhaseId),
-                                        },
-                                        { text: 'Cancel', style: 'cancel' },
-                                      ]
-                                    );
-                                  }}
-                                >
-                                  <Text style={styles.subPhaseMenuText}>⋯</Text>
-                                </TouchableOpacity>
-                              )}
+                              {/* Always show three-dot menu on sub-phases */}
+                              <TouchableOpacity
+                                style={styles.subPhaseMenuButton}
+                                onPress={() => {
+                                  const actions: any[] = [];
+
+                                  // Only custom sub-phases can be renamed/deleted
+                                  if (isCustomSubPhase) {
+                                    actions.push({
+                                      text: 'Rename',
+                                      onPress: () => {
+                                        setRenamePhaseId(actualSubPhaseId);
+                                        setRenameValue(subPhaseName);
+                                        setShowRenameModal(true);
+                                      },
+                                    });
+                                    actions.push({
+                                      text: 'Delete',
+                                      style: 'destructive',
+                                      onPress: () => handleDeletePhase(actualSubPhaseId),
+                                    });
+                                  }
+
+                                  // Always allow adding more sub-phases
+                                  actions.push({
+                                    text: 'Add Another Sub-Phase',
+                                    onPress: () => {
+                                      setContextMenuPhase(phaseId);
+                                      setShowAddSubPhaseModal(true);
+                                    },
+                                  });
+
+                                  actions.push({ text: 'Cancel', style: 'cancel' });
+
+                                  Alert.alert(subPhaseName, 'Choose an action', actions);
+                                }}
+                              >
+                                <Text style={styles.subPhaseMenuText}>⋯</Text>
+                              </TouchableOpacity>
                             </TouchableOpacity>
                           );
                         })}
