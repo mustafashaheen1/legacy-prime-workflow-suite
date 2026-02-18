@@ -1313,89 +1313,145 @@ export default function ScheduleScreen() {
         <Modal
           visible={showTaskModal}
           animationType="slide"
-          presentationStyle="pageSheet"
+          transparent
           onRequestClose={() => {
             setShowTaskModal(false);
             setEditingTask(null);
           }}
         >
-          <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Task Details</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowTaskModal(false);
-                  setEditingTask(null);
-                }}
-              >
-                <X size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalContent}>
-              <View style={styles.taskDetailSection}>
-                <Text style={styles.taskDetailLabel}>Category</Text>
-                <Text style={styles.taskDetailValue}>{editingTask.category}</Text>
-              </View>
-
-              <View style={styles.taskDetailSection}>
-                <Text style={styles.taskDetailLabel}>Start Date</Text>
-                <Text style={styles.taskDetailValue}>
-                  {new Date(editingTask.startDate).toLocaleDateString()}
-                </Text>
-              </View>
-
-              <View style={styles.taskDetailSection}>
-                <Text style={styles.taskDetailLabel}>End Date</Text>
-                <Text style={styles.taskDetailValue}>
-                  {new Date(editingTask.endDate).toLocaleDateString()}
-                </Text>
-              </View>
-
-              <View style={styles.taskDetailSection}>
-                <Text style={styles.taskDetailLabel}>Duration</Text>
-                <Text style={styles.taskDetailValue}>{editingTask.duration} days</Text>
-              </View>
-
-              <View style={styles.taskDetailSection}>
-                <Text style={styles.taskDetailLabel}>Work Type</Text>
-                <Text style={styles.taskDetailValue}>
-                  {editingTask.workType === 'in-house' ? 'In-House' : 'Subcontractor'}
-                </Text>
-              </View>
-
-              <View style={styles.taskDetailRow}>
-                <Text style={styles.taskDetailLabel}>Visible to Client</Text>
-                <Switch
-                  value={editingTask.visibleToClient !== false}
-                  onValueChange={(value) => {
-                    updateTask(editingTask.id, { visibleToClient: value });
-                  }}
-                />
-              </View>
-
-              <View style={styles.taskDetailRow}>
-                <Text style={styles.taskDetailLabel}>Completed</Text>
-                <Switch
-                  value={editingTask.completed || false}
-                  onValueChange={() => toggleTaskCompletion(editingTask.id)}
-                />
-              </View>
-
-              {editingTask.notes && (
-                <View style={styles.taskDetailSection}>
-                  <Text style={styles.taskDetailLabel}>Notes</Text>
-                  <Text style={styles.taskDetailValue}>{editingTask.notes}</Text>
+          <View style={styles.taskModalOverlay}>
+            <View style={[styles.taskModalSheet, { paddingBottom: insets.bottom + 16 }]}>
+              {/* Header */}
+              <View style={styles.taskModalHeader}>
+                <View style={styles.taskModalHeaderLeft}>
+                  <View style={[styles.taskColorDot, { backgroundColor: editingTask.color }]} />
+                  <Text style={styles.taskModalTitle}>{editingTask.category}</Text>
                 </View>
-              )}
+                <TouchableOpacity
+                  style={styles.taskModalCloseButton}
+                  onPress={() => {
+                    setShowTaskModal(false);
+                    setEditingTask(null);
+                  }}
+                >
+                  <X size={20} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={handleDeleteTask}
-              >
-                <Trash2 size={18} color="#FFF" />
-                <Text style={styles.deleteButtonText}>Delete Task</Text>
-              </TouchableOpacity>
-            </ScrollView>
+              {/* Body Content */}
+              <ScrollView style={styles.taskModalBody} showsVerticalScrollIndicator={false}>
+                {/* Date Range (Read-only) */}
+                <View style={styles.taskModalSection}>
+                  <Text style={styles.taskModalLabel}>Date Range</Text>
+                  <Text style={styles.taskModalDateRange}>
+                    {new Date(editingTask.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → {new Date(editingTask.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Text>
+                </View>
+
+                {/* Duration Input */}
+                <View style={styles.taskModalSection}>
+                  <Text style={styles.taskModalLabel}>Duration (days)</Text>
+                  <TextInput
+                    style={styles.taskModalInput}
+                    value={String(editingTask.duration)}
+                    onChangeText={(value) => {
+                      const duration = parseInt(value) || 1;
+                      setEditingTask({ ...editingTask, duration });
+                    }}
+                    keyboardType="number-pad"
+                    placeholder="Duration"
+                  />
+                </View>
+
+                {/* Work Type Toggles */}
+                <View style={styles.taskModalSection}>
+                  <Text style={styles.taskModalLabel}>Work Type</Text>
+                  <View style={styles.taskModalToggleContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.taskModalToggleButton,
+                        editingTask.workType === 'in-house' && styles.taskModalToggleButtonSelected
+                      ]}
+                      onPress={() => setEditingTask({ ...editingTask, workType: 'in-house' })}
+                    >
+                      <Text style={[
+                        styles.taskModalToggleText,
+                        editingTask.workType === 'in-house' && styles.taskModalToggleTextSelected
+                      ]}>
+                        🏠 In-House
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.taskModalToggleButton,
+                        editingTask.workType === 'subcontractor' && styles.taskModalToggleButtonSelected
+                      ]}
+                      onPress={() => setEditingTask({ ...editingTask, workType: 'subcontractor' })}
+                    >
+                      <Text style={[
+                        styles.taskModalToggleText,
+                        editingTask.workType === 'subcontractor' && styles.taskModalToggleTextSelected
+                      ]}>
+                        👷 Subcontractor
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Notes Textarea */}
+                <View style={styles.taskModalSection}>
+                  <Text style={styles.taskModalLabel}>Notes</Text>
+                  <TextInput
+                    style={styles.taskModalTextarea}
+                    value={editingTask.notes || ''}
+                    onChangeText={(value) => setEditingTask({ ...editingTask, notes: value })}
+                    placeholder="Add notes visible on the block..."
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                  />
+                </View>
+              </ScrollView>
+
+              {/* Footer */}
+              <View style={styles.taskModalFooter}>
+                {/* Delete Button */}
+                <TouchableOpacity
+                  style={styles.taskModalDeleteButton}
+                  onPress={handleDeleteTask}
+                >
+                  <Trash2 size={20} color="#EF4444" />
+                </TouchableOpacity>
+
+                {/* Cancel Button */}
+                <TouchableOpacity
+                  style={styles.taskModalCancelButton}
+                  onPress={() => {
+                    setShowTaskModal(false);
+                    setEditingTask(null);
+                  }}
+                >
+                  <Text style={styles.taskModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                {/* Save Button */}
+                <TouchableOpacity
+                  style={styles.taskModalSaveButton}
+                  onPress={async () => {
+                    await updateTask(editingTask.id, {
+                      duration: editingTask.duration,
+                      workType: editingTask.workType,
+                      notes: editingTask.notes,
+                    });
+                    setShowTaskModal(false);
+                    setEditingTask(null);
+                  }}
+                >
+                  <Check size={16} color="#FFF" />
+                  <Text style={styles.taskModalSaveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </Modal>
       )}
@@ -2052,6 +2108,171 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     fontSize: 16,
     fontWeight: '700',
+    color: '#FFF',
+  },
+  // Task Modal Styles (Bottom Sheet Design)
+  taskModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  taskModalSheet: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  taskModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  taskModalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  taskColorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  taskModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    flex: 1,
+  },
+  taskModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  taskModalBody: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  taskModalSection: {
+    marginBottom: 20,
+  },
+  taskModalLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  taskModalDateRange: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  taskModalInput: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  taskModalToggleContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  taskModalToggleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  taskModalToggleButtonSelected: {
+    backgroundColor: '#FFF',
+    borderColor: '#3B82F6',
+  },
+  taskModalToggleText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  taskModalToggleTextSelected: {
+    color: '#111827',
+    fontWeight: '600',
+  },
+  taskModalTextarea: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+    minHeight: 100,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  taskModalFooter: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  taskModalDeleteButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskModalCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskModalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  taskModalSaveButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#10B981',
+  },
+  taskModalSaveText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#FFF',
   },
 });
