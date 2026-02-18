@@ -122,7 +122,6 @@ export default function ScheduleScreen() {
   // UI state
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [contextMenuPhase, setContextMenuPhase] = useState<string | null>(null);
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
   // Modals
   const [showTasksModal, setShowTasksModal] = useState<boolean>(false);
@@ -355,14 +354,12 @@ export default function ScheduleScreen() {
   };
 
   // Context menu for phase management
-  const openContextMenu = (phaseIndex: string, x: number, y: number) => {
+  const openContextMenu = (phaseIndex: string) => {
     setContextMenuPhase(phaseIndex);
-    setContextMenuPosition({ x, y });
   };
 
   const closeContextMenu = () => {
     setContextMenuPhase(null);
-    setContextMenuPosition(null);
   };
 
   const handleAddSubPhase = () => {
@@ -879,9 +876,8 @@ export default function ScheduleScreen() {
                               togglePhase(phaseIndex.toString());
                             }
                           }}
-                          onLongPress={(e) => {
-                            const { pageX, pageY } = e.nativeEvent;
-                            openContextMenu(phaseIndex.toString(), pageX, pageY);
+                          onLongPress={() => {
+                            openContextMenu(phaseIndex.toString());
                           }}
                         >
                           <View style={[styles.phaseColorStripe, { backgroundColor: phase.color }]} />
@@ -904,8 +900,7 @@ export default function ScheduleScreen() {
                             style={styles.phaseAddButton}
                             onPress={(e) => {
                               e.stopPropagation();
-                              const { pageX, pageY } = e.nativeEvent;
-                              openContextMenu(phaseIndex.toString(), pageX, pageY);
+                              openContextMenu(phaseIndex.toString());
                             }}
                           >
                             <View style={styles.addButtonCircle}>
@@ -1068,37 +1063,49 @@ export default function ScheduleScreen() {
       )}
 
       {/* Context Menu */}
-      {contextMenuPhase !== null && contextMenuPosition && (
-        <Modal
-          transparent
-          visible={true}
-          onRequestClose={closeContextMenu}
+      <Modal
+        visible={contextMenuPhase !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setContextMenuPhase(null)}
+      >
+        <Pressable
+          style={styles.contextMenuOverlay}
+          onPress={() => setContextMenuPhase(null)}
         >
-          <Pressable
-            style={styles.contextMenuOverlay}
-            onPress={closeContextMenu}
-          >
-            <View
-              style={[
-                styles.contextMenu,
-                {
-                  top: Math.min(contextMenuPosition.y, 600),
-                  left: Math.min(contextMenuPosition.x, 300),
-                },
-              ]}
+          <View style={styles.contextMenuContainer}>
+            {/* Header */}
+            <Text style={styles.contextMenuTitle}>
+              {contextMenuPhase && CONSTRUCTION_CATEGORIES[parseInt(contextMenuPhase)]?.name.toUpperCase()}
+            </Text>
+
+            {/* Options */}
+            <TouchableOpacity
+              style={styles.contextMenuItem}
+              onPress={() => {
+                setContextMenuPhase(null);
+                setShowAddSubPhaseModal(true);
+              }}
             >
-              <TouchableOpacity style={styles.contextMenuItem} onPress={handleAddSubPhase}>
-                <Plus size={18} color="#374151" />
-                <Text style={styles.contextMenuText}>Add Sub-Phase</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.contextMenuItem} onPress={handleRenamePhase}>
-                <Pencil size={18} color="#374151" />
-                <Text style={styles.contextMenuText}>Rename Phase</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Modal>
-      )}
+              <Plus size={20} color="#3B82F6" />
+              <Text style={styles.contextMenuItemText}>Add Sub-Phase</Text>
+            </TouchableOpacity>
+
+            <View style={styles.contextMenuDivider} />
+
+            <TouchableOpacity
+              style={styles.contextMenuItem}
+              onPress={() => {
+                setContextMenuPhase(null);
+                setShowAddMainCategoryModal(true);
+              }}
+            >
+              <Layers size={20} color="#10B981" />
+              <Text style={styles.contextMenuItemText}>Insert Main Category</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Add Sub-Phase Modal */}
       <Modal
@@ -1138,6 +1145,63 @@ export default function ScheduleScreen() {
                   style={[styles.button, styles.buttonPrimary]}
                   onPress={saveSubPhase}
                   disabled={!newSubPhaseName.trim()}
+                >
+                  <Text style={styles.buttonPrimaryText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Main Category Modal */}
+      <Modal
+        visible={showAddMainCategoryModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddMainCategoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Insert Main Category</Text>
+              <TouchableOpacity onPress={() => setShowAddMainCategoryModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Category Name</Text>
+              <TextInput
+                style={styles.input}
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                placeholder="Enter category name"
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonSecondary]}
+                  onPress={() => {
+                    setNewCategoryName('');
+                    setShowAddMainCategoryModal(false);
+                  }}
+                >
+                  <Text style={styles.buttonSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonPrimary]}
+                  onPress={() => {
+                    if (!newCategoryName.trim()) return;
+                    const newCategory = {
+                      name: newCategoryName.trim(),
+                      color: newCategoryColor,
+                      icon: Layers,
+                    };
+                    setCustomMainCategories([...customMainCategories, newCategory]);
+                    setNewCategoryName('');
+                    setShowAddMainCategoryModal(false);
+                  }}
+                  disabled={!newCategoryName.trim()}
                 >
                   <Text style={styles.buttonPrimaryText}>Add</Text>
                 </TouchableOpacity>
@@ -1945,33 +2009,48 @@ const styles = StyleSheet.create({
   },
   contextMenuOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  contextMenu: {
-    position: 'absolute',
+  contextMenuContainer: {
     backgroundColor: '#FFF',
-    borderRadius: 12,
+    borderRadius: 16,
+    minWidth: 280,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-    minWidth: 180,
     overflow: 'hidden',
+  },
+  contextMenuTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#6B7280',
+    textAlign: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    letterSpacing: 0.5,
   },
   contextMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#FFF',
   },
-  contextMenuText: {
-    fontSize: 15,
-    fontWeight: '500',
+  contextMenuItemText: {
+    fontSize: 16,
     color: '#374151',
+    fontWeight: '500',
+  },
+  contextMenuDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
   },
   modalOverlay: {
     flex: 1,
