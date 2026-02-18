@@ -433,25 +433,37 @@ export default function ScheduleScreen() {
     setShowTaskModal(true);
   };
 
-  const handleDeleteTask = () => {
+  const handleDeleteTask = async () => {
     if (!editingTask) return;
 
-    Alert.alert(
-      'Delete Task',
-      'Are you sure you want to delete this task?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteTask(editingTask.id);
-            setShowTaskModal(false);
-            setEditingTask(null);
-          },
-        },
-      ]
-    );
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Are you sure you want to delete this task?')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Delete Task',
+            'Are you sure you want to delete this task?',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: () => resolve(true),
+              },
+            ]
+          );
+        });
+
+    if (!confirmed) return;
+
+    try {
+      console.log('[Schedule] Deleting task:', editingTask.id);
+      await deleteTask(editingTask.id);
+      setShowTaskModal(false);
+      setEditingTask(null);
+    } catch (error) {
+      console.error('[Schedule] Delete failed:', error);
+      Alert.alert('Error', 'Failed to delete task');
+    }
   };
 
   const toggleTaskCompletion = async (taskId: string) => {
