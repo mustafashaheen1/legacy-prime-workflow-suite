@@ -375,7 +375,8 @@ export default function ScheduleScreen() {
 
   // Task creation on grid click
   const handleGridCellPress = (phaseIndex: number, dateIndex: number) => {
-    if (!selectedProject) return;
+    // Only create task if a phase is selected
+    if (!selectedProject || selectedPhase === null) return;
 
     const phase = CONSTRUCTION_CATEGORIES[phaseIndex];
     const startDate = timelineDates[dateIndex];
@@ -397,6 +398,9 @@ export default function ScheduleScreen() {
     };
 
     saveTask(newTask);
+
+    // Clear selection after creating task
+    setSelectedPhase(null);
   };
 
   // Task editing
@@ -619,6 +623,28 @@ export default function ScheduleScreen() {
           ))}
         </ScrollView>
       </View>
+
+      {/* Instruction Banner (when phase selected) */}
+      {selectedPhase !== null && (
+        <View style={styles.instructionBanner}>
+          <View style={[
+            styles.instructionDot,
+            { backgroundColor: CONSTRUCTION_CATEGORIES[parseInt(selectedPhase)]?.color || '#999' }
+          ]} />
+          <Text style={styles.instructionText}>
+            Tap on the calendar to place <Text style={styles.instructionPhaseName}>
+              {CONSTRUCTION_CATEGORIES[parseInt(selectedPhase)]?.name || 'phase'}
+            </Text>
+          </Text>
+          <TouchableOpacity
+            onPress={() => setSelectedPhase(null)}
+            style={styles.instructionClose}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <X size={16} color="#78350F" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Main Content */}
       {isLoadingTasks ? (
@@ -1243,6 +1269,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+  },
+  instructionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  instructionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  instructionText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#78350F',
+  },
+  instructionPhaseName: {
+    fontWeight: '600',
+    color: '#78350F',
+  },
+  instructionClose: {
+    padding: 4,
   },
   header: {
     flexDirection: 'row',
