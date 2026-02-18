@@ -136,6 +136,15 @@ export default function ScheduleScreen() {
 
   // Task editing
   const [editingTask, setEditingTask] = useState<ScheduledTaskWithStatus | null>(null);
+  const [taskFormData, setTaskFormData] = useState({
+    category: '',
+    startDate: '',
+    endDate: '',
+    workType: 'in-house' as 'in-house' | 'subcontractor',
+    notes: '',
+    visibleToClient: true,
+    completed: false,
+  });
   const [newSubPhaseName, setNewSubPhaseName] = useState<string>('');
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [newCategoryColor, setNewCategoryColor] = useState<string>('#7C3AED');
@@ -430,6 +439,15 @@ export default function ScheduleScreen() {
   // Task editing
   const handleTaskPress = (task: ScheduledTaskWithStatus) => {
     setEditingTask(task);
+    setTaskFormData({
+      category: task.category,
+      startDate: task.startDate,
+      endDate: task.endDate,
+      workType: task.workType,
+      notes: task.notes || '',
+      visibleToClient: task.visibleToClient ?? true,
+      completed: task.completed ?? false,
+    });
     setShowTaskModal(true);
   };
 
@@ -1423,6 +1441,38 @@ export default function ScheduleScreen() {
                     textAlignVertical="top"
                   />
                 </View>
+
+                {/* Visible to Client Toggle */}
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleLeft}>
+                    <EyeOff size={20} color="#9CA3AF" />
+                    <View>
+                      <Text style={styles.toggleLabel}>Visible to Client</Text>
+                      <Text style={styles.toggleHint}>Note hidden from shared link</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={taskFormData.visibleToClient}
+                    onValueChange={(value) => setTaskFormData(prev => ({ ...prev, visibleToClient: value }))}
+                    trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+                    thumbColor={taskFormData.visibleToClient ? '#10B981' : '#F3F4F6'}
+                  />
+                </View>
+
+                {/* Mark as Completed */}
+                <TouchableOpacity
+                  style={styles.completedRow}
+                  onPress={() => setTaskFormData(prev => ({ ...prev, completed: !prev.completed }))}
+                  activeOpacity={0.7}
+                >
+                  <View style={[
+                    styles.completedCheckbox,
+                    taskFormData.completed && styles.completedCheckboxActive,
+                  ]}>
+                    {taskFormData.completed && <Check size={18} color="#FFF" />}
+                  </View>
+                  <Text style={styles.completedLabel}>Mark as Completed</Text>
+                </TouchableOpacity>
               </ScrollView>
 
               {/* Footer */}
@@ -1454,6 +1504,9 @@ export default function ScheduleScreen() {
                       duration: editingTask.duration,
                       workType: editingTask.workType,
                       notes: editingTask.notes,
+                      visibleToClient: taskFormData.visibleToClient,
+                      completed: taskFormData.completed,
+                      completedAt: taskFormData.completed ? new Date().toISOString() : undefined,
                     });
                     setShowTaskModal(false);
                     setEditingTask(null);
@@ -2286,5 +2339,58 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFF',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+  },
+  toggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  completedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+  },
+  completedCheckbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completedCheckboxActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  completedLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
   },
 });
