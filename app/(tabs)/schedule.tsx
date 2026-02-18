@@ -165,6 +165,7 @@ export default function ScheduleScreen() {
   const [renamePhaseId, setRenamePhaseId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>('');
   const [showRenameModal, setShowRenameModal] = useState<boolean>(false);
+  const [subPhaseMenuPhase, setSubPhaseMenuPhase] = useState<{id: string; name: string; isCustom: boolean; parentPhaseId: string} | null>(null);
 
   // Color options for new categories
   const MAIN_CATEGORY_COLORS = [
@@ -1172,37 +1173,12 @@ export default function ScheduleScreen() {
                               <TouchableOpacity
                                 style={styles.subPhaseMenuButton}
                                 onPress={() => {
-                                  const actions: any[] = [];
-
-                                  // Only custom sub-phases can be renamed/deleted
-                                  if (isCustomSubPhase) {
-                                    actions.push({
-                                      text: 'Rename',
-                                      onPress: () => {
-                                        setRenamePhaseId(actualSubPhaseId);
-                                        setRenameValue(subPhaseName);
-                                        setShowRenameModal(true);
-                                      },
-                                    });
-                                    actions.push({
-                                      text: 'Delete',
-                                      style: 'destructive',
-                                      onPress: () => handleDeletePhase(actualSubPhaseId),
-                                    });
-                                  }
-
-                                  // Always allow adding more sub-phases
-                                  actions.push({
-                                    text: 'Add Another Sub-Phase',
-                                    onPress: () => {
-                                      setContextMenuPhase(phaseId);
-                                      setShowAddSubPhaseModal(true);
-                                    },
+                                  setSubPhaseMenuPhase({
+                                    id: actualSubPhaseId,
+                                    name: subPhaseName,
+                                    isCustom: isCustomSubPhase,
+                                    parentPhaseId: phaseId
                                   });
-
-                                  actions.push({ text: 'Cancel', style: 'cancel' });
-
-                                  Alert.alert(subPhaseName, 'Choose an action', actions);
                                 }}
                               >
                                 <Text style={styles.subPhaseMenuText}>⋯</Text>
@@ -1579,6 +1555,79 @@ export default function ScheduleScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Sub-Phase Actions Modal */}
+      <Modal
+        visible={subPhaseMenuPhase !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSubPhaseMenuPhase(null)}
+      >
+        <Pressable
+          style={styles.subPhaseMenuOverlay}
+          onPress={() => setSubPhaseMenuPhase(null)}
+        >
+          <View style={styles.subPhaseMenuModal}>
+            <Text style={styles.subPhaseMenuTitle}>
+              {subPhaseMenuPhase?.name}
+            </Text>
+            <Text style={styles.subPhaseMenuSubtitle}>Choose an action</Text>
+
+            <View style={styles.subPhaseMenuButtons}>
+              {subPhaseMenuPhase?.isCustom && (
+                <>
+                  <TouchableOpacity
+                    style={styles.subPhaseMenuRenameButton}
+                    onPress={() => {
+                      if (subPhaseMenuPhase) {
+                        setRenamePhaseId(subPhaseMenuPhase.id);
+                        setRenameValue(subPhaseMenuPhase.name);
+                        setShowRenameModal(true);
+                        setSubPhaseMenuPhase(null);
+                      }
+                    }}
+                  >
+                    <Text style={styles.subPhaseMenuButtonText}>Rename</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.subPhaseMenuDeleteButton}
+                    onPress={() => {
+                      if (subPhaseMenuPhase) {
+                        const phaseId = subPhaseMenuPhase.id;
+                        setSubPhaseMenuPhase(null);
+                        handleDeletePhase(phaseId);
+                      }
+                    }}
+                  >
+                    <Text style={styles.subPhaseMenuButtonText}>Delete</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              <TouchableOpacity
+                style={subPhaseMenuPhase?.isCustom ? styles.subPhaseMenuCancelButton : styles.subPhaseMenuAddButton}
+                onPress={() => {
+                  if (subPhaseMenuPhase) {
+                    setContextMenuPhase(subPhaseMenuPhase.parentPhaseId);
+                    setShowAddSubPhaseModal(true);
+                    setSubPhaseMenuPhase(null);
+                  }
+                }}
+              >
+                <Text style={styles.subPhaseMenuButtonText}>Add Another</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.subPhaseMenuCancelButton}
+                onPress={() => setSubPhaseMenuPhase(null)}
+              >
+                <Text style={styles.subPhaseMenuButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
       </Modal>
 
       {/* Tasks Modal */}
@@ -2236,6 +2285,81 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#6B7280',
     fontWeight: '600',
+  },
+  subPhaseMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  subPhaseMenuModal: {
+    backgroundColor: '#1F2937',
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
+    minWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  subPhaseMenuTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subPhaseMenuSubtitle: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  subPhaseMenuButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  subPhaseMenuRenameButton: {
+    flex: 1,
+    backgroundColor: '#1F2937',
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  subPhaseMenuDeleteButton: {
+    flex: 1,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  subPhaseMenuAddButton: {
+    flex: 1,
+    backgroundColor: '#1F2937',
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  subPhaseMenuCancelButton: {
+    flex: 1,
+    backgroundColor: '#1F2937',
+    borderWidth: 2,
+    borderColor: '#4B5563',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  subPhaseMenuButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
   },
   subPhaseTimelineRow: {
     backgroundColor: '#F9FAFB',
