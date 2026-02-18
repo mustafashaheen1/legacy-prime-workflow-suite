@@ -68,7 +68,7 @@ const CONSTRUCTION_CATEGORIES = [
 ];
 
 // Layout constants
-const SIDEBAR_WIDTH = 150;
+const SIDEBAR_WIDTH = 200; // Increased for better visibility
 const ROW_HEIGHT = 46;
 const BAR_HEIGHT = 34;
 const DAY_WIDTH = 72;
