@@ -479,9 +479,11 @@ export default function ScheduleScreen() {
       isSubPhase: true,
     };
 
-    setCustomSubPhases([...customSubPhases, newSubPhase]);
+    setCustomSubPhases(prev => [...prev, newSubPhase]);
+    setExpandedCategories(prev => new Set(prev).add(contextMenuPhase));
     setNewSubPhaseName('');
     setShowAddSubPhaseModal(false);
+    console.log('[Schedule] Sub-phase added:', newSubPhase.name);
   };
 
   const saveMainCategory = () => {
