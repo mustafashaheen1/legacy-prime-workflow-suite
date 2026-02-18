@@ -90,6 +90,23 @@ interface SubPhase {
   color: string;
 }
 
+interface PhaseStructure {
+  id: string;
+  name: string;
+  color: string;
+  icon: any;
+  isSubPhase: boolean;
+  parentId?: string;
+}
+
+interface CustomMainCategory {
+  id: string;
+  name: string;
+  color: string;
+  icon: any;
+  insertAfterId: string;
+}
+
 export default function ScheduleScreen() {
   const {
     user,
@@ -116,8 +133,9 @@ export default function ScheduleScreen() {
 
   // Phase management - Start with all phases COLLAPSED
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
-  const [customSubPhases, setCustomSubPhases] = useState<SubPhase[]>([]);
-  const [customMainCategories, setCustomMainCategories] = useState<Array<{ name: string; color: string; icon: any }>>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [customSubPhases, setCustomSubPhases] = useState<PhaseStructure[]>([]);
+  const [customMainCategories, setCustomMainCategories] = useState<CustomMainCategory[]>([]);
 
   // UI state
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
@@ -144,6 +162,15 @@ export default function ScheduleScreen() {
   const [newSubPhaseName, setNewSubPhaseName] = useState<string>('');
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [newCategoryColor, setNewCategoryColor] = useState<string>('#7C3AED');
+  const [renamePhaseId, setRenamePhaseId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState<string>('');
+  const [showRenameModal, setShowRenameModal] = useState<boolean>(false);
+
+  // Color options for new categories
+  const MAIN_CATEGORY_COLORS = [
+    '#2563EB', '#DC2626', '#059669', '#D97706', '#7C3AED',
+    '#DB2777', '#0891B2', '#4F46E5', '#EA580C', '#16A34A',
+  ];
 
   // Daily Log state
   const [equipmentNote, setEquipmentNote] = useState<string>('');
@@ -334,6 +361,19 @@ export default function ScheduleScreen() {
     });
   };
 
+  // Toggle category expansion (for new phase system)
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
+
   // Zoom controls
   const handleZoomIn = () => {
     setZoomLevel(prev => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
@@ -367,25 +407,169 @@ export default function ScheduleScreen() {
     closeContextMenu();
   };
 
-  const handleRenamePhase = () => {
-    setShowRenamePhaseModal(true);
+  const handleInsertMainCategory = () => {
+    setShowAddMainCategoryModal(true);
     closeContextMenu();
+  };
+
+  const handleRenameOption = () => {
+    if (!contextMenuPhase) return;
+    const phase = getPhaseById(contextMenuPhase);
+    if (phase) {
+      setRenamePhaseId(contextMenuPhase);
+      setRenameValue(phase.name);
+      setShowRenameModal(true);
+    }
+    closeContextMenu();
+  };
+
+  const handleDeleteOption = async () => {
+    if (!contextMenuPhase) return;
+    closeContextMenu();
+
+    const phase = getPhaseById(contextMenuPhase);
+    if (!phase) return;
+
+    // Count tasks in this category
+    const tasksInCategory = scheduledTasks.filter(t => t.category === phase.name);
+
+    const confirmMessage = tasksInCategory.length > 0
+      ? `Delete "${phase.name}" and ${tasksInCategory.length} task(s)? This cannot be undone.`
+      : `Delete "${phase.name}"? This cannot be undone.`;
+
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm(confirmMessage)
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Delete Category',
+            confirmMessage,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+            ]
+          );
+        });
+
+    if (!confirmed) return;
+
+    // Delete all tasks in this category
+    for (const task of tasksInCategory) {
+      await deleteTask(task.id);
+    }
+
+    // Delete the main category
+    setCustomMainCategories(prev => prev.filter(c => c.id !== contextMenuPhase));
+
+    // Delete any custom sub-phases under this category
+    setCustomSubPhases(prev => prev.filter(sp => sp.parentId !== contextMenuPhase));
   };
 
   const saveSubPhase = () => {
     if (!contextMenuPhase || !newSubPhaseName.trim()) return;
 
-    const parentPhase = CONSTRUCTION_CATEGORIES[parseInt(contextMenuPhase)];
-    const newSubPhase: SubPhase = {
-      id: `sub-${Date.now()}`,
+    const phase = getPhaseById(contextMenuPhase);
+    if (!phase) return;
+
+    const newSubPhase: PhaseStructure = {
+      id: `custom-sub-${Date.now()}`,
       name: newSubPhaseName.trim(),
       parentId: contextMenuPhase,
-      color: parentPhase.color,
+      color: phase.color,
+      icon: phase.icon,
+      isSubPhase: true,
     };
 
     setCustomSubPhases([...customSubPhases, newSubPhase]);
     setNewSubPhaseName('');
     setShowAddSubPhaseModal(false);
+  };
+
+  const saveMainCategory = () => {
+    if (!contextMenuPhase || !newCategoryName.trim()) return;
+
+    const newCategory: CustomMainCategory = {
+      id: `custom-main-${Date.now()}`,
+      name: newCategoryName.trim(),
+      color: newCategoryColor,
+      icon: Layers,
+      insertAfterId: contextMenuPhase,
+    };
+
+    setCustomMainCategories([...customMainCategories, newCategory]);
+    setNewCategoryName('');
+    setNewCategoryColor('#7C3AED');
+    setShowAddMainCategoryModal(false);
+  };
+
+  const handleRenamePhase = async () => {
+    if (!renamePhaseId || !renameValue.trim()) return;
+
+    const phase = getPhaseById(renamePhaseId);
+    if (!phase) return;
+
+    const oldName = phase.name;
+    const newName = renameValue.trim();
+
+    // Update the phase name
+    if (renamePhaseId.startsWith('custom-main-')) {
+      setCustomMainCategories(prev =>
+        prev.map(c => c.id === renamePhaseId ? { ...c, name: newName } : c)
+      );
+    } else if (renamePhaseId.startsWith('custom-sub-')) {
+      setCustomSubPhases(prev =>
+        prev.map(sp => sp.id === renamePhaseId ? { ...sp, name: newName } : sp)
+      );
+    }
+
+    // Update all tasks with this category name
+    const tasksToUpdate = scheduledTasks.filter(t => t.category === oldName);
+    for (const task of tasksToUpdate) {
+      await updateTask(task.id, { category: newName });
+    }
+
+    setShowRenameModal(false);
+    setRenamePhaseId(null);
+    setRenameValue('');
+  };
+
+  const handleDeletePhase = async (phaseId: string) => {
+    const phase = getPhaseById(phaseId);
+    if (!phase) return;
+
+    const tasksInPhase = scheduledTasks.filter(t => t.category === phase.name);
+
+    const confirmMessage = tasksInPhase.length > 0
+      ? `Delete "${phase.name}" and ${tasksInPhase.length} task(s)? This cannot be undone.`
+      : `Delete "${phase.name}"? This cannot be undone.`;
+
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm(confirmMessage)
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Delete Phase',
+            confirmMessage,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+            ]
+          );
+        });
+
+    if (!confirmed) return;
+
+    // Delete all tasks
+    for (const task of tasksInPhase) {
+      await deleteTask(task.id);
+    }
+
+    // Delete the phase
+    if (phaseId.startsWith('custom-sub-')) {
+      setCustomSubPhases(prev => prev.filter(sp => sp.id !== phaseId));
+    } else if (phaseId.startsWith('custom-main-')) {
+      setCustomMainCategories(prev => prev.filter(c => c.id !== phaseId));
+      // Also delete any sub-phases under this category
+      setCustomSubPhases(prev => prev.filter(sp => sp.parentId !== phaseId));
+    }
   };
 
   // Task creation on grid click
@@ -582,16 +766,71 @@ export default function ScheduleScreen() {
     }
   };
 
-  // Get all phases (built-in + custom)
+  // Get all phases (built-in + custom) with full hierarchy
   const allPhases = useMemo(() => {
-    return [...CONSTRUCTION_CATEGORIES, ...customMainCategories];
-  }, [customMainCategories]);
+    const phases: PhaseStructure[] = [];
 
-  // Get sub-phases for a phase
+    const addCustomMainsAfter = (afterId: string) => {
+      const mains = customMainCategories.filter(cm => cm.insertAfterId === afterId);
+      mains.forEach(cm => {
+        phases.push({
+          id: cm.id,
+          name: cm.name,
+          color: cm.color,
+          icon: cm.icon,
+          isSubPhase: false,
+        });
+        if (expandedCategories.has(cm.id)) {
+          const subs = customSubPhases.filter(sp => sp.parentId === cm.id);
+          phases.push(...subs);
+        }
+        addCustomMainsAfter(cm.id);
+      });
+    };
+
+    CONSTRUCTION_CATEGORIES.forEach((cat, idx) => {
+      const mainPhase: PhaseStructure = {
+        id: `main-${idx}`,
+        name: cat.name,
+        color: cat.color,
+        icon: cat.icon,
+        isSubPhase: false,
+      };
+      phases.push(mainPhase);
+
+      if (expandedCategories.has(mainPhase.id)) {
+        const predefinedSubPhaseNames = PREDEFINED_SUB_PHASES[cat.name] || [];
+        predefinedSubPhaseNames.forEach((subPhaseName, subIdx) => {
+          phases.push({
+            id: `predefined-${idx}-${subIdx}`,
+            name: subPhaseName,
+            color: cat.color,
+            icon: cat.icon,
+            isSubPhase: true,
+            parentId: mainPhase.id,
+          });
+        });
+
+        const customSubs = customSubPhases.filter(sp => sp.parentId === mainPhase.id);
+        phases.push(...customSubs);
+      }
+
+      addCustomMainsAfter(mainPhase.id);
+    });
+
+    return phases;
+  }, [customSubPhases, expandedCategories, customMainCategories]);
+
+  // Helper to get phase by ID
+  const getPhaseById = (phaseId: string): PhaseStructure | undefined => {
+    return allPhases.find(p => p.id === phaseId);
+  };
+
+  // Get sub-phases for a phase (returns mixed array of strings and PhaseStructure objects)
   const getSubPhases = (phaseIndex: string) => {
     const builtInSubPhases = PREDEFINED_SUB_PHASES[CONSTRUCTION_CATEGORIES[parseInt(phaseIndex)]?.name] || [];
-    const customSubs = customSubPhases.filter(sp => sp.parentId === phaseIndex);
-    return [...builtInSubPhases, ...customSubs.map(cs => cs.name)];
+    const customSubs = customSubPhases.filter(sp => sp.parentId === `main-${phaseIndex}`);
+    return [...builtInSubPhases, ...customSubs];
   };
 
   // Get tasks for a phase
@@ -857,6 +1096,7 @@ export default function ScheduleScreen() {
                 {/* Fixed Phase Column (Sidebar) */}
                 <View style={[styles.phaseColumn, { width: SIDEBAR_WIDTH }]}>
                   {CONSTRUCTION_CATEGORIES.map((phase, phaseIndex) => {
+                    const phaseId = `main-${phaseIndex}`;
                     const isExpanded = expandedPhases.has(phaseIndex.toString());
                     const subPhases = getSubPhases(phaseIndex.toString());
                     const Icon = phase.icon;
@@ -877,7 +1117,7 @@ export default function ScheduleScreen() {
                             }
                           }}
                           onLongPress={() => {
-                            openContextMenu(phaseIndex.toString());
+                            openContextMenu(phaseId);
                           }}
                         >
                           <View style={[styles.phaseColorStripe, { backgroundColor: phase.color }]} />
@@ -900,7 +1140,7 @@ export default function ScheduleScreen() {
                             style={styles.phaseAddButton}
                             onPress={(e) => {
                               e.stopPropagation();
-                              openContextMenu(phaseIndex.toString());
+                              openContextMenu(phaseId);
                             }}
                           >
                             <View style={styles.addButtonCircle}>
@@ -910,18 +1150,54 @@ export default function ScheduleScreen() {
                         </TouchableOpacity>
 
                         {/* Sub-phase sidebar cells */}
-                        {isExpanded && subPhases.map((subPhase, subIndex) => (
-                          <TouchableOpacity
-                            key={`${phaseIndex}-${subIndex}`}
-                            style={styles.subPhaseRow}
-                            onPress={() => setSelectedPhase(`${phaseIndex}-${subIndex}`)}
-                          >
-                            <View style={styles.subPhaseIndent} />
-                            <Text style={styles.subPhaseName} numberOfLines={1}>
-                              {typeof subPhase === 'string' ? subPhase : subPhase}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
+                        {isExpanded && subPhases.map((subPhase, subIndex) => {
+                          const subPhaseId = `${phaseIndex}-${subIndex}`;
+                          const isCustomSubPhase = typeof subPhase === 'object' && 'id' in subPhase;
+                          const subPhaseName = typeof subPhase === 'string' ? subPhase : subPhase.name;
+                          const actualSubPhaseId = isCustomSubPhase ? subPhase.id : subPhaseId;
+
+                          return (
+                            <TouchableOpacity
+                              key={subPhaseId}
+                              style={styles.subPhaseRow}
+                              onPress={() => setSelectedPhase(subPhaseId)}
+                            >
+                              <View style={styles.subPhaseIndent} />
+                              <Text style={styles.subPhaseName} numberOfLines={1}>
+                                {subPhaseName}
+                              </Text>
+                              {isCustomSubPhase && (
+                                <TouchableOpacity
+                                  style={styles.subPhaseMenuButton}
+                                  onPress={() => {
+                                    Alert.alert(
+                                      subPhaseName,
+                                      'Choose an action',
+                                      [
+                                        {
+                                          text: 'Rename',
+                                          onPress: () => {
+                                            setRenamePhaseId(actualSubPhaseId);
+                                            setRenameValue(subPhaseName);
+                                            setShowRenameModal(true);
+                                          },
+                                        },
+                                        {
+                                          text: 'Delete',
+                                          style: 'destructive',
+                                          onPress: () => handleDeletePhase(actualSubPhaseId),
+                                        },
+                                        { text: 'Cancel', style: 'cancel' },
+                                      ]
+                                    );
+                                  }}
+                                >
+                                  <Text style={styles.subPhaseMenuText}>⋯</Text>
+                                </TouchableOpacity>
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     );
                   })}
@@ -1076,16 +1352,13 @@ export default function ScheduleScreen() {
           <View style={styles.contextMenuContainer}>
             {/* Header */}
             <Text style={styles.contextMenuTitle}>
-              {contextMenuPhase && CONSTRUCTION_CATEGORIES[parseInt(contextMenuPhase)]?.name.toUpperCase()}
+              {contextMenuPhase && getPhaseById(contextMenuPhase)?.name.toUpperCase()}
             </Text>
 
-            {/* Options */}
+            {/* Add Sub-Phase */}
             <TouchableOpacity
               style={styles.contextMenuItem}
-              onPress={() => {
-                setContextMenuPhase(null);
-                setShowAddSubPhaseModal(true);
-              }}
+              onPress={handleAddSubPhase}
             >
               <Plus size={20} color="#3B82F6" />
               <Text style={styles.contextMenuItemText}>Add Sub-Phase</Text>
@@ -1093,16 +1366,42 @@ export default function ScheduleScreen() {
 
             <View style={styles.contextMenuDivider} />
 
+            {/* Insert Main Category */}
             <TouchableOpacity
               style={styles.contextMenuItem}
-              onPress={() => {
-                setContextMenuPhase(null);
-                setShowAddMainCategoryModal(true);
-              }}
+              onPress={handleInsertMainCategory}
             >
               <Layers size={20} color="#10B981" />
               <Text style={styles.contextMenuItemText}>Insert Main Category</Text>
             </TouchableOpacity>
+
+            {/* Rename (only for custom phases) */}
+            {contextMenuPhase && contextMenuPhase.startsWith('custom-main-') && (
+              <>
+                <View style={styles.contextMenuDivider} />
+                <TouchableOpacity
+                  style={styles.contextMenuItem}
+                  onPress={handleRenameOption}
+                >
+                  <Pencil size={20} color="#D97706" />
+                  <Text style={styles.contextMenuItemText}>Rename</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* Delete (only for custom phases) */}
+            {contextMenuPhase && contextMenuPhase.startsWith('custom-main-') && (
+              <>
+                <View style={styles.contextMenuDivider} />
+                <TouchableOpacity
+                  style={styles.contextMenuItem}
+                  onPress={handleDeleteOption}
+                >
+                  <Trash2 size={20} color="#EF4444" />
+                  <Text style={[styles.contextMenuItemText, { color: '#EF4444' }]}>Delete</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </Pressable>
       </Modal>
@@ -1178,11 +1477,32 @@ export default function ScheduleScreen() {
                 placeholder="Enter category name"
                 autoFocus
               />
+
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>Color</Text>
+              <View style={styles.colorPickerContainer}>
+                {MAIN_CATEGORY_COLORS.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.colorOption,
+                      { backgroundColor: color },
+                      newCategoryColor === color && styles.colorOptionSelected,
+                    ]}
+                    onPress={() => setNewCategoryColor(color)}
+                  >
+                    {newCategoryColor === color && (
+                      <Check size={20} color="#FFFFFF" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={[styles.button, styles.buttonSecondary]}
                   onPress={() => {
                     setNewCategoryName('');
+                    setNewCategoryColor('#7C3AED');
                     setShowAddMainCategoryModal(false);
                   }}
                 >
@@ -1190,20 +1510,58 @@ export default function ScheduleScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.button, styles.buttonPrimary]}
-                  onPress={() => {
-                    if (!newCategoryName.trim()) return;
-                    const newCategory = {
-                      name: newCategoryName.trim(),
-                      color: newCategoryColor,
-                      icon: Layers,
-                    };
-                    setCustomMainCategories([...customMainCategories, newCategory]);
-                    setNewCategoryName('');
-                    setShowAddMainCategoryModal(false);
-                  }}
+                  onPress={saveMainCategory}
                   disabled={!newCategoryName.trim()}
                 >
                   <Text style={styles.buttonPrimaryText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Rename Phase Modal */}
+      <Modal
+        visible={showRenameModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowRenameModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Rename Phase</Text>
+              <TouchableOpacity onPress={() => setShowRenameModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={styles.inputLabel}>New Name</Text>
+              <TextInput
+                style={styles.input}
+                value={renameValue}
+                onChangeText={setRenameValue}
+                placeholder="Enter new name"
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonSecondary]}
+                  onPress={() => {
+                    setRenameValue('');
+                    setRenamePhaseId(null);
+                    setShowRenameModal(false);
+                  }}
+                >
+                  <Text style={styles.buttonSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonPrimary]}
+                  onPress={handleRenamePhase}
+                  disabled={!renameValue.trim()}
+                >
+                  <Text style={styles.buttonPrimaryText}>Rename</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1858,6 +2216,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingLeft: 6,
   },
+  subPhaseMenuButton: {
+    padding: 8,
+    marginRight: 4,
+  },
+  subPhaseMenuText: {
+    fontSize: 18,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
   subPhaseTimelineRow: {
     backgroundColor: '#F9FAFB',
   },
@@ -2130,6 +2497,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
+  },
+  colorPickerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+    marginBottom: 16,
+    rowGap: 12,
+    columnGap: 12,
+  },
+  colorOption: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorOptionSelected: {
+    borderColor: '#1F2937',
+    borderWidth: 3,
   },
   taskItem: {
     padding: 16,
