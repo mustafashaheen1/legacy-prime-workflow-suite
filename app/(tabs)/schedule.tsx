@@ -1575,48 +1575,31 @@ export default function ScheduleScreen() {
             <Text style={styles.subPhaseMenuSubtitle}>Choose an action</Text>
 
             <View style={styles.subPhaseMenuButtons}>
-              {subPhaseMenuPhase?.isCustom && (
-                <>
-                  <TouchableOpacity
-                    style={styles.subPhaseMenuRenameButton}
-                    onPress={() => {
-                      if (subPhaseMenuPhase) {
-                        setRenamePhaseId(subPhaseMenuPhase.id);
-                        setRenameValue(subPhaseMenuPhase.name);
-                        setShowRenameModal(true);
-                        setSubPhaseMenuPhase(null);
-                      }
-                    }}
-                  >
-                    <Text style={styles.subPhaseMenuButtonText}>Rename</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.subPhaseMenuDeleteButton}
-                    onPress={() => {
-                      if (subPhaseMenuPhase) {
-                        const phaseId = subPhaseMenuPhase.id;
-                        setSubPhaseMenuPhase(null);
-                        handleDeletePhase(phaseId);
-                      }
-                    }}
-                  >
-                    <Text style={styles.subPhaseMenuButtonText}>Delete</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-
               <TouchableOpacity
-                style={subPhaseMenuPhase?.isCustom ? styles.subPhaseMenuCancelButton : styles.subPhaseMenuAddButton}
+                style={styles.subPhaseMenuRenameButton}
                 onPress={() => {
-                  if (subPhaseMenuPhase) {
-                    setContextMenuPhase(subPhaseMenuPhase.parentPhaseId);
-                    setShowAddSubPhaseModal(true);
+                  if (subPhaseMenuPhase?.isCustom) {
+                    setRenamePhaseId(subPhaseMenuPhase.id);
+                    setRenameValue(subPhaseMenuPhase.name);
+                    setShowRenameModal(true);
                     setSubPhaseMenuPhase(null);
                   }
                 }}
               >
-                <Text style={styles.subPhaseMenuButtonText}>Add Another</Text>
+                <Text style={styles.subPhaseMenuButtonText}>Rename</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.subPhaseMenuDeleteButton}
+                onPress={() => {
+                  if (subPhaseMenuPhase?.isCustom) {
+                    const phaseId = subPhaseMenuPhase.id;
+                    setSubPhaseMenuPhase(null);
+                    handleDeletePhase(phaseId);
+                  }
+                }}
+              >
+                <Text style={styles.subPhaseMenuButtonText}>Delete</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
