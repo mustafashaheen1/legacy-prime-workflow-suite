@@ -165,7 +165,6 @@ export default function ScheduleScreen() {
   const [renamePhaseId, setRenamePhaseId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>('');
   const [showRenameModal, setShowRenameModal] = useState<boolean>(false);
-  const [subPhaseMenuPhase, setSubPhaseMenuPhase] = useState<{id: string; name: string; isCustom: boolean; parentPhaseId: string} | null>(null);
 
   // Color options for new categories
   const MAIN_CATEGORY_COLORS = [
@@ -405,7 +404,7 @@ export default function ScheduleScreen() {
 
   const handleAddSubPhase = () => {
     setShowAddSubPhaseModal(true);
-    // Keep contextMenuPhase - needed for saveSubPhase!
+    closeContextMenu();
   };
 
   const handleInsertMainCategory = () => {
@@ -414,32 +413,14 @@ export default function ScheduleScreen() {
   };
 
   const handleRenameOption = () => {
-    console.log('=== handleRenameOption CALLED ===');
-    console.log('contextMenuPhase:', contextMenuPhase);
-
-    if (!contextMenuPhase) {
-      console.log('EARLY RETURN: No contextMenuPhase');
-      return;
-    }
-
+    if (!contextMenuPhase) return;
     const phase = getPhaseById(contextMenuPhase);
-    console.log('Found phase:', phase);
-
     if (phase) {
-      console.log('Setting rename state:');
-      console.log('  - renamePhaseId:', contextMenuPhase);
-      console.log('  - renameValue:', phase.name);
-      console.log('  - showRenameModal: true');
-
       setRenamePhaseId(contextMenuPhase);
       setRenameValue(phase.name);
       setShowRenameModal(true);
-    } else {
-      console.log('Phase not found, not opening modal');
     }
-
     closeContextMenu();
-    console.log('=== handleRenameOption COMPLETED ===');
   };
 
   const handleDeleteOption = async () => {
@@ -523,72 +504,34 @@ export default function ScheduleScreen() {
   };
 
   const handleRenamePhase = async () => {
-    console.log('=== handleRenamePhase CALLED ===');
-    console.log('renamePhaseId:', renamePhaseId);
-    console.log('renameValue:', renameValue);
-    console.log('renameValue.trim():', renameValue.trim());
+    if (!renamePhaseId || !renameValue.trim()) return;
 
-    if (!renamePhaseId || !renameValue.trim()) {
-      console.log('EARLY RETURN: Missing renamePhaseId or renameValue');
-      return;
-    }
-
-    console.log('Getting phase by ID...');
     const phase = getPhaseById(renamePhaseId);
-    console.log('Found phase:', phase);
-
-    if (!phase) {
-      console.log('EARLY RETURN: Phase not found');
-      return;
-    }
+    if (!phase) return;
 
     const oldName = phase.name;
     const newName = renameValue.trim();
-    console.log('Old name:', oldName);
-    console.log('New name:', newName);
 
     // Update the phase name
     if (renamePhaseId.startsWith('custom-main-')) {
-      console.log('Updating custom main category...');
-      setCustomMainCategories(prev => {
-        const updated = prev.map(c => c.id === renamePhaseId ? { ...c, name: newName } : c);
-        console.log('Previous custom main categories:', prev);
-        console.log('Updated custom main categories:', updated);
-        return updated;
-      });
+      setCustomMainCategories(prev =>
+        prev.map(c => c.id === renamePhaseId ? { ...c, name: newName } : c)
+      );
     } else if (renamePhaseId.startsWith('custom-sub-')) {
-      console.log('Updating custom sub-phase...');
-      setCustomSubPhases(prev => {
-        const updated = prev.map(sp => sp.id === renamePhaseId ? { ...sp, name: newName } : sp);
-        console.log('Previous custom sub-phases:', prev);
-        console.log('Updated custom sub-phases:', updated);
-        return updated;
-      });
-    } else {
-      console.log('WARNING: Phase ID does not match custom-main or custom-sub pattern');
+      setCustomSubPhases(prev =>
+        prev.map(sp => sp.id === renamePhaseId ? { ...sp, name: newName } : sp)
+      );
     }
 
     // Update all tasks with this category name
-    console.log('Filtering tasks to update...');
     const tasksToUpdate = scheduledTasks.filter(t => t.category === oldName);
-    console.log('Tasks to update count:', tasksToUpdate.length);
-    console.log('Tasks to update:', tasksToUpdate.map(t => ({ id: t.id, title: t.title, category: t.category })));
-
     for (const task of tasksToUpdate) {
-      console.log(`Updating task ${task.id} category from "${oldName}" to "${newName}"`);
-      try {
-        await updateTask(task.id, { category: newName });
-        console.log(`Successfully updated task ${task.id}`);
-      } catch (error) {
-        console.error(`Failed to update task ${task.id}:`, error);
-      }
+      await updateTask(task.id, { category: newName });
     }
 
-    console.log('Closing rename modal and resetting state...');
     setShowRenameModal(false);
     setRenamePhaseId(null);
     setRenameValue('');
-    console.log('=== handleRenamePhase COMPLETED ===');
   };
 
   const handleDeletePhase = async (phaseId: string) => {
@@ -1210,7 +1153,7 @@ export default function ScheduleScreen() {
 
                         {/* Sub-phase sidebar cells */}
                         {isExpanded && subPhases.map((subPhase, subIndex) => {
-                          const subPhaseId = `predefined-${phaseIndex}-${subIndex}`;
+                          const subPhaseId = `${phaseIndex}-${subIndex}`;
                           const isCustomSubPhase = typeof subPhase === 'object' && 'id' in subPhase;
                           const subPhaseName = typeof subPhase === 'string' ? subPhase : subPhase.name;
                           const actualSubPhaseId = isCustomSubPhase ? subPhase.id : subPhaseId;
@@ -1225,20 +1168,35 @@ export default function ScheduleScreen() {
                               <Text style={styles.subPhaseName} numberOfLines={1}>
                                 {subPhaseName}
                               </Text>
-                              {/* Always show three-dot menu on sub-phases */}
-                              <TouchableOpacity
-                                style={styles.subPhaseMenuButton}
-                                onPress={() => {
-                                  setSubPhaseMenuPhase({
-                                    id: actualSubPhaseId,
-                                    name: subPhaseName,
-                                    isCustom: isCustomSubPhase,
-                                    parentPhaseId: phaseId
-                                  });
-                                }}
-                              >
-                                <Text style={styles.subPhaseMenuText}>⋯</Text>
-                              </TouchableOpacity>
+                              {isCustomSubPhase && (
+                                <TouchableOpacity
+                                  style={styles.subPhaseMenuButton}
+                                  onPress={() => {
+                                    Alert.alert(
+                                      subPhaseName,
+                                      'Choose an action',
+                                      [
+                                        {
+                                          text: 'Rename',
+                                          onPress: () => {
+                                            setRenamePhaseId(actualSubPhaseId);
+                                            setRenameValue(subPhaseName);
+                                            setShowRenameModal(true);
+                                          },
+                                        },
+                                        {
+                                          text: 'Delete',
+                                          style: 'destructive',
+                                          onPress: () => handleDeletePhase(actualSubPhaseId),
+                                        },
+                                        { text: 'Cancel', style: 'cancel' },
+                                      ]
+                                    );
+                                  }}
+                                >
+                                  <Text style={styles.subPhaseMenuText}>⋯</Text>
+                                </TouchableOpacity>
+                              )}
                             </TouchableOpacity>
                           );
                         })}
@@ -1602,13 +1560,7 @@ export default function ScheduleScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.button, styles.buttonPrimary]}
-                  onPress={() => {
-                    console.log('=== RENAME BUTTON PRESSED ===');
-                    console.log('Current renamePhaseId:', renamePhaseId);
-                    console.log('Current renameValue:', renameValue);
-                    console.log('Button disabled state:', !renameValue.trim());
-                    handleRenamePhase();
-                  }}
+                  onPress={handleRenamePhase}
                   disabled={!renameValue.trim()}
                 >
                   <Text style={styles.buttonPrimaryText}>Rename</Text>
@@ -1617,74 +1569,6 @@ export default function ScheduleScreen() {
             </View>
           </View>
         </View>
-      </Modal>
-
-      {/* Sub-Phase Actions Modal */}
-      <Modal
-        visible={subPhaseMenuPhase !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSubPhaseMenuPhase(null)}
-      >
-        <Pressable
-          style={styles.subPhaseMenuOverlay}
-          onPress={() => setSubPhaseMenuPhase(null)}
-        >
-          <View style={styles.subPhaseMenuModal}>
-            <Text style={styles.subPhaseMenuTitle}>
-              {subPhaseMenuPhase?.name}
-            </Text>
-            <Text style={styles.subPhaseMenuSubtitle}>Choose an action</Text>
-
-            <View style={styles.subPhaseMenuButtons}>
-              <TouchableOpacity
-                style={styles.subPhaseMenuRenameButton}
-                onPress={() => {
-                  console.log('=== SUB-PHASE RENAME BUTTON PRESSED ===');
-                  console.log('subPhaseMenuPhase:', subPhaseMenuPhase);
-
-                  if (subPhaseMenuPhase) {
-                    console.log('Setting rename state for sub-phase:');
-                    console.log('  - renamePhaseId:', subPhaseMenuPhase.id);
-                    console.log('  - renameValue:', subPhaseMenuPhase.name);
-                    console.log('  - showRenameModal: true');
-
-                    setRenamePhaseId(subPhaseMenuPhase.id);
-                    setRenameValue(subPhaseMenuPhase.name);
-                    setShowRenameModal(true);
-                    setSubPhaseMenuPhase(null);
-                  } else {
-                    console.log('WARNING: subPhaseMenuPhase is null');
-                  }
-
-                  console.log('=== SUB-PHASE RENAME BUTTON HANDLER COMPLETED ===');
-                }}
-              >
-                <Text style={styles.subPhaseMenuButtonText}>Rename</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.subPhaseMenuDeleteButton}
-                onPress={() => {
-                  if (subPhaseMenuPhase) {
-                    const phaseId = subPhaseMenuPhase.id;
-                    setSubPhaseMenuPhase(null);
-                    handleDeletePhase(phaseId);
-                  }
-                }}
-              >
-                <Text style={styles.subPhaseMenuButtonText}>Delete</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.subPhaseMenuCancelButton}
-                onPress={() => setSubPhaseMenuPhase(null)}
-              >
-                <Text style={styles.subPhaseMenuButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Pressable>
       </Modal>
 
       {/* Tasks Modal */}
@@ -2342,81 +2226,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#6B7280',
     fontWeight: '600',
-  },
-  subPhaseMenuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  subPhaseMenuModal: {
-    backgroundColor: '#1F2937',
-    borderRadius: 16,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 20,
-    minWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  subPhaseMenuTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFF',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subPhaseMenuSubtitle: {
-    fontSize: 16,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  subPhaseMenuButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  subPhaseMenuRenameButton: {
-    flex: 1,
-    backgroundColor: '#1F2937',
-    borderWidth: 2,
-    borderColor: '#3B82F6',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  subPhaseMenuDeleteButton: {
-    flex: 1,
-    backgroundColor: '#EF4444',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  subPhaseMenuAddButton: {
-    flex: 1,
-    backgroundColor: '#1F2937',
-    borderWidth: 2,
-    borderColor: '#3B82F6',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  subPhaseMenuCancelButton: {
-    flex: 1,
-    backgroundColor: '#1F2937',
-    borderWidth: 2,
-    borderColor: '#4B5563',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  subPhaseMenuButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFF',
   },
   subPhaseTimelineRow: {
     backgroundColor: '#F9FAFB',

@@ -1,0 +1,2 @@
+Add this console.log as first line of handleRenamePhase:
+  console.log('[DEBUG] handleRenamePhase called with:', {renamePhaseId, renameValue});
