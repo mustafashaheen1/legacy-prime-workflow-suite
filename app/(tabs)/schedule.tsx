@@ -414,14 +414,32 @@ export default function ScheduleScreen() {
   };
 
   const handleRenameOption = () => {
-    if (!contextMenuPhase) return;
+    console.log('=== handleRenameOption CALLED ===');
+    console.log('contextMenuPhase:', contextMenuPhase);
+
+    if (!contextMenuPhase) {
+      console.log('EARLY RETURN: No contextMenuPhase');
+      return;
+    }
+
     const phase = getPhaseById(contextMenuPhase);
+    console.log('Found phase:', phase);
+
     if (phase) {
+      console.log('Setting rename state:');
+      console.log('  - renamePhaseId:', contextMenuPhase);
+      console.log('  - renameValue:', phase.name);
+      console.log('  - showRenameModal: true');
+
       setRenamePhaseId(contextMenuPhase);
       setRenameValue(phase.name);
       setShowRenameModal(true);
+    } else {
+      console.log('Phase not found, not opening modal');
     }
+
     closeContextMenu();
+    console.log('=== handleRenameOption COMPLETED ===');
   };
 
   const handleDeleteOption = async () => {
@@ -505,34 +523,72 @@ export default function ScheduleScreen() {
   };
 
   const handleRenamePhase = async () => {
-    if (!renamePhaseId || !renameValue.trim()) return;
+    console.log('=== handleRenamePhase CALLED ===');
+    console.log('renamePhaseId:', renamePhaseId);
+    console.log('renameValue:', renameValue);
+    console.log('renameValue.trim():', renameValue.trim());
 
+    if (!renamePhaseId || !renameValue.trim()) {
+      console.log('EARLY RETURN: Missing renamePhaseId or renameValue');
+      return;
+    }
+
+    console.log('Getting phase by ID...');
     const phase = getPhaseById(renamePhaseId);
-    if (!phase) return;
+    console.log('Found phase:', phase);
+
+    if (!phase) {
+      console.log('EARLY RETURN: Phase not found');
+      return;
+    }
 
     const oldName = phase.name;
     const newName = renameValue.trim();
+    console.log('Old name:', oldName);
+    console.log('New name:', newName);
 
     // Update the phase name
     if (renamePhaseId.startsWith('custom-main-')) {
-      setCustomMainCategories(prev =>
-        prev.map(c => c.id === renamePhaseId ? { ...c, name: newName } : c)
-      );
+      console.log('Updating custom main category...');
+      setCustomMainCategories(prev => {
+        const updated = prev.map(c => c.id === renamePhaseId ? { ...c, name: newName } : c);
+        console.log('Previous custom main categories:', prev);
+        console.log('Updated custom main categories:', updated);
+        return updated;
+      });
     } else if (renamePhaseId.startsWith('custom-sub-')) {
-      setCustomSubPhases(prev =>
-        prev.map(sp => sp.id === renamePhaseId ? { ...sp, name: newName } : sp)
-      );
+      console.log('Updating custom sub-phase...');
+      setCustomSubPhases(prev => {
+        const updated = prev.map(sp => sp.id === renamePhaseId ? { ...sp, name: newName } : sp);
+        console.log('Previous custom sub-phases:', prev);
+        console.log('Updated custom sub-phases:', updated);
+        return updated;
+      });
+    } else {
+      console.log('WARNING: Phase ID does not match custom-main or custom-sub pattern');
     }
 
     // Update all tasks with this category name
+    console.log('Filtering tasks to update...');
     const tasksToUpdate = scheduledTasks.filter(t => t.category === oldName);
+    console.log('Tasks to update count:', tasksToUpdate.length);
+    console.log('Tasks to update:', tasksToUpdate.map(t => ({ id: t.id, title: t.title, category: t.category })));
+
     for (const task of tasksToUpdate) {
-      await updateTask(task.id, { category: newName });
+      console.log(`Updating task ${task.id} category from "${oldName}" to "${newName}"`);
+      try {
+        await updateTask(task.id, { category: newName });
+        console.log(`Successfully updated task ${task.id}`);
+      } catch (error) {
+        console.error(`Failed to update task ${task.id}:`, error);
+      }
     }
 
+    console.log('Closing rename modal and resetting state...');
     setShowRenameModal(false);
     setRenamePhaseId(null);
     setRenameValue('');
+    console.log('=== handleRenamePhase COMPLETED ===');
   };
 
   const handleDeletePhase = async (phaseId: string) => {
@@ -1546,7 +1602,13 @@ export default function ScheduleScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.button, styles.buttonPrimary]}
-                  onPress={handleRenamePhase}
+                  onPress={() => {
+                    console.log('=== RENAME BUTTON PRESSED ===');
+                    console.log('Current renamePhaseId:', renamePhaseId);
+                    console.log('Current renameValue:', renameValue);
+                    console.log('Button disabled state:', !renameValue.trim());
+                    handleRenamePhase();
+                  }}
                   disabled={!renameValue.trim()}
                 >
                   <Text style={styles.buttonPrimaryText}>Rename</Text>
@@ -1578,12 +1640,24 @@ export default function ScheduleScreen() {
               <TouchableOpacity
                 style={styles.subPhaseMenuRenameButton}
                 onPress={() => {
+                  console.log('=== SUB-PHASE RENAME BUTTON PRESSED ===');
+                  console.log('subPhaseMenuPhase:', subPhaseMenuPhase);
+
                   if (subPhaseMenuPhase) {
+                    console.log('Setting rename state for sub-phase:');
+                    console.log('  - renamePhaseId:', subPhaseMenuPhase.id);
+                    console.log('  - renameValue:', subPhaseMenuPhase.name);
+                    console.log('  - showRenameModal: true');
+
                     setRenamePhaseId(subPhaseMenuPhase.id);
                     setRenameValue(subPhaseMenuPhase.name);
                     setShowRenameModal(true);
                     setSubPhaseMenuPhase(null);
+                  } else {
+                    console.log('WARNING: subPhaseMenuPhase is null');
                   }
+
+                  console.log('=== SUB-PHASE RENAME BUTTON HANDLER COMPLETED ===');
                 }}
               >
                 <Text style={styles.subPhaseMenuButtonText}>Rename</Text>
