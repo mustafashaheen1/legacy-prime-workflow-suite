@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, Alert, ActivityIndicator, PanResponder, Switch, Pressable, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Platform, Alert, ActivityIndicator, PanResponder, Switch, Pressable, Animated, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
@@ -160,6 +160,10 @@ export default function ScheduleScreen() {
 
   // Resize state
   const [resizingTask, setResizingTask] = useState<{ id: string; type: 'left' | 'right' } | null>(null);
+
+  // Scroll refs for synced horizontal scrolling
+  const headerScrollRef = useRef<ScrollView>(null);
+  const gridScrollRef = useRef<ScrollView>(null);
 
   // Computed dimensions based on zoom
   const dayWidth = DAY_WIDTH * zoomLevel;
@@ -336,6 +340,12 @@ export default function ScheduleScreen() {
 
   const handleZoomReset = () => {
     setZoomLevel(1.0);
+  };
+
+  // Sync scroll handler for grid and header
+  const handleGridScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    headerScrollRef.current?.scrollTo({ x: offsetX, animated: false });
   };
 
   // Context menu for phase management
@@ -745,8 +755,8 @@ export default function ScheduleScreen() {
         </View>
       ) : (
         <View style={styles.scheduleContainer}>
-          {/* UNIFIED SCROLLING CONTAINER - FIX #1 */}
-          <View style={styles.unifiedTableContainer}>
+          {/* UNIFIED SCROLLING CONTAINER - FIXED PHASE COLUMN + SYNCED TIMELINE */}
+          <View style={styles.ganttContainer}>
             {/* Fixed Header Row */}
             <View style={styles.fixedHeaderRow}>
               {/* Phases Header (Fixed) */}
@@ -754,10 +764,12 @@ export default function ScheduleScreen() {
                 <Text style={styles.phasesHeaderText}>PHASES</Text>
               </View>
 
-              {/* Timeline Header (Scrolls Horizontally) */}
+              {/* Timeline Header (Synced with Grid Scroll) */}
               <ScrollView
+                ref={headerScrollRef}
                 horizontal
-                showsHorizontalScrollIndicator={Platform.OS === 'web'}
+                showsHorizontalScrollIndicator={false}
+                scrollEnabled={false}
                 scrollEventThrottle={16}
               >
                 <View style={[styles.timelineHeader, { height: HEADER_HEIGHT }]}>
@@ -788,173 +800,113 @@ export default function ScheduleScreen() {
               </ScrollView>
             </View>
 
-            {/* Scrollable Content (Phases + Timeline Grid Together) */}
+            {/* Scrollable Content (Vertical) */}
             <ScrollView
               style={styles.contentScrollContainer}
               showsVerticalScrollIndicator={true}
             >
-              {CONSTRUCTION_CATEGORIES.map((phase, phaseIndex) => {
-                const isExpanded = expandedPhases.has(phaseIndex.toString());
-                const subPhases = getSubPhases(phaseIndex.toString());
-                const phaseTasks = getTasksForPhase(phase.name);
-                const Icon = phase.icon;
+              <View style={styles.ganttContentRow}>
+                {/* Fixed Phase Column (Sidebar) */}
+                <View style={[styles.phaseColumn, { width: SIDEBAR_WIDTH }]}>
+                  {CONSTRUCTION_CATEGORIES.map((phase, phaseIndex) => {
+                    const isExpanded = expandedPhases.has(phaseIndex.toString());
+                    const subPhases = getSubPhases(phaseIndex.toString());
+                    const Icon = phase.icon;
 
-                return (
-                  <View key={phaseIndex}>
-                    {/* Main phase row - Sidebar and Grid in same container */}
-                    <View style={styles.unifiedRow}>
-                      {/* Phase Sidebar Cell */}
-                      <TouchableOpacity
-                        style={[
-                          styles.phaseRow,
-                          phaseIndex % 2 === 1 && styles.phaseRowAlternate,
-                          selectedPhase === phaseIndex.toString() && styles.phaseRowSelected,
-                        ]}
-                        onPress={() => {
-                          setSelectedPhase(phaseIndex.toString());
-                          if (subPhases.length > 0) {
-                            togglePhase(phaseIndex.toString());
-                          }
-                        }}
-                        onLongPress={(e) => {
-                          const { pageX, pageY } = e.nativeEvent;
-                          openContextMenu(phaseIndex.toString(), pageX, pageY);
-                        }}
-                      >
-                        <View style={[styles.phaseColorStripe, { backgroundColor: phase.color }]} />
-                        <View style={styles.phaseContent}>
-                          {subPhases.length > 0 && (
-                            <View style={styles.phaseChevron}>
-                              {isExpanded ? (
-                                <ChevronRight size={16} color="#475569" style={{ transform: [{ rotate: '90deg' }] }} />
-                              ) : (
-                                <ChevronRight size={16} color="#475569" />
-                              )}
-                            </View>
-                          )}
-                          <Icon size={14} color={phase.color} />
-                          <Text style={styles.phaseName} numberOfLines={1}>
-                            {phase.name}
-                          </Text>
-                        </View>
+                    return (
+                      <View key={phaseIndex}>
+                        {/* Main phase sidebar cell */}
                         <TouchableOpacity
-                          style={styles.phaseAddButton}
-                          onPress={(e) => {
-                            e.stopPropagation();
+                          style={[
+                            styles.phaseRow,
+                            phaseIndex % 2 === 1 && styles.phaseRowAlternate,
+                            selectedPhase === phaseIndex.toString() && styles.phaseRowSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedPhase(phaseIndex.toString());
+                            if (subPhases.length > 0) {
+                              togglePhase(phaseIndex.toString());
+                            }
+                          }}
+                          onLongPress={(e) => {
                             const { pageX, pageY } = e.nativeEvent;
                             openContextMenu(phaseIndex.toString(), pageX, pageY);
                           }}
                         >
-                          <View style={styles.addButtonCircle}>
-                            <Plus size={14} color="#64748B" />
+                          <View style={[styles.phaseColorStripe, { backgroundColor: phase.color }]} />
+                          <View style={styles.phaseContent}>
+                            {subPhases.length > 0 && (
+                              <View style={styles.phaseChevron}>
+                                {isExpanded ? (
+                                  <ChevronRight size={16} color="#475569" style={{ transform: [{ rotate: '90deg' }] }} />
+                                ) : (
+                                  <ChevronRight size={16} color="#475569" />
+                                )}
+                              </View>
+                            )}
+                            <Icon size={14} color={phase.color} />
+                            <Text style={styles.phaseName} numberOfLines={1}>
+                              {phase.name}
+                            </Text>
                           </View>
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-
-                      {/* Timeline Grid for this row */}
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        scrollEventThrottle={16}
-                      >
-                        <View
-                          style={[
-                            styles.timelineRow,
-                            { height: rowHeight },
-                            phaseIndex % 2 === 0 && styles.timelineRowAlternate,
-                            selectedPhase === phaseIndex.toString() && styles.timelineRowSelected,
-                          ]}
-                        >
-                          {/* Grid cells */}
-                          {timelineDates.map((date, dateIndex) => (
-                            <Pressable
-                              key={dateIndex}
-                              style={[
-                                styles.gridCell,
-                                { width: dayWidth, height: rowHeight },
-                                isToday(date) && styles.gridCellToday,
-                              ]}
-                              onPress={() => handleGridCellPress(phaseIndex, dateIndex)}
-                            />
-                          ))}
-
-                          {/* Task bars with resize handles */}
-                          {phaseTasks.map(task => {
-                            const leftResizer = createResizePanResponder(task, 'left');
-                            const rightResizer = createResizePanResponder(task, 'right');
-
-                            return (
-                              <TouchableOpacity
-                                key={task.id}
-                                style={[
-                                  styles.taskBar,
-                                  {
-                                    left: getTaskPosition(task),
-                                    width: getTaskWidth(task),
-                                    height: barHeight,
-                                    top: (rowHeight - barHeight) / 2,
-                                    backgroundColor: task.completed ? '#10B981' : task.color,
-                                    opacity: task.completed ? 0.7 : 1,
-                                  },
-                                ]}
-                                onPress={() => handleTaskPress(task)}
-                              >
-                                {/* Left resize handle */}
-                                <View {...leftResizer.panHandlers} style={styles.resizeHandleLeft}>
-                                  <View style={styles.resizeDot} />
-                                </View>
-
-                                {/* Task content */}
-                                <View style={styles.taskBarContent}>
-                                  <Text style={styles.taskBarText} numberOfLines={1}>
-                                    {task.category}
-                                  </Text>
-                                  {task.completed && (
-                                    <CircleCheck size={12} color="#FFF" />
-                                  )}
-                                  {!task.visibleToClient && (
-                                    <EyeOff size={12} color="#FFF" />
-                                  )}
-                                </View>
-
-                                {/* Right resize handle */}
-                                <View {...rightResizer.panHandlers} style={styles.resizeHandleRight}>
-                                  <View style={styles.resizeDot} />
-                                </View>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </ScrollView>
-                    </View>
-
-                    {/* Sub-phase rows */}
-                    {isExpanded && subPhases.map((subPhase, subIndex) => (
-                      <View key={`${phaseIndex}-${subIndex}`} style={styles.unifiedRow}>
-                        {/* Sub-phase sidebar cell */}
-                        <TouchableOpacity
-                          style={styles.subPhaseRow}
-                          onPress={() => setSelectedPhase(`${phaseIndex}-${subIndex}`)}
-                        >
-                          <View style={styles.subPhaseIndent} />
-                          <Text style={styles.subPhaseName} numberOfLines={1}>
-                            {typeof subPhase === 'string' ? subPhase : subPhase}
-                          </Text>
+                          <TouchableOpacity
+                            style={styles.phaseAddButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              const { pageX, pageY } = e.nativeEvent;
+                              openContextMenu(phaseIndex.toString(), pageX, pageY);
+                            }}
+                          >
+                            <View style={styles.addButtonCircle}>
+                              <Plus size={14} color="#64748B" />
+                            </View>
+                          </TouchableOpacity>
                         </TouchableOpacity>
 
-                        {/* Sub-phase timeline grid */}
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          scrollEventThrottle={16}
-                        >
+                        {/* Sub-phase sidebar cells */}
+                        {isExpanded && subPhases.map((subPhase, subIndex) => (
+                          <TouchableOpacity
+                            key={`${phaseIndex}-${subIndex}`}
+                            style={styles.subPhaseRow}
+                            onPress={() => setSelectedPhase(`${phaseIndex}-${subIndex}`)}
+                          >
+                            <View style={styles.subPhaseIndent} />
+                            <Text style={styles.subPhaseName} numberOfLines={1}>
+                              {typeof subPhase === 'string' ? subPhase : subPhase}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </View>
+
+                {/* Scrollable Timeline Grid (All Rows Together) */}
+                <ScrollView
+                  ref={gridScrollRef}
+                  horizontal
+                  showsHorizontalScrollIndicator={Platform.OS === 'web'}
+                  scrollEventThrottle={16}
+                  onScroll={handleGridScroll}
+                >
+                  <View style={styles.gridContainer}>
+                    {CONSTRUCTION_CATEGORIES.map((phase, phaseIndex) => {
+                      const isExpanded = expandedPhases.has(phaseIndex.toString());
+                      const subPhases = getSubPhases(phaseIndex.toString());
+                      const phaseTasks = getTasksForPhase(phase.name);
+
+                      return (
+                        <View key={phaseIndex}>
+                          {/* Main phase timeline row */}
                           <View
                             style={[
                               styles.timelineRow,
-                              styles.subPhaseTimelineRow,
                               { height: rowHeight },
+                              phaseIndex % 2 === 0 && styles.timelineRowAlternate,
+                              selectedPhase === phaseIndex.toString() && styles.timelineRowSelected,
                             ]}
                           >
+                            {/* Grid cells */}
                             {timelineDates.map((date, dateIndex) => (
                               <Pressable
                                 key={dateIndex}
@@ -966,13 +918,84 @@ export default function ScheduleScreen() {
                                 onPress={() => handleGridCellPress(phaseIndex, dateIndex)}
                               />
                             ))}
+
+                            {/* Task bars with resize handles */}
+                            {phaseTasks.map(task => {
+                              const leftResizer = createResizePanResponder(task, 'left');
+                              const rightResizer = createResizePanResponder(task, 'right');
+
+                              return (
+                                <TouchableOpacity
+                                  key={task.id}
+                                  style={[
+                                    styles.taskBar,
+                                    {
+                                      left: getTaskPosition(task),
+                                      width: getTaskWidth(task),
+                                      height: barHeight,
+                                      top: (rowHeight - barHeight) / 2,
+                                      backgroundColor: task.completed ? '#10B981' : task.color,
+                                      opacity: task.completed ? 0.7 : 1,
+                                    },
+                                  ]}
+                                  onPress={() => handleTaskPress(task)}
+                                >
+                                  {/* Left resize handle */}
+                                  <View {...leftResizer.panHandlers} style={styles.resizeHandleLeft}>
+                                    <View style={styles.resizeDot} />
+                                  </View>
+
+                                  {/* Task content */}
+                                  <View style={styles.taskBarContent}>
+                                    <Text style={styles.taskBarText} numberOfLines={1}>
+                                      {task.category}
+                                    </Text>
+                                    {task.completed && (
+                                      <CircleCheck size={12} color="#FFF" />
+                                    )}
+                                    {!task.visibleToClient && (
+                                      <EyeOff size={12} color="#FFF" />
+                                    )}
+                                  </View>
+
+                                  {/* Right resize handle */}
+                                  <View {...rightResizer.panHandlers} style={styles.resizeHandleRight}>
+                                    <View style={styles.resizeDot} />
+                                  </View>
+                                </TouchableOpacity>
+                              );
+                            })}
                           </View>
-                        </ScrollView>
-                      </View>
-                    ))}
+
+                          {/* Sub-phase timeline rows */}
+                          {isExpanded && subPhases.map((subPhase, subIndex) => (
+                            <View
+                              key={`${phaseIndex}-${subIndex}`}
+                              style={[
+                                styles.timelineRow,
+                                styles.subPhaseTimelineRow,
+                                { height: rowHeight },
+                              ]}
+                            >
+                              {timelineDates.map((date, dateIndex) => (
+                                <Pressable
+                                  key={dateIndex}
+                                  style={[
+                                    styles.gridCell,
+                                    { width: dayWidth, height: rowHeight },
+                                    isToday(date) && styles.gridCellToday,
+                                  ]}
+                                  onPress={() => handleGridCellPress(phaseIndex, dateIndex)}
+                                />
+                              ))}
+                            </View>
+                          ))}
+                        </View>
+                      );
+                    })}
                   </View>
-                );
-              })}
+                </ScrollView>
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -1495,8 +1518,8 @@ const styles = StyleSheet.create({
   scheduleContainer: {
     flex: 1,
   },
-  // NEW: Unified scrolling structure
-  unifiedTableContainer: {
+  // Gantt chart container with fixed phase column
+  ganttContainer: {
     flex: 1,
   },
   fixedHeaderRow: {
@@ -1508,13 +1531,14 @@ const styles = StyleSheet.create({
   contentScrollContainer: {
     flex: 1,
   },
-  unifiedRow: {
+  ganttContentRow: {
     flexDirection: 'row',
   },
-  phaseSidebar: {
+  phaseColumn: {
     backgroundColor: '#F8FAFC',
-    borderRightWidth: 1,
-    borderRightColor: '#E5E7EB',
+  },
+  gridContainer: {
+    // Container for all timeline rows
   },
   phasesHeader: {
     height: HEADER_HEIGHT,
