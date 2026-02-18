@@ -1578,7 +1578,7 @@ export default function ScheduleScreen() {
               <TouchableOpacity
                 style={styles.subPhaseMenuRenameButton}
                 onPress={() => {
-                  if (subPhaseMenuPhase?.isCustom) {
+                  if (subPhaseMenuPhase) {
                     setRenamePhaseId(subPhaseMenuPhase.id);
                     setRenameValue(subPhaseMenuPhase.name);
                     setShowRenameModal(true);
@@ -1592,7 +1592,7 @@ export default function ScheduleScreen() {
               <TouchableOpacity
                 style={styles.subPhaseMenuDeleteButton}
                 onPress={() => {
-                  if (subPhaseMenuPhase?.isCustom) {
+                  if (subPhaseMenuPhase) {
                     const phaseId = subPhaseMenuPhase.id;
                     setSubPhaseMenuPhase(null);
                     handleDeletePhase(phaseId);
