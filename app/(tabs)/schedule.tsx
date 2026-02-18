@@ -114,10 +114,8 @@ export default function ScheduleScreen() {
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTaskWithStatus[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState<boolean>(false);
 
-  // Phase management
-  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(
-    new Set(CONSTRUCTION_CATEGORIES.map((_, i) => i.toString()))
-  );
+  // Phase management - Start with all phases COLLAPSED
+  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
   const [customSubPhases, setCustomSubPhases] = useState<SubPhase[]>([]);
   const [customMainCategories, setCustomMainCategories] = useState<Array<{ name: string; color: string; icon: any }>>([]);
 
