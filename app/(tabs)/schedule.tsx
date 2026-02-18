@@ -404,7 +404,7 @@ export default function ScheduleScreen() {
 
   const handleAddSubPhase = () => {
     setShowAddSubPhaseModal(true);
-    closeContextMenu();
+    // Keep contextMenuPhase - needed for saveSubPhase!
   };
 
   const handleInsertMainCategory = () => {
