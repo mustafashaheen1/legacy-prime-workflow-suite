@@ -779,6 +779,7 @@ export default function ScheduleScreen() {
                           styles.timelineRow,
                           { height: rowHeight },
                           phaseIndex % 2 === 0 && styles.timelineRowAlternate,
+                          selectedPhase === phaseIndex.toString() && styles.timelineRowSelected,
                         ]}
                       >
                         {/* Grid cells */}
@@ -1409,7 +1410,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFBFC',
   },
   phaseRowSelected: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#FEF3C7', // Yellow highlight matching instruction banner
   },
   phaseColorStripe: {
     width: 3,
@@ -1513,6 +1514,9 @@ const styles = StyleSheet.create({
   },
   timelineRowAlternate: {
     backgroundColor: '#FAFAFA',
+  },
+  timelineRowSelected: {
+    backgroundColor: '#FFFBEB', // Light yellow for selected phase row
   },
   gridCell: {
     borderRightWidth: 1,
