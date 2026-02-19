@@ -46,7 +46,7 @@ export default function GanttSidebar({
       </View>
 
       {/* Phase List */}
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={true}>
         {phases.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No phases yet</Text>

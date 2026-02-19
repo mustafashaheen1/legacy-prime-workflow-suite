@@ -18,8 +18,8 @@ interface PhaseRowProps {
 
 /**
  * Individual phase row in the sidebar.
- * Depth 0 (main phase): shows expand/collapse chevron + "+" to add sub-phase.
- * Depth 1 (sub-phase): indented, no expand chevron, no add button.
+ * Shows phase name with expand/collapse icon if it has children.
+ * Main phases (depth=0) show a "+" button to add sub-phases.
  */
 export default function PhaseRow({
   phase,
@@ -36,31 +36,19 @@ export default function PhaseRow({
   const indentWidth = depth * 20;
   const isMainPhase = depth === 0;
 
-  const handleMainPress = () => {
-    if (hasChildren) {
-      onToggle?.();
-    } else {
-      onPress?.();
-    }
-  };
-
   return (
     <TouchableOpacity
       style={[styles.row, { height: rowHeight, paddingLeft: 12 + indentWidth }]}
-      onPress={handleMainPress}
+      onPress={hasChildren ? onToggle : onPress}
       activeOpacity={0.7}
     >
-      {/* Expand/Collapse Icon (only for main phases with children) */}
-      {isMainPhase && (
+      {/* Expand/Collapse Icon — only when there are children */}
+      {hasChildren && (
         <View style={styles.iconContainer}>
-          {hasChildren ? (
-            isExpanded ? (
-              <ChevronDown size={14} color="#6B7280" strokeWidth={2} />
-            ) : (
-              <ChevronRight size={14} color="#6B7280" strokeWidth={2} />
-            )
+          {isExpanded ? (
+            <ChevronDown size={16} color="#6B7280" strokeWidth={2} />
           ) : (
-            <View style={styles.iconPlaceholder} />
+            <ChevronRight size={16} color="#6B7280" strokeWidth={2} />
           )}
         </View>
       )}
@@ -80,7 +68,7 @@ export default function PhaseRow({
         {phase.name}
       </Text>
 
-      {/* Add Sub-Phase button — only on main phases, internal view */}
+      {/* Add Sub-Phase button — main phases only, internal view */}
       {isMainPhase && !readOnly && onAddSubPhase && (
         <TouchableOpacity
           style={styles.addSubPhaseBtn}
@@ -105,22 +93,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
-    paddingRight: 8,
   },
   iconContainer: {
-    width: 20,
-    alignItems: 'center',
-    marginRight: 4,
-  },
-  iconPlaceholder: {
-    width: 14,
+    marginRight: 8,
   },
   colorIndicator: {
     width: 4,
     height: 20,
     borderRadius: 2,
     marginRight: 8,
-    flexShrink: 0,
   },
   phaseName: {
     flex: 1,
@@ -136,9 +117,6 @@ const styles = StyleSheet.create({
     height: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 6,
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#D1FAE5',
+    marginRight: 8,
   },
 });

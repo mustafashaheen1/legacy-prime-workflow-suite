@@ -19,13 +19,12 @@ interface TaskBarProps {
   onResizeStart?: (task: GanttTask, type: 'right', clientX: number, clientY: number) => void;
 }
 
-const COMPLETED_COLOR = '#10B981'; // Green for completed tasks
+const COMPLETED_COLOR = '#10B981';
 
 /**
  * Task bar visualization in the timeline.
- * - Turns green when task.completed = true
- * - Right-edge resize handle
- * - Distinguishes drag vs tap by movement threshold / time
+ * Turns green when task.completed = true.
+ * Supports drag and resize interactions.
  */
 export default function TaskBar({
   task,
@@ -52,9 +51,9 @@ export default function TaskBar({
   const handleTouchMove = (e: GestureResponderEvent) => {
     if (!onDragStart || !touchStartRef.current || dragStartedRef.current) return;
     const touch = e.nativeEvent;
-    const dx = Math.abs(touch.pageX - touchStartRef.current.x);
-    const dy = Math.abs(touch.pageY - touchStartRef.current.y);
-    if (dx > 6 || dy > 6) {
+    const deltaX = Math.abs(touch.pageX - touchStartRef.current.x);
+    const deltaY = Math.abs(touch.pageY - touchStartRef.current.y);
+    if (deltaX > 5 || deltaY > 5) {
       dragStartedRef.current = true;
       onDragStart(task, touch.pageX, touch.pageY);
       touchStartRef.current = null;
@@ -63,8 +62,8 @@ export default function TaskBar({
 
   const handleTouchEnd = () => {
     if (!touchStartRef.current) return;
-    const elapsed = Date.now() - touchStartRef.current.time;
-    if (elapsed < 250 && !dragStartedRef.current) {
+    const timeSinceStart = Date.now() - touchStartRef.current.time;
+    if (timeSinceStart < 200 && !dragStartedRef.current) {
       onPress?.();
     }
     touchStartRef.current = null;
@@ -73,7 +72,6 @@ export default function TaskBar({
 
   const handleResizeRightStart = (e: GestureResponderEvent) => {
     if (!onResizeStart) return;
-    e.stopPropagation();
     const touch = e.nativeEvent;
     onResizeStart(task, 'right', touch.pageX, touch.pageY);
   };
@@ -89,7 +87,6 @@ export default function TaskBar({
           height: position.height,
           backgroundColor: barColor,
         },
-        task.completed && styles.completedBar,
         isDragging && styles.dragging,
         isResizing && styles.resizing,
       ]}
@@ -97,7 +94,7 @@ export default function TaskBar({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Completion checkmark */}
+      {/* Completion checkmark badge — absolute so it doesn't shift text layout */}
       {task.completed && (
         <View style={styles.checkIcon}>
           <Check size={10} color="#FFFFFF" strokeWidth={3} />
@@ -108,14 +105,14 @@ export default function TaskBar({
         {task.category}
       </Text>
 
-      {/* Subcontractor badge (internal only — parent filters if client view) */}
+      {/* Work type indicator */}
       {task.workType === 'subcontractor' && (
         <View style={styles.subcontractorBadge}>
           <Text style={styles.badgeText}>SUB</Text>
         </View>
       )}
 
-      {/* Right resize handle */}
+      {/* Resize handle (right edge) */}
       {onResizeStart && (
         <TouchableOpacity
           style={styles.resizeHandle}
@@ -133,20 +130,13 @@ const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    padding: 8,
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  completedBar: {
-    opacity: 0.9,
   },
   dragging: {
     opacity: 0.7,
@@ -158,6 +148,9 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   checkIcon: {
+    position: 'absolute',
+    top: 4,
+    left: 6,
     width: 14,
     height: 14,
     borderRadius: 7,
@@ -168,11 +161,13 @@ const styles = StyleSheet.create({
   taskText: {
     color: '#FFFFFF',
     fontWeight: '600',
-    flex: 1,
   },
   subcontractorBadge: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 3,
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 4,
     paddingHorizontal: 4,
     paddingVertical: 2,
   },
@@ -186,14 +181,15 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    width: 18,
+    width: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
   resizeIndicator: {
-    width: 3,
-    height: 20,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    width: 4,
+    height: 24,
+    backgroundColor: '#FFFFFF',
     borderRadius: 2,
+    opacity: 0.8,
   },
 });
