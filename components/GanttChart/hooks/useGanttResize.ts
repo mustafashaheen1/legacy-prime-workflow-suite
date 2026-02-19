@@ -1,13 +1,12 @@
-import { useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { GanttTask } from '@/types';
 
 interface ResizeState {
   taskId: string;
-  type: 'right' | 'bottom';
+  type: 'right';
   startX: number;
-  startY: number;
   initialDuration: number;
-  initialRowSpan: number;
+  initialEndDate: Date;
 }
 
 interface UseGanttResizeProps {
@@ -19,128 +18,105 @@ interface UseGanttResizeProps {
 }
 
 interface UseGanttResizeReturn {
-  resizingTask: { id: string; type: 'right' | 'bottom' } | null;
-  handleResizeStart: (task: GanttTask, resizeType: 'right' | 'bottom', clientX: number, clientY: number) => void;
+  resizingTask: { id: string; type: 'right' } | null;
+  handleResizeStart: (task: GanttTask, resizeType: 'right', clientX: number, clientY: number) => void;
   handleResizeMove: (clientX: number, clientY: number) => void;
   handleResizeEnd: () => Promise<void>;
 }
 
 /**
- * Hook for task resize functionality
- * Follows existing schedule.tsx patterns with refs to avoid stale closures
+ * Hook for task resize (right-edge drag to extend duration).
+ * Returns resizingTask as reactive STATE so parent re-renders immediately.
+ * Also maintains a ref for synchronous access inside PanResponder callbacks.
  */
 export function useGanttResize({
   cellWidth,
-  rowHeight,
-  tasks,
   onUpdateTask,
   setTasks,
 }: UseGanttResizeProps): UseGanttResizeReturn {
+  // Reactive state for parent re-renders
+  const [resizingTask, setResizingTask] = useState<{ id: string; type: 'right' } | null>(null);
+
+  // Refs for synchronous access inside gesture callbacks
   const activeResizeRef = useRef<ResizeState | null>(null);
-  const resizingTaskRef = useRef<{ id: string; type: 'right' | 'bottom' } | null>(null);
+  const resizingTaskRef = useRef<{ id: string; type: 'right' } | null>(null);
+
+  // Keep both in sync
+  const setResizeState = (state: { id: string; type: 'right' } | null) => {
+    resizingTaskRef.current = state;
+    setResizingTask(state);
+  };
 
   const handleResizeStart = useCallback((
     task: GanttTask,
-    resizeType: 'right' | 'bottom',
+    resizeType: 'right',
     clientX: number,
-    clientY: number
+    _clientY: number
   ) => {
     const resizeState: ResizeState = {
       taskId: task.id,
       type: resizeType,
       startX: clientX,
-      startY: clientY,
       initialDuration: task.duration,
-      initialRowSpan: task.rowSpan || 1,
+      initialEndDate: new Date(task.endDate),
     };
 
-    // Store in ref for event listeners
     activeResizeRef.current = resizeState;
-    resizingTaskRef.current = { id: task.id, type: resizeType };
+    setResizeState({ id: task.id, type: resizeType });
 
-    console.log('[Gantt] Resize start:', resizeState);
+    console.log('[Gantt] Resize start:', { taskId: task.id, type: resizeType, clientX });
   }, []);
 
-  const handleResizeMove = useCallback((clientX: number, clientY: number) => {
-    // Read from ref to avoid stale closure
+  const handleResizeMove = useCallback((clientX: number, _clientY: number) => {
     const resize = activeResizeRef.current;
     if (!resize) return;
 
-    // Use functional setState to always get latest tasks
     setTasks(prevTasks => {
       const task = prevTasks.find(t => t.id === resize.taskId);
       if (!task) return prevTasks;
 
-      if (resize.type === 'right') {
-        // Calculate delta from initial position
-        const deltaX = clientX - resize.startX;
-        const deltaDays = Math.round(deltaX / cellWidth);
-        const newDuration = Math.max(1, resize.initialDuration + deltaDays);
+      const deltaX = clientX - resize.startX;
+      const deltaDays = Math.round(deltaX / cellWidth);
+      const newDuration = Math.max(1, resize.initialDuration + deltaDays);
 
-        if (newDuration !== task.duration) {
-          const newEndDate = new Date(task.startDate);
-          newEndDate.setDate(newEndDate.getDate() + newDuration);
+      if (newDuration === task.duration) return prevTasks;
 
-          return prevTasks.map(t =>
-            t.id === resize.taskId ? {
-              ...t,
-              duration: newDuration,
-              endDate: newEndDate.toISOString(),
-            } : t
-          );
-        }
-      } else if (resize.type === 'bottom') {
-        // Calculate delta from initial position
-        const deltaY = clientY - resize.startY;
-        const deltaRows = Math.round(deltaY / rowHeight);
-        const newRowSpan = Math.max(1, resize.initialRowSpan + deltaRows);
+      const newEndDate = new Date(task.startDate);
+      newEndDate.setDate(newEndDate.getDate() + newDuration);
 
-        if (newRowSpan !== (task.rowSpan || 1)) {
-          return prevTasks.map(t =>
-            t.id === resize.taskId ? { ...t, rowSpan: newRowSpan } : t
-          );
-        }
-      }
-
-      return prevTasks;
+      return prevTasks.map(t =>
+        t.id === resize.taskId
+          ? { ...t, duration: newDuration, endDate: newEndDate.toISOString() }
+          : t
+      );
     });
-  }, [cellWidth, rowHeight, setTasks]);
+  }, [cellWidth, setTasks]);
 
   const handleResizeEnd = useCallback(async () => {
     const resize = activeResizeRef.current;
     if (resize) {
-      // Use functional setState to get the latest task data
       let taskToSave: GanttTask | null = null;
 
       setTasks(prevTasks => {
         taskToSave = prevTasks.find(t => t.id === resize.taskId) || null;
-        return prevTasks; // Don't modify state, just read it
+        return prevTasks;
       });
 
       if (taskToSave) {
-        console.log('[Gantt] Saving task after resize:', {
-          id: taskToSave.id,
-          duration: taskToSave.duration,
-          endDate: taskToSave.endDate,
-          rowSpan: taskToSave.rowSpan,
-        });
-
-        // Save changes to database
-        await onUpdateTask(taskToSave.id, {
-          startDate: taskToSave.startDate,
-          endDate: taskToSave.endDate,
-          duration: taskToSave.duration,
-          rowSpan: taskToSave.rowSpan,
+        console.log('[Gantt] Saving task after resize:', (taskToSave as GanttTask).id);
+        await onUpdateTask((taskToSave as GanttTask).id, {
+          endDate: (taskToSave as GanttTask).endDate,
+          duration: (taskToSave as GanttTask).duration,
         });
       }
     }
 
     activeResizeRef.current = null;
-    resizingTaskRef.current = null;
+    setResizeState(null);
   }, [setTasks, onUpdateTask]);
 
   return {
-    resizingTask: resizingTaskRef.current,
+    resizingTask,
     handleResizeStart,
     handleResizeMove,
     handleResizeEnd,

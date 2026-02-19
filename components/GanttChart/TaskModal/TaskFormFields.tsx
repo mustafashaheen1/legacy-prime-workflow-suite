@@ -12,32 +12,32 @@ import { Calendar, User } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface TaskFormFieldsProps {
-  // Form values
   category: string;
   startDate: string;
   endDate: string;
   workType: 'in-house' | 'subcontractor';
   notes: string;
   visibleToClient: boolean;
-  // Form setters
   onCategoryChange: (value: string) => void;
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
   onWorkTypeChange: (value: 'in-house' | 'subcontractor') => void;
   onNotesChange: (value: string) => void;
   onVisibleToClientChange: (value: boolean) => void;
-  // Date picker state
   showStartDatePicker: boolean;
   showEndDatePicker: boolean;
   onShowStartDatePicker: (show: boolean) => void;
   onShowEndDatePicker: (show: boolean) => void;
-  // Read-only mode
   readOnly?: boolean;
+  /** Client view: hide work type toggle */
+  hideWorkType?: boolean;
+  /** Client view: hide internal notes */
+  hideNotes?: boolean;
 }
 
 /**
- * Form fields for task details
- * Shared between add and edit modals
+ * Reusable form fields for task details.
+ * hideWorkType and hideNotes are used in client view.
  */
 export default function TaskFormFields({
   category,
@@ -57,52 +57,36 @@ export default function TaskFormFields({
   onShowStartDatePicker,
   onShowEndDatePicker,
   readOnly = false,
+  hideWorkType = false,
+  hideNotes = false,
 }: TaskFormFieldsProps) {
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const handleStartDateChange = (event: any, date?: Date) => {
-    if (Platform.OS === 'android') {
-      onShowStartDatePicker(false);
-    }
-
+  const handleStartDateChange = (_event: any, date?: Date) => {
+    if (Platform.OS === 'android') onShowStartDatePicker(false);
     if (date) {
-      const isoDate = date.toISOString();
-      onStartDateChange(isoDate);
-
-      if (Platform.OS === 'ios') {
-        onShowStartDatePicker(false);
-      }
-    } else if (Platform.OS === 'android') {
-      onShowStartDatePicker(false);
+      onStartDateChange(date.toISOString());
+      if (Platform.OS === 'ios') onShowStartDatePicker(false);
     }
   };
 
-  const handleEndDateChange = (event: any, date?: Date) => {
-    if (Platform.OS === 'android') {
-      onShowEndDatePicker(false);
-    }
-
+  const handleEndDateChange = (_event: any, date?: Date) => {
+    if (Platform.OS === 'android') onShowEndDatePicker(false);
     if (date) {
-      const isoDate = date.toISOString();
-      onEndDateChange(isoDate);
-
-      if (Platform.OS === 'ios') {
-        onShowEndDatePicker(false);
-      }
-    } else if (Platform.OS === 'android') {
-      onShowEndDatePicker(false);
+      onEndDateChange(date.toISOString());
+      if (Platform.OS === 'ios') onShowEndDatePicker(false);
     }
   };
 
   return (
     <View style={styles.container}>
-      {/* Category */}
+      {/* Category / Name */}
       <View style={styles.field}>
-        <Text style={styles.label}>Category / Name</Text>
+        <Text style={styles.label}>Task Name</Text>
         <TextInput
           style={styles.input}
           value={category}
@@ -115,7 +99,6 @@ export default function TaskFormFields({
 
       {/* Date Range */}
       <View style={styles.row}>
-        {/* Start Date */}
         <View style={[styles.field, styles.halfWidth]}>
           <Text style={styles.label}>Start Date</Text>
           <TouchableOpacity
@@ -130,7 +113,6 @@ export default function TaskFormFields({
           </TouchableOpacity>
         </View>
 
-        {/* End Date */}
         <View style={[styles.field, styles.halfWidth]}>
           <Text style={styles.label}>End Date</Text>
           <TouchableOpacity
@@ -146,92 +128,74 @@ export default function TaskFormFields({
         </View>
       </View>
 
-      {/* Work Type */}
-      <View style={styles.field}>
-        <Text style={styles.label}>Work Type</Text>
-        <View style={styles.workTypeSelector}>
-          <TouchableOpacity
-            style={[
-              styles.workTypeButton,
-              workType === 'in-house' && styles.workTypeButtonActive,
-            ]}
-            onPress={() => !readOnly && onWorkTypeChange('in-house')}
-            disabled={readOnly}
-            activeOpacity={0.7}
-          >
-            <User
-              size={16}
-              color={workType === 'in-house' ? '#FFFFFF' : '#6B7280'}
-              strokeWidth={2}
-            />
-            <Text
-              style={[
-                styles.workTypeText,
-                workType === 'in-house' && styles.workTypeTextActive,
-              ]}
+      {/* Work Type — hidden in client view */}
+      {!hideWorkType && (
+        <View style={styles.field}>
+          <Text style={styles.label}>Work Type</Text>
+          <View style={styles.workTypeSelector}>
+            <TouchableOpacity
+              style={[styles.workTypeButton, workType === 'in-house' && styles.workTypeButtonActive]}
+              onPress={() => !readOnly && onWorkTypeChange('in-house')}
+              disabled={readOnly}
+              activeOpacity={0.7}
             >
-              In-House
-            </Text>
-          </TouchableOpacity>
+              <User size={16} color={workType === 'in-house' ? '#FFFFFF' : '#6B7280'} strokeWidth={2} />
+              <Text style={[styles.workTypeText, workType === 'in-house' && styles.workTypeTextActive]}>
+                In-House
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.workTypeButton,
-              workType === 'subcontractor' && styles.workTypeButtonActive,
-            ]}
-            onPress={() => !readOnly && onWorkTypeChange('subcontractor')}
-            disabled={readOnly}
-            activeOpacity={0.7}
-          >
-            <User
-              size={16}
-              color={workType === 'subcontractor' ? '#FFFFFF' : '#6B7280'}
-              strokeWidth={2}
-            />
-            <Text
-              style={[
-                styles.workTypeText,
-                workType === 'subcontractor' && styles.workTypeTextActive,
-              ]}
+            <TouchableOpacity
+              style={[styles.workTypeButton, workType === 'subcontractor' && styles.workTypeButtonActive]}
+              onPress={() => !readOnly && onWorkTypeChange('subcontractor')}
+              disabled={readOnly}
+              activeOpacity={0.7}
             >
-              Subcontractor
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Notes */}
-      <View style={styles.field}>
-        <Text style={styles.label}>Notes</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          value={notes}
-          onChangeText={onNotesChange}
-          placeholder="Add task notes..."
-          placeholderTextColor="#9CA3AF"
-          multiline
-          numberOfLines={4}
-          textAlignVertical="top"
-          editable={!readOnly}
-        />
-      </View>
-
-      {/* Visible to Client */}
-      <View style={styles.field}>
-        <View style={styles.switchRow}>
-          <View>
-            <Text style={styles.label}>Visible to Client</Text>
-            <Text style={styles.hint}>Show this task in client view</Text>
+              <User size={16} color={workType === 'subcontractor' ? '#FFFFFF' : '#6B7280'} strokeWidth={2} />
+              <Text style={[styles.workTypeText, workType === 'subcontractor' && styles.workTypeTextActive]}>
+                Subcontractor
+              </Text>
+            </TouchableOpacity>
           </View>
-          <Switch
-            value={visibleToClient}
-            onValueChange={onVisibleToClientChange}
-            trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-            thumbColor={visibleToClient ? '#10B981' : '#F3F4F6'}
-            disabled={readOnly}
+        </View>
+      )}
+
+      {/* Notes — hidden in client view */}
+      {!hideNotes && (
+        <View style={styles.field}>
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={notes}
+            onChangeText={onNotesChange}
+            placeholder="Add internal notes..."
+            placeholderTextColor="#9CA3AF"
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            editable={!readOnly}
           />
         </View>
-      </View>
+      )}
+
+      {/* Visible to Client toggle — only in internal view */}
+      {!hideWorkType && (
+        <View style={styles.field}>
+          <View style={styles.switchRow}>
+            <View>
+              <Text style={styles.label}>Visible to Client</Text>
+              <Text style={styles.hint}>Show this task in client-facing schedule</Text>
+            </View>
+            <Switch
+              value={visibleToClient}
+              onValueChange={onVisibleToClientChange}
+              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+              thumbColor={visibleToClient ? '#10B981' : '#F3F4F6'}
+              disabled={readOnly}
+            />
+          </View>
+        </View>
+      )}
 
       {/* Date Pickers */}
       {showStartDatePicker && (
@@ -242,7 +206,6 @@ export default function TaskFormFields({
           onChange={handleStartDateChange}
         />
       )}
-
       {showEndDatePicker && (
         <DateTimePicker
           value={endDate ? new Date(endDate) : new Date()}

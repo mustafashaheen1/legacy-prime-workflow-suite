@@ -13,6 +13,12 @@ export { default as GanttControls } from './GanttControls/GanttControls';
 export { default as TaskDetailModal } from './TaskModal/TaskDetailModal';
 export { default as TaskFormFields } from './TaskModal/TaskFormFields';
 
+// Phase Modal
+export { default as AddPhaseModal } from './AddPhaseModal/AddPhaseModal';
+
+// Types
+export type { GanttRow } from './GanttTimeline/GanttTimeline';
+
 // Print/Export
 export { default as PrintScheduleButton } from './PrintExport/PrintScheduleButton';
 export { default as PrintableScheduleView } from './PrintExport/PrintableScheduleView';

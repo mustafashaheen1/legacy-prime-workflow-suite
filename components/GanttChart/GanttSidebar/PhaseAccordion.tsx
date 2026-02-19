@@ -12,26 +12,30 @@ interface PhaseAccordionProps {
   phase: PhaseWithExpansion;
   onToggle: (phaseId: string) => void;
   onPhasePress?: (phase: SchedulePhase) => void;
+  onAddSubPhase?: (parentPhaseId: string) => void;
   rowHeight: number;
   fontSize: number;
+  readOnly?: boolean;
 }
 
 /**
- * Expandable phase accordion
- * Shows main phase and optionally its sub-phases
+ * Expandable phase accordion.
+ * Shows main phase row and, when expanded, all sub-phase rows.
  */
 export default function PhaseAccordion({
   phase,
   onToggle,
   onPhasePress,
+  onAddSubPhase,
   rowHeight,
   fontSize,
+  readOnly = false,
 }: PhaseAccordionProps) {
-  const hasSubPhases = phase.subPhases && phase.subPhases.length > 0;
+  const hasSubPhases = !!(phase.subPhases && phase.subPhases.length > 0);
 
   return (
     <View style={styles.container}>
-      {/* Main Phase */}
+      {/* Main Phase Row */}
       <PhaseRow
         phase={phase}
         isExpanded={phase.isExpanded}
@@ -39,23 +43,26 @@ export default function PhaseAccordion({
         depth={0}
         onToggle={() => onToggle(phase.id)}
         onPress={() => onPhasePress?.(phase)}
+        onAddSubPhase={onAddSubPhase ? () => onAddSubPhase(phase.id) : undefined}
         rowHeight={rowHeight}
         fontSize={fontSize}
+        readOnly={readOnly}
       />
 
-      {/* Sub-Phases (if expanded) */}
+      {/* Sub-Phases (visible only when expanded) */}
       {phase.isExpanded && hasSubPhases && (
         <View style={styles.subPhases}>
-          {phase.subPhases!.map((subPhase) => (
+          {phase.subPhases!.map(subPhase => (
             <PhaseRow
               key={subPhase.id}
               phase={subPhase}
-              isExpanded={subPhase.isExpanded}
+              isExpanded={false}
               hasChildren={false}
               depth={1}
               onPress={() => onPhasePress?.(subPhase)}
               rowHeight={rowHeight}
               fontSize={fontSize}
+              readOnly={readOnly}
             />
           ))}
         </View>

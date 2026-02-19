@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { ChevronRight, ChevronDown } from 'lucide-react-native';
+import { ChevronRight, ChevronDown, Plus } from 'lucide-react-native';
 import { SchedulePhase } from '@/types';
 
 interface PhaseRowProps {
@@ -10,13 +10,16 @@ interface PhaseRowProps {
   depth?: number;
   onToggle?: () => void;
   onPress?: () => void;
+  onAddSubPhase?: () => void;
   rowHeight: number;
   fontSize: number;
+  readOnly?: boolean;
 }
 
 /**
- * Individual phase row in the sidebar
- * Shows phase name with expand/collapse icon if it has children
+ * Individual phase row in the sidebar.
+ * Depth 0 (main phase): shows expand/collapse chevron + "+" to add sub-phase.
+ * Depth 1 (sub-phase): indented, no expand chevron, no add button.
  */
 export default function PhaseRow({
   phase,
@@ -25,24 +28,39 @@ export default function PhaseRow({
   depth = 0,
   onToggle,
   onPress,
+  onAddSubPhase,
   rowHeight,
   fontSize,
+  readOnly = false,
 }: PhaseRowProps) {
   const indentWidth = depth * 20;
+  const isMainPhase = depth === 0;
+
+  const handleMainPress = () => {
+    if (hasChildren) {
+      onToggle?.();
+    } else {
+      onPress?.();
+    }
+  };
 
   return (
     <TouchableOpacity
       style={[styles.row, { height: rowHeight, paddingLeft: 12 + indentWidth }]}
-      onPress={hasChildren ? onToggle : onPress}
+      onPress={handleMainPress}
       activeOpacity={0.7}
     >
-      {/* Expand/Collapse Icon */}
-      {hasChildren && (
+      {/* Expand/Collapse Icon (only for main phases with children) */}
+      {isMainPhase && (
         <View style={styles.iconContainer}>
-          {isExpanded ? (
-            <ChevronDown size={16} color="#6B7280" strokeWidth={2} />
+          {hasChildren ? (
+            isExpanded ? (
+              <ChevronDown size={14} color="#6B7280" strokeWidth={2} />
+            ) : (
+              <ChevronRight size={14} color="#6B7280" strokeWidth={2} />
+            )
           ) : (
-            <ChevronRight size={16} color="#6B7280" strokeWidth={2} />
+            <View style={styles.iconPlaceholder} />
           )}
         </View>
       )}
@@ -61,6 +79,21 @@ export default function PhaseRow({
       >
         {phase.name}
       </Text>
+
+      {/* Add Sub-Phase button — only on main phases, internal view */}
+      {isMainPhase && !readOnly && onAddSubPhase && (
+        <TouchableOpacity
+          style={styles.addSubPhaseBtn}
+          onPress={(e) => {
+            e.stopPropagation();
+            onAddSubPhase();
+          }}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+        >
+          <Plus size={14} color="#10B981" strokeWidth={2.5} />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
@@ -72,15 +105,22 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
+    paddingRight: 8,
   },
   iconContainer: {
-    marginRight: 8,
+    width: 20,
+    alignItems: 'center',
+    marginRight: 4,
+  },
+  iconPlaceholder: {
+    width: 14,
   },
   colorIndicator: {
     width: 4,
     height: 20,
     borderRadius: 2,
     marginRight: 8,
+    flexShrink: 0,
   },
   phaseName: {
     flex: 1,
@@ -90,5 +130,15 @@ const styles = StyleSheet.create({
   subPhaseName: {
     fontWeight: '500',
     color: '#4B5563',
+  },
+  addSubPhaseBtn: {
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 6,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
   },
 });

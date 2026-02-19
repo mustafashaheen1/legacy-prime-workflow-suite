@@ -14,6 +14,7 @@ interface GanttSidebarProps {
   onTogglePhase: (phaseId: string) => void;
   onPhasePress?: (phase: SchedulePhase) => void;
   onAddPhase?: () => void;
+  onAddSubPhase?: (parentPhaseId: string) => void;
   width: number;
   rowHeight: number;
   headerHeight: number;
@@ -22,13 +23,15 @@ interface GanttSidebarProps {
 }
 
 /**
- * Left sidebar showing phase hierarchy
+ * Left sidebar: hierarchical list of phases with accordion expand/collapse.
+ * Each main phase row shows a "+" button to add a sub-phase.
  */
 export default function GanttSidebar({
   phases,
   onTogglePhase,
   onPhasePress,
   onAddPhase,
+  onAddSubPhase,
   width,
   rowHeight,
   headerHeight,
@@ -43,26 +46,31 @@ export default function GanttSidebar({
       </View>
 
       {/* Phase List */}
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={true}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {phases.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No phases yet</Text>
+            <Text style={styles.emptyHint}>Tap "Add Phase" to get started</Text>
           </View>
         ) : (
-          phases.map((phase) => (
+          phases.map(phase => (
             <PhaseAccordion
               key={phase.id}
               phase={phase}
               onToggle={onTogglePhase}
               onPhasePress={onPhasePress}
+              onAddSubPhase={!readOnly ? onAddSubPhase : undefined}
               rowHeight={rowHeight}
               fontSize={fontSize}
+              readOnly={readOnly}
             />
           ))
         )}
 
-        {/* Add Phase Button */}
-        {!readOnly && onAddPhase && <AddPhaseButton onPress={onAddPhase} />}
+        {/* Add Phase Button — internal view only */}
+        {!readOnly && onAddPhase && (
+          <AddPhaseButton onPress={onAddPhase} />
+        )}
       </ScrollView>
     </View>
   );
@@ -91,10 +99,15 @@ const styles = StyleSheet.create({
   emptyState: {
     padding: 24,
     alignItems: 'center',
+    gap: 4,
   },
   emptyText: {
     fontSize: 14,
     color: '#9CA3AF',
     fontStyle: 'italic',
+  },
+  emptyHint: {
+    fontSize: 12,
+    color: '#D1D5DB',
   },
 });
