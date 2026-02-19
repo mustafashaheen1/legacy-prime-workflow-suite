@@ -3,7 +3,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
-import GanttSchedule from '@/components/GanttChart/GanttSchedule';
 import { Calendar, X, Plus, Trash2, Check, Share2, History, Printer, CheckSquare, BookOpen, FileText, Shovel, Mountain, Home, Droplets, Hammer, Triangle, DoorOpen, Shield, Wrench, Zap, Wind, Snowflake, Layers, Paintbrush, Bath, Lightbulb, Fan, Trees, Sparkles, ClipboardCheck, ChevronDown, ChevronRight, Eye, EyeOff, CircleCheck, Pencil, Clock } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto, DailyTask } from '@/types';
 import * as Clipboard from 'expo-clipboard';
@@ -1124,15 +1123,12 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {/* ── New GanttSchedule component ── */}
-      <GanttSchedule
-        projectId={selectedProject}
-        projectName={selectedProjectData?.name}
-        viewMode="internal"
-      />
-
-      {/* Legacy Gantt — disabled, replaced by GanttSchedule above */}
-      {(false as boolean) && (
+      {isLoadingTasks ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7C3AED" />
+          <Text style={styles.loadingText}>Loading schedule...</Text>
+        </View>
+      ) : (
         <View style={styles.scheduleContainer}>
           {/* UNIFIED SCROLLING CONTAINER - FIXED PHASE COLUMN + SYNCED TIMELINE */}
           <View style={styles.ganttContainer}>
@@ -1400,8 +1396,7 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {/* Legacy zoom controls — disabled (GanttSchedule has its own) */}
-      {false && Platform.OS === 'web' && (
+      {Platform.OS === 'web' && (
         <View style={styles.zoomControls}>
           <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut}>
             <Text style={styles.zoomButtonText}>-</Text>
