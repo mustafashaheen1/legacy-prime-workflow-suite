@@ -1280,7 +1280,7 @@ export default function ScheduleScreen() {
                 <ScrollView
                   ref={gridScrollRef}
                   horizontal
-                  showsHorizontalScrollIndicator={Platform.OS === 'web'}
+                  showsHorizontalScrollIndicator
                   scrollEventThrottle={16}
                   onScroll={handleGridScroll}
                 >
@@ -1396,7 +1396,7 @@ export default function ScheduleScreen() {
         </View>
       )}
 
-      {Platform.OS === 'web' && (
+      {Platform.OS !== 'android' && (
         <View style={styles.zoomControls}>
           <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut}>
             <Text style={styles.zoomButtonText}>-</Text>
