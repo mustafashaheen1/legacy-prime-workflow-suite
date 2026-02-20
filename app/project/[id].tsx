@@ -46,6 +46,7 @@ export default function ProjectDetailScreen() {
   const [viewingPhoto, setViewingPhoto] = useState<{ url: string; category: string; notes?: string; date: string } | null>(null);
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [budgetInput, setBudgetInput] = useState('');
+  const [contractAmountInput, setContractAmountInput] = useState('');
   const insets = useSafeAreaInsets();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
@@ -393,6 +394,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.85}
                 onPress={() => {
                   setBudgetInput(project.budget.toString());
+                  setContractAmountInput(project.contractAmount?.toString() ?? '');
                   setShowBudgetModal(true);
                 }}
                 style={{
@@ -2293,39 +2295,69 @@ export default function ProjectDetailScreen() {
               backgroundColor: '#FFFFFF',
               borderRadius: 16,
               padding: 24,
-              width: 320,
+              width: 340,
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 8 },
               shadowOpacity: 0.18,
               shadowRadius: 20,
             }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <Text style={{ fontSize: 17, fontWeight: '700', color: '#111827' }}>Edit Budget</Text>
               <TouchableOpacity onPress={() => setShowBudgetModal(false)}>
                 <X size={20} color="#6B7280" />
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 8 }}>Project Budget ($)</Text>
+
+            {/* Total Contract Amount */}
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Total Contract Amount
+            </Text>
+            <TextInput
+              value={contractAmountInput}
+              onChangeText={setContractAmountInput}
+              keyboardType="numeric"
+              placeholder={project.contractAmount ? project.contractAmount.toLocaleString() : 'e.g. 250000'}
+              placeholderTextColor="#9CA3AF"
+              style={{
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                borderRadius: 10,
+                paddingHorizontal: 14,
+                paddingVertical: 11,
+                fontSize: 16,
+                color: '#111827',
+                backgroundColor: '#F9FAFB',
+                marginBottom: 16,
+              }}
+              autoFocus
+            />
+
+            {/* Project Budget */}
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Project Budget
+            </Text>
             <TextInput
               value={budgetInput}
               onChangeText={setBudgetInput}
               keyboardType="numeric"
-              placeholder="0"
+              placeholder={project.budget ? project.budget.toLocaleString() : 'e.g. 200000'}
+              placeholderTextColor="#9CA3AF"
               style={{
                 borderWidth: 1,
                 borderColor: '#D1FAE5',
                 borderRadius: 10,
                 paddingHorizontal: 14,
-                paddingVertical: 12,
-                fontSize: 22,
-                fontWeight: '700',
+                paddingVertical: 11,
+                fontSize: 16,
                 color: '#064E3B',
                 backgroundColor: '#F0FDF4',
-                marginBottom: 20,
+                marginBottom: 24,
               }}
-              autoFocus
             />
+
+            {/* Buttons */}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
                 onPress={() => setShowBudgetModal(false)}
@@ -2335,13 +2367,31 @@ export default function ProjectDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
-                  const newBudget = parseFloat(budgetInput.replace(/,/g, ''));
-                  if (isNaN(newBudget) || newBudget < 0) {
-                    Alert.alert('Invalid Amount', 'Please enter a valid budget amount.');
-                    return;
+                  const updates: Partial<import('@/types').Project> = {};
+
+                  if (budgetInput.trim()) {
+                    const newBudget = parseFloat(budgetInput.replace(/,/g, ''));
+                    if (isNaN(newBudget) || newBudget < 0) {
+                      Alert.alert('Invalid Budget', 'Please enter a valid project budget.');
+                      return;
+                    }
+                    updates.budget = newBudget;
                   }
-                  updateProject(project.id, { budget: newBudget });
+
+                  if (contractAmountInput.trim()) {
+                    const newContract = parseFloat(contractAmountInput.replace(/,/g, ''));
+                    if (isNaN(newContract) || newContract < 0) {
+                      Alert.alert('Invalid Amount', 'Please enter a valid contract amount.');
+                      return;
+                    }
+                    updates.contractAmount = newContract;
+                  }
+
+                  if (Object.keys(updates).length > 0) {
+                    updateProject(project.id, updates);
+                  }
                   setShowBudgetModal(false);
+                  Alert.alert('Updated', 'Budget information saved successfully.');
                 }}
                 style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#10B981', alignItems: 'center' }}
               >

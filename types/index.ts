@@ -37,6 +37,7 @@ export interface Project {
   id: string;
   name: string;
   budget: number;
+  contractAmount?: number;
   expenses: number;
   progress: number;
   status: 'active' | 'completed' | 'on-hold' | 'archived';
