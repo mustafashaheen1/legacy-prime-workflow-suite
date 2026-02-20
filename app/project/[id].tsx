@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
-import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment } from '@/types';
+import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment, ScheduledTask } from '@/types';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
@@ -17,12 +17,12 @@ import * as DocumentPicker from 'expo-document-picker';
 import { ProjectFile, FileCategory } from '@/types';
 import { photoCategories } from '@/mocks/data';
 
-type TabType = 'overview' | 'estimate' | 'change-orders' | 'clock' | 'expenses' | 'photos' | 'videos' | 'files' | 'reports';
+type TabType = 'overview' | 'schedule' | 'estimate' | 'change-orders' | 'clock' | 'expenses' | 'photos' | 'videos' | 'files' | 'reports';
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [] } = useApp();
+  const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject } = useApp();
 
   const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
   const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string });
@@ -44,6 +44,8 @@ export default function ProjectDetailScreen() {
   const [showAIReportModal, setShowAIReportModal] = useState<boolean>(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [viewingPhoto, setViewingPhoto] = useState<{ url: string; category: string; notes?: string; date: string } | null>(null);
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [budgetInput, setBudgetInput] = useState('');
   const insets = useSafeAreaInsets();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
@@ -65,12 +67,13 @@ export default function ProjectDetailScreen() {
   }, [paymentsQuery.data]);
 
   useEffect(() => {
-    // All tabs now show content inline - no navigation needed
-    // This provides a better user experience with instant tab switching
     if (activeTab === 'reports' && company?.id) {
       refreshReports();
     }
-  }, [activeTab, company?.id, refreshReports]);
+    if (activeTab === 'schedule' && id) {
+      loadScheduledTasks(id as string);
+    }
+  }, [activeTab, company?.id, id, refreshReports, loadScheduledTasks]);
 
   // Removed - budgetRemaining and budgetUsedPercentage are now calculated after adjustedProjectTotal and totalJobCost
   
@@ -384,6 +387,42 @@ export default function ProjectDetailScreen() {
       case 'overview':
         return (
           <View style={styles.overviewContent}>
+            {/* Budget Banner */}
+            {user?.role !== 'field-employee' && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                  setBudgetInput(project.budget.toString());
+                  setShowBudgetModal(true);
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#F0FDF4',
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  marginBottom: 12,
+                  borderWidth: 1,
+                  borderColor: '#BBFCDA',
+                }}
+              >
+                <View style={{
+                  width: 36, height: 36, borderRadius: 18,
+                  backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                }}>
+                  <DollarSign size={18} color="#10B981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '500', marginBottom: 2 }}>Budget</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#064E3B' }}>
+                    ${project.budget.toLocaleString()}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#10B981' }}>Edit</Text>
+              </TouchableOpacity>
+            )}
+
             <Image
               source={{ uri: project.image }}
               style={styles.projectImage}
@@ -804,6 +843,139 @@ export default function ProjectDetailScreen() {
             </View>
           </View>
         );
+
+      case 'schedule': {
+        const projectScheduleTasks = scheduledTasks.filter(t => t.projectId === id);
+        const todaySched = new Date(); todaySched.setHours(0, 0, 0, 0);
+        const completedCount = projectScheduleTasks.filter(t => t.completed).length;
+
+        const fmtSchedDate = (dateStr: string) => {
+          if (!dateStr) return '—';
+          // Handle both plain date strings ('2026-02-18') and full ISO timestamps
+          const d = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00');
+          if (isNaN(d.getTime())) return '—';
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        };
+
+        const getTaskStatus = (task: ScheduledTask): 'completed' | 'overdue' | 'inprogress' => {
+          // Handle boolean true, string 'true', or number 1
+          if (task.completed === true || (task.completed as any) === 1 || (task.completed as any) === 'true') return 'completed';
+          if (!task.endDate) return 'inprogress';
+          const end = task.endDate.includes('T') ? new Date(task.endDate) : new Date(task.endDate + 'T12:00:00');
+          if (!isNaN(end.getTime()) && end < todaySched) return 'overdue';
+          return 'inprogress';
+        };
+
+        return (
+          <ScrollView style={{ flex: 1, backgroundColor: '#F1F5F9' }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <View>
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A' }}>Project Schedule</Text>
+                <Text style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>
+                  {projectScheduleTasks.length} phase{projectScheduleTasks.length !== 1 ? 's' : ''} · {completedCount} completed
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/schedule')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#2563EB', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 }}
+              >
+                <Calendar size={16} color="#FFFFFF" />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#FFFFFF' }}>Full Schedule</Text>
+              </TouchableOpacity>
+            </View>
+
+            {projectScheduleTasks.length === 0 ? (
+              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 14, padding: 40, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' }}>
+                <Calendar size={44} color="#CBD5E1" />
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#475569', marginTop: 14 }}>No Schedule Yet</Text>
+                <Text style={{ fontSize: 13, color: '#94A3B8', marginTop: 4, textAlign: 'center' }}>
+                  Open the full schedule to add phases and tasks for this project.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {projectScheduleTasks.map(task => {
+                  const status = getTaskStatus(task);
+                  const endDisplay = fmtSchedDate(task.endDate);
+                  return (
+                    <View key={task.id} style={{ backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                      {/* Title + status badge */}
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 }}>
+                          <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: task.color }} />
+                          <Text style={{ fontSize: 16, fontWeight: '700', color: '#0F172A', flex: 1 }}>{task.category}</Text>
+                        </View>
+                        {status === 'overdue' && (
+                          <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: '#DC2626' }}>Overdue</Text>
+                          </View>
+                        )}
+                        {status === 'completed' && (
+                          <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: '#16A34A' }}>Completed</Text>
+                          </View>
+                        )}
+                        {status === 'inprogress' && (
+                          <View style={{ backgroundColor: '#DBEAFE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: '#1D4ED8' }}>In Progress</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Work type badge */}
+                      <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, alignSelf: 'flex-start', marginBottom: 14 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#4F46E5' }}>
+                          {task.workType === 'subcontractor' ? 'Subcontractor' : 'In-House'}
+                        </Text>
+                      </View>
+
+                      {/* Dates + duration row */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 2 }}>Start</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172A' }}>{fmtSchedDate(task.startDate)}</Text>
+                        </View>
+                        <Text style={{ fontSize: 18, color: '#CBD5E1', marginHorizontal: 8 }}>→</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 2 }}>End</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172A' }}>{endDisplay}</Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 2 }}>Duration</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172A' }}>{task.duration}d</Text>
+                        </View>
+                      </View>
+
+                      {/* Notes */}
+                      {!!task.notes && (
+                        <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                          <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4 }}>Notes</Text>
+                          <Text style={{ fontSize: 13, color: '#374151', lineHeight: 19 }}>{task.notes}</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Footer CTA */}
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 14, padding: 20, alignItems: 'center', marginTop: 6, borderWidth: 1, borderColor: '#E2E8F0' }}>
+              <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', marginBottom: 14 }}>
+                Open full schedule for editing, adding new phases, and detailed timeline view
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/schedule')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 10, borderWidth: 1.5, borderColor: '#2563EB' }}
+              >
+                <Calendar size={16} color="#2563EB" />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#2563EB' }}>Open Full Schedule</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        );
+      }
 
       case 'estimate':
         console.log('[Estimate Tab] Debug info:', {
@@ -2023,6 +2195,14 @@ export default function ProjectDetailScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={[styles.tab, activeTab === 'schedule' && styles.activeTab]}
+            onPress={() => setActiveTab('schedule')}
+          >
+            <Text style={[styles.tabText, activeTab === 'schedule' && styles.activeTabText]}>
+              Schedule
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.tab, activeTab === 'estimate' && styles.activeTab]}
             onPress={() => setActiveTab('estimate')}
           >
@@ -2093,6 +2273,84 @@ export default function ProjectDetailScreen() {
         {renderTabContent()}
       </ScrollView>
       </View>
+
+      {/* Budget Edit Modal */}
+      <Modal
+        visible={showBudgetModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBudgetModal(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setShowBudgetModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 16,
+              padding: 24,
+              width: 320,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.18,
+              shadowRadius: 20,
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: '#111827' }}>Edit Budget</Text>
+              <TouchableOpacity onPress={() => setShowBudgetModal(false)}>
+                <X size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 8 }}>Project Budget ($)</Text>
+            <TextInput
+              value={budgetInput}
+              onChangeText={setBudgetInput}
+              keyboardType="numeric"
+              placeholder="0"
+              style={{
+                borderWidth: 1,
+                borderColor: '#D1FAE5',
+                borderRadius: 10,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                fontSize: 22,
+                fontWeight: '700',
+                color: '#064E3B',
+                backgroundColor: '#F0FDF4',
+                marginBottom: 20,
+              }}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => setShowBudgetModal(false)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#6B7280' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  const newBudget = parseFloat(budgetInput.replace(/,/g, ''));
+                  if (isNaN(newBudget) || newBudget < 0) {
+                    Alert.alert('Invalid Amount', 'Please enter a valid budget amount.');
+                    return;
+                  }
+                  updateProject(project.id, { budget: newBudget });
+                  setShowBudgetModal(false);
+                }}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#10B981', alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <Modal
         visible={showAIReportModal}
