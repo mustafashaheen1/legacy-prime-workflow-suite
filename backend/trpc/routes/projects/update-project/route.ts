@@ -8,6 +8,7 @@ export const updateProjectProcedure = publicProcedure
       id: z.string().uuid(),
       name: z.string().min(1).optional(),
       budget: z.number().optional(),
+      contractAmount: z.number().optional(),
       expenses: z.number().optional(),
       progress: z.number().min(0).max(100).optional(),
       status: z.enum(['active', 'completed', 'on-hold', 'archived']).optional(),
@@ -35,6 +36,7 @@ export const updateProjectProcedure = publicProcedure
       const updateData: any = {};
       if (input.name !== undefined) updateData.name = input.name;
       if (input.budget !== undefined) updateData.budget = input.budget;
+      if (input.contractAmount !== undefined) updateData.contract_amount = input.contractAmount;
       if (input.expenses !== undefined) updateData.expenses = input.expenses;
       if (input.progress !== undefined) updateData.progress = input.progress;
       if (input.status !== undefined) updateData.status = input.status;
@@ -68,6 +70,7 @@ export const updateProjectProcedure = publicProcedure
           id: data.id,
           name: data.name,
           budget: Number(data.budget) || 0,
+          contractAmount: data.contract_amount != null ? Number(data.contract_amount) : undefined,
           expenses: Number(data.expenses) || 0,
           progress: data.progress || 0,
           status: data.status as 'active' | 'completed' | 'on-hold' | 'archived',

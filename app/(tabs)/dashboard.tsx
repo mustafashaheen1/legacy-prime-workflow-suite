@@ -68,7 +68,12 @@ export default function DashboardScreen() {
   const displayProjects = showArchived ? filteredArchivedProjects : filteredActiveProjects;
 
   const totalBudget = activeProjects.reduce((sum, p) => sum + p.budget, 0);
-  const totalExpenses = activeProjects.reduce((sum, p) => sum + p.expenses, 0);
+  const totalSold = activeProjects.reduce((sum, p) => sum + (p.contractAmount ?? 0), 0);
+  const totalExpenses = useMemo(() =>
+    expenses.filter(e => activeProjects.some(p => p.id === e.projectId))
+      .reduce((sum, e) => sum + e.amount, 0),
+    [expenses, activeProjects]
+  );
 
   const monthlySales = useMemo(() => {
     const months = ['Oct', 'Dec', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
@@ -1237,7 +1242,7 @@ export default function DashboardScreen() {
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Text style={styles.statTitle}>{t('dashboard.totalSold')}</Text>
-            <Text style={styles.statValue}>${(1500000).toLocaleString()}</Text>
+            <Text style={styles.statValue}>${totalSold.toLocaleString()}</Text>
             <View style={styles.chartContainer}>
               {monthlySales.map((sale, index) => {
                 const height = (sale.amount / maxSale) * 100;

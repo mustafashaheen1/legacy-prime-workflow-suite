@@ -12,7 +12,8 @@ import GlobalAIChatSimple from '@/components/GlobalAIChatSimple';
 import { Image } from 'expo-image';
 import UploaderBadge from '@/components/UploaderBadge';
 import * as ImagePicker from 'expo-image-picker';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import { ProjectFile, FileCategory } from '@/types';
 import { photoCategories } from '@/mocks/data';
@@ -45,8 +46,14 @@ export default function ProjectDetailScreen() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [viewingPhoto, setViewingPhoto] = useState<{ url: string; category: string; notes?: string; date: string } | null>(null);
   const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [showBudgetPinModal, setShowBudgetPinModal] = useState(false);
   const [budgetInput, setBudgetInput] = useState('');
   const [contractAmountInput, setContractAmountInput] = useState('');
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [showSetPinModal, setShowSetPinModal] = useState(false);
+  const [newPinInput, setNewPinInput] = useState('');
+  const [confirmPinInput, setConfirmPinInput] = useState('');
   const insets = useSafeAreaInsets();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
@@ -392,10 +399,17 @@ export default function ProjectDetailScreen() {
             {user?.role !== 'field-employee' && (
               <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={() => {
+                onPress={async () => {
                   setBudgetInput(project.budget.toString());
                   setContractAmountInput(project.contractAmount?.toString() ?? '');
-                  setShowBudgetModal(true);
+                  const storedPin = await AsyncStorage.getItem(`budget_pin_${company?.id}`);
+                  if (storedPin) {
+                    setPinInput('');
+                    setPinError('');
+                    setShowBudgetPinModal(true);
+                  } else {
+                    setShowBudgetModal(true);
+                  }
                 }}
                 style={{
                   flexDirection: 'row',
@@ -2276,7 +2290,165 @@ export default function ProjectDetailScreen() {
       </ScrollView>
       </View>
 
-      {/* Budget Edit Modal */}
+      {/* ── PIN Entry Modal ── */}
+      <Modal
+        visible={showBudgetPinModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBudgetPinModal(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setShowBudgetPinModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#FFFFFF', borderRadius: 20, padding: 28, width: 320,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 24,
+              alignItems: 'center',
+            }}
+          >
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#F0FDF4', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <DollarSign size={26} color="#10B981" />
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 }}>Enter Budget PIN</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 24, textAlign: 'center' }}>
+              This area is protected. Enter your PIN to edit budget and contract amounts.
+            </Text>
+            <TextInput
+              value={pinInput}
+              onChangeText={v => { setPinInput(v); setPinError(''); }}
+              keyboardType="numeric"
+              secureTextEntry
+              maxLength={8}
+              placeholder="● ● ● ●"
+              placeholderTextColor="#D1D5DB"
+              autoFocus
+              style={{
+                width: '100%', borderWidth: 2,
+                borderColor: pinError ? '#EF4444' : '#E5E7EB',
+                borderRadius: 12, paddingHorizontal: 18, paddingVertical: 14,
+                fontSize: 22, textAlign: 'center', letterSpacing: 6,
+                color: '#111827', marginBottom: 8,
+              }}
+            />
+            {!!pinError && (
+              <Text style={{ fontSize: 12, color: '#EF4444', marginBottom: 12 }}>{pinError}</Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 8 }}>
+              <TouchableOpacity
+                onPress={() => setShowBudgetPinModal(false)}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#6B7280' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  const stored = await AsyncStorage.getItem(`budget_pin_${company?.id}`);
+                  if (pinInput === stored) {
+                    setShowBudgetPinModal(false);
+                    setShowBudgetModal(true);
+                  } else {
+                    setPinError('Incorrect PIN. Please try again.');
+                    setPinInput('');
+                  }
+                }}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: '#10B981', alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>Unlock</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Set / Change PIN Modal ── */}
+      <Modal
+        visible={showSetPinModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSetPinModal(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setShowSetPinModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, width: 320,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 24,
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Set Budget PIN</Text>
+              <TouchableOpacity onPress={() => setShowSetPinModal(false)}>
+                <X size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
+              Create a PIN to protect budget and contract amount edits. Only the business owner should know this PIN.
+            </Text>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6 }}>New PIN</Text>
+            <TextInput
+              value={newPinInput}
+              onChangeText={setNewPinInput}
+              keyboardType="numeric"
+              secureTextEntry
+              maxLength={8}
+              placeholder="Enter PIN"
+              placeholderTextColor="#D1D5DB"
+              style={{
+                borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
+                paddingHorizontal: 14, paddingVertical: 11, fontSize: 18,
+                textAlign: 'center', letterSpacing: 4, color: '#111827', marginBottom: 12,
+              }}
+            />
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6 }}>Confirm PIN</Text>
+            <TextInput
+              value={confirmPinInput}
+              onChangeText={setConfirmPinInput}
+              keyboardType="numeric"
+              secureTextEntry
+              maxLength={8}
+              placeholder="Confirm PIN"
+              placeholderTextColor="#D1D5DB"
+              style={{
+                borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
+                paddingHorizontal: 14, paddingVertical: 11, fontSize: 18,
+                textAlign: 'center', letterSpacing: 4, color: '#111827', marginBottom: 20,
+              }}
+            />
+            <TouchableOpacity
+              onPress={async () => {
+                if (newPinInput.length < 4) {
+                  Alert.alert('Too Short', 'PIN must be at least 4 digits.');
+                  return;
+                }
+                if (newPinInput !== confirmPinInput) {
+                  Alert.alert('Mismatch', 'PINs do not match. Please try again.');
+                  return;
+                }
+                await AsyncStorage.setItem(`budget_pin_${company?.id}`, newPinInput);
+                setShowSetPinModal(false);
+                setNewPinInput('');
+                setConfirmPinInput('');
+                Alert.alert('PIN Set', 'Budget PIN has been saved. You will need it next time you edit the budget.');
+              }}
+              style={{ paddingVertical: 13, borderRadius: 12, backgroundColor: '#10B981', alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>Save PIN</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Budget Edit Modal ── */}
       <Modal
         visible={showBudgetModal}
         transparent
@@ -2292,14 +2464,8 @@ export default function ProjectDetailScreen() {
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: 16,
-              padding: 24,
-              width: 340,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.18,
-              shadowRadius: 20,
+              backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, width: 340,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 20,
             }}
           >
             {/* Header */}
@@ -2318,18 +2484,12 @@ export default function ProjectDetailScreen() {
               value={contractAmountInput}
               onChangeText={setContractAmountInput}
               keyboardType="numeric"
-              placeholder={project.contractAmount ? project.contractAmount.toLocaleString() : 'e.g. 250000'}
+              placeholder={project.contractAmount ? project.contractAmount.toLocaleString() : 'e.g. 300000'}
               placeholderTextColor="#9CA3AF"
               style={{
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                borderRadius: 10,
-                paddingHorizontal: 14,
-                paddingVertical: 11,
-                fontSize: 16,
-                color: '#111827',
-                backgroundColor: '#F9FAFB',
-                marginBottom: 16,
+                borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10,
+                paddingHorizontal: 14, paddingVertical: 11, fontSize: 16,
+                color: '#111827', backgroundColor: '#F9FAFB', marginBottom: 16,
               }}
               autoFocus
             />
@@ -2342,23 +2502,17 @@ export default function ProjectDetailScreen() {
               value={budgetInput}
               onChangeText={setBudgetInput}
               keyboardType="numeric"
-              placeholder={project.budget ? project.budget.toLocaleString() : 'e.g. 200000'}
+              placeholder={project.budget ? project.budget.toLocaleString() : 'e.g. 250000'}
               placeholderTextColor="#9CA3AF"
               style={{
-                borderWidth: 1,
-                borderColor: '#D1FAE5',
-                borderRadius: 10,
-                paddingHorizontal: 14,
-                paddingVertical: 11,
-                fontSize: 16,
-                color: '#064E3B',
-                backgroundColor: '#F0FDF4',
-                marginBottom: 24,
+                borderWidth: 1, borderColor: '#D1FAE5', borderRadius: 10,
+                paddingHorizontal: 14, paddingVertical: 11, fontSize: 16,
+                color: '#064E3B', backgroundColor: '#F0FDF4', marginBottom: 20,
               }}
             />
 
-            {/* Buttons */}
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            {/* Save / Cancel */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
               <TouchableOpacity
                 onPress={() => setShowBudgetModal(false)}
                 style={{ flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center' }}
@@ -2368,36 +2522,40 @@ export default function ProjectDetailScreen() {
               <TouchableOpacity
                 onPress={() => {
                   const updates: Partial<import('@/types').Project> = {};
-
                   if (budgetInput.trim()) {
-                    const newBudget = parseFloat(budgetInput.replace(/,/g, ''));
-                    if (isNaN(newBudget) || newBudget < 0) {
-                      Alert.alert('Invalid Budget', 'Please enter a valid project budget.');
-                      return;
-                    }
-                    updates.budget = newBudget;
+                    const v = parseFloat(budgetInput.replace(/,/g, ''));
+                    if (isNaN(v) || v < 0) { Alert.alert('Invalid Budget', 'Enter a valid project budget.'); return; }
+                    updates.budget = v;
                   }
-
                   if (contractAmountInput.trim()) {
-                    const newContract = parseFloat(contractAmountInput.replace(/,/g, ''));
-                    if (isNaN(newContract) || newContract < 0) {
-                      Alert.alert('Invalid Amount', 'Please enter a valid contract amount.');
-                      return;
-                    }
-                    updates.contractAmount = newContract;
+                    const v = parseFloat(contractAmountInput.replace(/,/g, ''));
+                    if (isNaN(v) || v < 0) { Alert.alert('Invalid Amount', 'Enter a valid contract amount.'); return; }
+                    updates.contractAmount = v;
                   }
-
-                  if (Object.keys(updates).length > 0) {
-                    updateProject(project.id, updates);
-                  }
+                  if (Object.keys(updates).length > 0) updateProject(project.id, updates);
                   setShowBudgetModal(false);
-                  Alert.alert('Updated', 'Budget information saved successfully.');
+                  Alert.alert('Saved', 'Budget information updated successfully.');
                 }}
                 style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#10B981', alignItems: 'center' }}
               >
                 <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>Save</Text>
               </TouchableOpacity>
             </View>
+
+            {/* PIN management link */}
+            <TouchableOpacity
+              onPress={() => {
+                setShowBudgetModal(false);
+                setNewPinInput('');
+                setConfirmPinInput('');
+                setShowSetPinModal(true);
+              }}
+              style={{ alignItems: 'center', paddingVertical: 8 }}
+            >
+              <Text style={{ fontSize: 12, color: '#10B981', fontWeight: '500' }}>
+                🔒 Set / Change Budget PIN
+              </Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>

@@ -46,6 +46,7 @@ export const getProjectsProcedure = publicProcedure
         id: project.id,
         name: project.name,
         budget: Number(project.budget) || 0,
+        contractAmount: project.contract_amount != null ? Number(project.contract_amount) : undefined,
         expenses: Number(project.expenses) || 0,
         progress: project.progress || 0,
         status: project.status as 'active' | 'completed' | 'on-hold' | 'archived',
