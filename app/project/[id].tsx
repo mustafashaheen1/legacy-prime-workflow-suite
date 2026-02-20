@@ -478,32 +478,6 @@ export default function ProjectDetailScreen() {
                   </View>
                 </View>
 
-                {/* Cost Breakdown */}
-                {(laborCosts > 0 || materialCosts > 0) && (
-                  <View style={styles.costBreakdownSection}>
-                    <Text style={styles.costBreakdownTitle}>Cost Breakdown</Text>
-                    <View style={styles.costBreakdownCard}>
-                      {materialCosts > 0 && (
-                        <View style={styles.costRow}>
-                          <Text style={styles.costLabel}>Material & Other Costs:</Text>
-                          <Text style={styles.costValue}>${materialCosts.toLocaleString()}</Text>
-                        </View>
-                      )}
-                      {laborCosts > 0 && (
-                        <View style={styles.costRow}>
-                          <Text style={styles.costLabel}>Labor Costs:</Text>
-                          <Text style={styles.costValue}>${laborCosts.toLocaleString()}</Text>
-                        </View>
-                      )}
-                      <View style={styles.costDivider} />
-                      <View style={styles.costRow}>
-                        <Text style={styles.costLabelBold}>Total Job Cost:</Text>
-                        <Text style={styles.costValueBold}>${totalJobCost.toLocaleString()}</Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-
                 {totalBudgetAllowance > 0 && (
                   <View style={styles.budgetAllowanceSection}>
                     <View style={styles.budgetAllowanceHeader}>
