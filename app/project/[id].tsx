@@ -867,14 +867,12 @@ export default function ProjectDetailScreen() {
 
         const fmtSchedDate = (dateStr: string) => {
           if (!dateStr) return '—';
-          // Handle both plain date strings ('2026-02-18') and full ISO timestamps
           const d = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00');
           if (isNaN(d.getTime())) return '—';
           return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         };
 
         const getTaskStatus = (task: ScheduledTask): 'completed' | 'overdue' | 'inprogress' => {
-          // Handle boolean true, string 'true', or number 1
           if (task.completed === true || (task.completed as any) === 1 || (task.completed as any) === 'true') return 'completed';
           if (!task.endDate) return 'inprogress';
           const end = task.endDate.includes('T') ? new Date(task.endDate) : new Date(task.endDate + 'T12:00:00');
@@ -883,11 +881,286 @@ export default function ProjectDetailScreen() {
         };
 
         return (
-          <ScrollView style={{ flex: 1, backgroundColor: '#F1F5F9' }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-            {/* Header */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <View style={styles.overviewContent}>
+            {/* ── Financial Overview ── */}
+            {user?.role !== 'field-employee' && (
+              <View style={styles.balancesCard}>
+                <View style={styles.cardHeader}>
+                  <Wallet size={20} color="#10B981" />
+                  <Text style={styles.cardTitle}>Financial Overview</Text>
+                </View>
+                <View style={styles.topMetrics}>
+                  <View style={styles.topMetricLarge}>
+                    <Text style={styles.topMetricLabel}>Job Total Agreement</Text>
+                    <Text style={styles.topMetricValue}>${adjustedProjectTotal.toLocaleString()}</Text>
+                    <Text style={styles.topMetricSubtext}>
+                      {totalChangeOrdersApproved > 0
+                        ? `Base: ${project.budget.toLocaleString()} + CO: ${totalChangeOrdersApproved.toLocaleString()}`
+                        : 'Contract Value'}
+                    </Text>
+                  </View>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Total Expenses</Text>
+                    <Text style={[styles.topMetricValue, { color: '#EF4444' }]}>${totalJobCost.toLocaleString()}</Text>
+                    <Text style={styles.topMetricSubtext}>{projectExpenses.length} transactions</Text>
+                  </View>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Remaining Budget</Text>
+                    <Text style={[styles.topMetricValue, { color: budgetRemaining >= 0 ? '#10B981' : '#EF4444' }]}>
+                      ${Math.abs(budgetRemaining).toLocaleString()}
+                    </Text>
+                    <Text style={styles.topMetricSubtext}>
+                      {budgetRemaining >= 0 ? 'Available' : 'Over Budget'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Cost Breakdown grid */}
+                <View style={styles.divider} />
+                <Text style={styles.sectionSubtitle}>Cost Breakdown</Text>
+                <View style={styles.balancesGrid}>
+                  <View style={styles.balanceItem}>
+                    <View style={[styles.balanceIconContainer, { backgroundColor: '#FEE2E2' }]}>
+                      <Users size={16} color="#EF4444" />
+                    </View>
+                    <Text style={styles.balanceLabel}>Subcontractors</Text>
+                    <Text style={[styles.balanceValue, { color: '#EF4444', fontSize: 16 }]}>${totalSubcontractorCost.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.balanceItem}>
+                    <View style={[styles.balanceIconContainer, { backgroundColor: '#DBEAFE' }]}>
+                      <UserCheck size={16} color="#2563EB" />
+                    </View>
+                    <Text style={styles.balanceLabel}>Labor</Text>
+                    <Text style={[styles.balanceValue, { color: '#2563EB', fontSize: 16 }]}>${totalLaborCost.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.balanceItem}>
+                    <View style={[styles.balanceIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                      <FileText size={16} color="#F59E0B" />
+                    </View>
+                    <Text style={styles.balanceLabel}>Materials</Text>
+                    <Text style={[styles.balanceValue, { color: '#F59E0B', fontSize: 16 }]}>${totalMaterialCost.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.balanceItem}>
+                    <View style={[styles.balanceIconContainer, { backgroundColor: '#E9D5FF' }]}>
+                      <DollarSign size={16} color="#9333EA" />
+                    </View>
+                    <Text style={styles.balanceLabel}>Other Costs</Text>
+                    <Text style={[styles.balanceValue, { color: '#9333EA', fontSize: 16 }]}>
+                      ${((expensesByType['Office'] || 0) + (expensesByType['Others'] || 0)).toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Payment & Profit */}
+                <View style={styles.divider} />
+                <Text style={styles.sectionSubtitle}>Payment & Profit Status</Text>
+                <View style={styles.paymentGrid}>
+                  <View style={styles.paymentMetric}>
+                    <View style={styles.paymentMetricHeader}>
+                      <CreditCard size={18} color="#10B981" />
+                      <Text style={styles.paymentMetricTitle}>Payments Received</Text>
+                    </View>
+                    <Text style={styles.paymentMetricValue}>${totalPaymentsReceived.toLocaleString()}</Text>
+                    <View style={styles.paymentProgressBar}>
+                      <View style={[styles.paymentProgressFill, {
+                        width: `${Math.min(100, (totalPaymentsReceived / adjustedProjectTotal) * 100)}%`,
+                        backgroundColor: '#10B981'
+                      }]} />
+                    </View>
+                    <Text style={styles.paymentMetricSubtext}>
+                      {((totalPaymentsReceived / adjustedProjectTotal) * 100).toFixed(1)}% of contract • {payments.length} payment(s)
+                    </Text>
+                  </View>
+                  <View style={styles.paymentMetric}>
+                    <View style={styles.paymentMetricHeader}>
+                      <AlertCircle size={18} color={pendingBalance > 0 ? '#F59E0B' : '#10B981'} />
+                      <Text style={styles.paymentMetricTitle}>Pending Balance</Text>
+                    </View>
+                    <Text style={[styles.paymentMetricValue, { color: pendingBalance > 0 ? '#F59E0B' : '#10B981' }]}>
+                      ${pendingBalance.toLocaleString()}
+                    </Text>
+                    <View style={styles.paymentProgressBar}>
+                      <View style={[styles.paymentProgressFill, {
+                        width: `${Math.min(100, (pendingBalance / adjustedProjectTotal) * 100)}%`,
+                        backgroundColor: pendingBalance > 0 ? '#F59E0B' : '#10B981'
+                      }]} />
+                    </View>
+                    <Text style={styles.paymentMetricSubtext}>
+                      {((pendingBalance / adjustedProjectTotal) * 100).toFixed(1)}% remaining
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.profitSection}>
+                  <View style={styles.profitHeader}>
+                    <TrendingUp size={20} color={profitMargin >= 0 ? '#10B981' : '#EF4444'} />
+                    <Text style={styles.profitTitle}>Projected Profit</Text>
+                  </View>
+                  <Text style={[styles.profitAmount, { color: profitMargin >= 0 ? '#10B981' : '#EF4444' }]}>
+                    ${Math.abs(profitMargin).toLocaleString()}
+                  </Text>
+                  <View style={styles.profitBar}>
+                    <View style={[styles.profitFill, {
+                      width: `${Math.min(100, Math.abs(profitMargin) / adjustedProjectTotal * 100)}%`,
+                      backgroundColor: profitMargin >= 0 ? '#10B981' : '#EF4444'
+                    }]} />
+                  </View>
+                  <Text style={styles.profitSubtext}>
+                    {profitMargin >= 0 ? 'Profit Margin' : 'Loss'}: {((profitMargin / adjustedProjectTotal) * 100).toFixed(1)}%
+                  </Text>
+                </View>
+
+                {/* Labor Insights */}
+                <View style={styles.divider} />
+                <Text style={styles.sectionSubtitle}>Labor & Timing Insights</Text>
+                <View style={styles.insightsGrid}>
+                  <View style={styles.insightCard}>
+                    <Clock size={16} color="#6366F1" />
+                    <Text style={styles.insightValue}>{totalLaborHours.toFixed(1)}h</Text>
+                    <Text style={styles.insightLabel}>Total Labor Hours</Text>
+                  </View>
+                  <View style={styles.insightCard}>
+                    <DollarSign size={16} color="#6366F1" />
+                    <Text style={styles.insightValue}>${laborHoursCost.toFixed(2)}/h</Text>
+                    <Text style={styles.insightLabel}>Labor Cost Rate</Text>
+                  </View>
+                  <View style={styles.insightCard}>
+                    <Users size={16} color="#6366F1" />
+                    <Text style={styles.insightValue}>{activeClockEntries.length}</Text>
+                    <Text style={styles.insightLabel}>Active Workers</Text>
+                  </View>
+                  <View style={styles.insightCard}>
+                    <Calendar size={16} color="#6366F1" />
+                    <Text style={styles.insightValue}>{daysElapsed}</Text>
+                    <Text style={styles.insightLabel}>Days Elapsed</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* ── Project Progress ── */}
+            <View style={styles.chartCard}>
+              <View style={styles.cardHeader}>
+                <TrendingUp size={20} color="#2563EB" />
+                <Text style={styles.cardTitle}>Project Progress</Text>
+              </View>
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBar}>
+                  <View style={[styles.progressFill, { width: `${project.progress}%` }]} />
+                </View>
+                <Text style={styles.progressText}>{project.progress}% Complete</Text>
+              </View>
+              <View style={styles.progressDetails}>
+                <View style={styles.progressDetailItem}>
+                  <Text style={styles.progressDetailLabel}>Timeline</Text>
+                  <Text style={styles.progressDetailValue}>{daysElapsed} days elapsed</Text>
+                </View>
+                <View style={styles.progressDetailItem}>
+                  <Text style={styles.progressDetailLabel}>Hours</Text>
+                  <Text style={styles.progressDetailValue}>{project.hoursWorked}h logged</Text>
+                </View>
+                <View style={styles.progressDetailItem}>
+                  <Text style={styles.progressDetailLabel}>Remaining</Text>
+                  <Text style={styles.progressDetailValue}>~{estimatedHoursRemaining}h</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* ── Budget Overview ── */}
+            {user?.role !== 'field-employee' && (
+              <View style={styles.chartCard}>
+                <View style={styles.cardHeader}>
+                  <DollarSign size={20} color="#10B981" />
+                  <Text style={styles.cardTitle}>Budget Overview</Text>
+                </View>
+                <View style={styles.budgetChart}>
+                  <View style={styles.budgetBar}>
+                    <View style={[styles.budgetUsed, { width: `${Math.min(budgetUsedPercentage, 100)}%`, backgroundColor: budgetUsedPercentage > 100 ? '#EF4444' : '#10B981' }]} />
+                  </View>
+                  <View style={styles.budgetLegend}>
+                    <View style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: budgetUsedPercentage > 100 ? '#EF4444' : '#10B981' }]} />
+                      <Text style={styles.legendText}>Spent: ${totalJobCost.toLocaleString()}</Text>
+                    </View>
+                    <View style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: '#E5E7EB' }]} />
+                      <Text style={styles.legendText}>Budget: ${adjustedProjectTotal.toLocaleString()}</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.budgetStats}>
+                  <View style={[styles.budgetStatCard, { backgroundColor: budgetRemaining < 0 ? '#FEE2E2' : '#DCFCE7' }]}>
+                    <Text style={styles.budgetStatLabel}>Remaining</Text>
+                    <Text style={[styles.budgetStatValue, { color: budgetRemaining < 0 ? '#EF4444' : '#10B981' }]}>
+                      ${Math.abs(budgetRemaining).toLocaleString()}
+                    </Text>
+                    {budgetRemaining < 0 && (
+                      <View style={styles.warningBadge}>
+                        <AlertCircle size={12} color="#EF4444" />
+                        <Text style={styles.warningText}>Over Budget</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.budgetStatCard}>
+                    <Text style={styles.budgetStatLabel}>Budget Used</Text>
+                    <Text style={styles.budgetStatValue}>{budgetUsedPercentage.toFixed(1)}%</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* ── Stats Grid ── */}
+            <View style={styles.statsGrid}>
+              <View style={styles.statBox}>
+                <Calendar size={20} color="#8B5CF6" />
+                <Text style={styles.statLabel}>Start Date</Text>
+                <Text style={styles.statValue}>{new Date(project.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Clock size={20} color="#F59E0B" />
+                <Text style={styles.statLabel}>Days Active</Text>
+                <Text style={styles.statValue}>{daysElapsed}</Text>
+              </View>
+              <View style={styles.statBox}>
+                <Users size={20} color="#3B82F6" />
+                <Text style={styles.statLabel}>Hours Logged</Text>
+                <Text style={styles.statValue}>{project.hoursWorked}h</Text>
+              </View>
+              <View style={styles.statBox}>
+                <View style={[styles.statusDot, { backgroundColor: project.status === 'active' ? '#10B981' : '#F59E0B' }]} />
+                <Text style={styles.statLabel}>Status</Text>
+                <Text style={styles.statValue}>{project.status}</Text>
+              </View>
+            </View>
+
+            {/* ── Quick Stats ── */}
+            {user?.role !== 'field-employee' && (
+              <View style={styles.chartCard}>
+                <View style={styles.cardHeader}>
+                  <FileText size={20} color="#6366F1" />
+                  <Text style={styles.cardTitle}>Quick Stats</Text>
+                </View>
+                <View style={styles.quickStatsGrid}>
+                  <View style={styles.quickStat}>
+                    <Text style={styles.quickStatValue}>${(project.expenses / project.hoursWorked).toFixed(2)}</Text>
+                    <Text style={styles.quickStatLabel}>Cost per Hour</Text>
+                  </View>
+                  <View style={styles.quickStat}>
+                    <Text style={styles.quickStatValue}>{((project.budget - project.expenses) / (100 - project.progress)).toFixed(0)}</Text>
+                    <Text style={styles.quickStatLabel}>Budget per % Left</Text>
+                  </View>
+                  <View style={styles.quickStat}>
+                    <Text style={styles.quickStatValue}>{(project.hoursWorked / daysElapsed).toFixed(1)}</Text>
+                    <Text style={styles.quickStatLabel}>Avg Hours/Day</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* ── Project Schedule Section ── */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 12 }}>
               <View>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0F172A' }}>Project Schedule</Text>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#0F172A' }}>Project Schedule</Text>
                 <Text style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>
                   {projectScheduleTasks.length} phase{projectScheduleTasks.length !== 1 ? 's' : ''} · {completedCount} completed
                 </Text>
@@ -913,10 +1186,8 @@ export default function ProjectDetailScreen() {
               <>
                 {projectScheduleTasks.map(task => {
                   const status = getTaskStatus(task);
-                  const endDisplay = fmtSchedDate(task.endDate);
                   return (
                     <View key={task.id} style={{ backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0' }}>
-                      {/* Title + status badge */}
                       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 }}>
                           <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: task.color }} />
@@ -938,15 +1209,11 @@ export default function ProjectDetailScreen() {
                           </View>
                         )}
                       </View>
-
-                      {/* Work type badge */}
                       <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, alignSelf: 'flex-start', marginBottom: 14 }}>
                         <Text style={{ fontSize: 11, fontWeight: '600', color: '#4F46E5' }}>
                           {task.workType === 'subcontractor' ? 'Subcontractor' : 'In-House'}
                         </Text>
                       </View>
-
-                      {/* Dates + duration row */}
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 2 }}>Start</Text>
@@ -955,15 +1222,13 @@ export default function ProjectDetailScreen() {
                         <Text style={{ fontSize: 18, color: '#CBD5E1', marginHorizontal: 8 }}>→</Text>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 2 }}>End</Text>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172A' }}>{endDisplay}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172A' }}>{fmtSchedDate(task.endDate)}</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
                           <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 2 }}>Duration</Text>
                           <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172A' }}>{task.duration}d</Text>
                         </View>
                       </View>
-
-                      {/* Notes */}
                       {!!task.notes && (
                         <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
                           <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4 }}>Notes</Text>
@@ -977,7 +1242,7 @@ export default function ProjectDetailScreen() {
             )}
 
             {/* Footer CTA */}
-            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 14, padding: 20, alignItems: 'center', marginTop: 6, borderWidth: 1, borderColor: '#E2E8F0' }}>
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 14, padding: 20, alignItems: 'center', marginTop: 6, marginBottom: 16, borderWidth: 1, borderColor: '#E2E8F0' }}>
               <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', marginBottom: 14 }}>
                 Open full schedule for editing, adding new phases, and detailed timeline view
               </Text>
@@ -989,7 +1254,7 @@ export default function ProjectDetailScreen() {
                 <Text style={{ fontSize: 14, fontWeight: '600', color: '#2563EB' }}>Open Full Schedule</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         );
       }
 
