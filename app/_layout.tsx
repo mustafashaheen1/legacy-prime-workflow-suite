@@ -62,7 +62,9 @@ function RootLayoutNav() {
     });
 
     // Check if it's an inspection or subcontractor-register token route
-    const isTokenRoute = pathname?.startsWith('/inspection/') || pathname?.startsWith('/subcontractor-register/');
+    const isTokenRoute = pathname?.startsWith('/inspection/') ||
+                     pathname?.startsWith('/subcontractor-register/') ||
+                     pathname?.startsWith('/schedule-view/');
 
     console.log('[Auth Check]', {
       pathname,
@@ -110,6 +112,7 @@ function RootLayoutNav() {
       <Stack.Screen name="inspection/[token]" options={{ headerShown: false }} />
       <Stack.Screen name="subcontractor-register/[token]" options={{ headerShown: false }} />
       <Stack.Screen name="register-subcontractor/[token]" options={{ headerShown: false }} />
+      <Stack.Screen name="schedule-view/[token]" options={{ headerShown: false }} />
       {/* These now get automatic back buttons */}
       <Stack.Screen
         name="subcontractor/[id]"
@@ -148,6 +151,7 @@ function ChatWidgets() {
     pathname?.startsWith('/register-subcontractor/') ||
     pathname?.startsWith('/subcontractor-register/') ||
     pathname?.startsWith('/inspection/') ||
+    pathname?.startsWith('/schedule-view/') ||
     // Auth pages
     pathname?.startsWith('/login') ||
     pathname?.startsWith('/signup') ||
@@ -159,7 +163,9 @@ function ChatWidgets() {
     pathname?.startsWith('/admin/') ||
     pathname?.startsWith('/reports') ||
     // More menu
-    pathname?.endsWith('/more');
+    pathname?.endsWith('/more') ||
+    // Schedule tab
+    pathname === '/schedule';
 
   if (shouldHideChat) {
     return null;

@@ -19,7 +19,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { companyId, userId } = req.query;
+    const { companyId, userId, projectId } = req.query;
 
     if (!companyId) {
       return res.status(400).json({ error: 'Missing companyId' });
@@ -38,6 +38,11 @@ export default async function handler(req: any, res: any) {
       query = query.eq('user_id', userId);
     }
 
+    // Optionally filter by projectId if provided
+    if (projectId && typeof projectId === 'string') {
+      query = query.eq('project_id', projectId);
+    }
+
     const { data, error } = await query;
 
     if (error) {
@@ -50,6 +55,7 @@ export default async function handler(req: any, res: any) {
       id: task.id,
       companyId: task.company_id,
       userId: task.user_id,
+      projectId: task.project_id ?? undefined,
       title: task.title,
       dueDate: task.due_date,
       dueTime: task.due_time,
@@ -57,13 +63,13 @@ export default async function handler(req: any, res: any) {
       reminder: task.reminder,
       reminderSent: task.reminder_sent,
       completed: task.completed,
-      completedAt: task.completed_at, // Include completion timestamp
+      completedAt: task.completed_at,
       notes: task.notes,
       createdAt: task.created_at,
       updatedAt: task.updated_at,
     }));
 
-    return res.status(200).json(tasks);
+    return res.status(200).json({ tasks });
   } catch (error: any) {
     console.error('Unexpected error in get-daily-tasks:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });

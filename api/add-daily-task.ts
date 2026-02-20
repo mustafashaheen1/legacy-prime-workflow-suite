@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[add-daily-task] Request body:', JSON.stringify(req.body));
 
   try {
-    const { companyId, userId, title, dueDate, dueTime, dueDateTime, reminder, notes } = req.body;
+    const { companyId, userId, title, dueDate, dueTime, dueDateTime, reminder, notes, projectId } = req.body;
 
     // Validate required fields
     if (!title || !dueDate) {
@@ -56,6 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         reminder_sent: false,
         completed: false,
         notes: notes || null,
+        project_id: projectId ?? null,
       })
       .select()
       .single();
@@ -76,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       id: data.id,
       companyId: data.company_id,
       userId: data.user_id,
+      projectId: data.project_id ?? undefined,
       title: data.title,
       dueDate: data.due_date,
       dueTime: data.due_time,
@@ -83,13 +85,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       reminder: data.reminder,
       reminderSent: data.reminder_sent,
       completed: data.completed,
-      completedAt: data.completed_at, // Include completion timestamp
+      completedAt: data.completed_at,
       notes: data.notes,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
 
-    return res.status(200).json(task);
+    return res.status(200).json({ task });
   } catch (error: any) {
     console.error('[add-daily-task] Unexpected error:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });

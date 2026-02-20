@@ -2,7 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
-import { User, Project, Client, Expense, Photo, Task, DailyTask, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company, Subcontractor, SubcontractorProposal, Notification } from '@/types';
+import { User, Project, Client, Expense, Photo, Task, DailyTask, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company, Subcontractor, SubcontractorProposal, Notification, ScheduledTask, DailyTaskReminder, ScheduleShareLink } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
 import { checkAndSeedData, getDefaultCompany, getDefaultUser } from '@/lib/seed-data';
@@ -53,8 +53,23 @@ interface AppState {
   proposals: SubcontractorProposal[];
   notifications: Notification[];
   dailyTasks: DailyTask[];
+  scheduledTasks: ScheduledTask[];
+  scheduleShareLinks: ScheduleShareLink[];
+  dailyTaskReminders: DailyTaskReminder[];
   isLoading: boolean;
-  
+
+  loadScheduledTasks: (projectId: string) => Promise<void>;
+  updateScheduledTasks: (tasks: ScheduledTask[]) => Promise<void>;
+  addDailyTaskReminder: (task: Omit<DailyTaskReminder, 'id' | 'createdAt'>) => Promise<void>;
+  updateDailyTaskReminder: (id: string, updates: Partial<DailyTaskReminder>) => Promise<void>;
+  deleteDailyTaskReminder: (id: string) => Promise<void>;
+  getDailyTaskReminders: (projectId?: string) => DailyTaskReminder[];
+  generateShareLink: (projectId: string, password?: string, expiresAt?: string) => Promise<ScheduleShareLink>;
+  disableShareLink: (token: string) => Promise<boolean>;
+  regenerateShareLink: (projectId: string, password?: string, expiresAt?: string) => Promise<ScheduleShareLink>;
+  getShareLinkByToken: (token: string) => ScheduleShareLink | undefined;
+  getShareLinkByProject: (projectId: string) => ScheduleShareLink | undefined;
+
   setUser: (user: User | null) => void;
   setCompany: (company: Company | null) => void;
   setSubscription: (subscription: Subscription) => void;
@@ -177,6 +192,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [proposals, setProposals] = useState<SubcontractorProposal[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
+  const [scheduleShareLinks, setScheduleShareLinks] = useState<ScheduleShareLink[]>([]);
+  const [dailyTaskReminders, setDailyTaskReminders] = useState<DailyTaskReminder[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Compute categories dynamically from price list items
@@ -732,6 +750,40 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             if (Array.isArray(parsedSubcontractors)) {
               setSubcontractors(parsedSubcontractors);
             }
+          }
+
+          // Load schedule share links for this company
+          try {
+            const slRes = await fetch(`${baseUrl}/api/get-schedule-share-link?companyId=${parsedCompany.id}`);
+            if (slRes.ok) {
+              const slData = await slRes.json();
+              setScheduleShareLinks(slData.links ?? []);
+              console.log('[App] Loaded', (slData.links ?? []).length, 'schedule share links');
+            }
+          } catch (error) {
+            console.error('[App] Error loading schedule share links:', error);
+          }
+
+          // Load daily task reminders (all for company; filter applied in getDailyTaskReminders)
+          try {
+            const drRes = await fetch(`${baseUrl}/api/get-daily-tasks?companyId=${parsedCompany.id}`);
+            if (drRes.ok) {
+              const drData = await drRes.json();
+              const reminders: DailyTaskReminder[] = (drData.tasks ?? []).map((t: any) => ({
+                id: t.id,
+                projectId: t.projectId ?? undefined,
+                title: t.title,
+                dueDate: t.dueDate,
+                isReminder: t.reminder,
+                completed: t.completed,
+                createdAt: t.createdAt,
+                completedAt: t.completedAt ?? undefined,
+              }));
+              setDailyTaskReminders(reminders);
+              console.log('[App] Loaded', reminders.length, 'daily task reminders');
+            }
+          } catch (error) {
+            console.error('[App] Error loading daily task reminders:', error);
           }
 
         } catch (error) {
@@ -2449,6 +2501,128 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, []);
 
+  const loadScheduledTasks = useCallback(async (projectId: string) => {
+    const base = getApiBaseUrl();
+    try {
+      const res = await fetch(`${base}/api/get-scheduled-tasks?projectId=${projectId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setScheduledTasks(prev => [
+        ...prev.filter(t => t.projectId !== projectId),
+        ...(data.scheduledTasks ?? []),
+      ]);
+    } catch (e) {
+      console.error('[Schedule] loadScheduledTasks error', e);
+    }
+  }, []);
+
+  const updateScheduledTasks = useCallback(async (newTasks: ScheduledTask[]) => {
+    const base = getApiBaseUrl();
+    setScheduledTasks(prev => {
+      const old = prev;
+      const added    = newTasks.filter(t => !old.find(o => o.id === t.id));
+      const modified = newTasks.filter(t => {
+        const o = old.find(o => o.id === t.id);
+        return o && JSON.stringify(o) !== JSON.stringify(t);
+      });
+      const removed  = old.filter(o => !newTasks.find(t => t.id === o.id));
+      Promise.all([
+        ...added.map(t => fetch(`${base}/api/save-scheduled-task`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(t),
+        })),
+        ...modified.map(t => fetch(`${base}/api/update-scheduled-task`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(t),
+        })),
+        ...removed.map(t => fetch(`${base}/api/delete-scheduled-task?id=${t.id}`, { method: 'DELETE' })),
+      ]).catch(e => console.error('[Schedule] updateScheduledTasks sync error', e));
+      return newTasks;
+    });
+  }, []);
+
+  const addDailyTaskReminder = useCallback(async (task: Omit<DailyTaskReminder, 'id' | 'createdAt'>) => {
+    const base = getApiBaseUrl();
+    const res = await fetch(`${base}/api/add-daily-task`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: task.title, dueDate: task.dueDate, reminder: task.isReminder, projectId: task.projectId }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const reminder: DailyTaskReminder = {
+      id: data.task.id,
+      title: data.task.title,
+      dueDate: data.task.dueDate,
+      isReminder: data.task.reminder,
+      completed: data.task.completed,
+      createdAt: data.task.createdAt,
+      projectId: task.projectId,
+    };
+    setDailyTaskReminders(prev => [...prev, reminder]);
+  }, []);
+
+  const updateDailyTaskReminder = useCallback(async (id: string, updates: Partial<DailyTaskReminder>) => {
+    const base = getApiBaseUrl();
+    await fetch(`${base}/api/update-daily-task`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: id, completed: updates.completed }),
+    });
+    setDailyTaskReminders(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+  }, []);
+
+  const deleteDailyTaskReminder = useCallback(async (id: string) => {
+    const base = getApiBaseUrl();
+    await fetch(`${base}/api/delete-daily-task?taskId=${id}`, { method: 'DELETE' });
+    setDailyTaskReminders(prev => prev.filter(r => r.id !== id));
+  }, []);
+
+  const getDailyTaskReminders = useCallback((projectId?: string): DailyTaskReminder[] => {
+    if (projectId) return dailyTaskReminders.filter(r => r.projectId === projectId);
+    return dailyTaskReminders;
+  }, [dailyTaskReminders]);
+
+  const generateShareLink = useCallback(async (projectId: string, password?: string, expiresAt?: string): Promise<ScheduleShareLink> => {
+    const base = getApiBaseUrl();
+    const res = await fetch(`${base}/api/generate-schedule-share-link`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, companyId: company?.id, password, expiresAt }),
+    });
+    const data = await res.json();
+    const link: ScheduleShareLink = data.link;
+    setScheduleShareLinks(prev => [...prev.filter(l => l.projectId !== projectId), link]);
+    return link;
+  }, [company?.id]);
+
+  const disableShareLink = useCallback(async (token: string): Promise<boolean> => {
+    const base = getApiBaseUrl();
+    try {
+      const res = await fetch(`${base}/api/disable-schedule-share-link`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error('[disableShareLink] API error:', res.status, err);
+        return false;
+      }
+      setScheduleShareLinks(prev => prev.map(l => l.token === token ? { ...l, enabled: false } : l));
+      return true;
+    } catch (e) {
+      console.error('[disableShareLink] Network error:', e);
+      return false;
+    }
+  }, []);
+
+  const regenerateShareLink = useCallback(async (projectId: string, password?: string, expiresAt?: string): Promise<ScheduleShareLink> => {
+    return generateShareLink(projectId, password, expiresAt);
+  }, [generateShareLink]);
+
+  const getShareLinkByToken = useCallback((token: string) => {
+    return scheduleShareLinks.find(l => l.token === token);
+  }, [scheduleShareLinks]);
+
+  const getShareLinkByProject = useCallback((projectId: string) => {
+    return scheduleShareLinks.find(l => l.projectId === projectId);
+  }, [scheduleShareLinks]);
+
   const logout = useCallback(async () => {
     await AsyncStorage.multiRemove(['user', 'company', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders', 'subcontractors', 'proposals', 'notifications']);
     setUserState(null);
@@ -2491,7 +2665,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     proposals,
     notifications,
     dailyTasks,
+    scheduledTasks,
+    scheduleShareLinks,
+    dailyTaskReminders,
     isLoading,
+    loadScheduledTasks,
+    updateScheduledTasks,
+    addDailyTaskReminder,
+    updateDailyTaskReminder,
+    deleteDailyTaskReminder,
+    getDailyTaskReminders,
+    generateShareLink,
+    disableShareLink,
+    regenerateShareLink,
+    getShareLinkByToken,
+    getShareLinkByProject,
     setUser,
     setCompany,
     setSubscription,
@@ -2569,6 +2757,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addDailyTask,
     updateDailyTask,
     deleteDailyTask,
+    loadScheduledTasks,
+    updateScheduledTasks,
+    addDailyTaskReminder,
+    updateDailyTaskReminder,
+    deleteDailyTaskReminder,
+    getDailyTaskReminders,
+    generateShareLink,
+    disableShareLink,
+    regenerateShareLink,
+    getShareLinkByToken,
+    getShareLinkByProject,
     logout,
   }), [
     user,
@@ -2596,7 +2795,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     proposals,
     notifications,
     dailyTasks,
+    scheduledTasks,
+    scheduleShareLinks,
+    dailyTaskReminders,
     isLoading,
+    loadScheduledTasks,
+    updateScheduledTasks,
+    addDailyTaskReminder,
+    updateDailyTaskReminder,
+    deleteDailyTaskReminder,
+    getDailyTaskReminders,
+    generateShareLink,
+    disableShareLink,
+    regenerateShareLink,
+    getShareLinkByToken,
+    getShareLinkByProject,
     setUser,
     setCompany,
     setSubscription,
@@ -2674,6 +2887,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addDailyTask,
     updateDailyTask,
     deleteDailyTask,
+    scheduledTasks,
+    scheduleShareLinks,
+    dailyTaskReminders,
+    loadScheduledTasks,
+    updateScheduledTasks,
+    addDailyTaskReminder,
+    updateDailyTaskReminder,
+    deleteDailyTaskReminder,
+    getDailyTaskReminders,
+    generateShareLink,
+    disableShareLink,
+    regenerateShareLink,
+    getShareLinkByToken,
+    getShareLinkByProject,
     logout,
   ]);
 });

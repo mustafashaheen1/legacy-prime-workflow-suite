@@ -113,6 +113,17 @@ export interface DailyTask {
   updatedAt: string;
 }
 
+export interface DailyTaskReminder {
+  id: string;
+  projectId?: string;
+  title: string;
+  dueDate: string;
+  isReminder: boolean;
+  completed: boolean;
+  createdAt: string;
+  completedAt?: string;
+}
+
 export interface DailyLogNote {
   id: string;
   text: string;
@@ -451,10 +462,12 @@ export interface ScheduledTask {
   color: string;
   row?: number;
   rowSpan?: number;
-  completed?: boolean;      // NEW: Whether task is completed
-  completedAt?: string;     // NEW: Timestamp when task was completed (ISO string)
-  createdAt?: string;       // NEW: Timestamp when task was created (ISO string)
-  updatedAt?: string;       // NEW: Timestamp when task was last updated (ISO string)
+  phaseId?: string;
+  visibleToClient?: boolean; // Whether clients can see this task (maps to visible_to_client in DB)
+  completed?: boolean;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -492,6 +505,18 @@ export type ZoomLevel = 'day' | 'week' | 'month';
  * Schedule View Mode - Role-based view filtering
  */
 export type ScheduleViewMode = 'internal' | 'client';
+
+export interface ScheduleShareLink {
+  id: string;
+  projectId: string;
+  companyId?: string;
+  token: string;
+  enabled: boolean;
+  password?: string;
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Payment {
   id: string;

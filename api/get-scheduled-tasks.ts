@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[API] Get scheduled tasks request received');
 
   try {
-    const { projectId } = req.query;
+    const { projectId, companyId } = req.query;
 
     // Initialize Supabase client
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -29,9 +29,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select('*')
       .order('start_date', { ascending: true });
 
-    // Filter by project if provided
+    // Filter by project if provided; fall back to company-wide if only companyId given
     if (projectId && typeof projectId === 'string') {
       query = query.eq('project_id', projectId);
+    } else if (companyId && typeof companyId === 'string') {
+      query = query.eq('company_id', companyId);
     }
 
     const { data, error } = await query;
