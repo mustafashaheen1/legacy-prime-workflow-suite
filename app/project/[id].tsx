@@ -306,6 +306,13 @@ export default function ProjectDetailScreen() {
     if (!project) return 0;
     return project.budget + totalChangeOrdersApproved;
   }, [project, totalChangeOrdersApproved]);
+
+  // Planned profit: what the owner expects to earn before any work begins.
+  // Contract Amount (client pays) − Project Budget (we plan to spend).
+  const plannedProfit = useMemo(() => {
+    if (!project) return 0;
+    return (project.contractAmount ?? 0) - project.budget;
+  }, [project]);
   
   const totalPaymentsReceived = useMemo(() => {
     return payments.reduce((sum, payment) => sum + payment.amount, 0);
@@ -402,22 +409,58 @@ export default function ProjectDetailScreen() {
                 borderWidth: 1,
                 borderColor: '#BBFCDA',
               };
+              const hasContract = (project.contractAmount ?? 0) > 0;
               const innerContent = (
                 <>
+                  {/* Icon */}
                   <View style={{
                     width: 36, height: 36, borderRadius: 18,
                     backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                    alignSelf: 'flex-start', marginTop: 2,
                   }}>
                     <DollarSign size={18} color="#10B981" />
                   </View>
+
+                  {/* Values row */}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '500', marginBottom: 2 }}>Budget</Text>
-                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#064E3B' }}>
-                      ${project.budget.toLocaleString()}
-                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 16 }}>
+                      {/* Contract Amount */}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 }}>
+                          Contract Amount
+                        </Text>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: hasContract ? '#1E40AF' : '#9CA3AF' }}>
+                          {hasContract ? `$${(project.contractAmount!).toLocaleString()}` : 'Not set'}
+                        </Text>
+                      </View>
+
+                      {/* Project Budget */}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 }}>
+                          Project Budget
+                        </Text>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#064E3B' }}>
+                          ${project.budget.toLocaleString()}
+                        </Text>
+                      </View>
+
+                      {/* Planned Profit — only if contractAmount is set */}
+                      {hasContract && (
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 }}>
+                            Planned Profit
+                          </Text>
+                          <Text style={{ fontSize: 16, fontWeight: '700', color: plannedProfit >= 0 ? '#10B981' : '#EF4444' }}>
+                            {plannedProfit >= 0 ? '+' : '-'}${Math.abs(plannedProfit).toLocaleString()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
+
+                  {/* Edit label for admins */}
                   {isAdmin && (
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#10B981' }}>Edit</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#10B981', alignSelf: 'flex-start', marginTop: 2, marginLeft: 8 }}>Edit</Text>
                   )}
                 </>
               );
@@ -452,16 +495,39 @@ export default function ProjectDetailScreen() {
                   <Text style={styles.cardTitle}>Financial Overview</Text>
                 </View>
                 
+                {/* Row 1 — Contract Amount | Project Budget | Planned Profit */}
                 <View style={styles.topMetrics}>
                   <View style={styles.topMetricLarge}>
-                    <Text style={styles.topMetricLabel}>Job Total Agreement</Text>
-                    <Text style={styles.topMetricValue}>${adjustedProjectTotal.toLocaleString()}</Text>
+                    <Text style={styles.topMetricLabel}>Contract Amount</Text>
+                    <Text style={[styles.topMetricValue, { color: (project.contractAmount ?? 0) > 0 ? '#1E40AF' : '#9CA3AF' }]}>
+                      {(project.contractAmount ?? 0) > 0 ? `$${project.contractAmount!.toLocaleString()}` : '—'}
+                    </Text>
+                    <Text style={styles.topMetricSubtext}>What client agreed to pay</Text>
+                  </View>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Project Budget</Text>
+                    <Text style={[styles.topMetricValue, { color: '#064E3B' }]}>${project.budget.toLocaleString()}</Text>
                     <Text style={styles.topMetricSubtext}>
-                      {totalChangeOrdersApproved > 0 
-                        ? `Base: ${project.budget.toLocaleString()} + CO: ${totalChangeOrdersApproved.toLocaleString()}` 
-                        : 'Contract Value'}
+                      {totalChangeOrdersApproved > 0 ? `+$${totalChangeOrdersApproved.toLocaleString()} COs` : 'Planned spend'}
                     </Text>
                   </View>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Planned Profit</Text>
+                    <Text style={[styles.topMetricValue, { color: plannedProfit >= 0 ? '#10B981' : '#EF4444' }]}>
+                      {(project.contractAmount ?? 0) > 0
+                        ? `${plannedProfit >= 0 ? '+' : '-'}$${Math.abs(plannedProfit).toLocaleString()}`
+                        : '—'}
+                    </Text>
+                    <Text style={styles.topMetricSubtext}>
+                      {(project.contractAmount ?? 0) > 0
+                        ? `${((plannedProfit / (project.contractAmount ?? 1)) * 100).toFixed(1)}% margin`
+                        : 'Set contract amount'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Row 2 — Total Expenses | Remaining Budget */}
+                <View style={[styles.topMetrics, { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }]}>
                   <View style={styles.topMetricMedium}>
                     <Text style={styles.topMetricLabel}>Total Expenses</Text>
                     <Text style={[styles.topMetricValue, { color: '#EF4444' }]}>${totalJobCost.toLocaleString()}</Text>
@@ -475,6 +541,13 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.topMetricSubtext}>
                       {budgetRemaining >= 0 ? 'Available' : 'Over Budget'}
                     </Text>
+                  </View>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Budget Used</Text>
+                    <Text style={[styles.topMetricValue, { color: budgetUsedPercentage > 100 ? '#EF4444' : '#F59E0B' }]}>
+                      {budgetUsedPercentage.toFixed(0)}%
+                    </Text>
+                    <Text style={styles.topMetricSubtext}>of project budget</Text>
                   </View>
                 </View>
 
@@ -863,16 +936,39 @@ export default function ProjectDetailScreen() {
                   <Wallet size={20} color="#10B981" />
                   <Text style={styles.cardTitle}>Financial Overview</Text>
                 </View>
+                {/* Row 1 — Contract Amount | Project Budget | Planned Profit */}
                 <View style={styles.topMetrics}>
                   <View style={styles.topMetricLarge}>
-                    <Text style={styles.topMetricLabel}>Job Total Agreement</Text>
-                    <Text style={styles.topMetricValue}>${adjustedProjectTotal.toLocaleString()}</Text>
+                    <Text style={styles.topMetricLabel}>Contract Amount</Text>
+                    <Text style={[styles.topMetricValue, { color: (project.contractAmount ?? 0) > 0 ? '#1E40AF' : '#9CA3AF' }]}>
+                      {(project.contractAmount ?? 0) > 0 ? `$${project.contractAmount!.toLocaleString()}` : '—'}
+                    </Text>
+                    <Text style={styles.topMetricSubtext}>What client agreed to pay</Text>
+                  </View>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Project Budget</Text>
+                    <Text style={[styles.topMetricValue, { color: '#064E3B' }]}>${project.budget.toLocaleString()}</Text>
                     <Text style={styles.topMetricSubtext}>
-                      {totalChangeOrdersApproved > 0
-                        ? `Base: ${project.budget.toLocaleString()} + CO: ${totalChangeOrdersApproved.toLocaleString()}`
-                        : 'Contract Value'}
+                      {totalChangeOrdersApproved > 0 ? `+$${totalChangeOrdersApproved.toLocaleString()} COs` : 'Planned spend'}
                     </Text>
                   </View>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Planned Profit</Text>
+                    <Text style={[styles.topMetricValue, { color: plannedProfit >= 0 ? '#10B981' : '#EF4444' }]}>
+                      {(project.contractAmount ?? 0) > 0
+                        ? `${plannedProfit >= 0 ? '+' : '-'}$${Math.abs(plannedProfit).toLocaleString()}`
+                        : '—'}
+                    </Text>
+                    <Text style={styles.topMetricSubtext}>
+                      {(project.contractAmount ?? 0) > 0
+                        ? `${((plannedProfit / (project.contractAmount ?? 1)) * 100).toFixed(1)}% margin`
+                        : 'Set contract amount'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Row 2 — Total Expenses | Remaining Budget | Budget Used */}
+                <View style={[styles.topMetrics, { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }]}>
                   <View style={styles.topMetricMedium}>
                     <Text style={styles.topMetricLabel}>Total Expenses</Text>
                     <Text style={[styles.topMetricValue, { color: '#EF4444' }]}>${totalJobCost.toLocaleString()}</Text>
@@ -886,6 +982,13 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.topMetricSubtext}>
                       {budgetRemaining >= 0 ? 'Available' : 'Over Budget'}
                     </Text>
+                  </View>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Budget Used</Text>
+                    <Text style={[styles.topMetricValue, { color: budgetUsedPercentage > 100 ? '#EF4444' : '#F59E0B' }]}>
+                      {budgetUsedPercentage.toFixed(0)}%
+                    </Text>
+                    <Text style={styles.topMetricSubtext}>of project budget</Text>
                   </View>
                 </View>
 
