@@ -2871,7 +2871,7 @@ ${pdfDates.length > 0 ? `
         <View style={styles.modalOverlay}>
           <View style={styles.shareModalContent}>
             <View style={styles.shareModalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                 <View style={styles.shareModalIconBg}>
                   <Share2 size={20} color="#7C3AED" />
                 </View>
@@ -2882,7 +2882,10 @@ ${pdfDates.length > 0 ? `
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={() => { setShowShareModal(false); setShareLinkCopied(false); }}>
+              <TouchableOpacity
+                onPress={() => { setShowShareModal(false); setShareLinkCopied(false); }}
+                style={{ padding: 4 }}
+              >
                 <X size={22} color="#1F2937" />
               </TouchableOpacity>
             </View>
