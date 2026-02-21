@@ -22,6 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_payments_company_id ON payments(company_id);
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 
 -- Service role has full access (used by the backend with SUPABASE_SERVICE_ROLE_KEY).
+DROP POLICY IF EXISTS "Service role full access payments" ON payments;
 CREATE POLICY "Service role full access payments"
   ON payments FOR ALL
   USING (true)

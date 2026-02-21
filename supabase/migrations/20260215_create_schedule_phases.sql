@@ -26,6 +26,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to automatically update updated_at
+DROP TRIGGER IF EXISTS schedule_phases_updated_at ON schedule_phases;
 CREATE TRIGGER schedule_phases_updated_at
   BEFORE UPDATE ON schedule_phases
   FOR EACH ROW
