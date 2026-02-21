@@ -733,7 +733,7 @@ export default function ProjectDetailScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 13, fontWeight: '600', color: '#111827' }}>{payment.clientName}</Text>
                           <Text style={{ fontSize: 11, color: '#6B7280' }}>
-                            {payment.method.replace('-', ' ')} · {new Date(payment.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            {payment.method.replace('-', ' ')} · {payment.date ? new Date(String(payment.date).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                           </Text>
                           {!!payment.notes && (
                             <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }} numberOfLines={1}>{payment.notes}</Text>
