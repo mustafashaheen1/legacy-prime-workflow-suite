@@ -26,7 +26,7 @@ export default function ProjectDetailScreen() {
 
   const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
   const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string }, { enabled: !!id });
-  const addPaymentMutation = trpc.payments.addPayment.useMutation();
+  const [isAddingPayment, setIsAddingPayment] = useState(false);
   const inspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery({
     companyId: company?.id || '',
     status: 'all'
@@ -2977,7 +2977,7 @@ export default function ProjectDetailScreen() {
 
               {/* Save */}
               <TouchableOpacity
-                disabled={addPaymentMutation.isPending}
+                disabled={isAddingPayment}
                 onPress={async () => {
                   const amount = parseFloat(paymentAmountInput.replace(/,/g, ''));
                   if (isNaN(amount) || amount <= 0) {
@@ -2992,27 +2992,39 @@ export default function ProjectDetailScreen() {
                     Alert.alert('Client Name Required', 'Please enter the client name.');
                     return;
                   }
+                  setIsAddingPayment(true);
                   try {
-                    await addPaymentMutation.mutateAsync({
-                      projectId: id as string,
-                      companyId: company!.id,
-                      amount,
-                      date: paymentDateInput.trim(),
-                      clientName: paymentClientNameInput.trim(),
-                      method: paymentMethodInput,
-                      notes: paymentNotesInput.trim() || undefined,
+                    const base = typeof window !== 'undefined' ? window.location.origin : '';
+                    const res = await fetch(`${base}/api/add-payment`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        projectId: id as string,
+                        companyId: company!.id,
+                        amount,
+                        date: paymentDateInput.trim(),
+                        clientName: paymentClientNameInput.trim(),
+                        method: paymentMethodInput,
+                        notes: paymentNotesInput.trim() || undefined,
+                      }),
                     });
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => ({ error: res.statusText }));
+                      throw new Error(err.error || `HTTP ${res.status}`);
+                    }
                     paymentsQuery.refetch();
                     setShowAddPaymentModal(false);
                     Alert.alert('Payment Recorded', `$${amount.toLocaleString()} received from ${paymentClientNameInput.trim()} has been recorded.`);
                   } catch (err: any) {
                     Alert.alert('Error', err.message || 'Failed to record payment. Please try again.');
+                  } finally {
+                    setIsAddingPayment(false);
                   }
                 }}
-                style={{ paddingVertical: 14, borderRadius: 12, backgroundColor: addPaymentMutation.isPending ? '#9CA3AF' : '#10B981', alignItems: 'center', marginBottom: 8 }}
+                style={{ paddingVertical: 14, borderRadius: 12, backgroundColor: isAddingPayment ? '#9CA3AF' : '#10B981', alignItems: 'center', marginBottom: 8 }}
               >
                 <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF' }}>
-                  {addPaymentMutation.isPending ? 'Saving...' : 'Record Payment'}
+                  {isAddingPayment ? 'Saving...' : 'Record Payment'}
                 </Text>
               </TouchableOpacity>
             </ScrollView>
