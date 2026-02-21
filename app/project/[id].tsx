@@ -3000,7 +3000,9 @@ export default function ProjectDetailScreen() {
                   }
                   setIsAddingPayment(true);
                   try {
-                    const base = typeof window !== 'undefined' ? window.location.origin : '';
+                    const base = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+                      (typeof window !== 'undefined' && window.location?.origin) ||
+                      'http://localhost:8081';
                     const res = await fetch(`${base}/api/add-payment`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
