@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
-import { useState, useMemo } from 'react';
-import { Stack, router } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Modal, RefreshControl } from 'react-native';
+import { useState, useMemo, useCallback } from 'react';
+import { Stack, router, useFocusEffect } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { User, ClockEntry } from '@/types';
 import { Clock, DollarSign, CheckCircle, XCircle, FileText, Edit2 } from 'lucide-react-native';
@@ -16,9 +16,24 @@ export default function EmployeeManagementScreen() {
   const [showEditRateModal, setShowEditRateModal] = useState<boolean>(false);
   const [editingRate, setEditingRate] = useState<string>('');
 
-  const { data: usersData } = trpc.users.getUsers.useQuery({
+  const [refreshing, setRefreshing] = useState(false);
+
+  const { data: usersData, refetch } = trpc.users.getUsers.useQuery({
     companyId: currentUser?.companyId || '',
   });
+
+  // Refetch every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const employees = useMemo(() => {
     const allUsers = usersData?.users || [];
@@ -244,7 +259,13 @@ export default function EmployeeManagementScreen() {
         headerShown: true,
       }} />
       
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10B981" colors={['#10B981']} />
+        }
+      >
         {employeesWithRateChangeRequests.length > 0 && (
           <View style={styles.alertCard}>
             <View style={styles.alertHeader}>
