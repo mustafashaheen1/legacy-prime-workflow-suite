@@ -75,13 +75,28 @@ export default function DashboardScreen() {
     [expenses, activeProjects]
   );
 
+  // Monthly expenses for the last 8 months — real data from the expenses array.
   const monthlySales = useMemo(() => {
-    const months = ['Oct', 'Dec', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
-    const sales = [420000, 350000, 580000, 420000, 480000, 520000, 300000, 720000];
-    return months.map((month, index) => ({ month, amount: sales[index] }));
-  }, []);
+    const now = new Date();
+    return Array.from({ length: 8 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (7 - i), 1);
+      const monthNum = d.getMonth();
+      const year = d.getFullYear();
+      const amount = expenses
+        .filter(e => {
+          const ed = new Date(e.date);
+          return ed.getMonth() === monthNum && ed.getFullYear() === year &&
+            activeProjects.some(p => p.id === e.projectId);
+        })
+        .reduce((sum, e) => sum + e.amount, 0);
+      return {
+        month: d.toLocaleString('default', { month: 'short' }),
+        amount,
+      };
+    });
+  }, [expenses, activeProjects]);
 
-  const maxSale = Math.max(...monthlySales.map(s => s.amount));
+  const maxSale = Math.max(...monthlySales.map(s => s.amount), 1); // guard against 0
 
   const projectExpenses = useMemo(() => {
     return activeProjects.map(project => ({
@@ -1255,6 +1270,7 @@ export default function DashboardScreen() {
           <View style={styles.statCard}>
             <Text style={styles.statTitle}>{t('dashboard.totalSold')}</Text>
             <Text style={styles.statValue}>${totalSold.toLocaleString()}</Text>
+            <Text style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>Monthly Expenses</Text>
             <View style={styles.chartContainer}>
               {monthlySales.map((sale, index) => {
                 const height = (sale.amount / maxSale) * 100;
