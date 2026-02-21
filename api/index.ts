@@ -6,18 +6,23 @@ export const config = {
   maxDuration: 30,
 };
 
+// Hop-by-hop headers must never be forwarded from the tRPC Fetch Response
+// to the Node.js ServerResponse — they're connection-scoped, not content-scoped.
+const HOP_BY_HOP = new Set([
+  'transfer-encoding', 'connection', 'keep-alive',
+  'upgrade', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer',
+]);
+
 /**
  * Direct tRPC fetch handler — bypasses @hono/node-server/vercel entirely.
  *
- * Root cause of the 504 bug:
- *   @hono/node-server/vercel converts the Node.js IncomingMessage to a Fetch Request
- *   by reading the raw stream. Vercel's Node.js runtime auto-parses JSON bodies into
- *   req.body BEFORE the handler runs, which consumes the stream. When Hono's adapter
- *   then tries to read the stream for POST bodies, it finds nothing — the request hangs
- *   until the 10s timeout fires.
+ * Root cause of the original 504:
+ *   @hono/node-server/vercel tries to read the raw IncomingMessage stream for the body.
+ *   Vercel's Node.js runtime auto-parses JSON bodies into req.body first, consuming the
+ *   stream. The adapter finds nothing, hangs, and Vercel kills it after 10 s.
  *
- * Fix: construct the Fetch Request manually from req.body (already parsed by Vercel)
- * and pass it straight to fetchRequestHandler, skipping Hono completely.
+ * Fix: reconstruct a Fetch Request manually from req.body (already parsed by Vercel)
+ * and pass it directly to fetchRequestHandler — no Hono involved.
  */
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
@@ -27,42 +32,66 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
-  // Reconstruct full URL from Vercel's Node.js request
-  const proto = (req.headers['x-forwarded-proto'] as string) || 'https';
-  const host = (req.headers.host as string) || 'localhost';
-  const url = `${proto}://${host}${req.url}`;
+  try {
+    // Build the full URL that fetchRequestHandler needs to route to the correct procedure.
+    const host = Array.isArray(req.headers['x-forwarded-host'])
+      ? req.headers['x-forwarded-host'][0]
+      : (req.headers['x-forwarded-host'] ?? req.headers.host ?? 'localhost');
+    const proto = Array.isArray(req.headers['x-forwarded-proto'])
+      ? req.headers['x-forwarded-proto'][0]
+      : (req.headers['x-forwarded-proto'] ?? 'https');
+    const url = `${proto}://${host}${req.url}`;
 
-  // Copy incoming headers into Fetch Headers
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(req.headers as Record<string, string | string[]>)) {
-    if (typeof value === 'string') headers.set(key, value);
-    else if (Array.isArray(value)) value.forEach(v => headers.append(key, v));
+    // Forward only the headers that tRPC actually needs.
+    // Intentionally omit connection-level headers (host, content-length,
+    // transfer-encoding) — they can corrupt the internal Fetch Request.
+    const headers = new Headers();
+    for (const name of ['authorization', 'content-type', 'accept', 'accept-language', 'x-trpc-source']) {
+      const val = req.headers[name];
+      if (val) headers.set(name, Array.isArray(val) ? val[0] : val);
+    }
+
+    // Reconstruct the body from req.body.
+    // Vercel's Node.js runtime auto-parses JSON before the stream is readable,
+    // so req.body is the only reliable source for POST/PUT/PATCH bodies.
+    let body: BodyInit | undefined;
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body !== undefined) {
+      body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      headers.set('content-type', 'application/json');
+    }
+
+    const fetchReq = new Request(url, { method: req.method, headers, body });
+
+    const response = await fetchRequestHandler({
+      endpoint: '/trpc',
+      req: fetchReq,
+      router: appRouter,
+      createContext,
+      onError({ path, error }) {
+        console.error(`[tRPC Error] Path: ${path}`, error.message);
+      },
+    });
+
+    // Read body before setting status/headers so the stream is fully consumed.
+    const responseBody = await response.text();
+
+    res.status(response.status);
+    response.headers.forEach((value: string, key: string) => {
+      // Skip hop-by-hop headers and let Node.js calculate content-length from the body.
+      if (!HOP_BY_HOP.has(key.toLowerCase()) && key.toLowerCase() !== 'content-length') {
+        res.setHeader(key, value);
+      }
+    });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('content-length', Buffer.byteLength(responseBody, 'utf-8'));
+    res.end(responseBody);
+
+  } catch (err: any) {
+    console.error('[tRPC Handler] Fatal crash:', err?.message, err?.stack?.substring(0, 800));
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: [{ message: err?.message ?? 'Internal server error', code: 'INTERNAL_SERVER_ERROR' }],
+      });
+    }
   }
-
-  // Reconstruct body from req.body — Vercel has already parsed the JSON stream into this.
-  // This is the exact fix for the @hono/node-server/vercel POST body bug.
-  let body: string | undefined;
-  if (req.method !== 'GET' && req.method !== 'HEAD' && req.body !== undefined) {
-    body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-    headers.set('content-type', 'application/json');
-  }
-
-  const fetchReq = new Request(url, { method: req.method, headers, body });
-
-  const response = await fetchRequestHandler({
-    endpoint: '/trpc',
-    req: fetchReq,
-    router: appRouter,
-    createContext,
-    onError({ path, error }) {
-      console.error(`[tRPC Error] Path: ${path}`, error.message);
-    },
-  });
-
-  res.status(response.status);
-  response.headers.forEach((value: string, key: string) => {
-    res.setHeader(key, value);
-  });
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.send(await response.text());
 }
