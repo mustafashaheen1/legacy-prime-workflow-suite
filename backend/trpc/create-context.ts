@@ -15,84 +15,18 @@ export interface AuthUser {
 }
 
 /**
- * Create tRPC context with automatic user extraction from JWT
- *
- * This fixes the architectural gap where auth was handled per-procedure.
- * Now user is automatically extracted from the Authorization header.
+ * Lightweight context — just passes the raw token through.
+ * Auth verification (2 DB calls) only happens in protectedProcedure,
+ * so publicProcedure routes pay zero auth overhead.
  */
 export const createContext = async (opts: FetchCreateContextFnOptions) => {
-  // Extract Authorization header
   const authHeader = opts.req.headers.get('authorization');
-  const token = authHeader?.replace('Bearer ', '');
-
-  let user: AuthUser | null = null;
-
-  // Extract user from JWT token if present
-  if (token && supabase) {
-    try {
-      console.log('[tRPC Context] Extracting user from JWT token...');
-
-      // Verify JWT token with Supabase
-      const { data, error } = await supabase.auth.getUser(token);
-
-      if (error) {
-        console.warn('[tRPC Context] JWT verification failed:', error.message);
-        // Don't throw - allow request to proceed for public procedures
-      } else if (data.user) {
-        console.log('[tRPC Context] JWT valid for user:', data.user.email);
-
-        // Fetch user profile from database
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id, email, name, role, company_id, is_active')
-          .eq('id', data.user.id)
-          .single();
-
-        if (userError) {
-          console.error('[tRPC Context] Failed to fetch user profile:', userError.message);
-        } else if (userData) {
-          // Type assertion for Supabase response
-          const userRecord = userData as {
-            id: string;
-            email: string;
-            name: string;
-            role: string;
-            company_id: string;
-            is_active: boolean;
-          };
-
-          // Check if user is active
-          if (!userRecord.is_active) {
-            console.warn('[tRPC Context] User account is inactive:', userRecord.email);
-            // Don't set user - will be treated as unauthenticated
-          } else {
-            // Successfully extracted user
-            user = {
-              id: userRecord.id,
-              email: userRecord.email,
-              companyId: userRecord.company_id,
-              role: userRecord.role,
-              name: userRecord.name,
-            };
-
-            console.log('[tRPC Context] ✅ User authenticated:', {
-              id: user.id,
-              email: user.email,
-              companyId: user.companyId,
-              role: user.role,
-            });
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('[tRPC Context] Unexpected auth error:', error.message);
-      // Don't throw - allow request to proceed for public procedures
-    }
-  }
+  const token = authHeader?.replace('Bearer ', '') || null;
 
   return {
     req: opts.req,
-    user, // Now available in all procedures! 🎉
+    token,
+    user: null as AuthUser | null,
   };
 };
 
@@ -105,50 +39,109 @@ const t = initTRPC.context<Context>().create({
 export const createTRPCRouter = t.router;
 
 /**
- * Public procedure - no authentication required
- * Use for: health checks, public data, etc.
+ * Public procedure — no authentication required.
+ * createContext adds zero DB overhead for these routes.
  */
 export const publicProcedure = t.procedure;
 
 /**
- * Protected procedure - requires authenticated user
- * Use for: all mutations (create, update, delete) and sensitive queries
- *
- * Benefits:
- * - Automatic auth enforcement
- * - Type-safe ctx.user (TypeScript knows it's not null)
- * - Centralized auth logic
- * - Automatic user tracking for audit trails
+ * Protected procedure — verifies JWT and fetches user profile.
+ * Two DB calls happen here, only when auth is actually needed.
  */
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
-  if (!ctx.user) {
+  const { token } = ctx;
+
+  if (!token || !supabase) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
       message: 'You must be logged in to perform this action',
     });
   }
 
+  let user: AuthUser | null = null;
+
+  try {
+    console.log('[tRPC Auth] Verifying JWT token...');
+
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error) {
+      console.warn('[tRPC Auth] JWT verification failed:', error.message);
+      throw new TRPCError({ code: 'UNAUTHORIZED', message: error.message });
+    }
+
+    if (data.user) {
+      console.log('[tRPC Auth] JWT valid for user:', data.user.email);
+
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, email, name, role, company_id, is_active')
+        .eq('id', data.user.id)
+        .single();
+
+      if (userError) {
+        console.error('[tRPC Auth] Failed to fetch user profile:', userError.message);
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'User profile not found' });
+      }
+
+      if (userData) {
+        const userRecord = userData as {
+          id: string;
+          email: string;
+          name: string;
+          role: string;
+          company_id: string;
+          is_active: boolean;
+        };
+
+        if (!userRecord.is_active) {
+          console.warn('[tRPC Auth] User account is inactive:', userRecord.email);
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Account is inactive' });
+        }
+
+        user = {
+          id: userRecord.id,
+          email: userRecord.email,
+          companyId: userRecord.company_id,
+          role: userRecord.role,
+          name: userRecord.name,
+        };
+
+        console.log('[tRPC Auth] ✅ User authenticated:', {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        });
+      }
+    }
+  } catch (error: any) {
+    if (error instanceof TRPCError) throw error;
+    console.error('[tRPC Auth] Unexpected auth error:', error.message);
+    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: error.message });
+  }
+
+  if (!user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'You must be logged in to perform this action' });
+  }
+
   return next({
     ctx: {
       ...ctx,
-      user: ctx.user, // TypeScript now knows user is not null
+      user,
     },
   });
 });
 
 /**
- * Admin-only procedure - requires admin or super-admin role
- * Use for: user management, company settings, etc.
+ * Admin-only procedure — requires admin or super-admin role.
  */
 export const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  if (!['admin', 'super-admin'].includes(ctx.user.role)) {
+  if (!['admin', 'super-admin'].includes(ctx.user!.role)) {
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: 'You do not have permission to perform this action',
     });
   }
 
-  return next({
-    ctx,
-  });
+  return next({ ctx });
 });
