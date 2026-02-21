@@ -1,13 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Calendar, Bell, Trash2, Check, Clock } from 'lucide-react-native';
+import { Calendar, Bell, Check, Clock/*, Trash2*/ } from 'lucide-react-native';
 import { DailyTask } from '@/types';
 import { useDailyTaskResponsive } from './hooks/useDailyTaskResponsive';
 
 interface DailyTaskCardProps {
   task: DailyTask;
   onToggleComplete: (task: DailyTask) => void;
-  onDelete: (taskId: string) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 export default function DailyTaskCard({ task, onToggleComplete, onDelete }: DailyTaskCardProps) {
@@ -122,14 +122,14 @@ export default function DailyTaskCard({ task, onToggleComplete, onDelete }: Dail
           </View>
         </View>
 
-        {/* Delete Button */}
-        <TouchableOpacity
+        {/* Delete Button — disabled per client request: tasks cannot be deleted once added */}
+        {/* <TouchableOpacity
           style={styles.deleteButton}
-          onPress={() => onDelete(task.id)}
+          onPress={() => onDelete && onDelete(task.id)}
           activeOpacity={0.7}
         >
           <Trash2 size={18} color="#EF4444" strokeWidth={2} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
     </View>
   );
@@ -284,10 +284,10 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-  // Delete Button
-  deleteButton: {
-    marginLeft: 6,
-    padding: 6,
-    marginTop: -2,
-  },
+  // Delete Button — kept for future re-enable
+  // deleteButton: {
+  //   marginLeft: 6,
+  //   padding: 6,
+  //   marginTop: -2,
+  // },
 });
