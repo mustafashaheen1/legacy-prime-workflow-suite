@@ -25,7 +25,8 @@ export default function ProjectDetailScreen() {
   const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject } = useApp();
 
   const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
-  const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string });
+  const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string }, { enabled: !!id });
+  const addPaymentMutation = trpc.payments.addPayment.useMutation();
   const inspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery({
     companyId: company?.id || '',
     status: 'all'
@@ -47,6 +48,12 @@ export default function ProjectDetailScreen() {
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [budgetInput, setBudgetInput] = useState('');
   const [contractAmountInput, setContractAmountInput] = useState('');
+  const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
+  const [paymentAmountInput, setPaymentAmountInput] = useState('');
+  const [paymentDateInput, setPaymentDateInput] = useState('');
+  const [paymentMethodInput, setPaymentMethodInput] = useState<Payment['method']>('cash');
+  const [paymentClientNameInput, setPaymentClientNameInput] = useState('');
+  const [paymentNotesInput, setPaymentNotesInput] = useState('');
   const insets = useSafeAreaInsets();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
@@ -671,7 +678,7 @@ export default function ProjectDetailScreen() {
                       ${pendingBalance.toLocaleString()}
                     </Text>
                     <View style={styles.paymentProgressBar}>
-                      <View style={[styles.paymentProgressFill, { 
+                      <View style={[styles.paymentProgressFill, {
                         width: `${Math.min(100, (pendingBalance / adjustedProjectTotal) * 100)}%`,
                         backgroundColor: pendingBalance > 0 ? '#F59E0B' : '#10B981'
                       }]} />
@@ -681,6 +688,55 @@ export default function ProjectDetailScreen() {
                     </Text>
                   </View>
                 </View>
+
+                {/* Record Payment button — admin only */}
+                {(user?.role === 'admin' || user?.role === 'super-admin') && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setPaymentAmountInput('');
+                      setPaymentDateInput(new Date().toISOString().split('T')[0]);
+                      setPaymentMethodInput('cash');
+                      setPaymentClientNameInput('');
+                      setPaymentNotesInput('');
+                      setShowAddPaymentModal(true);
+                    }}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                      gap: 8, paddingVertical: 12, borderRadius: 10, marginBottom: 12,
+                      borderWidth: 1.5, borderColor: '#10B981',
+                      borderStyle: 'dashed' as any,
+                    }}
+                  >
+                    <Plus size={16} color="#10B981" />
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#10B981' }}>Record Payment</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Payment history list */}
+                {payments.length > 0 && (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Payment History
+                    </Text>
+                    {payments.map((payment) => (
+                      <View key={payment.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                          <CreditCard size={14} color="#10B981" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: '#111827' }}>{payment.clientName}</Text>
+                          <Text style={{ fontSize: 11, color: '#6B7280' }}>
+                            {payment.method.replace('-', ' ')} · {new Date(payment.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </Text>
+                          {!!payment.notes && (
+                            <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }} numberOfLines={1}>{payment.notes}</Text>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#10B981' }}>+${payment.amount.toLocaleString()}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
 
                 <View style={styles.profitSection}>
                   <View style={styles.profitHeader}>
@@ -2764,6 +2820,157 @@ export default function ProjectDetailScreen() {
         {renderTabContent()}
       </ScrollView>
       </View>
+
+      {/* ── Record Payment Modal ── */}
+      <Modal
+        visible={showAddPaymentModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddPaymentModal(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
+          activeOpacity={1}
+          onPress={() => setShowAddPaymentModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: insets.bottom + 16 }}
+          >
+            {/* Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center' }}>
+                  <CreditCard size={18} color="#10B981" />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: '#111827' }}>Record Payment</Text>
+                  <Text style={{ fontSize: 12, color: '#6B7280' }}>{project?.name}</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setShowAddPaymentModal(false)} style={{ padding: 4 }}>
+                <X size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {/* Amount */}
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                Amount Received *
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#D1FAE5', borderRadius: 10, backgroundColor: '#F0FDF4', marginBottom: 14, paddingHorizontal: 14 }}>
+                <Text style={{ fontSize: 20, color: '#10B981', fontWeight: '700', marginRight: 4 }}>$</Text>
+                <TextInput
+                  value={paymentAmountInput}
+                  onChangeText={setPaymentAmountInput}
+                  keyboardType="numeric"
+                  placeholder="0.00"
+                  placeholderTextColor="#9CA3AF"
+                  style={{ flex: 1, fontSize: 20, fontWeight: '600', color: '#064E3B', paddingVertical: 13 }}
+                />
+              </View>
+
+              {/* Date */}
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                Payment Date *
+              </Text>
+              <TextInput
+                value={paymentDateInput}
+                onChangeText={setPaymentDateInput}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#9CA3AF"
+                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: '#111827', backgroundColor: '#F9FAFB', marginBottom: 14 }}
+              />
+
+              {/* Payment Method */}
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                Payment Method *
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {(['cash', 'check', 'credit-card', 'wire-transfer', 'other'] as Payment['method'][]).map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    onPress={() => setPaymentMethodInput(m)}
+                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: paymentMethodInput === m ? '#10B981' : '#F3F4F6', borderWidth: 1, borderColor: paymentMethodInput === m ? '#10B981' : '#E5E7EB' }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: paymentMethodInput === m ? '#FFFFFF' : '#374151' }}>
+                      {m === 'credit-card' ? 'Card' : m === 'wire-transfer' ? 'Wire' : m.charAt(0).toUpperCase() + m.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Client Name */}
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                Client Name *
+              </Text>
+              <TextInput
+                value={paymentClientNameInput}
+                onChangeText={setPaymentClientNameInput}
+                placeholder="Enter client name"
+                placeholderTextColor="#9CA3AF"
+                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: '#111827', backgroundColor: '#F9FAFB', marginBottom: 14 }}
+              />
+
+              {/* Notes */}
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                Notes (optional)
+              </Text>
+              <TextInput
+                value={paymentNotesInput}
+                onChangeText={setPaymentNotesInput}
+                placeholder="e.g. Invoice #123, partial payment..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={2}
+                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: '#111827', backgroundColor: '#F9FAFB', marginBottom: 20, minHeight: 70, textAlignVertical: 'top' }}
+              />
+
+              {/* Save */}
+              <TouchableOpacity
+                disabled={addPaymentMutation.isPending}
+                onPress={async () => {
+                  const amount = parseFloat(paymentAmountInput.replace(/,/g, ''));
+                  if (isNaN(amount) || amount <= 0) {
+                    Alert.alert('Invalid Amount', 'Please enter a valid payment amount greater than $0.');
+                    return;
+                  }
+                  if (!paymentDateInput.trim()) {
+                    Alert.alert('Date Required', 'Please enter the payment date (YYYY-MM-DD).');
+                    return;
+                  }
+                  if (!paymentClientNameInput.trim()) {
+                    Alert.alert('Client Name Required', 'Please enter the client name.');
+                    return;
+                  }
+                  try {
+                    await addPaymentMutation.mutateAsync({
+                      projectId: id as string,
+                      companyId: company!.id,
+                      amount,
+                      date: paymentDateInput.trim(),
+                      clientName: paymentClientNameInput.trim(),
+                      method: paymentMethodInput,
+                      notes: paymentNotesInput.trim() || undefined,
+                    });
+                    paymentsQuery.refetch();
+                    setShowAddPaymentModal(false);
+                    Alert.alert('Payment Recorded', `$${amount.toLocaleString()} received from ${paymentClientNameInput.trim()} has been recorded.`);
+                  } catch (err: any) {
+                    Alert.alert('Error', err.message || 'Failed to record payment. Please try again.');
+                  }
+                }}
+                style={{ paddingVertical: 14, borderRadius: 12, backgroundColor: addPaymentMutation.isPending ? '#9CA3AF' : '#10B981', alignItems: 'center', marginBottom: 8 }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF' }}>
+                  {addPaymentMutation.isPending ? 'Saving...' : 'Record Payment'}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* ── Budget Edit Modal ── */}
       <Modal
