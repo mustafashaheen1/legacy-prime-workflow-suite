@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { Plus, CheckSquare } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DailyTask } from '@/types';
 import { useDailyTaskResponsive } from './hooks/useDailyTaskResponsive';
 import DailyTaskCard from './DailyTaskCard';
@@ -25,6 +26,7 @@ export default function DailyTasksSidebar({
   onDeleteTask,
 }: DailyTasksSidebarProps) {
   const responsive = useDailyTaskResponsive();
+  const insets = useSafeAreaInsets();
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('today');
 
   const filteredTasks = useMemo(() => {
@@ -55,7 +57,7 @@ export default function DailyTasksSidebar({
         {/* Sidebar */}
         <View style={[styles.sidebar, { width: responsive.sidebarWidth }]}>
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
             <View style={styles.headerTop}>
               <View style={styles.headerText}>
                 <Text style={styles.title}>Daily Tasks</Text>
@@ -153,7 +155,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    paddingTop: 20,
     paddingBottom: 16,
     paddingHorizontal: 20,
   },
