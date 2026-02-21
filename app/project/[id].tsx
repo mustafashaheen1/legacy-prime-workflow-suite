@@ -361,9 +361,16 @@ export default function ProjectDetailScreen() {
     }, 0);
   }, [projectClockEntries]);
 
+  // Payment baseline: what the client agreed to pay (contract amount).
+  // Falls back to budget if no contract has been set yet.
+  const paymentBaseline = useMemo(() => {
+    if (!project) return 0;
+    return (project.contractAmount ?? 0) > 0 ? (project.contractAmount ?? 0) : project.budget;
+  }, [project]);
+
   const pendingBalance = useMemo(() => {
-    return adjustedProjectTotal - totalPaymentsReceived;
-  }, [adjustedProjectTotal, totalPaymentsReceived]);
+    return paymentBaseline - totalPaymentsReceived;
+  }, [paymentBaseline, totalPaymentsReceived]);
 
   const profitMargin = useMemo(() => {
     return adjustedProjectTotal - totalJobCost;
@@ -660,12 +667,12 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.paymentMetricValue}>${totalPaymentsReceived.toLocaleString()}</Text>
                     <View style={styles.paymentProgressBar}>
                       <View style={[styles.paymentProgressFill, { 
-                        width: `${Math.min(100, (totalPaymentsReceived / adjustedProjectTotal) * 100)}%`,
+                        width: `${Math.min(100, paymentBaseline > 0 ? (totalPaymentsReceived / paymentBaseline) * 100 : 0)}%`,
                         backgroundColor: '#10B981'
                       }]} />
                     </View>
                     <Text style={styles.paymentMetricSubtext}>
-                      {((totalPaymentsReceived / adjustedProjectTotal) * 100).toFixed(1)}% of contract • {payments.length} payment(s)
+                      {(paymentBaseline > 0 ? (totalPaymentsReceived / paymentBaseline) * 100 : 0).toFixed(1)}% of contract • {payments.length} payment(s)
                     </Text>
                   </View>
 
@@ -679,12 +686,12 @@ export default function ProjectDetailScreen() {
                     </Text>
                     <View style={styles.paymentProgressBar}>
                       <View style={[styles.paymentProgressFill, {
-                        width: `${Math.min(100, (pendingBalance / adjustedProjectTotal) * 100)}%`,
+                        width: `${Math.min(100, paymentBaseline > 0 ? (pendingBalance / paymentBaseline) * 100 : 0)}%`,
                         backgroundColor: pendingBalance > 0 ? '#F59E0B' : '#10B981'
                       }]} />
                     </View>
                     <Text style={styles.paymentMetricSubtext}>
-                      {((pendingBalance / adjustedProjectTotal) * 100).toFixed(1)}% remaining
+                      {(paymentBaseline > 0 ? (pendingBalance / paymentBaseline) * 100 : 0).toFixed(1)}% remaining
                     </Text>
                   </View>
                 </View>
@@ -1007,7 +1014,7 @@ export default function ProjectDetailScreen() {
                     </View>
                     <View style={styles.quickStatsGrid}>
                       <View style={styles.quickStat}>
-                        <Text style={styles.quickStatValue}>${(project.expenses / project.hoursWorked).toFixed(2)}</Text>
+                        <Text style={styles.quickStatValue}>{project.hoursWorked > 0 ? `$${(project.expenses / project.hoursWorked).toFixed(2)}` : '—'}</Text>
                         <Text style={styles.quickStatLabel}>Cost per Hour</Text>
                       </View>
                       <View style={styles.quickStat}>
@@ -1015,7 +1022,7 @@ export default function ProjectDetailScreen() {
                         <Text style={styles.quickStatLabel}>Budget per % Left</Text>
                       </View>
                       <View style={styles.quickStat}>
-                        <Text style={styles.quickStatValue}>{(project.hoursWorked / daysElapsed).toFixed(1)}</Text>
+                        <Text style={styles.quickStatValue}>{daysElapsed > 0 && project.hoursWorked > 0 ? (project.hoursWorked / daysElapsed).toFixed(1) : '—'}</Text>
                         <Text style={styles.quickStatLabel}>Avg Hours/Day</Text>
                       </View>
                     </View>
@@ -1166,12 +1173,12 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.paymentMetricValue}>${totalPaymentsReceived.toLocaleString()}</Text>
                     <View style={styles.paymentProgressBar}>
                       <View style={[styles.paymentProgressFill, {
-                        width: `${Math.min(100, (totalPaymentsReceived / adjustedProjectTotal) * 100)}%`,
+                        width: `${Math.min(100, paymentBaseline > 0 ? (totalPaymentsReceived / paymentBaseline) * 100 : 0)}%`,
                         backgroundColor: '#10B981'
                       }]} />
                     </View>
                     <Text style={styles.paymentMetricSubtext}>
-                      {((totalPaymentsReceived / adjustedProjectTotal) * 100).toFixed(1)}% of contract • {payments.length} payment(s)
+                      {(paymentBaseline > 0 ? (totalPaymentsReceived / paymentBaseline) * 100 : 0).toFixed(1)}% of contract • {payments.length} payment(s)
                     </Text>
                   </View>
                   <View style={styles.paymentMetric}>
@@ -1184,12 +1191,12 @@ export default function ProjectDetailScreen() {
                     </Text>
                     <View style={styles.paymentProgressBar}>
                       <View style={[styles.paymentProgressFill, {
-                        width: `${Math.min(100, (pendingBalance / adjustedProjectTotal) * 100)}%`,
+                        width: `${Math.min(100, paymentBaseline > 0 ? (pendingBalance / paymentBaseline) * 100 : 0)}%`,
                         backgroundColor: pendingBalance > 0 ? '#F59E0B' : '#10B981'
                       }]} />
                     </View>
                     <Text style={styles.paymentMetricSubtext}>
-                      {((pendingBalance / adjustedProjectTotal) * 100).toFixed(1)}% remaining
+                      {(paymentBaseline > 0 ? (pendingBalance / paymentBaseline) * 100 : 0).toFixed(1)}% remaining
                     </Text>
                   </View>
                 </View>
