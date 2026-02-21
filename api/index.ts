@@ -2,7 +2,7 @@ import { handle } from '@hono/node-server/vercel';
 import app from '../backend/hono.js';
 
 export const config = {
-  maxDuration: 10,
+  maxDuration: 30,
 };
 
 // WORKAROUND for @hono/node-server/vercel POST body parsing bug
