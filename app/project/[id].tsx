@@ -3002,7 +3002,7 @@ export default function ProjectDetailScreen() {
                   try {
                     const base = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
                       (typeof window !== 'undefined' && window.location?.origin) ||
-                      'http://localhost:8081';
+                      'https://legacy-prime-workflow-suite.vercel.app';
                     const res = await fetch(`${base}/api/add-payment`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },

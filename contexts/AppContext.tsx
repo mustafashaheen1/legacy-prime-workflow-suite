@@ -13,6 +13,8 @@ import { supabase } from '@/lib/supabase';
  * Get the correct API base URL
  * Prioritizes environment variable over window.location.origin
  */
+const PRODUCTION_URL = 'https://legacy-prime-workflow-suite.vercel.app';
+
 const getApiBaseUrl = (): string => {
   const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
 
@@ -20,11 +22,11 @@ const getApiBaseUrl = (): string => {
     return rorkApi;
   }
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin;
   }
 
-  return 'http://localhost:8081';
+  return PRODUCTION_URL;
 };
 
 interface AppState {
