@@ -15,7 +15,7 @@ export default function ChangeOrdersScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { company, projects, clients } = useApp();
+  const { company, projects, clients, updateProject, user } = useApp();
 
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [description, setDescription] = useState<string>('');
@@ -107,24 +107,54 @@ export default function ChangeOrdersScreen() {
   };
 
   const handleApprove = (changeOrder: ChangeOrder) => {
-    Alert.alert(
-      'Approve Change Order',
-      `Approve "${changeOrder.description}" for $${changeOrder.amount.toLocaleString()}? This will increase the project budget.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Approve',
-          style: 'default',
-          onPress: () => {
-            updateChangeOrderMutation.mutate({
-              id: changeOrder.id,
-              status: 'approved',
-              approvedDate: new Date().toISOString(),
-            });
-          },
-        },
-      ]
-    );
+    const project = projects.find(p => p.id === id);
+    const isAdmin = user?.role === 'admin' || user?.role === 'super-admin';
+    const currentContract = project?.contractAmount ?? 0;
+    const newContract = currentContract + changeOrder.amount;
+
+    const doApprove = () => {
+      updateChangeOrderMutation.mutate({
+        id: changeOrder.id,
+        status: 'approved',
+        approvedDate: new Date().toISOString(),
+      });
+    };
+
+    const doApproveAndUpdateContract = () => {
+      updateChangeOrderMutation.mutate({
+        id: changeOrder.id,
+        status: 'approved',
+        approvedDate: new Date().toISOString(),
+      });
+      if (project) {
+        updateProject(project.id, { contractAmount: newContract });
+      }
+    };
+
+    if (isAdmin && project) {
+      const contractLine = currentContract > 0
+        ? `\n\nContract: $${currentContract.toLocaleString()} → $${newContract.toLocaleString()}`
+        : `\n\nThis sets the contract amount to $${newContract.toLocaleString()}`;
+
+      Alert.alert(
+        'Approve Change Order',
+        `"${changeOrder.description}" • $${changeOrder.amount.toLocaleString()}${contractLine}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Approve Only', onPress: doApprove },
+          { text: 'Approve + Update Contract', style: 'default', onPress: doApproveAndUpdateContract },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Approve Change Order',
+        `Approve "${changeOrder.description}" for $${changeOrder.amount.toLocaleString()}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Approve', style: 'default', onPress: doApprove },
+        ]
+      );
+    }
   };
 
   const handleReject = (changeOrder: ChangeOrder) => {

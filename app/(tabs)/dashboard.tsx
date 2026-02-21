@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
-import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, Calendar, Bell, Clock } from 'lucide-react-native';
+import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, Calendar, Bell, Clock, AlertTriangle } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, useMemo, useEffect } from 'react';
@@ -1228,6 +1228,18 @@ export default function DashboardScreen() {
                   </View>
                 )}
                 <Text style={styles.projectName}>{project.name}</Text>
+                {(!project.contractAmount || project.contractAmount === 0) && (
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 4,
+                    backgroundColor: '#FFF7ED', borderRadius: 6,
+                    paddingHorizontal: 7, paddingVertical: 3,
+                    marginBottom: 5, alignSelf: 'flex-start',
+                    borderWidth: 1, borderColor: '#FED7AA',
+                  }}>
+                    <AlertTriangle size={9} color="#F97316" />
+                    <Text style={{ fontSize: 9, fontWeight: '700', color: '#F97316' }}>No Contract Amount</Text>
+                  </View>
+                )}
                 <Text style={styles.projectBudget}>Budget: ${project.budget.toLocaleString()}</Text>
                 <Image
                   source={{ uri: project.image }}

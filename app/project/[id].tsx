@@ -412,27 +412,27 @@ export default function ProjectDetailScreen() {
             {/* Budget Banner — admin/super-admin: tappable edit; everyone else: view-only */}
             {(() => {
               const isAdmin = user?.role === 'admin' || user?.role === 'super-admin';
+              const hasContract = (project.contractAmount ?? 0) > 0;
               const bannerStyle = {
                 flexDirection: 'row' as const,
                 alignItems: 'center' as const,
-                backgroundColor: '#F0FDF4',
+                backgroundColor: hasContract ? '#F0FDF4' : '#FFFBEB',
                 borderRadius: 12,
                 paddingHorizontal: 16,
                 paddingVertical: 14,
                 marginBottom: 12,
                 borderWidth: 1,
-                borderColor: '#BBFCDA',
+                borderColor: hasContract ? '#BBFCDA' : '#FCD34D',
               };
-              const hasContract = (project.contractAmount ?? 0) > 0;
               const innerContent = (
                 <>
                   {/* Icon */}
                   <View style={{
                     width: 36, height: 36, borderRadius: 18,
-                    backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                    backgroundColor: hasContract ? '#D1FAE5' : '#FEF3C7', alignItems: 'center', justifyContent: 'center', marginRight: 12,
                     alignSelf: 'flex-start', marginTop: 2,
                   }}>
-                    <DollarSign size={18} color="#10B981" />
+                    <DollarSign size={18} color={hasContract ? '#10B981' : '#F59E0B'} />
                   </View>
 
                   {/* Values row */}
@@ -443,8 +443,8 @@ export default function ProjectDetailScreen() {
                         <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 }}>
                           Contract Amount
                         </Text>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: hasContract ? '#1E40AF' : '#9CA3AF' }}>
-                          {hasContract ? `$${(project.contractAmount!).toLocaleString()}` : 'Not set'}
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: hasContract ? '#1E40AF' : '#D97706' }}>
+                          {hasContract ? `$${(project.contractAmount!).toLocaleString()}` : 'Not set ⚠'}
                         </Text>
                       </View>
 
@@ -1586,6 +1586,47 @@ export default function ProjectDetailScreen() {
                 >
                   <FileText size={20} color="#2563EB" />
                   <Text style={styles.viewFullEstimateButtonText}>View Full Estimate</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* #5 — Auto-link: estimate approved/paid but no contract amount set yet */}
+            {originalEstimate &&
+              (originalEstimate.status === 'approved' || originalEstimate.status === 'paid') &&
+              !(project.contractAmount && project.contractAmount > 0) &&
+              (user?.role === 'admin' || user?.role === 'super-admin') && (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                backgroundColor: '#EFF6FF', borderRadius: 12, borderWidth: 1,
+                borderColor: '#BFDBFE', padding: 14,
+                marginHorizontal: 16, marginBottom: 16,
+              }}>
+                <View style={{
+                  width: 36, height: 36, borderRadius: 18,
+                  backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <DollarSign size={18} color="#2563EB" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#1E40AF', marginBottom: 1 }}>
+                    Estimate {originalEstimate.status === 'paid' ? 'Paid' : 'Approved'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#3B82F6', lineHeight: 17 }}>
+                    Use ${originalEstimate.total.toLocaleString()} as the contract amount?
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setContractAmountInput(originalEstimate.total.toString());
+                    setBudgetInput(project.budget.toString());
+                    setShowBudgetModal(true);
+                  }}
+                  style={{
+                    backgroundColor: '#2563EB', borderRadius: 8,
+                    paddingHorizontal: 14, paddingVertical: 9,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFFFFF' }}>Set</Text>
                 </TouchableOpacity>
               </View>
             )}
