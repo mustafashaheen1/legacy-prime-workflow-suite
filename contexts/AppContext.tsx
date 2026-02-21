@@ -905,10 +905,18 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Optimistically update UI
     setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
 
-    // Save to backend
+    // Save to backend via direct REST endpoint (bypasses @hono/node-server/vercel POST body bug)
     try {
-      const { vanillaClient } = await import('@/lib/trpc');
-      await vanillaClient.projects.updateProject.mutate({ id, ...updates });
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/update-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
       console.log('[App] Project updated in backend:', id);
     } catch (error) {
       console.error('[App] Error updating project in backend:', error);
