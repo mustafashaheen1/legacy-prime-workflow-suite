@@ -313,6 +313,13 @@ export default function ProjectDetailScreen() {
     if (!project) return 0;
     return (project.contractAmount ?? 0) - project.budget;
   }, [project]);
+
+  // Actual profit: live margin as expenses come in.
+  // Contract Amount − actual expenses to date.
+  const actualProfit = useMemo(() => {
+    if (!project) return 0;
+    return (project.contractAmount ?? 0) - totalJobCost;
+  }, [project, totalJobCost]);
   
   const totalPaymentsReceived = useMemo(() => {
     return payments.reduce((sum, payment) => sum + payment.amount, 0);
@@ -677,21 +684,84 @@ export default function ProjectDetailScreen() {
 
                 <View style={styles.profitSection}>
                   <View style={styles.profitHeader}>
-                    <TrendingUp size={20} color={profitMargin >= 0 ? '#10B981' : '#EF4444'} />
-                    <Text style={styles.profitTitle}>Projected Profit</Text>
+                    <TrendingUp size={20} color="#6366F1" />
+                    <Text style={styles.profitTitle}>Profit Analysis</Text>
                   </View>
-                  <Text style={[styles.profitAmount, { color: profitMargin >= 0 ? '#10B981' : '#EF4444' }]}>
-                    ${Math.abs(profitMargin).toLocaleString()}
-                  </Text>
-                  <View style={styles.profitBar}>
-                    <View style={[styles.profitFill, { 
-                      width: `${Math.min(100, Math.abs(profitMargin) / adjustedProjectTotal * 100)}%`,
-                      backgroundColor: profitMargin >= 0 ? '#10B981' : '#EF4444'
-                    }]} />
-                  </View>
-                  <Text style={styles.profitSubtext}>
-                    {profitMargin >= 0 ? 'Profit Margin' : 'Loss'}: {((profitMargin / adjustedProjectTotal) * 100).toFixed(1)}%
-                  </Text>
+
+                  {(project.contractAmount ?? 0) > 0 ? (
+                    <>
+                      {/* Planned vs Actual columns */}
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                        {/* Planned Profit */}
+                        <View style={{ flex: 1, backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#BBFCDA' }}>
+                          <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
+                            Planned
+                          </Text>
+                          <Text style={{ fontSize: 20, fontWeight: '700', color: plannedProfit >= 0 ? '#10B981' : '#EF4444', marginBottom: 2 }}>
+                            {plannedProfit >= 0 ? '+' : '-'}${Math.abs(plannedProfit).toLocaleString()}
+                          </Text>
+                          <Text style={{ fontSize: 10, color: '#6B7280' }}>Contract − Budget</Text>
+                          <Text style={{ fontSize: 10, color: '#059669', fontWeight: '600', marginTop: 2 }}>
+                            {((plannedProfit / project.contractAmount!) * 100).toFixed(1)}% margin
+                          </Text>
+                        </View>
+
+                        {/* Actual Profit */}
+                        <View style={{ flex: 1, backgroundColor: actualProfit >= 0 ? '#EFF6FF' : '#FEF2F2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: actualProfit >= 0 ? '#BFDBFE' : '#FECACA' }}>
+                          <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
+                            Actual (Live)
+                          </Text>
+                          <Text style={{ fontSize: 20, fontWeight: '700', color: actualProfit >= 0 ? '#1E40AF' : '#EF4444', marginBottom: 2 }}>
+                            {actualProfit >= 0 ? '+' : '-'}${Math.abs(actualProfit).toLocaleString()}
+                          </Text>
+                          <Text style={{ fontSize: 10, color: '#6B7280' }}>Contract − Expenses</Text>
+                          <Text style={{ fontSize: 10, color: actualProfit >= 0 ? '#1E40AF' : '#EF4444', fontWeight: '600', marginTop: 2 }}>
+                            {((actualProfit / project.contractAmount!) * 100).toFixed(1)}% margin
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Margin erosion bar — only meaningful if planned profit > 0 */}
+                      {plannedProfit > 0 && (
+                        <>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                            <Text style={{ fontSize: 11, color: '#6B7280' }}>Profit intact</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: actualProfit < plannedProfit * 0.25 ? '#EF4444' : '#6B7280' }}>
+                              ${totalJobCost.toLocaleString()} spent so far
+                            </Text>
+                          </View>
+                          <View style={styles.profitBar}>
+                            <View style={[styles.profitFill, {
+                              width: `${Math.min(100, Math.max(0, (actualProfit / plannedProfit) * 100))}%`,
+                              backgroundColor: actualProfit >= plannedProfit * 0.5 ? '#10B981' : actualProfit > 0 ? '#F59E0B' : '#EF4444',
+                            }]} />
+                          </View>
+                          <Text style={styles.profitSubtext}>
+                            {actualProfit >= 0
+                              ? `${((actualProfit / plannedProfit) * 100).toFixed(0)}% of planned profit remaining`
+                              : `Expenses exceeded contract — $${Math.abs(actualProfit).toLocaleString()} net loss`}
+                          </Text>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    /* Fallback: no contract amount set */
+                    <>
+                      <Text style={[styles.profitAmount, { color: profitMargin >= 0 ? '#10B981' : '#EF4444' }]}>
+                        ${Math.abs(profitMargin).toLocaleString()}
+                      </Text>
+                      <View style={styles.profitBar}>
+                        <View style={[styles.profitFill, {
+                          width: `${Math.min(100, adjustedProjectTotal > 0 ? Math.abs(profitMargin) / adjustedProjectTotal * 100 : 0)}%`,
+                          backgroundColor: profitMargin >= 0 ? '#10B981' : '#EF4444'
+                        }]} />
+                      </View>
+                      <Text style={styles.profitSubtext}>
+                        {profitMargin >= 0 ? 'Budget remaining' : 'Over budget'}: {adjustedProjectTotal > 0 ? ((profitMargin / adjustedProjectTotal) * 100).toFixed(1) : '0'}%{'\n'}
+                        Set a contract amount to see full profit analysis
+                      </Text>
+                    </>
+                  )}
                 </View>
 
                 <View style={styles.divider} />
@@ -1070,21 +1140,84 @@ export default function ProjectDetailScreen() {
 
                 <View style={styles.profitSection}>
                   <View style={styles.profitHeader}>
-                    <TrendingUp size={20} color={profitMargin >= 0 ? '#10B981' : '#EF4444'} />
-                    <Text style={styles.profitTitle}>Projected Profit</Text>
+                    <TrendingUp size={20} color="#6366F1" />
+                    <Text style={styles.profitTitle}>Profit Analysis</Text>
                   </View>
-                  <Text style={[styles.profitAmount, { color: profitMargin >= 0 ? '#10B981' : '#EF4444' }]}>
-                    ${Math.abs(profitMargin).toLocaleString()}
-                  </Text>
-                  <View style={styles.profitBar}>
-                    <View style={[styles.profitFill, {
-                      width: `${Math.min(100, Math.abs(profitMargin) / adjustedProjectTotal * 100)}%`,
-                      backgroundColor: profitMargin >= 0 ? '#10B981' : '#EF4444'
-                    }]} />
-                  </View>
-                  <Text style={styles.profitSubtext}>
-                    {profitMargin >= 0 ? 'Profit Margin' : 'Loss'}: {((profitMargin / adjustedProjectTotal) * 100).toFixed(1)}%
-                  </Text>
+
+                  {(project.contractAmount ?? 0) > 0 ? (
+                    <>
+                      {/* Planned vs Actual columns */}
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                        {/* Planned Profit */}
+                        <View style={{ flex: 1, backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#BBFCDA' }}>
+                          <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
+                            Planned
+                          </Text>
+                          <Text style={{ fontSize: 20, fontWeight: '700', color: plannedProfit >= 0 ? '#10B981' : '#EF4444', marginBottom: 2 }}>
+                            {plannedProfit >= 0 ? '+' : '-'}${Math.abs(plannedProfit).toLocaleString()}
+                          </Text>
+                          <Text style={{ fontSize: 10, color: '#6B7280' }}>Contract − Budget</Text>
+                          <Text style={{ fontSize: 10, color: '#059669', fontWeight: '600', marginTop: 2 }}>
+                            {((plannedProfit / project.contractAmount!) * 100).toFixed(1)}% margin
+                          </Text>
+                        </View>
+
+                        {/* Actual Profit */}
+                        <View style={{ flex: 1, backgroundColor: actualProfit >= 0 ? '#EFF6FF' : '#FEF2F2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: actualProfit >= 0 ? '#BFDBFE' : '#FECACA' }}>
+                          <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
+                            Actual (Live)
+                          </Text>
+                          <Text style={{ fontSize: 20, fontWeight: '700', color: actualProfit >= 0 ? '#1E40AF' : '#EF4444', marginBottom: 2 }}>
+                            {actualProfit >= 0 ? '+' : '-'}${Math.abs(actualProfit).toLocaleString()}
+                          </Text>
+                          <Text style={{ fontSize: 10, color: '#6B7280' }}>Contract − Expenses</Text>
+                          <Text style={{ fontSize: 10, color: actualProfit >= 0 ? '#1E40AF' : '#EF4444', fontWeight: '600', marginTop: 2 }}>
+                            {((actualProfit / project.contractAmount!) * 100).toFixed(1)}% margin
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Margin erosion bar */}
+                      {plannedProfit > 0 && (
+                        <>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                            <Text style={{ fontSize: 11, color: '#6B7280' }}>Profit intact</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: actualProfit < plannedProfit * 0.25 ? '#EF4444' : '#6B7280' }}>
+                              ${totalJobCost.toLocaleString()} spent so far
+                            </Text>
+                          </View>
+                          <View style={styles.profitBar}>
+                            <View style={[styles.profitFill, {
+                              width: `${Math.min(100, Math.max(0, (actualProfit / plannedProfit) * 100))}%`,
+                              backgroundColor: actualProfit >= plannedProfit * 0.5 ? '#10B981' : actualProfit > 0 ? '#F59E0B' : '#EF4444',
+                            }]} />
+                          </View>
+                          <Text style={styles.profitSubtext}>
+                            {actualProfit >= 0
+                              ? `${((actualProfit / plannedProfit) * 100).toFixed(0)}% of planned profit remaining`
+                              : `Expenses exceeded contract — $${Math.abs(actualProfit).toLocaleString()} net loss`}
+                          </Text>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    /* Fallback: no contract amount set */
+                    <>
+                      <Text style={[styles.profitAmount, { color: profitMargin >= 0 ? '#10B981' : '#EF4444' }]}>
+                        ${Math.abs(profitMargin).toLocaleString()}
+                      </Text>
+                      <View style={styles.profitBar}>
+                        <View style={[styles.profitFill, {
+                          width: `${Math.min(100, adjustedProjectTotal > 0 ? Math.abs(profitMargin) / adjustedProjectTotal * 100 : 0)}%`,
+                          backgroundColor: profitMargin >= 0 ? '#10B981' : '#EF4444'
+                        }]} />
+                      </View>
+                      <Text style={styles.profitSubtext}>
+                        {profitMargin >= 0 ? 'Budget remaining' : 'Over budget'}: {adjustedProjectTotal > 0 ? ((profitMargin / adjustedProjectTotal) * 100).toFixed(1) : '0'}%{'\n'}
+                        Set a contract amount to see full profit analysis
+                      </Text>
+                    </>
+                  )}
                 </View>
 
                 {/* Labor Insights */}
