@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { Plus, CheckSquare } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import { DailyTask } from '@/types';
 import { useDailyTaskResponsive } from './hooks/useDailyTaskResponsive';
 import DailyTaskCard from './DailyTaskCard';
@@ -54,9 +54,9 @@ export default function DailyTasksSidebar({
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
 
         {/* Sidebar */}
-        <SafeAreaView edges={['top', 'right']} style={[styles.sidebar, { width: responsive.sidebarWidth }]}>
+        <View style={[styles.sidebar, { width: responsive.sidebarWidth }]}>
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { paddingTop: (Constants.statusBarHeight || 24) + 16 }]}>
             <View style={styles.headerTop}>
               <View style={styles.headerText}>
                 <Text style={styles.title}>Daily Tasks</Text>
@@ -124,7 +124,7 @@ export default function DailyTasksSidebar({
               ))
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </View>
     </Modal>
   );
@@ -154,7 +154,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    paddingTop: 20,
     paddingBottom: 16,
     paddingHorizontal: 20,
   },
