@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState as RNAppState } from 'react-native';
 import { User, Project, Client, Expense, Photo, Task, DailyTask, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company, Subcontractor, SubcontractorProposal, Notification, ScheduledTask, DailyTaskReminder, ScheduleShareLink } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { mockProjects, mockClients, mockExpenses, mockPhotos, mockTasks } from '@/mocks/data';
@@ -445,6 +445,62 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       })();
     }
   }, [company?.id, isLoading]);
+
+  // Re-hydrate notifications from DB when the app returns to the foreground
+  useEffect(() => {
+    if (!user?.id || !company?.id) return;
+
+    const baseUrl = getApiBaseUrl();
+
+    const handleAppStateChange = (nextState: string) => {
+      if (nextState === 'active') {
+        fetch(
+          `${baseUrl}/trpc/notifications.getNotifications?input=${encodeURIComponent(
+            JSON.stringify({ json: { userId: user.id, companyId: company.id, limit: 50 } })
+          )}`
+        )
+          .then(res => res.json())
+          .then(data => {
+            const result = data?.result?.data?.json;
+            if (result?.success && result?.notifications?.length) {
+              setNotifications(prev => {
+                const dbIds = new Set(result.notifications.map((n: any) => n.id));
+                const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
+                return [...result.notifications, ...localOnly];
+              });
+            }
+          })
+          .catch((err: any) => console.warn('[Notifications] AppState re-hydration failed:', err));
+      }
+    };
+
+    const subscription = RNAppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [user?.id, company?.id]);
+
+  // Hydrate notifications from DB whenever user + company become available
+  useEffect(() => {
+    if (!user?.id || !company?.id) return;
+
+    const baseUrl = getApiBaseUrl();
+    fetch(
+      `${baseUrl}/trpc/notifications.getNotifications?input=${encodeURIComponent(JSON.stringify({ json: { userId: user.id, companyId: company.id, limit: 50 } }))}`
+    )
+      .then(res => res.json())
+      .then(data => {
+        const result = data?.result?.data?.json;
+        if (result?.success && result?.notifications?.length) {
+          setNotifications(prev => {
+            // DB notifications take precedence; keep any local-only ones
+            const dbIds = new Set(result.notifications.map((n: any) => n.id));
+            const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
+            return [...result.notifications, ...localOnly];
+          });
+          console.log('[App] ✅ Hydrated', result.notifications.length, 'notifications from DB');
+        }
+      })
+      .catch((err: any) => console.warn('[Notifications] DB hydration failed (non-fatal):', err));
+  }, [user?.id, company?.id]);
 
   const safeJsonParse = <T,>(data: string | null, key: string, fallback: T): T => {
     if (!data || data === 'undefined' || data === 'null') {
@@ -1993,12 +2049,24 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     const project = projects.find(p => p.id === payment.projectId);
     if (project) {
       const newExpenses = project.expenses + payment.amount;
-      setProjects(prev => prev.map(p => 
+      setProjects(prev => prev.map(p =>
         p.id === payment.projectId ? { ...p, expenses: newExpenses } : p
       ));
       console.log('[Project] Balance updated after payment');
     }
-  }, [payments, projects]);
+
+    addNotification({
+      id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId:    user?.id || '',
+      companyId: company?.id || '',
+      type:      'payment-received',
+      title:     'Payment Recorded',
+      message:   `$${payment.amount.toLocaleString()} payment recorded${project ? ` for ${project.name}` : ''}`,
+      data:      { paymentId: payment.id, projectId: payment.projectId },
+      read:      false,
+      createdAt: new Date().toISOString(),
+    });
+  }, [payments, projects, user, company]);
 
   const getPayments = useCallback((projectId?: string) => {
     if (!projectId) return payments;
@@ -2141,13 +2209,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const project = projects.find(p => p.id === changeOrder.projectId);
       if (project) {
         const newBudget = project.budget + changeOrder.amount;
-        setProjects(prev => prev.map(p => 
+        setProjects(prev => prev.map(p =>
           p.id === changeOrder.projectId ? { ...p, budget: newBudget } : p
         ));
         console.log('[Project] Budget increased by change order:', changeOrder.amount);
       }
     }
-  }, [changeOrders, projects]);
+
+    addNotification({
+      id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId:    user?.id || '',
+      companyId: company?.id || '',
+      type:      'change-order',
+      title:     'Change Order Added',
+      message:   changeOrder.description,
+      data:      { changeOrderId: changeOrder.id, projectId: changeOrder.projectId },
+      read:      false,
+      createdAt: new Date().toISOString(),
+    });
+  }, [changeOrders, projects, user, company]);
 
   const updateChangeOrder = useCallback(async (id: string, updates: Partial<ChangeOrder>) => {
     const changeOrder = changeOrders.find(co => co.id === id);
@@ -2175,13 +2255,39 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const project = projects.find(p => p.id === changeOrder.projectId);
       if (project) {
         const newBudget = project.budget - changeOrder.amount;
-        setProjects(prev => prev.map(p => 
+        setProjects(prev => prev.map(p =>
           p.id === changeOrder.projectId ? { ...p, budget: newBudget } : p
         ));
         console.log('[Project] Budget decreased by rejected change order:', changeOrder.amount);
       }
     }
-  }, [changeOrders, projects]);
+
+    if (isBeingApproved) {
+      addNotification({
+        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId:    user?.id || '',
+        companyId: company?.id || '',
+        type:      'change-order',
+        title:     'Change Order Approved',
+        message:   `Change order for $${changeOrder.amount.toLocaleString()} has been approved`,
+        data:      { changeOrderId: id, projectId: changeOrder.projectId },
+        read:      false,
+        createdAt: new Date().toISOString(),
+      });
+    } else if (isBeingRejected) {
+      addNotification({
+        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId:    user?.id || '',
+        companyId: company?.id || '',
+        type:      'change-order',
+        title:     'Change Order Rejected',
+        message:   `Change order for $${changeOrder.amount.toLocaleString()} has been rejected`,
+        data:      { changeOrderId: id, projectId: changeOrder.projectId },
+        read:      false,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }, [changeOrders, projects, user, company]);
 
   const getChangeOrders = useCallback((projectId?: string) => {
     if (!projectId) return changeOrders;
@@ -2291,17 +2397,18 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log('[Storage] Proposal saved successfully');
 
     const notification: Notification = {
-      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      userId: user?.id || 'user_current',
-      type: 'proposal-submitted',
-      title: 'New Proposal Received',
-      message: `A subcontractor has submitted a proposal for ${proposal.amount}`,
-      data: { proposalId: proposal.id, projectId: proposal.projectId },
-      read: false,
+      id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId:    user?.id || '',
+      companyId: company?.id || '',
+      type:      'estimate-received',
+      title:     'New Proposal Received',
+      message:   `A subcontractor has submitted a proposal for $${proposal.amount.toLocaleString()}`,
+      data:      { proposalId: proposal.id, projectId: proposal.projectId },
+      read:      false,
       createdAt: new Date().toISOString(),
     };
     await addNotification(notification);
-  }, [proposals, user]);
+  }, [proposals, user, company]);
 
   const getProposals = useCallback((projectId?: string) => {
     if (!projectId) return proposals;
@@ -2313,7 +2420,23 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setNotifications(updated);
     await AsyncStorage.setItem('notifications', JSON.stringify(updated));
     console.log('[Storage] Notification saved successfully');
-  }, [notifications]);
+
+    // Fire-and-forget: persist to DB + trigger push delivery
+    if (user?.id && company?.id) {
+      import('@/lib/trpc').then(({ vanillaClient }) => {
+        vanillaClient.notifications.createNotification
+          .mutate({
+            userId:    user.id!,
+            companyId: company.id!,
+            type:      notification.type,
+            title:     notification.title,
+            message:   notification.message,
+            data:      notification.data,
+          })
+          .catch((err: any) => console.warn('[Notifications] DB persist failed (non-fatal):', err));
+      });
+    }
+  }, [notifications, user, company]);
 
   const getNotifications = useCallback((unreadOnly?: boolean) => {
     if (unreadOnly) {
@@ -2327,7 +2450,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setNotifications(updated);
     await AsyncStorage.setItem('notifications', JSON.stringify(updated));
     console.log('[Storage] Notification marked as read');
-  }, [notifications]);
+
+    // Fire-and-forget: sync read state to DB
+    if (user?.id) {
+      import('@/lib/trpc').then(({ vanillaClient }) => {
+        vanillaClient.notifications.markRead
+          .mutate({ notificationId: id, userId: user.id! })
+          .catch((err: any) => console.warn('[Notifications] DB mark-read failed (non-fatal):', err));
+      });
+    }
+  }, [notifications, user]);
 
   // Schedule/Appointment Management
   const addAppointment = useCallback(async (appointment: any) => {
@@ -2469,13 +2601,31 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         const newTask = await response.json();
         // Replace temp task with real one from DB
         setDailyTasks(prev => prev.map(t => t.id === tempTask.id ? newTask : t));
+
+        // Notify the assignee when an admin creates a task for someone else.
+        // Fire-and-forget — does not block the optimistic UI update.
+        if (task.userId && task.userId !== user?.id && task.companyId) {
+          import('@/lib/trpc').then(({ vanillaClient }) => {
+            vanillaClient.notifications.createNotification
+              .mutate({
+                userId:    task.userId,
+                companyId: task.companyId,
+                type:      'general',
+                title:     'New Task Assigned',
+                message:   task.title,
+                data:      { taskId: newTask.id ?? tempTask.id },
+              })
+              .catch((err: any) => console.warn('[Notifications] Task assignment notify failed:', err));
+          });
+        }
+
         return newTask;
       }
     } catch (error) {
       console.error('[AppContext] Error adding daily task:', error);
     }
     return tempTask;
-  }, []);
+  }, [user?.id]);
 
   const updateDailyTask = useCallback(async (taskId: string, updates: Partial<DailyTask>) => {
     // Optimistic update
@@ -2634,6 +2784,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [scheduleShareLinks]);
 
   const logout = useCallback(async () => {
+    // Fire-and-forget: deactivate all push tokens so the device stops receiving
+    // notifications after logout. Non-blocking — we clear local state regardless.
+    if (user?.id) {
+      import('@/lib/trpc').then(({ vanillaClient }) => {
+        vanillaClient.notifications.deactivateToken
+          .mutate({ userId: user.id! })
+          .catch((err: any) => console.warn('[Notifications] Token deactivation on logout failed:', err));
+      });
+    }
+
     await AsyncStorage.multiRemove(['user', 'company', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders', 'subcontractors', 'proposals', 'notifications']);
     setUserState(null);
     setCompanyState(null);
@@ -2647,7 +2807,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setSubcontractors([]);
     setProposals([]);
     setNotifications([]);
-  }, []);
+  }, [user]);
 
   return useMemo(() => ({
     user,
@@ -2767,17 +2927,6 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addDailyTask,
     updateDailyTask,
     deleteDailyTask,
-    loadScheduledTasks,
-    updateScheduledTasks,
-    addDailyTaskReminder,
-    updateDailyTaskReminder,
-    deleteDailyTaskReminder,
-    getDailyTaskReminders,
-    generateShareLink,
-    disableShareLink,
-    regenerateShareLink,
-    getShareLinkByToken,
-    getShareLinkByProject,
     logout,
   }), [
     user,
@@ -2897,20 +3046,6 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addDailyTask,
     updateDailyTask,
     deleteDailyTask,
-    scheduledTasks,
-    scheduleShareLinks,
-    dailyTaskReminders,
-    loadScheduledTasks,
-    updateScheduledTasks,
-    addDailyTaskReminder,
-    updateDailyTaskReminder,
-    deleteDailyTaskReminder,
-    getDailyTaskReminders,
-    generateShareLink,
-    disableShareLink,
-    regenerateShareLink,
-    getShareLinkByToken,
-    getShareLinkByProject,
     logout,
   ]);
 });

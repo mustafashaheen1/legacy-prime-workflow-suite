@@ -1539,13 +1539,14 @@ ${company?.officePhone || ''}`;
                 }
 
                 const notification = {
-                  id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                  userId: user?.id || 'user_current',
-                  type: 'general' as const,
-                  title: 'Estimate Request Sent',
-                  message: `Estimate request sent to ${selectedSubcontractor.name} for ${selectedProject.name}`,
-                  data: { estimateRequestId: estimateRequest.id, projectId: selectedProject.id },
-                  read: false,
+                  id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                  userId:    user?.id || '',
+                  companyId: company?.id || '',
+                  type:      'general' as const,
+                  title:     'Estimate Request Sent',
+                  message:   `Estimate request sent to ${selectedSubcontractor.name} for ${selectedProject.name}`,
+                  data:      { estimateRequestId: estimateRequest.id, projectId: selectedProject.id },
+                  read:      false,
                   createdAt: new Date().toISOString(),
                 };
 

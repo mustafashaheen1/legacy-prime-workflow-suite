@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/check-task-reminders",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "buildCommand": "bunx expo export -p web",
   "outputDirectory": "dist",
   "installCommand": "bun install",
@@ -20,6 +26,10 @@
       "memory": 512
     },
     "api/add-payment.ts": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "api/check-task-reminders.ts": {
       "maxDuration": 30,
       "memory": 512
     },

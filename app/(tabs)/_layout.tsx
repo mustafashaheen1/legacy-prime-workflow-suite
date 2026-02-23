@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useTranslation } from 'react-i18next';
 import { Platform, TouchableOpacity } from 'react-native';
 import UserAvatar from '@/components/UserAvatar';
+import NotificationBell from '@/components/NotificationBell';
 import { useApp } from '@/contexts/AppContext';
 
 
@@ -65,6 +66,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#9CA3AF',
         headerShown: true,
         headerLeft: () => <UserAvatar />,
+        headerRight: () => <NotificationBell />,
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,

@@ -1,0 +1,200 @@
+import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
+import { trpc } from '@/lib/trpc';
+import type { Notification } from '@/types';
+
+// Configure how notifications appear when the app is foregrounded.
+// Set once at module level so it applies globally before any listener is added.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert:  true,
+    shouldShowBanner: true,
+    shouldShowList:   true,
+    shouldPlaySound:  true,
+    shouldSetBadge:   true,
+  }),
+});
+
+interface NotificationSetupUser {
+  id: string;
+}
+
+interface NotificationSetupCompany {
+  id: string;
+}
+
+/**
+ * Handles the full push notification setup lifecycle:
+ * 1. Android notification channel creation
+ * 2. Permission request (graceful — never throws if denied)
+ * 3. Expo push token retrieval
+ * 4. Token registration in Supabase via tRPC
+ * 5. Foreground + response listener registration
+ *
+ * Safe to call on web (no-ops). Re-runs only when user/company IDs change
+ * (covers login/logout/company switch scenarios).
+ *
+ * @param onNotificationReceived  Optional callback invoked when a push arrives
+ *   while the app is foregrounded. Use this to add the notification to local state.
+ */
+export function useNotificationSetup(
+  user: NotificationSetupUser | null,
+  company: NotificationSetupCompany | null,
+  onNotificationReceived?: (notification: Notification) => void
+) {
+  const registerToken = trpc.notifications.registerToken.useMutation();
+  const router = useRouter();
+  const notificationListener  = useRef<Notifications.EventSubscription | null>(null);
+  const responseListener      = useRef<Notifications.EventSubscription | null>(null);
+  const tokenRefreshListener  = useRef<Notifications.EventSubscription | null>(null);
+
+  useEffect(() => {
+    // Web does not support native push notifications the same way.
+    if (Platform.OS === 'web') return;
+
+    // Only run after the user is authenticated — we need userId + companyId for token registration.
+    if (!user || !company) return;
+
+    let mounted = true;
+
+    async function setup() {
+      try {
+        // Android 8+ requires a notification channel before any notification can appear.
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'Default',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF231F7C',
+            showBadge: true,
+          });
+        }
+
+        // Check existing permission status to avoid prompting unnecessarily.
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+
+        if (finalStatus !== 'granted') {
+          console.log('[Notifications] Permission not granted — skipping token registration');
+          return;
+        }
+
+        // getExpoPushTokenAsync requires a projectId in EAS builds.
+        // In local dev without EAS it can be omitted.
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+        const tokenData = await Notifications.getExpoPushTokenAsync(
+          projectId ? { projectId } : undefined
+        );
+
+        if (!mounted) return;
+
+        await registerToken.mutateAsync({
+          token:     tokenData.data,
+          platform:  Platform.OS as 'ios' | 'android',
+          userId:    user.id,
+          companyId: company.id,
+        });
+
+        console.log('[Notifications] Setup complete — push token registered');
+      } catch (err) {
+        // Non-fatal: push notifications degrading gracefully is acceptable.
+        // The app must still function without them.
+        console.warn('[Notifications] Setup error (non-fatal):', err);
+      }
+    }
+
+    setup();
+
+    // Re-register the push token whenever Expo rotates it (e.g. after token invalidation
+    // or OS-level token refresh). Without this the old invalid token stays in the DB.
+    tokenRefreshListener.current = Notifications.addPushTokenListener(async (newToken) => {
+      console.log('[Notifications] Push token rotated, re-registering:', newToken.data);
+      try {
+        await registerToken.mutateAsync({
+          token:     newToken.data,
+          platform:  Platform.OS as 'ios' | 'android',
+          userId:    user.id,
+          companyId: company.id,
+        });
+        console.log('[Notifications] Rotated token re-registered successfully');
+      } catch (err) {
+        console.warn('[Notifications] Failed to re-register rotated token:', err);
+      }
+    });
+
+    // Listen for notifications received while the app is in the foreground.
+    // Calls onNotificationReceived so AppContext can add it to local state + badge.
+    notificationListener.current = Notifications.addNotificationReceivedListener(
+      (incoming) => {
+        console.log(
+          '[Notifications] Foreground notification received:',
+          incoming.request.identifier
+        );
+
+        onNotificationReceived?.({
+          id:        incoming.request.identifier,
+          userId:    user?.id ?? '',
+          companyId: company?.id ?? '',
+          type:      (incoming.request.content.data?.type as Notification['type']) ?? 'general',
+          title:     incoming.request.content.title ?? 'Notification',
+          message:   incoming.request.content.body  ?? '',
+          data:      incoming.request.content.data as any,
+          read:      false,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    );
+
+    // Listen for the user tapping a notification (background or killed state).
+    // Routes to the screen most relevant to the notification type.
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data as any;
+        console.log(
+          '[Notifications] Notification tapped:',
+          response.notification.request.identifier,
+          data
+        );
+
+        switch (data?.type) {
+          case 'task-reminder':
+            router.push('/(tabs)/dashboard');
+            break;
+          case 'estimate-received':
+            router.push('/(tabs)/subcontractors');
+            break;
+          case 'proposal-submitted':
+            router.push('/(tabs)/subcontractors');
+            break;
+          case 'payment-received':
+            router.push('/(tabs)/expenses');
+            break;
+          case 'change-order':
+            if (data?.projectId) {
+              router.push(`/project/${data.projectId}/change-orders`);
+            } else {
+              router.push('/(tabs)/dashboard');
+            }
+            break;
+          default:
+            router.push('/notifications');
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
+      tokenRefreshListener.current?.remove();
+    };
+  }, [user?.id, company?.id]);
+}

@@ -23,7 +23,8 @@
         "NSLocationWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to use your location.",
         "UIBackgroundModes": [
           "location",
-          "audio"
+          "audio",
+          "remote-notification"
         ],
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
@@ -56,6 +57,7 @@
         "INTERNET",
         "RECORD_AUDIO",
         "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
         "READ_CONTACTS",
         "WRITE_CONTACTS"
       ]
@@ -117,6 +119,14 @@
         "expo-contacts",
         {
           "contactsPermission": "Allow $(PRODUCT_NAME) to access your contacts."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/app-icon-1024.png",
+          "color": "#ffffff",
+          "sounds": []
         }
       ]
     ],

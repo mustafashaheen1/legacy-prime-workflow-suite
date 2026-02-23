@@ -675,7 +675,8 @@ export interface SubcontractorProposal {
 export interface Notification {
   id: string;
   userId: string;
-  type: 'estimate-received' | 'proposal-submitted' | 'payment-received' | 'change-order' | 'general';
+  companyId: string;
+  type: 'estimate-received' | 'proposal-submitted' | 'payment-received' | 'change-order' | 'general' | 'task-reminder';
   title: string;
   message: string;
   data?: any;

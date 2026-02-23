@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { sendNotification } from '../backend/lib/sendNotification.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
@@ -12,8 +13,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Vercel cron invocations are GET requests. Validate CRON_SECRET when present.
+  if (req.method === 'GET') {
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret) {
+      const authHeader = req.headers['authorization'];
+      if (authHeader !== `Bearer ${cronSecret}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
   }
 
   console.log('[check-task-reminders] Checking for upcoming task reminders');
@@ -78,6 +90,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error('[check-task-reminders] Error updating task:', task.id, updateError);
         continue;
       }
+
+      // Send push notification to the task owner's devices
+      await sendNotification(supabase, {
+        userId:    task.user_id,
+        companyId: task.company_id,
+        type:      'task-reminder',
+        title:     'Task Reminder',
+        message:   `"${task.title}" is due soon`,
+        data:      { taskId: task.id, dueDateTime: task.due_date_time },
+      });
 
       // Convert to camelCase for response
       remindedTasks.push({

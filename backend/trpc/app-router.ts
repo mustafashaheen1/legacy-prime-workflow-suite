@@ -36,6 +36,10 @@ import { approveSubcontractorProcedure } from "./routes/subcontractors/approve-s
 import { getBusinessFilesProcedure } from "./routes/subcontractors/get-business-files/route.js";
 import { getNotificationsProcedure } from "./routes/notifications/get-notifications/route.js";
 import { markNotificationReadProcedure } from "./routes/notifications/mark-read/route.js";
+import { registerTokenProcedure } from "./routes/notifications/register-token/route.js";
+import { createNotificationProcedure } from "./routes/notifications/create-notification/route.js";
+import { deactivateTokenProcedure } from "./routes/notifications/deactivate-token/route.js";
+import { markAllNotificationsReadProcedure } from "./routes/notifications/mark-all-read/route.js";
 import { chatCompletionProcedure } from "./routes/openai/chat/route.js";
 import { speechToTextProcedure } from "./routes/openai/speech-to-text/route.js";
 import { textToSpeechProcedure } from "./routes/openai/text-to-speech/route.js";
@@ -148,8 +152,12 @@ export const appRouter = createTRPCRouter({
     getBusinessFiles: getBusinessFilesProcedure,
   }),
   notifications: createTRPCRouter({
-    getNotifications: getNotificationsProcedure,
-    markRead: markNotificationReadProcedure,
+    getNotifications:   getNotificationsProcedure,
+    markRead:           markNotificationReadProcedure,
+    markAllRead:        markAllNotificationsReadProcedure,
+    registerToken:      registerTokenProcedure,
+    createNotification: createNotificationProcedure,
+    deactivateToken:    deactivateTokenProcedure,
   }),
   openai: createTRPCRouter({
     chat: chatCompletionProcedure,

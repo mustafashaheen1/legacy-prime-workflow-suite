@@ -10,7 +10,7 @@ interface RequestEstimateProps {
 }
 
 export default function RequestEstimateComponent({ projectId, projectName }: RequestEstimateProps) {
-  const { subcontractors, addNotification, user } = useApp();
+  const { subcontractors, addNotification, user, company } = useApp();
   const [showModal, setShowModal] = useState<boolean>(false);
   const [selectedSubcontractor, setSelectedSubcontractor] = useState<Subcontractor | null>(null);
   const [description, setDescription] = useState<string>('');
@@ -42,13 +42,14 @@ export default function RequestEstimateComponent({ projectId, projectName }: Req
     };
 
     const notification: Notification = {
-      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      userId: user?.id || 'user_current',
-      type: 'general',
-      title: 'Estimate Request Sent',
-      message: `Estimate request sent to ${selectedSubcontractor.name} for ${projectName}`,
-      data: { estimateRequestId: estimateRequest.id, projectId },
-      read: false,
+      id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId:    user?.id || '',
+      companyId: company?.id || '',
+      type:      'general',
+      title:     'Estimate Request Sent',
+      message:   `Estimate request sent to ${selectedSubcontractor.name} for ${projectName}`,
+      data:      { estimateRequestId: estimateRequest.id, projectId },
+      read:      false,
       createdAt: new Date().toISOString(),
     };
 

@@ -10,6 +10,8 @@ import GlobalAIChat from "@/components/GlobalAIChatSimple";
 import FloatingChatButton from "@/components/FloatingChatButton";
 import AnimatedSplashScreen from "@/components/AnimatedSplashScreen";
 import { trpc, trpcClient } from "@/lib/trpc";
+import { useNotificationSetup } from "@/hooks/useNotificationSetup";
+import * as Notifications from 'expo-notifications';
 import '@/lib/i18n';
 
 SplashScreen.preventAutoHideAsync();
@@ -38,7 +40,15 @@ const PUBLIC_ROUTES = [
 ];
 
 function RootLayoutNav() {
-  const { user, isLoading } = useApp();
+  const { user, isLoading, company, addNotification, getNotifications } = useApp();
+  useNotificationSetup(user, company, addNotification);
+
+  // Keep native app icon badge in sync with the in-app unread count
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const unreadCount = getNotifications(true).length;
+    Notifications.setBadgeCountAsync(unreadCount).catch(() => {});
+  }, [getNotifications]);
   const router = useRouter();
   const pathname = usePathname();
   const segments = useSegments();
@@ -84,14 +94,13 @@ function RootLayoutNav() {
   return (
     <Stack
       screenOptions={{
-        headerBackTitle: "Back",
+        headerBackTitle: '',
         headerShown: true,
         headerStyle: {
           backgroundColor: '#FFFFFF',
         },
         headerTintColor: '#1F2937',
         headerShadowVisible: true,
-        headerBackTitleVisible: false,
         ...(Platform.OS === 'ios' && {
           headerLargeTitle: false,
         }),
@@ -119,6 +128,13 @@ function RootLayoutNav() {
         options={{
           headerShown: false, // Using custom ScreenHeader
           title: 'Subcontractor'
+        }}
+      />
+      <Stack.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          headerLargeTitle: false,
         }}
       />
       <Stack.Screen
