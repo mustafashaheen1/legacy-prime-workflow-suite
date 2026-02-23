@@ -181,7 +181,9 @@ function ChatWidgets() {
     // More menu
     pathname?.endsWith('/more') ||
     // Schedule tab
-    pathname === '/schedule';
+    pathname === '/schedule' ||
+    // Notifications screen
+    pathname?.startsWith('/notifications');
 
   if (shouldHideChat) {
     return null;
