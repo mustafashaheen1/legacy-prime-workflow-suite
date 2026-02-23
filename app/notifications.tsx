@@ -105,24 +105,28 @@ export default function NotificationsScreen() {
           router.push('/(tabs)/dashboard');
           break;
         case 'estimate-received':
-          router.push('/(tabs)/subcontractors');
-          break;
         case 'proposal-submitted':
           router.push('/(tabs)/subcontractors');
           break;
         case 'payment-received':
-          router.push('/(tabs)/expenses');
+          if (data?.projectId) {
+            router.push(`/project/${data.projectId}` as any);
+          } else {
+            router.push('/(tabs)/expenses');
+          }
           break;
         case 'change-order':
           if (data?.projectId) {
-            router.push(`/project/${data.projectId}/change-orders`);
+            router.push(`/project/${data.projectId}/change-orders` as any);
           } else {
             router.push('/(tabs)/dashboard');
           }
           break;
         case 'general':
+          // Task-assignment notifications carry a taskId — go to dashboard where tasks live
+          router.push('/(tabs)/dashboard');
+          break;
         default:
-          // No additional navigation — just mark read
           break;
       }
     },
