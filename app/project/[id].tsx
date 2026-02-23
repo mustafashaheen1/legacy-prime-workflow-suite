@@ -22,7 +22,7 @@ type TabType = 'overview' | 'schedule' | 'estimate' | 'change-orders' | 'clock' 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject } = useApp();
+  const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject, addNotification } = useApp();
 
   const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
   const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string }, { enabled: !!id });
@@ -3020,6 +3020,18 @@ export default function ProjectDetailScreen() {
                       const err = await res.json().catch(() => ({ error: res.statusText }));
                       throw new Error(err.error || `HTTP ${res.status}`);
                     }
+                    const saved = await res.json().catch(() => ({}));
+                    addNotification({
+                      id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                      userId:    user?.id || '',
+                      companyId: company?.id || '',
+                      type:      'payment-received',
+                      title:     'Payment Recorded',
+                      message:   `$${amount.toLocaleString()} payment recorded${project ? ` for ${project.name}` : ''}`,
+                      data:      { paymentId: saved?.id, projectId: id },
+                      read:      false,
+                      createdAt: new Date().toISOString(),
+                    });
                     paymentsQuery.refetch();
                     setShowAddPaymentModal(false);
                     Alert.alert('Payment Recorded', `$${amount.toLocaleString()} received from ${paymentClientNameInput.trim()} has been recorded.`);

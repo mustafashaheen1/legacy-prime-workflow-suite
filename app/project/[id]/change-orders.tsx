@@ -15,7 +15,7 @@ export default function ChangeOrdersScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { company, projects, clients, updateProject, user } = useApp();
+  const { company, projects, clients, updateProject, user, addNotification } = useApp();
 
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [description, setDescription] = useState<string>('');
@@ -25,7 +25,19 @@ export default function ChangeOrdersScreen() {
   
   const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
   const addChangeOrderMutation = trpc.changeOrders.addChangeOrder.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      const project = projects.find(p => p.id === variables.projectId);
+      addNotification({
+        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId:    user?.id || '',
+        companyId: company?.id || '',
+        type:      'change-order',
+        title:     'Change Order Added',
+        message:   variables.description,
+        data:      { projectId: variables.projectId },
+        read:      false,
+        createdAt: new Date().toISOString(),
+      });
       changeOrdersQuery.refetch();
       setModalVisible(false);
       setDescription('');
@@ -43,7 +55,33 @@ export default function ChangeOrdersScreen() {
   });
 
   const updateChangeOrderMutation = trpc.changeOrders.updateChangeOrder.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      const co = changeOrdersQuery.data?.changeOrders?.find(c => c.id === variables.id);
+      if (co && variables.status === 'approved') {
+        addNotification({
+          id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          userId:    user?.id || '',
+          companyId: company?.id || '',
+          type:      'change-order',
+          title:     'Change Order Approved',
+          message:   `Change order for $${co.amount.toLocaleString()} has been approved`,
+          data:      { changeOrderId: co.id, projectId: co.projectId },
+          read:      false,
+          createdAt: new Date().toISOString(),
+        });
+      } else if (co && variables.status === 'rejected') {
+        addNotification({
+          id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          userId:    user?.id || '',
+          companyId: company?.id || '',
+          type:      'change-order',
+          title:     'Change Order Rejected',
+          message:   `Change order for $${co.amount.toLocaleString()} has been rejected`,
+          data:      { changeOrderId: co.id, projectId: co.projectId },
+          read:      false,
+          createdAt: new Date().toISOString(),
+        });
+      }
       changeOrdersQuery.refetch();
       Alert.alert('Success', 'Change order updated successfully!');
     },
