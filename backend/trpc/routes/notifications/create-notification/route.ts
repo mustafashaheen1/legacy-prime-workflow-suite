@@ -1,8 +1,19 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
 import { createClient } from '@supabase/supabase-js';
-import { sendNotification } from "../../../../lib/sendNotification.js";
 
+/**
+ * Persists a notification record to the DB.
+ *
+ * Intentionally does NOT look up push tokens or call the Expo relay.
+ * This endpoint is called from the client when the acting user is
+ * already in the app — they see the notification instantly via local
+ * state. A push to their own device is redundant and adds two extra
+ * DB round-trips that cause FUNCTION_INVOCATION_TIMEOUT on cold starts.
+ *
+ * Server-side triggers (cron, webhooks) that need to push to a user
+ * who may be offline should call sendNotification() directly instead.
+ */
 export const createNotificationProcedure = publicProcedure
   .input(z.object({
     userId:    z.string().uuid(),
@@ -21,16 +32,24 @@ export const createNotificationProcedure = publicProcedure
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const notificationId = await sendNotification(supabase, {
-      userId:    input.userId,
-      companyId: input.companyId,
-      type:      input.type,
-      title:     input.title,
-      message:   input.message,
-      data:      input.data,
-    });
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({
+        user_id:    input.userId,
+        company_id: input.companyId,
+        type:       input.type,
+        title:      input.title,
+        message:    input.message,
+        data:       input.data ?? null,
+      })
+      .select('id')
+      .single();
 
-    if (!notificationId) throw new Error('Failed to create notification');
+    if (error) {
+      console.error('[Notifications] DB insert failed:', error);
+      throw new Error(`Failed to create notification: ${error.message}`);
+    }
 
-    return { success: true, notificationId };
+    console.log('[Notifications] Persisted notification:', data.id);
+    return { success: true, notificationId: data.id };
   });
