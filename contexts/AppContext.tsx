@@ -448,7 +448,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             if (notifErr) {
               console.warn('[App] Notifications load error:', notifErr.message);
             } else {
-              setNotifications((notifRows ?? []).map(mapNotification));
+              setNotifications(prev => {
+                const dbIds = new Set((notifRows ?? []).map((n: any) => n.id));
+                const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
+                return [...(notifRows ?? []).map(mapNotification), ...localOnly];
+              });
               console.log('[App] ✅ Loaded', notifRows?.length ?? 0, 'notifications');
             }
           } catch (error: any) {
@@ -797,7 +801,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
               if (notifErr) {
                 console.warn('[App] Notifications load error:', notifErr.message);
               } else {
-                setNotifications((notifRows ?? []).map(mapNotification));
+                setNotifications(prev => {
+                const dbIds = new Set((notifRows ?? []).map((n: any) => n.id));
+                const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
+                return [...(notifRows ?? []).map(mapNotification), ...localOnly];
+              });
                 console.log('[App] Loaded', notifRows?.length ?? 0, 'notifications');
               }
             } catch (error) {
@@ -2320,7 +2328,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log('[Storage] Proposal saved successfully');
 
     const notification: Notification = {
-      id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id:        crypto.randomUUID(),
       userId:    user?.id || '',
       companyId: company?.id || '',
       type:      'estimate-received',
@@ -2339,21 +2347,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [proposals]);
 
   const addNotification = useCallback(async (notification: Notification) => {
-    const updated = [notification, ...notifications];
+    // Ensure the id is a valid UUID so the DB insert succeeds.
+    // Non-UUID ids (e.g. notif_${Date.now()}) cause a silent PG type error.
+    const notif = notification.id && /^[0-9a-f-]{36}$/i.test(notification.id)
+      ? notification
+      : { ...notification, id: crypto.randomUUID() };
+    const updated = [notif, ...notifications];
     setNotifications(updated);
     await AsyncStorage.setItem('notifications', JSON.stringify(updated));
     console.log('[Storage] Notification saved successfully');
 
-    // Fire-and-forget: persist to DB + trigger push delivery
+    // Fire-and-forget: persist to DB (uses the UUID-normalised notif, not the raw input)
     if (user?.id && company?.id) {
       supabase.from('notifications').insert({
-        id: notification.id,
+        id: notif.id,
         user_id: user.id!,
         company_id: company.id!,
-        type: notification.type,
-        title: notification.title,
-        message: notification.message,
-        data: notification.data,
+        type: notif.type,
+        title: notif.title,
+        message: notif.message,
+        data: notif.data,
         read: false,
       }).then(({ error }) => {
         if (error) console.warn('[Notifications] DB persist failed (non-fatal):', error);
