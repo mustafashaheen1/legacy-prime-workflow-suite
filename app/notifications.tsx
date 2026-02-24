@@ -8,7 +8,7 @@ import {
   SafeAreaView,
   RefreshControl,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Bell, BellOff, CheckCheck } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
 import type { Notification } from '@/types';
@@ -83,6 +83,15 @@ export default function NotificationsScreen() {
     await refreshNotifications();
     setRefreshing(false);
   }, [refreshNotifications]);
+
+  // Refresh immediately on focus and then every 15s while screen is open
+  useFocusEffect(
+    useCallback(() => {
+      refreshNotifications();
+      const interval = setInterval(() => refreshNotifications(), 15_000);
+      return () => clearInterval(interval);
+    }, [refreshNotifications])
+  );
 
   const notifications = getNotifications();
   const unread = notifications.filter(n => !n.read);
