@@ -438,6 +438,23 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             setSubcontractors([]);
           }
 
+          // Load notifications
+          try {
+            const { data: notifRows, error: notifErr } = await supabase
+              .from('notifications').select('*')
+              .eq('user_id', user?.id ?? '')
+              .eq('company_id', company.id)
+              .order('created_at', { ascending: false }).limit(50);
+            if (notifErr) {
+              console.warn('[App] Notifications load error:', notifErr.message);
+            } else {
+              setNotifications((notifRows ?? []).map(mapNotification));
+              console.log('[App] ✅ Loaded', notifRows?.length ?? 0, 'notifications');
+            }
+          } catch (error: any) {
+            console.error('[App] Error loading notifications:', error?.message || error);
+          }
+
           console.log('[App] ✅ Finished reloading data after company change');
         } catch (error: any) {
           console.error('[App] ❌ Fatal error reloading data after company change:', error?.message || error);
@@ -767,6 +784,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             }
           } catch (error) {
             console.error('[App] Error loading daily task reminders:', error);
+          }
+
+          // Load notifications for the current user
+          if (parsedUser?.id) {
+            try {
+              const { data: notifRows, error: notifErr } = await supabase
+                .from('notifications').select('*')
+                .eq('user_id', parsedUser.id)
+                .eq('company_id', parsedCompany.id)
+                .order('created_at', { ascending: false }).limit(50);
+              if (notifErr) {
+                console.warn('[App] Notifications load error:', notifErr.message);
+              } else {
+                setNotifications((notifRows ?? []).map(mapNotification));
+                console.log('[App] Loaded', notifRows?.length ?? 0, 'notifications');
+              }
+            } catch (error) {
+              console.error('[App] Error loading notifications:', error);
+            }
           }
 
         } catch (error) {
