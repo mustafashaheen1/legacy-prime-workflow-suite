@@ -1254,25 +1254,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const refreshNotifications = useCallback(async () => {
     if (!user?.id || !company?.id) return;
     try {
-      import('@/lib/trpc').then(({ vanillaClient }) => {
-        vanillaClient.notifications.getNotifications
-          .query({ userId: user.id!, companyId: company.id! })
-          .then((result: any) => {
-            if (result?.notifications?.length) {
-              // Merge: DB records take precedence, keep any local-only ones
-              setNotifications(prev => {
-                const dbIds = new Set(result.notifications.map((n: any) => n.id));
-                const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
-                return [...result.notifications, ...localOnly];
-              });
-              console.log('[App] ✅ Refreshed', result.notifications.length, 'notifications');
-            }
-            // If DB returns empty, preserve local state — don't wipe optimistic notifications
-          })
-          .catch((err: any) => console.warn('[Notifications] Refresh failed (non-fatal):', err));
-      });
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(
+        `${baseUrl}/trpc/notifications.getNotifications?input=${encodeURIComponent(
+          JSON.stringify({ json: { userId: user.id, companyId: company.id, limit: 50 } })
+        )}`
+      );
+      const data = await res.json();
+      const result = data?.result?.data?.json;
+      if (result?.success && result?.notifications?.length) {
+        // Merge: DB records take precedence, keep any local-only ones
+        setNotifications(prev => {
+          const dbIds = new Set(result.notifications.map((n: any) => n.id));
+          const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
+          return [...result.notifications, ...localOnly];
+        });
+        console.log('[App] ✅ Refreshed', result.notifications.length, 'notifications');
+      }
+      // If DB returns empty, preserve local state — don't wipe optimistic notifications
     } catch (error) {
-      console.error('[App] ❌ Error refreshing notifications:', error);
+      console.warn('[Notifications] Refresh failed (non-fatal):', error);
     }
   }, [user?.id, company?.id]);
 
