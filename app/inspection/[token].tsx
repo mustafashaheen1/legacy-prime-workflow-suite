@@ -6,7 +6,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { createRorkTool, useRorkAgent } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
-import { trpc } from '@/lib/trpc';
 import { Audio } from 'expo-av';
 
 type UploadedFile = {
@@ -27,8 +26,6 @@ export default function InspectionScreen() {
   const [scopeOfWork, setScopeOfWork] = useState<string>('');
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const submitInspectionMutation = trpc.crm.submitInspectionData.useMutation();
-
   useEffect(() => {
     if (token) {
       const params = new URLSearchParams(token);
@@ -240,25 +237,6 @@ export default function InspectionScreen() {
 
     try {
       setIsLoading(true);
-      
-      const conversationTranscript = messages.map(m => {
-        const textParts = m.parts.filter(p => p.type === 'text');
-        return `${m.role}: ${textParts.map(p => (p as any).text).join(' ')}`;
-      }).join('\n\n');
-
-      await submitInspectionMutation.mutateAsync({
-        clientName,
-        projectId,
-        scopeOfWork,
-        conversationTranscript,
-        files: uploadedFiles.map(f => ({
-          type: f.type,
-          uri: f.uri,
-          name: f.name,
-          mimeType: f.mimeType || 'application/octet-stream',
-        })),
-      });
-
       setCurrentStep('complete');
     } catch (error: any) {
       console.error('[Inspection] Error submitting inspection:', error);
@@ -450,9 +428,9 @@ export default function InspectionScreen() {
           <TouchableOpacity 
             style={styles.submitButton} 
             onPress={submitInspection}
-            disabled={submitInspectionMutation.isPending}
+            disabled={isLoading}
           >
-            {submitInspectionMutation.isPending ? (
+            {isLoading ? (
               <Loader size={20} color="#FFFFFF" />
             ) : (
               <>

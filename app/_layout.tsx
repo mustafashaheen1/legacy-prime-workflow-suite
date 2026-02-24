@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
@@ -9,7 +8,6 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import GlobalAIChat from "@/components/GlobalAIChatSimple";
 import FloatingChatButton from "@/components/FloatingChatButton";
 import AnimatedSplashScreen from "@/components/AnimatedSplashScreen";
-import { trpc, trpcClient } from "@/lib/trpc";
 import { useNotificationSetup } from "@/hooks/useNotificationSetup";
 import * as Notifications from 'expo-notifications';
 import '@/lib/i18n';
@@ -26,8 +24,6 @@ if (Platform.OS === 'web') {
     originalError(...args);
   };
 }
-
-const queryClient = new QueryClient();
 
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = [
@@ -227,10 +223,8 @@ export default function RootLayout() {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        {content}
-      </trpc.Provider>
-    </QueryClientProvider>
+    <>
+      {content}
+    </>
   );
 }

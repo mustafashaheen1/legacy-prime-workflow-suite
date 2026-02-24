@@ -7,7 +7,6 @@ import { BusinessFile, Subcontractor } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
-import { trpc } from '@/lib/trpc';
 import { supabase } from '@/lib/supabase';
 import ScreenHeader from '@/components/ScreenHeader';
 
@@ -18,8 +17,6 @@ export default function SubcontractorProfileScreen() {
 
   const [showApproveModal, setShowApproveModal] = useState<boolean>(false);
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
-
-  const approveSubcontractorMutation = trpc.subcontractors.approveSubcontractor.useMutation();
 
   // Local state for business files fetched from database
   const [businessFiles, setBusinessFiles] = useState<BusinessFile[]>([]);

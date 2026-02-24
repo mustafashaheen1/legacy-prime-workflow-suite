@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert,
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Building2, User, Mail, Phone, Briefcase, FileText, MapPin, Calendar, Upload, CheckCircle2, Send } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { trpc } from '@/lib/trpc';
 
 interface BusinessFileUpload {
   id: string;
@@ -66,8 +65,7 @@ export default function SubcontractorRegisterScreen() {
   const [files, setFiles] = useState<BusinessFileUpload[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const completeRegistrationMutation = trpc.subcontractors.completeRegistration.useMutation();
-  const uploadBusinessFileMutation = trpc.subcontractors.uploadBusinessFile.useMutation();
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
   const handlePickFile = async (type: 'license' | 'insurance' | 'w9' | 'certificate' | 'other') => {
     try {
@@ -105,19 +103,26 @@ export default function SubcontractorRegisterScreen() {
     setIsSubmitting(true);
 
     try {
-      const subcontractor = await completeRegistrationMutation.mutateAsync({
-        token: token || '',
-        ...formData,
+      const regRes = await fetch(`${apiUrl}/api/complete-subcontractor-registration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token || '', subcontractor: formData }),
       });
+      const regData = await regRes.json();
+      if (!regRes.ok) throw new Error(regData.error || 'Failed to complete registration');
+      const subcontractor = regData.subcontractor;
 
       for (const file of files) {
-        await uploadBusinessFileMutation.mutateAsync({
-          subcontractorId: subcontractor.id,
-          type: file.type,
-          name: file.name,
-          fileType: file.fileType,
-          fileSize: file.fileSize,
-          uri: file.uri,
+        await fetch(`${apiUrl}/api/upload-subcontractor-business-file`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subcontractorId: subcontractor.id,
+            type: file.type,
+            name: file.name,
+            fileType: file.fileType,
+            fileSize: file.fileSize,
+          }),
         });
       }
 

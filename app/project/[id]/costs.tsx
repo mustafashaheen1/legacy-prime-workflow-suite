@@ -1,24 +1,83 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { ArrowLeft, DollarSign, Clock, Users, Receipt } from 'lucide-react-native';
-import { trpc } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 export default function ProjectCostsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { projects } = useApp();
 
-  const project = useMemo(() => 
+  const project = useMemo(() =>
     projects.find(p => p.id === id),
     [projects, id]
   );
 
-  const costsQuery = trpc.projects.getProjectCosts.useQuery(
-    { projectId: id as string },
-    { enabled: !!id }
-  );
+  const [costs, setCosts] = useState<any>(null);
+  const [costsLoading, setCostsLoading] = useState(true);
+  const [costsError, setCostsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    setCostsLoading(true);
+    setCostsError(null);
+    Promise.all([
+      supabase.from('expenses').select('*').eq('project_id', id as string),
+      supabase.from('clock_entries').select('*').eq('project_id', id as string),
+      supabase.from('users').select('id, name, hourly_rate'),
+    ]).then(([{ data: expensesData, error: expErr }, { data: clockData, error: clockErr }, { data: usersData, error: usersErr }]) => {
+      if (expErr || clockErr || usersErr) {
+        setCostsError((expErr || clockErr || usersErr)!.message);
+        setCostsLoading(false);
+        return;
+      }
+      const projectExpenses = expensesData || [];
+      const projectClockEntries = clockData || [];
+      const users = usersData || [];
+
+      const totalExpenses = projectExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+      const expensesByCategory = projectExpenses.reduce((acc: Record<string, number>, e: any) => {
+        const cat = e.subcategory || e.type;
+        acc[cat] = (acc[cat] || 0) + e.amount;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const laborMap = new Map<string, any>();
+      projectClockEntries.forEach((entry: any) => {
+        if (!entry.clock_out) return;
+        const user = users.find((u: any) => u.id === entry.employee_id);
+        const rate = user?.hourly_rate || 0;
+        let hours = (new Date(entry.clock_out).getTime() - new Date(entry.clock_in).getTime()) / 3600000;
+        if (entry.lunch_breaks) {
+          entry.lunch_breaks.forEach((lunch: any) => {
+            if (lunch.end_time) hours -= (new Date(lunch.end_time).getTime() - new Date(lunch.start_time).getTime()) / 3600000;
+          });
+        }
+        const existing = laborMap.get(entry.employee_id);
+        if (existing) { existing.totalHours += hours; existing.totalCost = existing.totalHours * existing.hourlyRate; }
+        else laborMap.set(entry.employee_id, { employeeId: entry.employee_id, employeeName: user?.name || 'Unknown', totalHours: hours, hourlyRate: rate, totalCost: hours * rate });
+      });
+
+      const laborByEmployee = Array.from(laborMap.values());
+      const totalLaborCost = laborByEmployee.reduce((sum: number, e: any) => sum + e.totalCost, 0);
+      const totalSubcontractorCost = projectExpenses
+        .filter((e: any) => e.type?.toLowerCase() === 'subcontractor' || e.subcategory?.toLowerCase().includes('subcontractor'))
+        .reduce((sum: number, e: any) => sum + e.amount, 0);
+
+      setCosts({
+        totalExpenses, totalLaborCost, totalSubcontractorCost,
+        totalCost: totalExpenses + totalLaborCost,
+        expensesByCategory, laborByEmployee,
+        expensesBreakdown: projectExpenses.map((e: any) => ({
+          id: e.id, type: e.type, subcategory: e.subcategory,
+          amount: e.amount, store: e.store, date: e.date,
+        })),
+      });
+      setCostsLoading(false);
+    });
+  }, [id]);
 
   if (!project) {
     return (
@@ -28,7 +87,7 @@ export default function ProjectCostsScreen() {
     );
   }
 
-  if (costsQuery.isLoading) {
+  if (costsLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563EB" />
@@ -37,15 +96,13 @@ export default function ProjectCostsScreen() {
     );
   }
 
-  if (costsQuery.error) {
+  if (costsError) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Error loading costs: {costsQuery.error.message}</Text>
+        <Text style={styles.errorText}>Error loading costs: {costsError}</Text>
       </View>
     );
   }
-
-  const costs = costsQuery.data;
 
   if (!costs) {
     return null;

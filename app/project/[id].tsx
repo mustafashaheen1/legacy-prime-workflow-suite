@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
 import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment, ScheduledTask } from '@/types';
-import { trpc } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
 import RequestEstimateComponent from '@/components/RequestEstimate';
@@ -24,16 +24,45 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject, addNotification } = useApp();
 
-  const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
-  const paymentsQuery = trpc.payments.getPayments.useQuery({ projectId: id as string }, { enabled: !!id });
+  const [changeOrdersData, setChangeOrdersData] = useState<ChangeOrder[]>([]);
+  const [paymentsData, setPaymentsData] = useState<Payment[]>([]);
+  const [inspectionVideosData, setInspectionVideosData] = useState<any[]>([]);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
-  const inspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery({
-    companyId: company?.id || '',
-    status: 'all'
-  }, {
-    enabled: !!company?.id
-  });
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+
+  const fetchPayments = useCallback(() => {
+    if (!id) return;
+    supabase.from('payments').select('*').eq('project_id', id as string).order('date', { ascending: false })
+      .then(({ data }) => setPaymentsData((data || []).map((r: any) => ({
+        id: r.id, projectId: r.project_id, amount: Number(r.amount), date: r.date,
+        clientId: r.client_id ?? undefined, clientName: r.client_name,
+        method: r.method, notes: r.notes ?? undefined, receiptUrl: r.receipt_url ?? undefined,
+        createdAt: r.created_at,
+      }))));
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    supabase.from('change_orders').select('*').eq('project_id', id as string).order('created_at', { ascending: false })
+      .then(({ data }) => setChangeOrdersData((data || []).map((r: any) => ({
+        id: r.id, projectId: r.project_id, description: r.description, amount: r.amount,
+        date: r.date, status: r.status, approvedBy: r.approved_by, approvedDate: r.approved_date,
+        notes: r.notes, createdAt: r.created_at, history: [],
+      }))));
+    fetchPayments();
+  }, [id, fetchPayments]);
+
+  useEffect(() => {
+    if (!company?.id) return;
+    supabase.from('inspection_videos').select('*').eq('company_id', company.id).order('created_at', { ascending: false })
+      .then(({ data }) => setInspectionVideosData((data || []).map((item: any) => ({
+        id: item.id, token: item.token, clientId: item.client_id, companyId: item.company_id,
+        projectId: item.project_id, clientName: item.client_name, clientEmail: item.client_email,
+        status: item.status, videoUrl: item.video_url, videoDuration: item.video_duration,
+        videoSize: item.video_size, notes: item.notes, createdAt: item.created_at,
+        completedAt: item.completed_at, expiresAt: item.expires_at,
+      }))));
+  }, [company?.id]);
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<FileCategory>('documentation');
   const [fileNotes, setFileNotes] = useState<string>('');
@@ -66,13 +95,8 @@ export default function ProjectDetailScreen() {
 
   const project = projects.find(p => p.id === id);
   
-  const changeOrders = useMemo<ChangeOrder[]>(() => {
-    return changeOrdersQuery.data?.changeOrders || [];
-  }, [changeOrdersQuery.data]);
-  
-  const payments = useMemo<Payment[]>(() => {
-    return paymentsQuery.data?.payments || [];
-  }, [paymentsQuery.data]);
+  const changeOrders = changeOrdersData;
+  const payments = paymentsData;
 
   useEffect(() => {
     if (activeTab === 'reports' && company?.id) {
@@ -192,7 +216,7 @@ export default function ProjectDetailScreen() {
     });
 
     // Add inspection videos as a 'videos' category
-    const allInspectionVideos = inspectionVideosQuery.data?.inspections || [];
+    const allInspectionVideos = inspectionVideosData;
     const projectClientName = project.name.split(' - ')[0].trim();
     const clientVideos = allInspectionVideos.filter(v =>
       v.clientName.toLowerCase() === projectClientName.toLowerCase() &&
@@ -215,7 +239,7 @@ export default function ProjectDetailScreen() {
     }
 
     return byCategory;
-  }, [currentProjectFiles, inspectionVideosQuery.data, project]);
+  }, [currentProjectFiles, inspectionVideosData, project]);
 
   const handlePickDocument = async () => {
     try {
@@ -2357,7 +2381,7 @@ export default function ProjectDetailScreen() {
         );
 
       case 'videos':
-        const allInspectionVideos = inspectionVideosQuery.data?.inspections || [];
+        const allInspectionVideos = inspectionVideosData;
 
         // Extract client name from project name (format: "Client Name - Estimate Name")
         const projectClientName = project.name.split(' - ')[0].trim();
@@ -2381,7 +2405,7 @@ export default function ProjectDetailScreen() {
                 </View>
               </View>
 
-              {inspectionVideosQuery.isLoading ? (
+              {false ? (
                 <View style={styles.emptyState}>
                   <Text style={styles.loadingText}>Loading videos...</Text>
                 </View>
@@ -3033,7 +3057,7 @@ export default function ProjectDetailScreen() {
                       read:      false,
                       createdAt: new Date().toISOString(),
                     });
-                    paymentsQuery.refetch();
+                    fetchPayments();
                     setShowAddPaymentModal(false);
                     Alert.alert('Payment Recorded', `$${amount.toLocaleString()} received from ${paymentClientNameInput.trim()} has been recorded.`);
                   } catch (err: any) {

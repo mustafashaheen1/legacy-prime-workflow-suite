@@ -12,7 +12,7 @@ import { createRorkTool, useRorkAgent } from '@rork-ai/toolkit-sdk';
 import { sendEstimate as sendEstimateUtil } from '@/utils/sendEstimate';
 import { z } from 'zod';
 import { useTwilioSMS, useTwilioCalls } from '@/components/TwilioIntegration';
-import { trpc } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 
 // Phone validation helpers
 const isValidUSPhone = (phone: string): boolean => {
@@ -107,12 +107,18 @@ export default function CRMScreen() {
   const router = useRouter();
   const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
   const { initiateCall, isLoadingCall } = useTwilioCalls();
-  const sendInspectionLinkMutation = trpc.crm.sendInspectionLink.useMutation();
-  const createInspectionVideoLinkMutation = trpc.crm.createInspectionVideoLink.useMutation();
-  const getInspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery(
-    { companyId: company?.id || '' },
-    { enabled: !!company?.id }
-  );
+  const [inspectionVideos, setInspectionVideos] = useState<any[]>([]);
+  const fetchInspectionVideos = () => {
+    if (!company?.id) return;
+    supabase.from('inspection_videos').select('*').eq('company_id', company.id)
+      .then(({ data }) => setInspectionVideos((data || []).map((item: any) => ({
+        id: item.id, token: item.token, clientId: item.client_id, companyId: item.company_id,
+        projectId: item.project_id, clientName: item.client_name, clientEmail: item.client_email,
+        status: item.status, videoUrl: item.video_url, createdAt: item.created_at,
+        completedAt: item.completed_at, expiresAt: item.expires_at,
+      }))));
+  };
+  useEffect(() => { fetchInspectionVideos(); }, [company?.id]);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
   // Load estimates from database when component mounts
@@ -1198,7 +1204,7 @@ export default function CRMScreen() {
           }
           console.log('[CRM] Inspection link stored in database successfully');
           console.log('[CRM] Database INSERT took:', data.insertDuration, 'ms');
-          getInspectionVideosQuery.refetch();
+          fetchInspectionVideos();
         })
         .catch((err) => {
           console.warn('[CRM] Failed to store inspection link in database (non-critical):', err);
@@ -1423,9 +1429,9 @@ export default function CRMScreen() {
                   })()}
 
                   {(() => {
-                    const clientVideos = getInspectionVideosQuery.data?.inspections?.filter(
-                      v => v.clientId === client.id
-                    ) || [];
+                    const clientVideos = inspectionVideos.filter(
+                      (v: any) => v.clientId === client.id
+                    );
 
                     return clientVideos.length > 0 ? (
                       <View style={styles.inspectionVideosContainer}>
@@ -1541,11 +1547,11 @@ export default function CRMScreen() {
                 <TouchableOpacity
                   style={styles.inspectionButton}
                   onPress={() => sendInspectionLink(client.id)}
-                  disabled={createInspectionVideoLinkMutation.isPending}
+                  disabled={false}
                 >
                   <Camera size={16} color="#FFFFFF" />
                   <Text style={styles.inspectionButtonText}>
-                    {createInspectionVideoLinkMutation.isPending ? 'Creating Link...' : 'Send Inspection Link'}
+                    Send Inspection Link
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity

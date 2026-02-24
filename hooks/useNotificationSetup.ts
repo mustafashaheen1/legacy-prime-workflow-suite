@@ -3,7 +3,6 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { trpc } from '@/lib/trpc';
 import type { Notification } from '@/types';
 
 // Configure how notifications appear when the app is foregrounded.
@@ -40,12 +39,25 @@ interface NotificationSetupCompany {
  * @param onNotificationReceived  Optional callback invoked when a push arrives
  *   while the app is foregrounded. Use this to add the notification to local state.
  */
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
+async function registerPushToken(token: string, platform: 'ios' | 'android', userId: string, companyId: string) {
+  const res = await fetch(`${API_BASE}/api/register-push-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, platform, userId, companyId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to register push token');
+  }
+}
+
 export function useNotificationSetup(
   user: NotificationSetupUser | null,
   company: NotificationSetupCompany | null,
   onNotificationReceived?: (notification: Notification) => void
 ) {
-  const registerToken = trpc.notifications.registerToken.useMutation();
   const router = useRouter();
   const notificationListener  = useRef<Notifications.EventSubscription | null>(null);
   const responseListener      = useRef<Notifications.EventSubscription | null>(null);
@@ -96,12 +108,7 @@ export function useNotificationSetup(
 
         if (!mounted) return;
 
-        await registerToken.mutateAsync({
-          token:     tokenData.data,
-          platform:  Platform.OS as 'ios' | 'android',
-          userId:    user.id,
-          companyId: company.id,
-        });
+        await registerPushToken(tokenData.data, Platform.OS as 'ios' | 'android', user.id, company.id);
 
         console.log('[Notifications] Setup complete — push token registered');
       } catch (err) {
@@ -118,12 +125,7 @@ export function useNotificationSetup(
     tokenRefreshListener.current = Notifications.addPushTokenListener(async (newToken) => {
       console.log('[Notifications] Push token rotated, re-registering:', newToken.data);
       try {
-        await registerToken.mutateAsync({
-          token:     newToken.data,
-          platform:  Platform.OS as 'ios' | 'android',
-          userId:    user.id,
-          companyId: company.id,
-        });
+        await registerPushToken(newToken.data, Platform.OS as 'ios' | 'android', user.id, company.id);
         console.log('[Notifications] Rotated token re-registered successfully');
       } catch (err) {
         console.warn('[Notifications] Failed to re-register rotated token:', err);

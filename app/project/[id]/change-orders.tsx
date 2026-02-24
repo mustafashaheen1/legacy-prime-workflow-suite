@@ -2,8 +2,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput,
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Plus, X, DollarSign, FileText, Clock, CheckCircle, XCircle, AlertCircle, Download, History } from 'lucide-react-native';
-import { useState, useMemo } from 'react';
-import { trpc } from '@/lib/trpc';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
 import { ChangeOrder } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import * as Print from 'expo-print';
@@ -22,78 +22,38 @@ export default function ChangeOrdersScreen() {
   const [amount, setAmount] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [selectedChangeOrderForHistory, setSelectedChangeOrderForHistory] = useState<ChangeOrder | null>(null);
-  
-  const changeOrdersQuery = trpc.changeOrders.getChangeOrders.useQuery({ projectId: id as string });
-  const addChangeOrderMutation = trpc.changeOrders.addChangeOrder.useMutation({
-    onSuccess: (_data, variables) => {
-      const project = projects.find(p => p.id === variables.projectId);
-      addNotification({
-        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        userId:    user?.id || '',
-        companyId: company?.id || '',
-        type:      'change-order',
-        title:     'Change Order Added',
-        message:   variables.description,
-        data:      { projectId: variables.projectId },
-        read:      false,
-        createdAt: new Date().toISOString(),
-      });
-      changeOrdersQuery.refetch();
-      setModalVisible(false);
-      setDescription('');
-      setAmount('');
-      setNotes('');
-      Alert.alert('Success', 'Change order added successfully!');
-    },
-    onError: (error) => {
-      console.error('[Change Order] Full error:', error);
-      console.error('[Change Order] Error message:', error.message);
-      console.error('[Change Order] Error data:', error.data);
-      const errorMessage = error.message || 'Failed to add change order. Please try again.';
-      Alert.alert('Error', errorMessage);
-    }
-  });
+  const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const updateChangeOrderMutation = trpc.changeOrders.updateChangeOrder.useMutation({
-    onSuccess: (_data, variables) => {
-      const co = changeOrdersQuery.data?.changeOrders?.find(c => c.id === variables.id);
-      if (co && variables.status === 'approved') {
-        addNotification({
-          id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          userId:    user?.id || '',
-          companyId: company?.id || '',
-          type:      'change-order',
-          title:     'Change Order Approved',
-          message:   `Change order for $${co.amount.toLocaleString()} has been approved`,
-          data:      { changeOrderId: co.id, projectId: co.projectId },
-          read:      false,
-          createdAt: new Date().toISOString(),
-        });
-      } else if (co && variables.status === 'rejected') {
-        addNotification({
-          id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          userId:    user?.id || '',
-          companyId: company?.id || '',
-          type:      'change-order',
-          title:     'Change Order Rejected',
-          message:   `Change order for $${co.amount.toLocaleString()} has been rejected`,
-          data:      { changeOrderId: co.id, projectId: co.projectId },
-          read:      false,
-          createdAt: new Date().toISOString(),
-        });
-      }
-      changeOrdersQuery.refetch();
-      Alert.alert('Success', 'Change order updated successfully!');
-    },
-    onError: (error) => {
-      console.error('[Change Order] Update error:', error);
-      Alert.alert('Error', error.message || 'Failed to update change order');
-    },
-  });
-  
-  const changeOrders = useMemo<ChangeOrder[]>(() => {
-    return changeOrdersQuery.data?.changeOrders || [];
-  }, [changeOrdersQuery.data]);
+  const fetchChangeOrders = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('change_orders')
+        .select('*')
+        .eq('project_id', id as string)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setChangeOrders((data || []).map((row: any) => ({
+        id: row.id,
+        projectId: row.project_id,
+        description: row.description,
+        amount: row.amount,
+        date: row.date,
+        status: row.status,
+        approvedBy: row.approved_by,
+        approvedDate: row.approved_date,
+        notes: row.notes,
+        createdAt: row.created_at,
+        history: [],
+      })));
+    } catch (err) {
+      console.error('[Change Orders] Fetch error:', err);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchChangeOrders();
+  }, [fetchChangeOrders]);
   
   const totalChangeOrdersAmount = useMemo(() => {
     return changeOrders
@@ -113,7 +73,7 @@ export default function ChangeOrdersScreen() {
     return changeOrders.filter(co => co.status === 'rejected');
   }, [changeOrders]);
   
-  const handleAddChangeOrder = () => {
+  const handleAddChangeOrder = async () => {
     if (!description.trim()) {
       Alert.alert('Error', 'Please enter a description');
       return;
@@ -130,18 +90,59 @@ export default function ChangeOrdersScreen() {
       return;
     }
 
-    const mutationData = {
-      companyId: company.id,
-      projectId: id as string,
-      description: description.trim(),
-      amount: amountValue,
-      date: new Date().toISOString(),
-      status: 'pending' as const,
-      notes: notes.trim() || undefined,
-    };
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('change_orders').insert({
+        company_id: company.id,
+        project_id: id as string,
+        description: description.trim(),
+        amount: amountValue,
+        date: new Date().toISOString(),
+        status: 'pending',
+        notes: notes.trim() || null,
+      });
+      if (error) throw error;
+      addNotification({
+        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId:    user?.id || '',
+        companyId: company?.id || '',
+        type:      'change-order',
+        title:     'Change Order Added',
+        message:   description.trim(),
+        data:      { projectId: id as string },
+        read:      false,
+        createdAt: new Date().toISOString(),
+      });
+      await fetchChangeOrders();
+      setModalVisible(false);
+      setDescription('');
+      setAmount('');
+      setNotes('');
+      Alert.alert('Success', 'Change order added successfully!');
+    } catch (error: any) {
+      console.error('[Change Order] Add error:', error);
+      Alert.alert('Error', error.message || 'Failed to add change order. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-    console.log('[Change Order] Submitting mutation with data:', mutationData);
-    addChangeOrderMutation.mutate(mutationData);
+  const updateChangeOrder = async (changeOrderId: string, updates: { status?: ChangeOrder['status']; approvedDate?: string }) => {
+    setIsSaving(true);
+    try {
+      const dbUpdates: any = {};
+      if (updates.status !== undefined) dbUpdates.status = updates.status;
+      if (updates.approvedDate !== undefined) dbUpdates.approved_date = updates.approvedDate;
+      const { error } = await supabase.from('change_orders').update(dbUpdates).eq('id', changeOrderId);
+      if (error) throw error;
+      await fetchChangeOrders();
+      Alert.alert('Success', 'Change order updated successfully!');
+    } catch (error: any) {
+      console.error('[Change Order] Update error:', error);
+      Alert.alert('Error', error.message || 'Failed to update change order');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleApprove = (changeOrder: ChangeOrder) => {
@@ -151,19 +152,22 @@ export default function ChangeOrdersScreen() {
     const newContract = currentContract + changeOrder.amount;
 
     const doApprove = () => {
-      updateChangeOrderMutation.mutate({
-        id: changeOrder.id,
-        status: 'approved',
-        approvedDate: new Date().toISOString(),
+      updateChangeOrder(changeOrder.id, { status: 'approved', approvedDate: new Date().toISOString() });
+      addNotification({
+        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId:    user?.id || '',
+        companyId: company?.id || '',
+        type:      'change-order',
+        title:     'Change Order Approved',
+        message:   `Change order for $${changeOrder.amount.toLocaleString()} has been approved`,
+        data:      { changeOrderId: changeOrder.id, projectId: changeOrder.projectId },
+        read:      false,
+        createdAt: new Date().toISOString(),
       });
     };
 
     const doApproveAndUpdateContract = () => {
-      updateChangeOrderMutation.mutate({
-        id: changeOrder.id,
-        status: 'approved',
-        approvedDate: new Date().toISOString(),
-      });
+      doApprove();
       if (project) {
         updateProject(project.id, { contractAmount: newContract });
       }
@@ -205,9 +209,17 @@ export default function ChangeOrdersScreen() {
           text: 'Reject',
           style: 'destructive',
           onPress: () => {
-            updateChangeOrderMutation.mutate({
-              id: changeOrder.id,
-              status: 'rejected',
+            updateChangeOrder(changeOrder.id, { status: 'rejected' });
+            addNotification({
+              id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              userId:    user?.id || '',
+              companyId: company?.id || '',
+              type:      'change-order',
+              title:     'Change Order Rejected',
+              message:   `Change order for $${changeOrder.amount.toLocaleString()} has been rejected`,
+              data:      { changeOrderId: changeOrder.id, projectId: changeOrder.projectId },
+              read:      false,
+              createdAt: new Date().toISOString(),
             });
           },
         },
@@ -436,7 +448,7 @@ export default function ChangeOrdersScreen() {
                       <TouchableOpacity
                         style={[styles.actionButton, styles.approveButton]}
                         onPress={() => handleApprove(changeOrder)}
-                        disabled={updateChangeOrderMutation.isPending}
+                        disabled={isSaving}
                       >
                         <CheckCircle size={16} color="#FFFFFF" />
                         <Text style={styles.actionButtonText}>Approve</Text>
@@ -444,7 +456,7 @@ export default function ChangeOrdersScreen() {
                       <TouchableOpacity
                         style={[styles.actionButton, styles.rejectButton]}
                         onPress={() => handleReject(changeOrder)}
-                        disabled={updateChangeOrderMutation.isPending}
+                        disabled={isSaving}
                       >
                         <XCircle size={16} color="#FFFFFF" />
                         <Text style={styles.actionButtonText}>Reject</Text>
@@ -538,12 +550,12 @@ export default function ChangeOrdersScreen() {
                     <Text style={styles.cancelButtonText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.submitButton, addChangeOrderMutation.isPending && styles.submitButtonDisabled]}
+                    style={[styles.submitButton, isSaving && styles.submitButtonDisabled]}
                     onPress={handleAddChangeOrder}
-                    disabled={addChangeOrderMutation.isPending}
+                    disabled={isSaving}
                   >
                     <Text style={styles.submitButtonText}>
-                      {addChangeOrderMutation.isPending ? 'Adding...' : 'Add Change Order'}
+                      {isSaving ? 'Adding...' : 'Add Change Order'}
                     </Text>
                   </TouchableOpacity>
                 </View>

@@ -4,7 +4,6 @@ import { useApp } from '@/contexts/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useMemo, useEffect } from 'react';
 import { Check } from 'lucide-react-native';
-import { trpc } from '@/lib/trpc';
 import { StripeProvider, useStripe } from '@/lib/stripe-provider';
 import { StripePaymentForm } from '@/components/StripePaymentForm';
 import { useTranslation } from 'react-i18next';

@@ -1,4 +1,15 @@
-import { trpcClient } from '@/lib/trpc';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
+async function openaiChat(messages: { role: string; content: string }[], model = 'gpt-4o') {
+  const res = await fetch(`${API_BASE}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Chat request failed');
+  return { success: true, message: data.message || data.content || '' };
+}
 
 export async function runAITests() {
   console.log('\n🚀 Starting AI Assistant Tests...\n');
@@ -29,7 +40,7 @@ export async function runAITests() {
 
   try {
     console.log('\n🔌 Test 2: Testing OpenAI connection...');
-    const connectionTest = await trpcClient.openai.testConnection.query();
+    const connectionTest = await openaiChat([{ role: 'user', content: 'ping' }]).then(r => ({ success: true, model: 'gpt-4o', error: undefined })).catch(e => ({ success: false, model: undefined, error: e.message }));
     
     if (connectionTest.success) {
       console.log('✅ OpenAI connection successful!');
@@ -48,13 +59,7 @@ export async function runAITests() {
 
   try {
     console.log('\n💬 Test 3: Testing AI Chat...');
-    const chatResult = await trpcClient.openai.chat.mutate({
-      messages: [
-        { role: 'user', content: 'Say "Hello from AI test"' }
-      ],
-      model: 'gpt-4o',
-      temperature: 0.7,
-    });
+    const chatResult = await openaiChat([{ role: 'user', content: 'Say "Hello from AI test"' }]);
 
     if (chatResult.success && chatResult.message) {
       console.log('✅ AI Chat working!');
@@ -109,14 +114,10 @@ Format:
   }
 ]`;
 
-    const result = await trpcClient.openai.chat.mutate({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: testScope }
-      ],
-      model: 'gpt-4o',
-      temperature: 0.7,
-    });
+    const result = await openaiChat([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: testScope }
+    ]);
 
     if (result.success) {
       console.log('✅ Estimate generation successful!');

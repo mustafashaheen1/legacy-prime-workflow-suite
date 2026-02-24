@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Phone, Shield } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { trpc } from '@/lib/trpc';
 import * as Haptics from 'expo-haptics';
 
 export default function PhoneVerificationScreen() {
@@ -21,84 +20,66 @@ export default function PhoneVerificationScreen() {
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [verificationCode, setVerificationCode] = useState<string>('');
   const [, setExpiresAt] = useState<string>('');
-  
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+
   const insets = useSafeAreaInsets();
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
-  const sendCodeMutation = trpc.auth.sendVerificationCode.useMutation({
-    onSuccess: (data) => {
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      setExpiresAt(data.expiresAt);
-      setStep('code');
-      Alert.alert(
-        'Code Sent',
-        `We have sent a verification code to ${phoneNumber}`
-      );
-    },
-    onError: (error) => {
-      Alert.alert('Error', error.message);
-    },
-  });
-
-  const verifyCodeMutation = trpc.auth.verifyCode.useMutation({
-    onSuccess: () => {
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      
-      if (params.accountType === 'company') {
-        router.push({
-          pathname: '/(auth)/subscription',
-          params: {
-            ...params,
-            phoneNumber,
-            phoneVerified: 'true',
-          },
-        });
-      } else {
-        router.push({
-          pathname: '/(auth)/subscription',
-          params: {
-            ...params,
-            phoneNumber,
-            phoneVerified: 'true',
-          },
-        });
-      }
-    },
-    onError: (error) => {
-      Alert.alert('Error', error.message);
-    },
-  });
-
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     if (!phoneNumber.trim() || phoneNumber.length < 10) {
       Alert.alert('Error', 'Please enter a valid phone number');
       return;
     }
-
     const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
-    sendCodeMutation.mutate({ phoneNumber: formattedPhone });
+    setIsSendingCode(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/send-verification-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: formattedPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send code');
+      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setExpiresAt(data.expiresAt);
+      setStep('code');
+      Alert.alert('Code Sent', `We have sent a verification code to ${phoneNumber}`);
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setIsSendingCode(false);
+    }
   };
 
-  const handleVerifyCode = () => {
+  const handleVerifyCode = async () => {
     if (!verificationCode.trim() || verificationCode.length !== 6) {
       Alert.alert('Error', 'Please enter the 6-digit code');
       return;
     }
-
     const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
-    verifyCodeMutation.mutate({
-      phoneNumber: formattedPhone,
-      code: verificationCode,
-    });
+    setIsVerifyingCode(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/verify-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: formattedPhone, code: verificationCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to verify code');
+      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push({
+        pathname: '/(auth)/subscription',
+        params: { ...params, phoneNumber, phoneVerified: 'true' },
+      });
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setIsVerifyingCode(false);
+    }
   };
 
-  const handleResendCode = () => {
-    const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
-    sendCodeMutation.mutate({ phoneNumber: formattedPhone });
-  };
+  const handleResendCode = () => { handleSendCode(); };
 
   const handleSkip = () => {
     if (params.accountType === 'company') {
@@ -180,12 +161,12 @@ export default function PhoneVerificationScreen() {
               </Text>
 
               <TouchableOpacity
-                style={[styles.primaryButton, sendCodeMutation.isPending && styles.buttonDisabled]}
+                style={[styles.primaryButton, isSendingCode && styles.buttonDisabled]}
                 onPress={handleSendCode}
-                disabled={sendCodeMutation.isPending}
+                disabled={isSendingCode}
               >
                 <Text style={styles.primaryButtonText}>
-                  {sendCodeMutation.isPending ? 'Sending...' : 'Send Code'}
+                  {isSendingCode ? 'Sending...' : 'Send Code'}
                 </Text>
               </TouchableOpacity>
             </>
@@ -206,20 +187,20 @@ export default function PhoneVerificationScreen() {
               <TouchableOpacity
                 style={styles.resendButton}
                 onPress={handleResendCode}
-                disabled={sendCodeMutation.isPending}
+                disabled={isSendingCode}
               >
                 <Text style={styles.resendText}>
-                  {sendCodeMutation.isPending ? 'Resending...' : "Didn't receive the code? Resend"}
+                  {isSendingCode ? 'Resending...' : "Didn't receive the code? Resend"}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.primaryButton, verifyCodeMutation.isPending && styles.buttonDisabled]}
+                style={[styles.primaryButton, isVerifyingCode && styles.buttonDisabled]}
                 onPress={handleVerifyCode}
-                disabled={verifyCodeMutation.isPending}
+                disabled={isVerifyingCode}
               >
                 <Text style={styles.primaryButtonText}>
-                  {verifyCodeMutation.isPending ? 'Verifying...' : 'Verify Code'}
+                  {isVerifyingCode ? 'Verifying...' : 'Verify Code'}
                 </Text>
               </TouchableOpacity>
             </>

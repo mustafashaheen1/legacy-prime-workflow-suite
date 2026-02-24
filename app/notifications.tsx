@@ -11,6 +11,7 @@ import {
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Bell, BellOff, CheckCheck } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
+import { supabase } from '@/lib/supabase';
 import type { Notification } from '@/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -98,12 +99,14 @@ export default function NotificationsScreen() {
 
   const handleMarkAllRead = useCallback(() => {
     if (!user?.id || unread.length === 0) return;
-    // Single bulk call to the server — one UPDATE instead of N mutations
-    import('@/lib/trpc').then(({ vanillaClient }) => {
-      vanillaClient.notifications.markAllRead
-        .mutate({ userId: user.id! })
-        .catch((err: any) => console.warn('[Notifications] Mark-all-read failed:', err));
-    });
+    // Single bulk UPDATE instead of N mutations
+    supabase.from('notifications')
+      .update({ read: true, read_at: new Date().toISOString() })
+      .eq('user_id', user.id!)
+      .eq('read', false)
+      .then(({ error }) => {
+        if (error) console.warn('[Notifications] Mark-all-read failed:', error);
+      });
     // Optimistic local update so the UI clears immediately
     unread.forEach(n => markNotificationRead(n.id));
   }, [user, unread, markNotificationRead]);

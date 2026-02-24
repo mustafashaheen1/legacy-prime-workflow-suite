@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { FileCategory, ProjectFile } from '@/types';
 import { useTranslation } from 'react-i18next';
-import { trpc } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 import { Linking } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 
@@ -78,12 +78,7 @@ export default function FilesNavigationScreen() {
   const router = useRouter();
   const { projects, projectFiles, photos, expenses, addProjectFile, addPhoto, addExpense, photoCategories, company } = useApp();
 
-  const inspectionVideosQuery = trpc.crm.getInspectionVideos.useQuery({
-    companyId: company?.id || '',
-    status: 'all'
-  }, {
-    enabled: !!company?.id
-  });
+  const [inspectionVideos, setInspectionVideos] = useState<any[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<FolderType | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
@@ -99,20 +94,66 @@ export default function FilesNavigationScreen() {
 
   const project = projects.find(p => p.id === id);
 
-  // Fetch custom folders from database
-  const customFoldersQuery = trpc.customFolders.getCustomFolders.useQuery({
-    projectId: id as string,
-  }, {
-    enabled: !!id,
-  });
+  const [customFoldersList, setCustomFoldersList] = useState<FolderConfig[]>([]);
 
-  const deleteCustomFolderMutation = trpc.customFolders.deleteCustomFolder.useMutation({
-    onSuccess: () => {
-      customFoldersQuery.refetch();
-    },
-  });
+  const fetchCustomFolders = useCallback(async () => {
+    if (!id) return;
+    try {
+      const { data, error } = await supabase
+        .from('custom_folders')
+        .select('*')
+        .eq('project_id', id as string)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      setCustomFoldersList((data || []).map((f: any) => ({
+        type: f.folder_type,
+        name: f.name,
+        icon: 'Folder',
+        color: f.color || '#6B7280',
+        description: f.description || 'Custom folder',
+      })));
+    } catch (err) {
+      console.error('[Files] Error fetching custom folders:', err);
+    }
+  }, [id]);
 
-  // Direct API call to create custom folder (bypasses tRPC)
+  const fetchInspectionVideos = useCallback(async () => {
+    if (!company?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('inspection_videos')
+        .select('*')
+        .eq('company_id', company.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setInspectionVideos((data || []).map((item: any) => ({
+        id: item.id,
+        token: item.token,
+        clientId: item.client_id,
+        companyId: item.company_id,
+        projectId: item.project_id,
+        clientName: item.client_name,
+        clientEmail: item.client_email,
+        status: item.status,
+        videoUrl: item.video_url,
+        videoDuration: item.video_duration,
+        videoSize: item.video_size,
+        notes: item.notes,
+        createdAt: item.created_at,
+        completedAt: item.completed_at,
+        expiresAt: item.expires_at,
+      })));
+    } catch (err) {
+      console.error('[Files] Error fetching inspection videos:', err);
+    }
+  }, [company?.id]);
+
+  useEffect(() => {
+    fetchCustomFolders();
+    fetchInspectionVideos();
+  }, [fetchCustomFolders, fetchInspectionVideos]);
+
+  // Direct API call to create custom folder
   const createCustomFolder = async (projectId: string, name: string, color?: string, description?: string) => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
     const response = await fetch(`${baseUrl}/api/custom-folders`, {
@@ -129,7 +170,7 @@ export default function FilesNavigationScreen() {
     return await response.json();
   };
 
-  const customFolders: FolderConfig[] = customFoldersQuery.data?.folders || [];
+  const customFolders: FolderConfig[] = customFoldersList;
 
   // Load project files from S3/database
   const loadProjectFiles = useCallback(async () => {
@@ -213,7 +254,7 @@ export default function FilesNavigationScreen() {
         count = files.length;
         categories = count > 0 ? ['All Agreements'] : [];
       } else if (folderConfig.type === 'videos') {
-        const allVideos = inspectionVideosQuery.data?.inspections || [];
+        const allVideos = inspectionVideos || [];
         const projectClientName = project?.name.split(' - ')[0].trim() || '';
         const clientVideos = allVideos.filter(v =>
           v.clientName.toLowerCase() === projectClientName.toLowerCase() &&
@@ -238,7 +279,7 @@ export default function FilesNavigationScreen() {
         categories,
       };
     });
-  }, [projectPhotos, projectExpenses, currentProjectFiles, customFolders, inspectionVideosQuery.data, project]);
+  }, [projectPhotos, projectExpenses, currentProjectFiles, customFolders, inspectionVideos, project]);
 
   const getFilesForCategory = (folderType: FolderType, category: string) => {
     if (folderType === 'photos') {
@@ -255,7 +296,7 @@ export default function FilesNavigationScreen() {
     } else if (folderType === 'agreements') {
       return currentProjectFiles.filter(f => f.category === 'agreements');
     } else if (folderType === 'videos') {
-      const allVideos = inspectionVideosQuery.data?.inspections || [];
+      const allVideos = inspectionVideos || [];
       const projectClientName = project?.name.split(' - ')[0].trim() || '';
       return allVideos.filter(v =>
         v.clientName.toLowerCase() === projectClientName.toLowerCase() &&
@@ -504,7 +545,7 @@ export default function FilesNavigationScreen() {
       setNewFolderModalVisible(false);
 
       // Refetch to show new folder
-      await customFoldersQuery.refetch();
+      await fetchCustomFolders();
 
       Alert.alert('Success', 'Folder created successfully!');
     } catch (error: any) {
@@ -534,10 +575,13 @@ export default function FilesNavigationScreen() {
             if (!id) return;
 
             try {
-              await deleteCustomFolderMutation.mutateAsync({
-                projectId: id as string,
-                folderType,
-              });
+              const { error } = await supabase
+                .from('custom_folders')
+                .delete()
+                .eq('project_id', id as string)
+                .eq('folder_type', folderType);
+              if (error) throw error;
+              await fetchCustomFolders();
               Alert.alert(t('common.success'), 'Folder deleted');
             } catch (error: any) {
               console.error('[Files] Error deleting folder:', error);

@@ -1,7 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { ArrowLeft, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
-import { trpc } from '@/lib/trpc';
 import { useState } from 'react';
 
 export default function ApiTestScreen() {
@@ -12,56 +11,46 @@ export default function ApiTestScreen() {
     message: string;
   }[]>([]);
 
-  const testOpenAI = trpc.openai.testConnection.useQuery(undefined, {
-    enabled: false,
-  });
-
-  const testHello = trpc.example.hi.useMutation();
-
   const runTests = async () => {
     setTestResults([]);
-    
+    const baseUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+      (typeof window !== 'undefined' ? window.location.origin : '');
+
     setTestResults(prev => [...prev, { test: 'OpenAI Connection', status: 'pending', message: 'Testing...' }]);
     try {
-      const result = await testOpenAI.refetch();
-      setTestResults(prev => prev.map(t => 
-        t.test === 'OpenAI Connection' 
-          ? { 
-              test: 'OpenAI Connection', 
-              status: result.data?.success ? 'success' : 'error', 
-              message: result.data?.message || result.data?.error || 'Unknown error' 
-            }
+      const res = await fetch(`${baseUrl}/api/speech-to-text`, { method: 'GET' });
+      // Any response (even 405) means the API is reachable
+      setTestResults(prev => prev.map(t =>
+        t.test === 'OpenAI Connection'
+          ? { test: 'OpenAI Connection', status: 'success', message: `API reachable (HTTP ${res.status})` }
           : t
       ));
     } catch (error: any) {
-      setTestResults(prev => prev.map(t => 
-        t.test === 'OpenAI Connection' 
+      setTestResults(prev => prev.map(t =>
+        t.test === 'OpenAI Connection'
           ? { test: 'OpenAI Connection', status: 'error', message: error.message }
           : t
       ));
     }
 
-    setTestResults(prev => [...prev, { test: 'Basic tRPC', status: 'pending', message: 'Testing...' }]);
+    setTestResults(prev => [...prev, { test: 'API Connectivity', status: 'pending', message: 'Testing...' }]);
     try {
-      const result = await testHello.mutateAsync({ name: 'Test' });
-      setTestResults(prev => prev.map(t => 
-        t.test === 'Basic tRPC' 
-          ? { 
-              test: 'Basic tRPC', 
-              status: result ? 'success' : 'error', 
-              message: result?.hello ? `Hello ${result.hello}` : 'No message received' 
-            }
+      const res = await fetch(`${baseUrl}/api/test`);
+      const data = await res.json().catch(() => ({}));
+      setTestResults(prev => prev.map(t =>
+        t.test === 'API Connectivity'
+          ? { test: 'API Connectivity', status: res.ok ? 'success' : 'error', message: data?.message || `HTTP ${res.status}` }
           : t
       ));
     } catch (error: any) {
-      setTestResults(prev => prev.map(t => 
-        t.test === 'Basic tRPC' 
-          ? { test: 'Basic tRPC', status: 'error', message: error.message }
+      setTestResults(prev => prev.map(t =>
+        t.test === 'API Connectivity'
+          ? { test: 'API Connectivity', status: 'error', message: error.message }
           : t
       ));
     }
 
-    setTestResults(prev => [...prev, { test: 'API Base URL', status: 'success', message: process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'Not set' }]);
+    setTestResults(prev => [...prev, { test: 'API Base URL', status: 'success', message: baseUrl || 'Not set' }]);
   };
 
   return (

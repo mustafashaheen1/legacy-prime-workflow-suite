@@ -7,7 +7,7 @@ import { ArrowLeft, Plus, Trash2, Check, Edit2, Send, FileSignature, Eye, EyeOff
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
 import { EstimateItem, Estimate, ProjectFile } from '@/types';
-import { vanillaClient } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -737,15 +737,15 @@ export default function EstimateScreen() {
       if (isCustom) {
         console.log('[Estimate] Updating custom item in database:', itemName);
 
-        vanillaClient.priceList.updatePriceListItem.mutate({
-          itemId,
-          companyId,
-          unitPrice: newPrice,
-        }).then(() => {
-          console.log('[Estimate] Price updated in database');
-        }).catch((error) => {
-          console.error('[Estimate] Error updating price in database:', error);
-        });
+        supabase.from('price_list_items')
+          .update({ unit_price: newPrice })
+          .eq('id', itemId)
+          .eq('company_id', companyId)
+          .eq('is_custom', true)
+          .then(({ error }) => {
+            if (error) console.error('[Estimate] Error updating price in database:', error);
+            else console.log('[Estimate] Price updated in database');
+          });
       } else {
         // It's a master item - create a company-specific override
         console.log('[Estimate] Creating company override for master item:', itemName);

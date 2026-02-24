@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { trpcClient } from '@/lib/trpc';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import { Check, CreditCard, ArrowLeft } from 'lucide-react-native';
 
 export default function StripeTestScreen() {
@@ -50,13 +50,13 @@ export default function StripeTestScreen() {
       console.log('[Stripe Test] Amount:', plans[selectedPlan].price);
 
       setTestResult('Creating Payment Intent in Stripe...');
-      const paymentIntent = await trpcClient.stripe.createPaymentIntent.mutate({
-        amount: plans[selectedPlan].price,
-        currency: 'usd',
-        companyName: 'Test Company',
-        email: 'test@example.com',
-        subscriptionPlan: selectedPlan,
+      const piRes = await fetch(`${API_BASE}/api/stripe-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: plans[selectedPlan].price, currency: 'usd', companyName: 'Test Company', email: 'test@example.com', subscriptionPlan: selectedPlan }),
       });
+      const paymentIntent = await piRes.json();
+      if (!piRes.ok) throw new Error(paymentIntent.error || 'Failed to create payment intent');
 
       console.log('[Stripe Test] Payment Intent created:', paymentIntent);
       setTestResult(`✅ Payment Intent created successfully!\n\nID: ${paymentIntent.paymentIntentId}\n\nClient Secret: ${paymentIntent.clientSecret?.substring(0, 30)}...`);
@@ -84,9 +84,9 @@ export default function StripeTestScreen() {
       try {
         setIsProcessing(true);
         setTestResult('Verifying payment...');
-        const result = await trpcClient.stripe.verifyPayment.query({
-          paymentIntentId,
-        });
+        const verifyRes = await fetch(`${API_BASE}/api/verify-stripe-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentIntentId }) });
+        const result = await verifyRes.json();
+        if (!verifyRes.ok) throw new Error(result.error || 'Verification failed');
 
         console.log('[Stripe Test] Payment verification:', result);
         setTestResult(

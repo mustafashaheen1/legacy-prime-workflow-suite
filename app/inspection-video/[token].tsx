@@ -5,7 +5,7 @@ import { Camera } from 'expo-camera';
 import { Video } from 'expo-av';
 import { Loader, Video as VideoIcon, Upload, Check, X, RotateCw } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { trpc } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 
 type RecordingStatus = 'idle' | 'recording' | 'recorded' | 'uploading' | 'complete';
 
@@ -19,26 +19,30 @@ export default function InspectionVideoScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const cameraRef = useRef<Camera>(null);
 
-  const validateTokenQuery = trpc.crm.validateInspectionToken.useQuery(
-    { token: token || '' },
-    {
-      enabled: !!token,
-      retry: false,
-    }
-  );
-
-  const completeInspectionMutation = trpc.crm.completeVideoUpload.useMutation();
+  const [tokenError, setTokenError] = useState<boolean>(false);
 
   useEffect(() => {
-    if (validateTokenQuery.data) {
-      if (validateTokenQuery.data.valid && validateTokenQuery.data.inspection) {
-        setInspectionData(validateTokenQuery.data.inspection);
-      }
-      setIsValidating(false);
-    } else if (validateTokenQuery.error) {
-      setIsValidating(false);
-    }
-  }, [validateTokenQuery.data, validateTokenQuery.error]);
+    if (!token) { setIsValidating(false); setTokenError(true); return; }
+    supabase.from('inspection_videos').select('*').eq('token', token).single()
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setTokenError(true);
+        } else if (new Date(data.expires_at) < new Date()) {
+          setTokenError(true);
+        } else if (data.status === 'completed') {
+          setTokenError(true);
+        } else {
+          setInspectionData({
+            id: data.id,
+            clientName: data.client_name,
+            clientEmail: data.client_email,
+            notes: data.notes,
+            expiresAt: data.expires_at,
+          });
+        }
+        setIsValidating(false);
+      });
+  }, [token]);
 
   useEffect(() => {
     (async () => {
@@ -187,16 +191,18 @@ export default function InspectionVideoScreen() {
           setStatus('complete');
         }
       } else {
-        // For native platform (future implementation)
-        const result = await completeInspectionMutation.mutateAsync({
-          token,
-          videoKey: videoUri,
-          videoDuration: 0,
-          videoSize: 0,
+        // For native platform: use the same API endpoint as web
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+        const completeResponse = await fetch(`${apiUrl}/api/complete-inspection-video`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, videoKey: videoUri, videoDuration: 0, videoSize: 0 }),
         });
-
+        const result = await completeResponse.json();
         if (result.success) {
           setStatus('complete');
+        } else {
+          throw new Error(result.error || 'Failed to complete inspection');
         }
       }
     } catch (error: any) {
@@ -216,7 +222,7 @@ export default function InspectionVideoScreen() {
     );
   }
 
-  if (validateTokenQuery.error || !inspectionData) {
+  if (tokenError || !inspectionData) {
     return (
       <View style={styles.centerContainer}>
         <Stack.Screen options={{ title: 'Invalid Link', headerShown: true }} />

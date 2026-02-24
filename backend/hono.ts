@@ -1,8 +1,5 @@
 import { Hono } from "hono";
-import { trpcServer } from "@hono/trpc-server";
 import { cors } from "hono/cors";
-import { appRouter } from "./trpc/app-router.js";
-import { createContext } from "./trpc/create-context.js";
 import twilio from "twilio";
 import { supabase } from "./lib/supabase.js";
 
@@ -27,35 +24,6 @@ try {
     credentials: true,
   }));
 
-  // REMOVED: timeout middleware conflicts with Vercel's 10s limit
-  // app.use("/trpc/*", timeout(60000));
-
-  // Debug middleware to see what's happening before tRPC
-  app.use("/trpc/*", async (c, next) => {
-    console.log(`[tRPC Middleware] Path: ${c.req.path}`);
-    console.log(`[tRPC Middleware] Method: ${c.req.method}`);
-    console.log(`[tRPC Middleware] Headers:`, Object.fromEntries(c.req.raw.headers.entries()));
-    console.log(`[tRPC Middleware] About to call tRPC server...`);
-    await next();
-    console.log(`[tRPC Middleware] tRPC server responded`);
-  });
-
-  app.use(
-    "/trpc/*",
-    trpcServer({
-      endpoint: "/trpc",
-      router: appRouter,
-      createContext,
-      batching: {
-        enabled: false, // Disabled to prevent timeout issues
-      },
-      onError({ path, error }) {
-        console.error(`[tRPC Error] Path: ${path}`);
-        console.error(`[tRPC Error] Message:`, error.message);
-        console.error(`[tRPC Error] Stack:`, error.stack?.substring(0, 500));
-      },
-    })
-  );
 } catch (error) {
   console.error("[Backend] Failed to initialize middleware:", error);
   throw error;
@@ -656,7 +624,6 @@ console.log("[Backend] ========================================");
 console.log("[Backend] Routes registered:");
 console.log("[Backend]   - GET  /");
 console.log("[Backend]   - GET  /health");
-console.log("[Backend]   - POST /trpc/*");
 console.log("[Backend]   - POST /twilio/receptionist");
 console.log("[Backend] ========================================");
 

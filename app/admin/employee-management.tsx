@@ -4,7 +4,7 @@ import { Stack, router, useFocusEffect } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { User, ClockEntry } from '@/types';
 import { Clock, DollarSign, CheckCircle, XCircle, FileText, Edit2 } from 'lucide-react-native';
-import { trpc } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 
 export default function EmployeeManagementScreen() {
   const { user: currentUser, clockEntries } = useApp();
@@ -17,23 +17,48 @@ export default function EmployeeManagementScreen() {
   const [editingRate, setEditingRate] = useState<string>('');
 
   const [refreshing, setRefreshing] = useState(false);
+  const [usersData, setUsersData] = useState<{ users: User[] } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const { data: usersData, refetch } = trpc.users.getUsers.useQuery({
-    companyId: currentUser?.companyId || '',
-  });
+  const fetchUsers = useCallback(async () => {
+    if (!currentUser?.companyId) return;
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('company_id', currentUser.companyId);
+      if (error) throw error;
+      const users: User[] = (data || []).map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        companyId: u.company_id,
+        avatar: u.avatar || undefined,
+        phone: u.phone || undefined,
+        address: u.address || undefined,
+        hourlyRate: u.hourly_rate || undefined,
+        isActive: u.is_active,
+        createdAt: u.created_at,
+        rateChangeRequest: u.rate_change_request || undefined,
+      }));
+      setUsersData({ users });
+    } catch (err) {
+      console.error('[Admin] Error fetching users:', err);
+    }
+  }, [currentUser?.companyId]);
 
-  // Refetch every time the screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      refetch();
-    }, [refetch])
+      fetchUsers();
+    }, [fetchUsers])
   );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refetch();
+    await fetchUsers();
     setRefreshing(false);
-  }, [refetch]);
+  }, [fetchUsers]);
 
   const employees = useMemo(() => {
     const allUsers = usersData?.users || [];
@@ -58,39 +83,24 @@ export default function EmployeeManagementScreen() {
     );
   }, [employees]);
 
-  const approveRateChangeMutation = trpc.users.approveRateChange.useMutation({
-    onSuccess: () => {
-      Alert.alert('Success', 'Rate change approved successfully');
-      setSelectedEmployee(null);
-    },
-    onError: (error) => {
-      Alert.alert('Error', error.message || 'Failed to approve rate change');
-    },
-  });
-
-  const updateUserMutation = trpc.users.updateUser.useMutation({
-    onSuccess: () => {
-      Alert.alert('Success', 'Hourly rate updated successfully');
-      setShowEditRateModal(false);
-      setSelectedEmployee(null);
-      setEditingRate('');
-    },
-    onError: (error) => {
-      Alert.alert('Error', error.message || 'Failed to update hourly rate');
-    },
-  });
-
   const handleApproveRateChange = async (employee: User, approve: boolean) => {
     if (!currentUser) return;
-
     try {
-      await approveRateChangeMutation.mutateAsync({
-        userId: employee.id,
-        approved: approve,
-        reviewedBy: currentUser.id,
-      });
-    } catch (error) {
+      const updates: Record<string, any> = { rate_change_request: null };
+      if (approve && employee.rateChangeRequest) {
+        updates.hourly_rate = (employee.rateChangeRequest as any).newRate;
+      }
+      const { error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', employee.id);
+      if (error) throw error;
+      Alert.alert('Success', approve ? 'Rate change approved successfully' : 'Rate change rejected');
+      setSelectedEmployee(null);
+      await fetchUsers();
+    } catch (error: any) {
       console.error('[Admin] Error handling rate change:', error);
+      Alert.alert('Error', error.message || 'Failed to process rate change');
     }
   };
 
@@ -109,16 +119,23 @@ export default function EmployeeManagementScreen() {
       return;
     }
 
+    setIsSaving(true);
     try {
-      await updateUserMutation.mutateAsync({
-        userId: selectedEmployee.id,
-        updates: {
-          hourlyRate: rate,
-          rateChangeRequest: undefined, // Clear any pending rate change requests
-        },
-      });
-    } catch (error) {
+      const { error } = await supabase
+        .from('users')
+        .update({ hourly_rate: rate, rate_change_request: null })
+        .eq('id', selectedEmployee.id);
+      if (error) throw error;
+      Alert.alert('Success', 'Hourly rate updated successfully');
+      setShowEditRateModal(false);
+      setSelectedEmployee(null);
+      setEditingRate('');
+      await fetchUsers();
+    } catch (error: any) {
       console.error('[Admin] Error updating rate:', error);
+      Alert.alert('Error', error.message || 'Failed to update hourly rate');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -514,10 +531,10 @@ export default function EmployeeManagementScreen() {
               <TouchableOpacity
                 style={styles.modalConfirmButton}
                 onPress={handleUpdateRate}
-                disabled={updateUserMutation.isPending}
+                disabled={isSaving}
               >
                 <Text style={styles.modalConfirmButtonText}>
-                  {updateUserMutation.isPending ? 'Updating...' : 'Update Rate'}
+                  {isSaving ? 'Updating...' : 'Update Rate'}
                 </Text>
               </TouchableOpacity>
             </View>
