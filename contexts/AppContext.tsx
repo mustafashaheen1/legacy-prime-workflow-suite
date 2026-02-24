@@ -135,6 +135,9 @@ interface AppState {
   refreshEstimates: () => Promise<void>;
   refreshExpenses: () => Promise<void>;
   refreshDailyLogs: () => Promise<void>;
+  refreshPhotos: () => Promise<void>;
+  refreshSubcontractors: () => Promise<void>;
+  refreshNotifications: () => Promise<void>;
   loadDailyTasks: () => Promise<void>;
   addDailyTask: (task: Omit<DailyTask, 'id' | 'createdAt' | 'updatedAt'>) => Promise<DailyTask | undefined>;
   updateDailyTask: (taskId: string, updates: Partial<DailyTask>) => Promise<void>;
@@ -1213,6 +1216,65 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.error('[App] ❌ Error refreshing daily logs:', error);
     }
   }, [company?.id]);
+
+  const refreshPhotos = useCallback(async () => {
+    if (!company?.id) return;
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(
+        `${baseUrl}/trpc/photos.getPhotos?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
+      );
+      const data = await res.json();
+      const result = data.result.data.json;
+      if (result.photos) {
+        setPhotos(result.photos);
+        console.log('[App] ✅ Refreshed', result.photos.length, 'photos');
+      }
+    } catch (error) {
+      console.error('[App] ❌ Error refreshing photos:', error);
+    }
+  }, [company?.id]);
+
+  const refreshSubcontractors = useCallback(async () => {
+    if (!company?.id) return;
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/get-subcontractors?companyId=${company.id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.subcontractors) {
+        setSubcontractors(data.subcontractors);
+        console.log('[App] ✅ Refreshed', data.subcontractors.length, 'subcontractors');
+      }
+    } catch (error) {
+      console.error('[App] ❌ Error refreshing subcontractors:', error);
+    }
+  }, [company?.id]);
+
+  const refreshNotifications = useCallback(async () => {
+    if (!user?.id || !company?.id) return;
+    try {
+      import('@/lib/trpc').then(({ vanillaClient }) => {
+        vanillaClient.notifications.getNotifications
+          .query({ userId: user.id!, companyId: company.id! })
+          .then((result: any) => {
+            if (result?.notifications?.length) {
+              // Merge: DB records take precedence, keep any local-only ones
+              setNotifications(prev => {
+                const dbIds = new Set(result.notifications.map((n: any) => n.id));
+                const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
+                return [...result.notifications, ...localOnly];
+              });
+              console.log('[App] ✅ Refreshed', result.notifications.length, 'notifications');
+            }
+            // If DB returns empty, preserve local state — don't wipe optimistic notifications
+          })
+          .catch((err: any) => console.warn('[Notifications] Refresh failed (non-fatal):', err));
+      });
+    } catch (error) {
+      console.error('[App] ❌ Error refreshing notifications:', error);
+    }
+  }, [user?.id, company?.id]);
 
   // Load daily logs when company is available
   useEffect(() => {
@@ -2923,6 +2985,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     refreshEstimates,
     refreshExpenses,
     refreshDailyLogs,
+    refreshPhotos,
+    refreshSubcontractors,
+    refreshNotifications,
     loadDailyTasks,
     addDailyTask,
     updateDailyTask,
@@ -3042,6 +3107,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     refreshEstimates,
     refreshExpenses,
     refreshDailyLogs,
+    refreshPhotos,
+    refreshSubcontractors,
+    refreshNotifications,
     loadDailyTasks,
     addDailyTask,
     updateDailyTask,
