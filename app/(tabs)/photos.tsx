@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, ActivityIndicator, Pressable, Alert } from 'react-native';
-import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, ActivityIndicator, Pressable, Alert, RefreshControl } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Camera, Upload, Edit2, X, Check, Plus, Trash2, Settings } from 'lucide-react-native';
 import { Image } from 'expo-image';
@@ -10,7 +10,13 @@ import { useUploadProgress } from '@/hooks/useUploadProgress';
 import { supabase } from '@/lib/supabase';
 
 export default function PhotosScreen() {
-  const { photos, addPhoto, updatePhoto, photoCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company, projects } = useApp();
+  const { photos, addPhoto, updatePhoto, photoCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company, projects, refreshPhotos } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshPhotos();
+    setRefreshing(false);
+  }, [refreshPhotos]);
   const [category, setCategory] = useState<string>(photoCategories[0] || 'Other');
   const [notes, setNotes] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -297,7 +303,11 @@ export default function PhotosScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View style={styles.header}>
           <Text style={styles.title}>Photos</Text>
           <View style={styles.headerButtons}>

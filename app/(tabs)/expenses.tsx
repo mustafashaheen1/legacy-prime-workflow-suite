@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Platform } from 'react-native';
-import { useState, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Platform, RefreshControl } from 'react-native';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 // priceListCategories now comes from AppContext
 import * as ImagePicker from 'expo-image-picker';
@@ -12,6 +12,12 @@ import UploaderBadge from '@/components/UploaderBadge';
 
 export default function ExpensesScreen() {
   const { expenses, addExpense, projects, user, refreshExpenses, priceListCategories } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshExpenses();
+    setRefreshing(false);
+  }, [refreshExpenses]);
   const [expenseType, setExpenseType] = useState<string>('Subcontractor');
   const [category, setCategory] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
@@ -526,7 +532,11 @@ export default function ExpensesScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Expenses</Text>

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Linking, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Linking, ActivityIndicator, RefreshControl } from 'react-native';
 import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp, Check, Loader } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Subcontractor, Project, ProjectFile, EstimateRequest } from '@/types';
@@ -12,7 +12,13 @@ import * as FileSystem from 'expo-file-system';
 import { compressImage } from '@/lib/upload-utils';
 
 export default function SubcontractorsScreen() {
-  const { subcontractors = [], addSubcontractor, projects, addProjectFile, addNotification, user, company } = useApp();
+  const { subcontractors = [], addSubcontractor, projects, addProjectFile, addNotification, user, company, refreshSubcontractors } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshSubcontractors();
+    setRefreshing(false);
+  }, [refreshSubcontractors]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTrade, setSelectedTrade] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -849,7 +855,11 @@ ${company?.officePhone || ''}`;
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Subcontractors Directory' }} />
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View style={styles.header}>
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
