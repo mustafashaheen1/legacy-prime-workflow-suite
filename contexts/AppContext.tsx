@@ -29,6 +29,73 @@ const getApiBaseUrl = (): string => {
   return PRODUCTION_URL;
 };
 
+// Snake_case → camelCase mappers for Supabase rows
+const mapClient = (row: any) => ({
+  id: row.id, name: row.name, address: row.address, email: row.email,
+  phone: row.phone, source: row.source, status: row.status,
+  lastContacted: row.last_contacted ?? row.lastContacted ?? '',
+  lastContactDate: row.last_contact_date ?? row.lastContactDate,
+  nextFollowUpDate: row.next_follow_up_date ?? row.nextFollowUpDate,
+  createdAt: row.created_at ?? row.createdAt,
+});
+
+const mapProject = (row: any) => ({
+  id: row.id, name: row.name, budget: row.budget ?? 0, expenses: row.expenses ?? 0,
+  progress: row.progress ?? 0, status: row.status, image: row.image ?? '',
+  hoursWorked: row.hours_worked ?? row.hoursWorked ?? 0,
+  startDate: row.start_date ?? row.startDate ?? '',
+  endDate: row.end_date ?? row.endDate,
+  estimateId: row.estimate_id ?? row.estimateId,
+  clientId: row.client_id ?? row.clientId,
+  contractAmount: row.contract_amount ?? row.contractAmount,
+  address: row.address,
+});
+
+const mapPhoto = (row: any) => ({
+  id: row.id, category: row.category ?? '', notes: row.notes ?? '', url: row.url ?? '',
+  date: row.date ?? row.created_at ?? '',
+  projectId: row.project_id ?? row.projectId ?? '',
+  fileSize: row.file_size ?? row.fileSize,
+  fileType: row.file_type ?? row.fileType,
+  s3Key: row.s3_key ?? row.s3Key,
+  compressed: row.compressed,
+  uploadedBy: row.uploaded_by ?? row.uploadedBy,
+});
+
+const mapTask = (row: any) => ({
+  id: row.id, name: row.name ?? '', date: row.date ?? '',
+  reminder: row.reminder ?? '', completed: row.completed ?? false,
+  projectId: row.project_id ?? row.projectId ?? '',
+});
+
+const mapClockEntry = (row: any) => ({
+  id: row.id,
+  employeeId: row.employee_id ?? row.employeeId ?? '',
+  projectId: row.project_id ?? row.projectId ?? '',
+  clockIn: row.clock_in ?? row.clockIn ?? '',
+  clockOut: row.clock_out ?? row.clockOut,
+  location: row.location ?? { latitude: 0, longitude: 0 },
+  workPerformed: row.work_performed ?? row.workPerformed,
+  category: row.category,
+  lunchBreaks: row.lunch_breaks ?? row.lunchBreaks,
+});
+
+const mapPriceListItem = (row: any) => ({
+  id: row.id, category: row.category ?? '', name: row.name ?? '',
+  description: row.description ?? '', unit: row.unit ?? '',
+  unitPrice: row.unit_price ?? row.unitPrice ?? 0,
+  laborCost: row.labor_cost ?? row.laborCost,
+  materialCost: row.material_cost ?? row.materialCost,
+});
+
+const mapNotification = (row: any) => ({
+  id: row.id, type: row.type, title: row.title ?? '', message: row.message ?? '',
+  data: row.data, read: row.read ?? false,
+  userId: row.user_id ?? row.userId ?? '',
+  companyId: row.company_id ?? row.companyId ?? '',
+  createdAt: row.created_at ?? row.createdAt ?? '',
+});
+
 interface AppState {
   user: User | null;
   company: Company | null;
@@ -252,18 +319,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load clients
           try {
-            const clientsResponse = await fetch(
-              `${baseUrl}/trpc/crm.getClients?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-            );
-            const clientsData = await clientsResponse.json();
-            const clientsResult = clientsData.result.data.json;
-            if (clientsResult.success && clientsResult.clients) {
-              setClients(clientsResult.clients);
-              console.log('[App] ✅ Loaded', clientsResult.clients.length, 'clients');
-            } else {
-              console.log('[App] ⚠️ getClients returned no data');
-              setClients([]);
-            }
+            const { data: clientRows } = await supabase.from('clients').select('*').eq('company_id', company.id).order('name');
+            setClients((clientRows ?? []).map(mapClient));
+            console.log('[App] ✅ Loaded', clientRows?.length ?? 0, 'clients');
           } catch (error: any) {
             console.error('[App] ❌ Error loading clients:', error?.message || error);
             setClients([]);
@@ -271,39 +329,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load projects
           try {
-            const projectsResponse = await fetch(
-              `${baseUrl}/trpc/projects.getProjects?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-            );
-            const projectsData = await projectsResponse.json();
-            const projectsResult = projectsData.result.data.json;
-            if (projectsResult.success && projectsResult.projects) {
-              setProjects(projectsResult.projects);
-              console.log('[App] ✅ Loaded', projectsResult.projects.length, 'projects');
-            } else {
-              setProjects([]);
-            }
+            const { data: projectRows } = await supabase.from('projects').select('*').eq('company_id', company.id);
+            setProjects((projectRows ?? []).map(mapProject));
+            console.log('[App] ✅ Loaded', projectRows?.length ?? 0, 'projects');
           } catch (error: any) {
             console.error('[App] Error loading projects:', error?.message || error);
             setProjects([]);
           }
 
-          // Load expenses (using direct API endpoint)
+          // Load expenses
           try {
-            const expensesResponse = await fetch(
-              `${baseUrl}/api/get-expenses?companyId=${company.id}`
-            );
-            if (expensesResponse.ok) {
-              const expensesResult = await expensesResponse.json();
-              if (expensesResult.success && expensesResult.expenses) {
-                setExpenses(expensesResult.expenses);
-                console.log('[App] ✅ Loaded', expensesResult.expenses.length, 'expenses');
-              } else {
-                setExpenses([]);
-              }
-            } else {
-              console.error('[App] Error loading expenses:', expensesResponse.status);
-              setExpenses([]);
-            }
+            const { data: expenseRows } = await supabase.from('expenses').select('*').eq('company_id', company.id).order('date', { ascending: false });
+            setExpenses(expenseRows ?? []);
+            console.log('[App] ✅ Loaded', expenseRows?.length ?? 0, 'expenses');
           } catch (error: any) {
             console.error('[App] Error loading expenses:', error?.message || error);
             setExpenses([]);
@@ -311,17 +349,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load photos
           try {
-            const photosResponse = await fetch(
-              `${baseUrl}/trpc/photos.getPhotos?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-            );
-            const photosData = await photosResponse.json();
-            const photosResult = photosData.result.data.json;
-            if (photosResult.photos) {
-              setPhotos(photosResult.photos);
-              console.log('[App] ✅ Loaded', photosResult.photos.length, 'photos');
-            } else {
-              setPhotos([]);
-            }
+            const { data: photoRows } = await supabase.from('photos').select('*').eq('company_id', company.id).order('created_at', { ascending: false });
+            setPhotos((photoRows ?? []).map(mapPhoto));
+            console.log('[App] ✅ Loaded', photoRows?.length ?? 0, 'photos');
           } catch (error: any) {
             console.error('[App] Error loading photos:', error?.message || error);
             setPhotos([]);
@@ -329,17 +359,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load photo categories from database
           try {
-            const categoriesResponse = await fetch(
-              `${baseUrl}/trpc/photoCategories.getPhotoCategories?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-            );
-            const categoriesData = await categoriesResponse.json();
-            const categoriesResult = categoriesData.result.data.json;
-            if (categoriesResult.success && categoriesResult.categories) {
-              setPhotoCategories(categoriesResult.categories);
-              console.log('[App] ✅ Loaded', categoriesResult.categories.length, 'photo categories');
-            } else {
-              setPhotoCategories([]);
-            }
+            const { data: catRows } = await supabase.from('photo_categories').select('name').eq('company_id', company.id).order('name');
+            setPhotoCategories((catRows ?? []).map((r: any) => r.name));
+            console.log('[App] ✅ Loaded', catRows?.length ?? 0, 'photo categories');
           } catch (error: any) {
             console.error('[App] Error loading photo categories:', error?.message || error);
             setPhotoCategories([]);
@@ -347,17 +369,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load tasks
           try {
-            const tasksResponse = await fetch(
-              `${baseUrl}/trpc/tasks.getTasks?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-            );
-            const tasksData = await tasksResponse.json();
-            const tasksResult = tasksData.result.data.json;
-            if (tasksResult.tasks) {
-              setTasks(tasksResult.tasks);
-              console.log('[App] ✅ Loaded', tasksResult.tasks.length, 'tasks');
-            } else {
-              setTasks([]);
-            }
+            const { data: taskRows } = await supabase.from('tasks').select('*').eq('company_id', company.id);
+            setTasks((taskRows ?? []).map(mapTask));
+            console.log('[App] ✅ Loaded', taskRows?.length ?? 0, 'tasks');
           } catch (error: any) {
             console.error('[App] Error loading tasks:', error?.message || error);
             setTasks([]);
@@ -365,17 +379,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load clock entries
           try {
-            const clockResponse = await fetch(
-              `${baseUrl}/trpc/clock.getClockEntries?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-            );
-            const clockData = await clockResponse.json();
-            const clockResult = clockData.result.data.json;
-            if (clockResult.entries) {
-              setClockEntries(clockResult.entries);
-              console.log('[App] ✅ Loaded', clockResult.entries.length, 'clock entries');
-            } else {
-              setClockEntries([]);
-            }
+            const { data: clockRows } = await supabase.from('clock_entries').select('*').eq('company_id', company.id).order('clock_in', { ascending: false });
+            setClockEntries((clockRows ?? []).map(mapClockEntry));
+            console.log('[App] ✅ Loaded', clockRows?.length ?? 0, 'clock entries');
           } catch (error: any) {
             console.error('[App] Error loading clock entries:', error?.message || error);
             setClockEntries([]);
@@ -383,18 +389,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load ALL price list items (master + custom)
           try {
-            const priceListResponse = await fetch(
-              `${baseUrl}/trpc/priceList.getPriceList?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-            );
-            const priceListData = await priceListResponse.json();
-            const priceListResult = priceListData.result.data.json;
-            if (priceListResult.success && priceListResult.items) {
-              // Keep ALL items (master + custom)
-              setPriceListItems(priceListResult.items);
-              console.log('[App] ✅ Loaded', priceListResult.items.length, 'price list items');
-            } else {
-              setPriceListItems([]);
-            }
+            const { data: plRows } = await supabase.from('price_list_items').select('*').or(`is_master.eq.true,company_id.eq.${company.id}`);
+            setPriceListItems((plRows ?? []).map(mapPriceListItem));
+            console.log('[App] ✅ Loaded', plRows?.length ?? 0, 'price list items');
           } catch (error: any) {
             console.error('[App] Error loading price list items:', error?.message || error);
             setPriceListItems([]);
@@ -457,19 +454,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     const handleAppStateChange = (nextState: string) => {
       if (nextState === 'active') {
-        fetch(
-          `${baseUrl}/trpc/notifications.getNotifications?input=${encodeURIComponent(
-            JSON.stringify({ json: { userId: user.id, companyId: company.id, limit: 50 } })
-          )}`
-        )
-          .then(res => res.json())
-          .then(data => {
-            const result = data?.result?.data?.json;
-            if (result?.success && result?.notifications?.length) {
+        supabase.from('notifications').select('*')
+          .eq('user_id', user.id!).eq('company_id', company.id!)
+          .order('created_at', { ascending: false }).limit(50)
+          .then(({ data }) => {
+            if (data?.length) {
               setNotifications(prev => {
-                const dbIds = new Set(result.notifications.map((n: any) => n.id));
+                const dbIds = new Set(data.map((n: any) => n.id));
                 const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
-                return [...result.notifications, ...localOnly];
+                return [...data.map(mapNotification), ...localOnly];
               });
             }
           })
@@ -485,21 +478,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   useEffect(() => {
     if (!user?.id || !company?.id) return;
 
-    const baseUrl = getApiBaseUrl();
-    fetch(
-      `${baseUrl}/trpc/notifications.getNotifications?input=${encodeURIComponent(JSON.stringify({ json: { userId: user.id, companyId: company.id, limit: 50 } }))}`
-    )
-      .then(res => res.json())
-      .then(data => {
-        const result = data?.result?.data?.json;
-        if (result?.success && result?.notifications?.length) {
+    supabase.from('notifications').select('*')
+      .eq('user_id', user.id!).eq('company_id', company.id!)
+      .order('created_at', { ascending: false }).limit(50)
+      .then(({ data }) => {
+        if (data?.length) {
           setNotifications(prev => {
-            // DB notifications take precedence; keep any local-only ones
-            const dbIds = new Set(result.notifications.map((n: any) => n.id));
+            const dbIds = new Set(data.map((n: any) => n.id));
             const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
-            return [...result.notifications, ...localOnly];
+            return [...data.map(mapNotification), ...localOnly];
           });
-          console.log('[App] ✅ Hydrated', result.notifications.length, 'notifications from DB');
+          console.log('[App] ✅ Hydrated', data.length, 'notifications from DB');
         }
       })
       .catch((err: any) => console.warn('[Notifications] DB hydration failed (non-fatal):', err));
@@ -628,17 +617,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load clients
           try {
-            const clientsResponse = await fetch(
-              `${baseUrl}/trpc/crm.getClients?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
-            );
-            const clientsData = await clientsResponse.json();
-            const clientsResult = clientsData.result.data.json;
-            if (clientsResult.success && clientsResult.clients) {
-              setClients(clientsResult.clients);
-              console.log('[App] Loaded', clientsResult.clients.length, 'clients');
-            } else {
-              setClients(mockClients);
-            }
+            const { data: clientRows } = await supabase.from('clients').select('*').eq('company_id', parsedCompany.id).order('name');
+            setClients(clientRows?.length ? clientRows.map(mapClient) : mockClients);
+            console.log('[App] Loaded', clientRows?.length ?? 0, 'clients');
           } catch (error) {
             console.error('[App] Error loading clients:', error);
             setClients(mockClients);
@@ -646,39 +627,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load projects
           try {
-            const projectsResponse = await fetch(
-              `${baseUrl}/trpc/projects.getProjects?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
-            );
-            const projectsData = await projectsResponse.json();
-            const projectsResult = projectsData.result.data.json;
-            if (projectsResult.success && projectsResult.projects) {
-              setProjects(projectsResult.projects);
-              console.log('[App] Loaded', projectsResult.projects.length, 'projects');
-            } else {
-              setProjects(mockProjects);
-            }
+            const { data: projectRows } = await supabase.from('projects').select('*').eq('company_id', parsedCompany.id);
+            setProjects(projectRows?.length ? projectRows.map(mapProject) : mockProjects);
+            console.log('[App] Loaded', projectRows?.length ?? 0, 'projects');
           } catch (error) {
             console.error('[App] Error loading projects:', error);
             setProjects(mockProjects);
           }
 
-          // Load expenses (using direct API endpoint)
+          // Load expenses
           try {
-            const expensesResponse = await fetch(
-              `${baseUrl}/api/get-expenses?companyId=${parsedCompany.id}`
-            );
-            if (expensesResponse.ok) {
-              const expensesResult = await expensesResponse.json();
-              if (expensesResult.success && expensesResult.expenses) {
-                setExpenses(expensesResult.expenses);
-                console.log('[App] Loaded', expensesResult.expenses.length, 'expenses');
-              } else {
-                setExpenses(mockExpenses);
-              }
-            } else {
-              console.error('[App] Error loading expenses:', expensesResponse.status);
-              setExpenses(mockExpenses);
-            }
+            const { data: expenseRows } = await supabase.from('expenses').select('*').eq('company_id', parsedCompany.id).order('date', { ascending: false });
+            setExpenses(expenseRows?.length ? expenseRows : mockExpenses);
+            console.log('[App] Loaded', expenseRows?.length ?? 0, 'expenses');
           } catch (error) {
             console.error('[App] Error loading expenses:', error);
             setExpenses(mockExpenses);
@@ -686,17 +647,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load photos from database
           try {
-            const photosResponse = await fetch(
-              `${baseUrl}/trpc/photos.getPhotos?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
-            );
-            const photosData = await photosResponse.json();
-            const photosResult = photosData.result.data.json;
-            if (photosResult.photos) {
-              setPhotos(photosResult.photos);
-              console.log('[App] Loaded', photosResult.photos.length, 'photos from database');
-            } else {
-              setPhotos([]);
-            }
+            const { data: photoRows } = await supabase.from('photos').select('*').eq('company_id', parsedCompany.id).order('created_at', { ascending: false });
+            setPhotos((photoRows ?? []).map(mapPhoto));
+            console.log('[App] Loaded', photoRows?.length ?? 0, 'photos from database');
           } catch (error) {
             console.error('[App] Error loading photos:', error);
             setPhotos([]);
@@ -704,17 +657,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load photo categories from database
           try {
-            const categoriesResponse = await fetch(
-              `${baseUrl}/trpc/photoCategories.getPhotoCategories?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
-            );
-            const categoriesData = await categoriesResponse.json();
-            const categoriesResult = categoriesData.result.data.json;
-            if (categoriesResult.success && categoriesResult.categories) {
-              setPhotoCategories(categoriesResult.categories);
-              console.log('[App] Loaded', categoriesResult.categories.length, 'photo categories from database');
-            } else {
-              setPhotoCategories([]);
-            }
+            const { data: catRows } = await supabase.from('photo_categories').select('name').eq('company_id', parsedCompany.id).order('name');
+            setPhotoCategories((catRows ?? []).map((r: any) => r.name));
+            console.log('[App] Loaded', catRows?.length ?? 0, 'photo categories from database');
           } catch (error) {
             console.error('[App] Error loading photo categories:', error);
             setPhotoCategories([]);
@@ -722,17 +667,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load clock entries from database
           try {
-            const clockResponse = await fetch(
-              `${baseUrl}/trpc/clock.getClockEntries?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
-            );
-            const clockData = await clockResponse.json();
-            const clockResult = clockData.result.data.json;
-            if (clockResult.entries) {
-              setClockEntries(clockResult.entries);
-              console.log('[App] Loaded', clockResult.entries.length, 'clock entries from database');
-            } else {
-              setClockEntries([]);
-            }
+            const { data: clockRows } = await supabase.from('clock_entries').select('*').eq('company_id', parsedCompany.id).order('clock_in', { ascending: false });
+            setClockEntries((clockRows ?? []).map(mapClockEntry));
+            console.log('[App] Loaded', clockRows?.length ?? 0, 'clock entries from database');
           } catch (error) {
             console.error('[App] Error loading clock entries:', error);
             setClockEntries([]);
@@ -740,17 +677,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load tasks from database
           try {
-            const tasksResponse = await fetch(
-              `${baseUrl}/trpc/tasks.getTasks?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
-            );
-            const tasksData = await tasksResponse.json();
-            const tasksResult = tasksData.result.data.json;
-            if (tasksResult.tasks) {
-              setTasks(tasksResult.tasks);
-              console.log('[App] Loaded', tasksResult.tasks.length, 'tasks from database');
-            } else {
-              setTasks([]);
-            }
+            const { data: taskRows } = await supabase.from('tasks').select('*').eq('company_id', parsedCompany.id);
+            setTasks((taskRows ?? []).map(mapTask));
+            console.log('[App] Loaded', taskRows?.length ?? 0, 'tasks from database');
           } catch (error) {
             console.error('[App] Error loading tasks:', error);
             setTasks([]);
@@ -758,25 +687,18 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load ALL price list items from database (master + custom)
           try {
-            const priceListResponse = await fetch(
-              `${baseUrl}/trpc/priceList.getPriceList?input=${encodeURIComponent(JSON.stringify({ json: { companyId: parsedCompany.id } }))}`
-            );
-            const priceListData = await priceListResponse.json();
-            const priceListResult = priceListData.result.data.json;
-            if (priceListResult.success && priceListResult.items) {
-              // Keep ALL items (master + custom)
-              setPriceListItems(priceListResult.items);
-              console.log('[App] Loaded', priceListResult.items.length, 'price list items from database');
+            const { data: plRows } = await supabase.from('price_list_items').select('*').or(`is_master.eq.true,company_id.eq.${parsedCompany.id}`);
+            if (plRows?.length) {
+              setPriceListItems(plRows.map(mapPriceListItem));
+              console.log('[App] Loaded', plRows.length, 'price list items from database');
             } else {
-              setPriceListItems([]);
+              const parsedPriceListItems = safeJsonParse<PriceListItem[]>(storedPriceListItems, 'priceListItems', []);
+              if (Array.isArray(parsedPriceListItems)) setPriceListItems(parsedPriceListItems);
             }
           } catch (error) {
             console.error('[App] Error loading price list items:', error);
-            // Fallback to AsyncStorage data if backend fails
             const parsedPriceListItems = safeJsonParse<PriceListItem[]>(storedPriceListItems, 'priceListItems', []);
-            if (Array.isArray(parsedPriceListItems)) {
-              setPriceListItems(parsedPriceListItems);
-            }
+            if (Array.isArray(parsedPriceListItems)) setPriceListItems(parsedPriceListItems);
           }
 
           // Load subcontractors from database
@@ -916,24 +838,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           console.log('[App] 🔄 Syncing temporary project to backend:', project.name);
 
           const baseUrl = getApiBaseUrl();
-          const response = await fetch(`${baseUrl}/trpc/projects.addProject`, {
+          const response = await fetch(`${baseUrl}/api/add-project`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              json: {
-                companyId: company.id,
-                name: project.name,
-                budget: project.budget,
-                expenses: project.expenses,
-                progress: project.progress,
-                status: project.status,
-                image: project.image,
-                hoursWorked: project.hoursWorked,
-                startDate: project.startDate,
-                endDate: project.endDate,
-              },
+              companyId: company.id,
+              name: project.name,
+              budget: project.budget,
+              expenses: project.expenses,
+              progress: project.progress,
+              status: project.status,
+              image: project.image,
+              hoursWorked: project.hoursWorked,
+              startDate: project.startDate,
+              endDate: project.endDate,
             }),
           });
 
@@ -942,14 +860,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           }
 
           const data = await response.json();
-          const result = data.result.data.json;
 
-          if (result.success && result.project) {
-            console.log('[App] ✓ Project synced to backend with UUID:', result.project.id);
-
-            // Update the project ID in state to use the database UUID
+          if (data.success && data.project) {
+            console.log('[App] ✓ Project synced to backend with UUID:', data.project.id);
             setProjects(prev => prev.map(p =>
-              p.id === project.id ? { ...p, id: result.project.id } : p
+              p.id === project.id ? { ...p, id: data.project.id } : p
             ));
           }
         } catch (error: any) {
@@ -1070,21 +985,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     console.log('[App] 🔄 Refreshing clients for company:', company.id);
     console.log('[App] Company name:', company.name);
     try {
-      // Use direct HTTP fetch instead of tRPC dynamic import (which breaks in production)
-      const baseUrl = getApiBaseUrl();
-      const clientsResponse = await fetch(
-        `${baseUrl}/trpc/crm.getClients?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-      );
-      const clientsData = await clientsResponse.json();
-      const clientsResult = clientsData.result.data.json;
-      console.log('[App] 📦 Query result:', clientsResult);
-      if (clientsResult.success && clientsResult.clients) {
-        setClients(clientsResult.clients);
-        console.log('[App] ✅ Refreshed', clientsResult.clients.length, 'clients');
-        console.log('[App] 📋 Client names:', clientsResult.clients.map(c => c.name).join(', '));
-      } else {
-        console.log('[App] ⚠️ Query succeeded but no clients returned');
-      }
+      const { data: clientRows, error } = await supabase.from('clients').select('*').eq('company_id', company.id).order('name');
+      if (error) throw error;
+      const mapped = (clientRows ?? []).map(mapClient);
+      setClients(mapped);
+      console.log('[App] ✅ Refreshed', mapped.length, 'clients');
+      console.log('[App] 📋 Client names:', mapped.map((c: any) => c.name).join(', '));
     } catch (error) {
       console.error('[App] ❌ Error refreshing clients:', error);
     }
@@ -1096,36 +1002,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     // Save to database
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(
-        `${baseUrl}/trpc/crm.updateClient`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            json: {
-              clientId: id,
-              updates,
-            },
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.error) {
-        console.error('[App] Error updating client:', data.error);
-        // Revert local state on error
+      const updatePayload: Record<string, any> = {};
+      if (updates.name !== undefined) updatePayload.name = updates.name;
+      if (updates.address !== undefined) updatePayload.address = updates.address;
+      if (updates.email !== undefined) updatePayload.email = updates.email;
+      if (updates.phone !== undefined) updatePayload.phone = updates.phone;
+      if (updates.source !== undefined) updatePayload.source = updates.source;
+      if (updates.status !== undefined) updatePayload.status = updates.status;
+      if (updates.lastContacted !== undefined) updatePayload.last_contacted = updates.lastContacted;
+      if (updates.lastContactDate !== undefined) updatePayload.last_contact_date = updates.lastContactDate;
+      if (updates.nextFollowUpDate !== undefined) updatePayload.next_follow_up_date = updates.nextFollowUpDate;
+      const { error } = await supabase.from('clients').update(updatePayload).eq('id', id);
+      if (error) {
+        console.error('[App] Error updating client:', error);
         await refreshClients();
-      } else if (data.result?.data?.json) {
-        console.log('[App] Client updated successfully');
       } else {
-        console.error('[App] Unexpected response format:', data);
-        await refreshClients();
+        console.log('[App] Client updated successfully');
       }
     } catch (error) {
       console.error('[App] Error updating client:', error);
-      // Revert local state on error
       await refreshClients();
     }
   }, [refreshClients]);
@@ -1220,16 +1115,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const refreshPhotos = useCallback(async () => {
     if (!company?.id) return;
     try {
-      const baseUrl = getApiBaseUrl();
-      const res = await fetch(
-        `${baseUrl}/trpc/photos.getPhotos?input=${encodeURIComponent(JSON.stringify({ json: { companyId: company.id } }))}`
-      );
-      const data = await res.json();
-      const result = data.result.data.json;
-      if (result.photos) {
-        setPhotos(result.photos);
-        console.log('[App] ✅ Refreshed', result.photos.length, 'photos');
-      }
+      const { data: photoRows } = await supabase.from('photos').select('*').eq('company_id', company.id).order('created_at', { ascending: false });
+      setPhotos((photoRows ?? []).map(mapPhoto));
+      console.log('[App] ✅ Refreshed', photoRows?.length ?? 0, 'photos');
     } catch (error) {
       console.error('[App] ❌ Error refreshing photos:', error);
     }
@@ -1254,24 +1142,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const refreshNotifications = useCallback(async () => {
     if (!user?.id || !company?.id) return;
     try {
-      const baseUrl = getApiBaseUrl();
-      const res = await fetch(
-        `${baseUrl}/trpc/notifications.getNotifications?input=${encodeURIComponent(
-          JSON.stringify({ json: { userId: user.id, companyId: company.id, limit: 50 } })
-        )}`
-      );
-      const data = await res.json();
-      const result = data?.result?.data?.json;
-      if (result?.success && result?.notifications?.length) {
-        // Merge: DB records take precedence, keep any local-only ones
+      const { data } = await supabase.from('notifications').select('*')
+        .eq('user_id', user.id!).eq('company_id', company.id!)
+        .order('created_at', { ascending: false }).limit(50);
+      if (data?.length) {
         setNotifications(prev => {
-          const dbIds = new Set(result.notifications.map((n: any) => n.id));
+          const dbIds = new Set(data.map((n: any) => n.id));
           const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
-          return [...result.notifications, ...localOnly];
+          return [...data.map(mapNotification), ...localOnly];
         });
-        console.log('[App] ✅ Refreshed', result.notifications.length, 'notifications');
+        console.log('[App] ✅ Refreshed', data.length, 'notifications');
       }
-      // If DB returns empty, preserve local state — don't wipe optimistic notifications
     } catch (error) {
       console.warn('[Notifications] Refresh failed (non-fatal):', error);
     }
@@ -1417,15 +1298,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend if company exists
     if (company?.id) {
       try {
-        const { vanillaClient } = await import('@/lib/trpc');
-        await vanillaClient.tasks.addTask.mutate({
-          companyId: company.id,
-          projectId: task.projectId,
+        const { error } = await supabase.from('tasks').insert({
+          id: task.id,
+          company_id: company.id,
+          project_id: task.projectId,
           name: task.name,
           date: task.date,
           reminder: task.reminder,
-          completed: task.completed,
+          completed: task.completed || false,
         });
+        if (error) throw new Error(error.message);
         console.log('[App] Task saved to backend:', task.name);
       } catch (error) {
         console.error('[App] Error saving task to backend:', error);
@@ -1441,13 +1323,14 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     // Save to backend
     try {
-      const { vanillaClient } = await import('@/lib/trpc');
-      await vanillaClient.tasks.updateTask.mutate({
-        id,
-        ...updates,
-        ...(company?.id ? { companyId: company.id } : {}),
-        ...(updates.completed === true && user?.id ? { completedBy: user.id } : {}),
-      });
+      const updatePayload: Record<string, any> = {};
+      if (updates.name !== undefined) updatePayload.name = updates.name;
+      if (updates.date !== undefined) updatePayload.date = updates.date;
+      if (updates.reminder !== undefined) updatePayload.reminder = updates.reminder;
+      if (updates.completed !== undefined) updatePayload.completed = updates.completed;
+      if (updates.projectId !== undefined) updatePayload.project_id = updates.projectId;
+      const { error } = await supabase.from('tasks').update(updatePayload).eq('id', id);
+      if (error) throw new Error(error.message);
       console.log('[App] Task updated in backend:', id);
     } catch (error) {
       console.error('[App] Error updating task in backend:', error);
@@ -1693,30 +1576,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(
-        `${baseUrl}/trpc/photoCategories.addPhotoCategory`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            json: {
-              companyId: company.id,
-              name: category,
-            },
-          }),
-        }
-      );
-
-      const data = await response.json();
-      const result = data.result?.data?.json;
-
-      if (result?.success) {
-        setPhotoCategories([...photoCategories, category]);
-        console.log('[PhotoCategory] Added category:', category);
-      } else {
-        console.error('[PhotoCategory] Failed to add category');
-      }
+      const { error } = await supabase.from('photo_categories').insert({ company_id: company.id, name: category });
+      if (error) throw error;
+      setPhotoCategories([...photoCategories, category]);
+      console.log('[PhotoCategory] Added category:', category);
     } catch (error: any) {
       console.error('[PhotoCategory] Error adding category:', error?.message || error);
     }
@@ -1729,37 +1592,11 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(
-        `${baseUrl}/trpc/photoCategories.updatePhotoCategory`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            json: {
-              companyId: company.id,
-              oldName,
-              newName,
-            },
-          }),
-        }
-      );
-
-      const data = await response.json();
-      const result = data.result?.data?.json;
-
-      if (result?.success) {
-        // Update local state
-        const updated = photoCategories.map(cat => cat === oldName ? newName : cat);
-        setPhotoCategories(updated);
-
-        const updatedPhotos = photos.map(p => p.category === oldName ? { ...p, category: newName } : p);
-        setPhotos(updatedPhotos);
-
-        console.log('[PhotoCategory] Updated category:', oldName, 'to', newName);
-      } else {
-        console.error('[PhotoCategory] Failed to update category');
-      }
+      const { error } = await supabase.from('photo_categories').update({ name: newName }).eq('company_id', company.id).eq('name', oldName);
+      if (error) throw error;
+      setPhotoCategories(photoCategories.map(cat => cat === oldName ? newName : cat));
+      setPhotos(photos.map(p => p.category === oldName ? { ...p, category: newName } : p));
+      console.log('[PhotoCategory] Updated category:', oldName, 'to', newName);
     } catch (error: any) {
       console.error('[PhotoCategory] Error updating category:', error?.message || error);
     }
@@ -1772,31 +1609,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(
-        `${baseUrl}/trpc/photoCategories.deletePhotoCategory`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            json: {
-              companyId: company.id,
-              name: category,
-            },
-          }),
-        }
-      );
-
-      const data = await response.json();
-      const result = data.result?.data?.json;
-
-      if (result?.success) {
-        const updated = photoCategories.filter(cat => cat !== category);
-        setPhotoCategories(updated);
-        console.log('[PhotoCategory] Deleted category:', category);
-      } else {
-        console.error('[PhotoCategory] Failed to delete category');
-      }
+      const { error } = await supabase.from('photo_categories').delete().eq('company_id', company.id).eq('name', category);
+      if (error) throw error;
+      setPhotoCategories(photoCategories.filter(cat => cat !== category));
+      console.log('[PhotoCategory] Deleted category:', category);
     } catch (error: any) {
       console.error('[PhotoCategory] Error deleting category:', error?.message || error);
     }
@@ -2491,17 +2307,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     // Fire-and-forget: persist to DB + trigger push delivery
     if (user?.id && company?.id) {
-      import('@/lib/trpc').then(({ vanillaClient }) => {
-        vanillaClient.notifications.createNotification
-          .mutate({
-            userId:    user.id!,
-            companyId: company.id!,
-            type:      notification.type,
-            title:     notification.title,
-            message:   notification.message,
-            data:      notification.data,
-          })
-          .catch((err: any) => console.warn('[Notifications] DB persist failed (non-fatal):', err));
+      supabase.from('notifications').insert({
+        id: notification.id,
+        user_id: user.id!,
+        company_id: company.id!,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        data: notification.data,
+        read: false,
+      }).then(({ error }) => {
+        if (error) console.warn('[Notifications] DB persist failed (non-fatal):', error);
       });
     }
   }, [notifications, user, company]);
@@ -2521,11 +2337,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     // Fire-and-forget: sync read state to DB
     if (user?.id) {
-      import('@/lib/trpc').then(({ vanillaClient }) => {
-        vanillaClient.notifications.markRead
-          .mutate({ notificationId: id, userId: user.id! })
-          .catch((err: any) => console.warn('[Notifications] DB mark-read failed (non-fatal):', err));
-      });
+      supabase.from('notifications')
+        .update({ read: true, read_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('user_id', user.id!)
+        .then(({ error }) => {
+          if (error) console.warn('[Notifications] DB mark-read failed (non-fatal):', error);
+        });
     }
   }, [notifications, user]);
 
@@ -2673,17 +2491,16 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         // Notify the assignee when an admin creates a task for someone else.
         // Fire-and-forget — does not block the optimistic UI update.
         if (task.userId && task.userId !== user?.id && task.companyId) {
-          import('@/lib/trpc').then(({ vanillaClient }) => {
-            vanillaClient.notifications.createNotification
-              .mutate({
-                userId:    task.userId,
-                companyId: task.companyId,
-                type:      'general',
-                title:     'New Task Assigned',
-                message:   task.title,
-                data:      { taskId: newTask.id ?? tempTask.id },
-              })
-              .catch((err: any) => console.warn('[Notifications] Task assignment notify failed:', err));
+          supabase.from('notifications').insert({
+            user_id: task.userId,
+            company_id: task.companyId,
+            type: 'general',
+            title: 'New Task Assigned',
+            message: task.title,
+            data: { taskId: newTask.id ?? tempTask.id },
+            read: false,
+          }).then(({ error }) => {
+            if (error) console.warn('[Notifications] Task assignment notify failed:', error);
           });
         }
 
@@ -2855,11 +2672,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Fire-and-forget: deactivate all push tokens so the device stops receiving
     // notifications after logout. Non-blocking — we clear local state regardless.
     if (user?.id) {
-      import('@/lib/trpc').then(({ vanillaClient }) => {
-        vanillaClient.notifications.deactivateToken
-          .mutate({ userId: user.id! })
-          .catch((err: any) => console.warn('[Notifications] Token deactivation on logout failed:', err));
-      });
+      supabase.from('push_tokens')
+        .update({ active: false })
+        .eq('user_id', user.id!)
+        .then(({ error }) => {
+          if (error) console.warn('[Notifications] Token deactivation on logout failed:', error);
+        });
     }
 
     await AsyncStorage.multiRemove(['user', 'company', 'subscription', 'conversations', 'reports', 'projectFiles', 'dailyLogs', 'payments', 'changeOrders', 'subcontractors', 'proposals', 'notifications']);
