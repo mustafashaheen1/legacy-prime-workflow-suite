@@ -3014,6 +3014,7 @@ export default function ProjectDetailScreen() {
                         clientName: paymentClientNameInput.trim(),
                         method: paymentMethodInput,
                         notes: paymentNotesInput.trim() || undefined,
+                        recordedBy: user?.id,
                       }),
                     });
                     if (!res.ok) {

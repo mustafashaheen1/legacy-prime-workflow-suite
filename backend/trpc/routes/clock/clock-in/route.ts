@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
 import { createClient } from '@supabase/supabase-js';
+import { getActorName, notifyCompanyAdmins } from "../../../../lib/notifyAdmins.js";
 
 export const clockInProcedure = publicProcedure
   .input(
@@ -20,7 +21,6 @@ export const clockInProcedure = publicProcedure
   .mutation(async ({ input }) => {
     console.log('[Clock] Clocking in employee:', input.employeeId, 'for project:', input.projectId);
 
-    // Create Supabase client INSIDE the handler (not at module level)
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -56,6 +56,27 @@ export const clockInProcedure = publicProcedure
       }
 
       console.log('[Clock] Clocked in successfully:', data.id);
+
+      // Notify admins — fire-and-forget
+      void (async () => {
+        try {
+          const [name, projectRes] = await Promise.all([
+            getActorName(supabase, input.employeeId),
+            supabase.from('projects').select('name').eq('id', input.projectId).single(),
+          ]);
+          const projectName = projectRes.data?.name ?? 'a project';
+          await notifyCompanyAdmins(supabase, {
+            companyId: input.companyId,
+            actorId: input.employeeId,
+            type: 'general',
+            title: 'Employee Clocked In',
+            message: `${name} clocked in on ${projectName}`,
+            data: { projectId: input.projectId, clockEntryId: data.id },
+          });
+        } catch (e) {
+          console.warn('[Clock] Admin notify failed (non-fatal):', e);
+        }
+      })();
 
       return {
         success: true,

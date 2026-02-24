@@ -1441,12 +1441,17 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Save to backend
     try {
       const { vanillaClient } = await import('@/lib/trpc');
-      await vanillaClient.tasks.updateTask.mutate({ id, ...updates });
+      await vanillaClient.tasks.updateTask.mutate({
+        id,
+        ...updates,
+        ...(company?.id ? { companyId: company.id } : {}),
+        ...(updates.completed === true && user?.id ? { completedBy: user.id } : {}),
+      });
       console.log('[App] Task updated in backend:', id);
     } catch (error) {
       console.error('[App] Error updating task in backend:', error);
     }
-  }, []);
+  }, [company, user]);
 
   const addClockEntry = useCallback(async (entry: ClockEntry): Promise<ClockEntry> => {
     console.log('[App] addClockEntry called with:', { entryId: entry.id, projectId: entry.projectId });

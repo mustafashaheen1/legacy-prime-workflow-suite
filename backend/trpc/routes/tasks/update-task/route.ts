@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
 import { createClient } from '@supabase/supabase-js';
+import { getActorName, notifyCompanyAdmins } from "../../../../lib/notifyAdmins.js";
 
 export const updateTaskProcedure = publicProcedure
   .input(
@@ -10,6 +11,8 @@ export const updateTaskProcedure = publicProcedure
       date: z.string().optional(),
       reminder: z.string().optional(),
       completed: z.boolean().optional(),
+      companyId: z.string().uuid().optional(),
+      completedBy: z.string().uuid().optional(),
     })
   )
   .mutation(async ({ input }) => {
@@ -50,6 +53,25 @@ export const updateTaskProcedure = publicProcedure
       }
 
       console.log('[Tasks] Task updated successfully:', data.id);
+
+      // Notify admins when a task is marked complete — fire-and-forget
+      if (input.completed === true && input.completedBy && input.companyId) {
+        void (async () => {
+          try {
+            const name = await getActorName(supabase, input.completedBy!);
+            await notifyCompanyAdmins(supabase, {
+              companyId: input.companyId!,
+              actorId: input.completedBy!,
+              type: 'general',
+              title: 'Task Completed',
+              message: `${name} completed task: ${data.name}`,
+              data: { taskId: data.id, projectId: data.project_id },
+            });
+          } catch (e) {
+            console.warn('[Tasks] Admin notify failed (non-fatal):', e);
+          }
+        })();
+      }
 
       return {
         success: true,

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from '@supabase/supabase-js';
 import { uploadToS3, generateS3Key, deleteFromS3 } from "../../../../lib/s3.js";
 import { validateImageFile, base64ToBuffer, getFileExtension } from "../../../../lib/file-validation.js";
+import { getActorName, notifyCompanyAdmins } from "../../../../lib/notifyAdmins.js";
 
 export const addPhotoProcedure = publicProcedure
   .input(
@@ -16,6 +17,7 @@ export const addPhotoProcedure = publicProcedure
       mimeType: z.string().min(1),
       fileSize: z.number().positive(),
       date: z.string().optional(),
+      uploadedBy: z.string().uuid().optional(),
     })
   )
   .mutation(async ({ input }) => {
@@ -106,6 +108,29 @@ export const addPhotoProcedure = publicProcedure
       }
 
       console.log('[Photos] Photo added successfully:', data.id);
+
+      // Notify admins — fire-and-forget
+      if (input.uploadedBy) {
+        void (async () => {
+          try {
+            const [name, projectRes] = await Promise.all([
+              getActorName(supabase, input.uploadedBy!),
+              supabase.from('projects').select('name').eq('id', input.projectId).single(),
+            ]);
+            const projectName = projectRes.data?.name ?? 'a project';
+            await notifyCompanyAdmins(supabase, {
+              companyId: input.companyId,
+              actorId: input.uploadedBy!,
+              type: 'general',
+              title: 'Photo Added',
+              message: `${name} added a ${input.category} photo to ${projectName}`,
+              data: { photoId: data.id, projectId: input.projectId },
+            });
+          } catch (e) {
+            console.warn('[Photos] Admin notify failed (non-fatal):', e);
+          }
+        })();
+      }
 
       return {
         success: true,

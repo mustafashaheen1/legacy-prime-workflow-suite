@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getActorName, notifyCompanyAdmins } from '../backend/lib/notifyAdmins.js';
 
 // Plain Vercel serverless function — no Hono, no tRPC.
 // Vercel's Node.js runtime auto-parses JSON bodies so req.body is always available.
@@ -27,6 +28,7 @@ export default async function handler(req: any, res: any) {
     method,
     notes,
     receiptUrl,
+    recordedBy,
   } = body;
 
   if (!projectId || !companyId || amount == null || !clientName || !method) {
@@ -68,6 +70,25 @@ export default async function handler(req: any, res: any) {
   if (error) {
     console.error('[add-payment] Supabase error:', error);
     return res.status(500).json({ error: error.message });
+  }
+
+  // Notify admins — fire-and-forget
+  if (recordedBy) {
+    void (async () => {
+      try {
+        const name = await getActorName(supabase, recordedBy);
+        await notifyCompanyAdmins(supabase, {
+          companyId,
+          actorId: recordedBy,
+          type: 'payment-received',
+          title: 'Payment Recorded',
+          message: `${name} recorded a $${Number(amount).toLocaleString()} payment from ${clientName}`,
+          data: { paymentId: data.id, projectId },
+        });
+      } catch (e) {
+        console.warn('[add-payment] Admin notify failed (non-fatal):', e);
+      }
+    })();
   }
 
   return res.status(200).json({

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   SafeAreaView,
+  RefreshControl,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Bell, BellOff, CheckCheck } from 'lucide-react-native';
@@ -75,7 +76,13 @@ function NotificationRow({ notification, onPress }: NotificationRowProps) {
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { user, getNotifications, markNotificationRead } = useApp();
+  const { user, getNotifications, markNotificationRead, refreshNotifications } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshNotifications();
+    setRefreshing(false);
+  }, [refreshNotifications]);
 
   const notifications = getNotifications();
   const unread = notifications.filter(n => !n.read);
@@ -149,25 +156,25 @@ export default function NotificationsScreen() {
         }}
       />
 
-      {notifications.length === 0 ? (
-        <View style={styles.empty}>
-          <BellOff size={48} color="#D1D5DB" />
-          <Text style={styles.emptyTitle}>No notifications yet</Text>
-          <Text style={styles.emptySubtitle}>
-            You'll see task reminders, payments, and other updates here.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={notifications}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <NotificationRow notification={item} onPress={handleRowPress} />
-          )}
-          contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      )}
+      <FlatList
+        data={notifications}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <NotificationRow notification={item} onPress={handleRowPress} />
+        )}
+        contentContainerStyle={styles.list}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <BellOff size={48} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>No notifications yet</Text>
+            <Text style={styles.emptySubtitle}>
+              You'll see task reminders, payments, and other updates here.
+            </Text>
+          </View>
+        }
+      />
     </SafeAreaView>
   );
 }

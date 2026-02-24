@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from './lib/auth-helper.js';
+import { getActorName, notifyCompanyAdmins } from '../backend/lib/notifyAdmins.js';
 
 export const config = {
   maxDuration: 30,
@@ -115,6 +116,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[AddExpense] ===== API ROUTE COMPLETED =====');
     console.log('[AddExpense] Expense created:', data.id);
+
+    // Notify admins — fire-and-forget, never blocks the response
+    void (async () => {
+      try {
+        const name = await getActorName(supabase, authUser.id);
+        await notifyCompanyAdmins(supabase, {
+          companyId,
+          actorId: authUser.id,
+          type: 'general',
+          title: 'Expense Added',
+          message: `${name} added a $${Number(amount).toLocaleString()} ${type} expense at ${store}`,
+          data: { expenseId: data.id, projectId },
+        });
+      } catch (e) {
+        console.warn('[AddExpense] Admin notify failed (non-fatal):', e);
+      }
+    })();
 
     return res.status(200).json({
       success: true,

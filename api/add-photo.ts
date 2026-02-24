@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { requireAuth } from './lib/auth-helper.js';
+import { getActorName, notifyCompanyAdmins } from '../backend/lib/notifyAdmins.js';
 
 // Initialize S3 client
 const s3Client = new S3Client({
@@ -284,6 +285,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('[Add Photo] Success. Total time:', Date.now() - startTime, 'ms');
+
+    // Notify admins — fire-and-forget
+    void (async () => {
+      try {
+        const [name, projectRes] = await Promise.all([
+          getActorName(supabase, authUser.id),
+          supabase.from('projects').select('name').eq('id', projectId).single(),
+        ]);
+        const projectName = projectRes.data?.name ?? 'a project';
+        await notifyCompanyAdmins(supabase, {
+          companyId,
+          actorId: authUser.id,
+          type: 'general',
+          title: 'Photo Added',
+          message: `${name} added a ${category} photo to ${projectName}`,
+          data: { photoId: data.id, projectId },
+        });
+      } catch (e) {
+        console.warn('[Add Photo] Admin notify failed (non-fatal):', e);
+      }
+    })();
 
     // Convert snake_case back to camelCase for response
     const photo = {

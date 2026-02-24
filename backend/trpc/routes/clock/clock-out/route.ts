@@ -1,6 +1,7 @@
 import { publicProcedure } from "../../../create-context.js";
 import { z } from "zod";
 import { createClient } from '@supabase/supabase-js';
+import { getActorName, notifyCompanyAdmins } from "../../../../lib/notifyAdmins.js";
 
 export const clockOutProcedure = publicProcedure
   .input(
@@ -57,6 +58,31 @@ export const clockOutProcedure = publicProcedure
       }
 
       console.log('[Clock] Clocked out successfully:', data.id);
+
+      // Notify admins — fire-and-forget
+      void (async () => {
+        try {
+          const clockInMs = new Date(data.clock_in).getTime();
+          const clockOutMs = new Date(data.clock_out).getTime();
+          const hoursWorked = ((clockOutMs - clockInMs) / (1000 * 60 * 60)).toFixed(1);
+
+          const [name, projectRes] = await Promise.all([
+            getActorName(supabase, data.employee_id),
+            supabase.from('projects').select('name').eq('id', data.project_id).single(),
+          ]);
+          const projectName = projectRes.data?.name ?? 'a project';
+          await notifyCompanyAdmins(supabase, {
+            companyId: data.company_id,
+            actorId: data.employee_id,
+            type: 'general',
+            title: 'Employee Clocked Out',
+            message: `${name} clocked out of ${projectName} after ${hoursWorked}h`,
+            data: { projectId: data.project_id, clockEntryId: data.id },
+          });
+        } catch (e) {
+          console.warn('[Clock] Admin notify failed (non-fatal):', e);
+        }
+      })();
 
       return {
         success: true,
