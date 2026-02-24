@@ -389,7 +389,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load ALL price list items (master + custom)
           try {
-            const { data: plRows } = await supabase.from('price_list_items').select('*').or(`is_master.eq.true,company_id.eq.${company.id}`);
+            const { data: plRows } = await supabase.from('price_list_items').select('*').or(`is_custom.eq.false,company_id.eq.${company.id}`);
             setPriceListItems((plRows ?? []).map(mapPriceListItem));
             console.log('[App] ✅ Loaded', plRows?.length ?? 0, 'price list items');
           } catch (error: any) {
@@ -687,7 +687,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load ALL price list items from database (master + custom)
           try {
-            const { data: plRows } = await supabase.from('price_list_items').select('*').or(`is_master.eq.true,company_id.eq.${parsedCompany.id}`);
+            const { data: plRows } = await supabase.from('price_list_items').select('*').or(`is_custom.eq.false,company_id.eq.${parsedCompany.id}`);
             if (plRows?.length) {
               setPriceListItems(plRows.map(mapPriceListItem));
               console.log('[App] Loaded', plRows.length, 'price list items from database');
