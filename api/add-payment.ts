@@ -72,23 +72,21 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: error.message });
   }
 
-  // Notify admins — fire-and-forget
+  // Notify admins — must complete BEFORE responding (Vercel freezes after res.json)
   if (recordedBy) {
-    void (async () => {
-      try {
-        const name = await getActorName(supabase, recordedBy);
-        await notifyCompanyAdmins(supabase, {
-          companyId,
-          actorId: recordedBy,
-          type: 'payment-received',
-          title: 'Payment Recorded',
-          message: `${name} recorded a $${Number(amount).toLocaleString()} payment from ${clientName}`,
-          data: { paymentId: data.id, projectId },
-        });
-      } catch (e) {
-        console.warn('[add-payment] Admin notify failed (non-fatal):', e);
-      }
-    })();
+    try {
+      const name = await getActorName(supabase, recordedBy);
+      await notifyCompanyAdmins(supabase, {
+        companyId,
+        actorId: recordedBy,
+        type: 'payment-received',
+        title: 'Payment Recorded',
+        message: `${name} recorded a $${Number(amount).toLocaleString()} payment from ${clientName}`,
+        data: { paymentId: data.id, projectId },
+      });
+    } catch (e) {
+      console.warn('[add-payment] Admin notify failed (non-fatal):', e);
+    }
   }
 
   return res.status(200).json({

@@ -286,26 +286,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[Add Photo] Success. Total time:', Date.now() - startTime, 'ms');
 
-    // Notify admins — fire-and-forget
-    void (async () => {
-      try {
-        const [name, projectRes] = await Promise.all([
-          getActorName(supabase, authUser.id),
-          supabase.from('projects').select('name').eq('id', projectId).single(),
-        ]);
-        const projectName = projectRes.data?.name ?? 'a project';
-        await notifyCompanyAdmins(supabase, {
-          companyId,
-          actorId: authUser.id,
-          type: 'general',
-          title: 'Photo Added',
-          message: `${name} added a ${category} photo to ${projectName}`,
-          data: { photoId: data.id, projectId },
-        });
-      } catch (e) {
-        console.warn('[Add Photo] Admin notify failed (non-fatal):', e);
-      }
-    })();
+    // Notify admins — must complete BEFORE responding (Vercel freezes after res.json)
+    try {
+      const [name, projectRes] = await Promise.all([
+        getActorName(supabase, authUser.id),
+        supabase.from('projects').select('name').eq('id', projectId).single(),
+      ]);
+      const projectName = projectRes.data?.name ?? 'a project';
+      await notifyCompanyAdmins(supabase, {
+        companyId,
+        actorId: authUser.id,
+        type: 'general',
+        title: 'Photo Added',
+        message: `${name} added a ${category} photo to ${projectName}`,
+        data: { photoId: data.id, projectId },
+      });
+    } catch (e) {
+      console.warn('[Add Photo] Admin notify failed (non-fatal):', e);
+    }
 
     // Convert snake_case back to camelCase for response
     const photo = {
