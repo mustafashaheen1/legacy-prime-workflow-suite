@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { getActorName, notifyCompanyAdmins } from '../backend/lib/notifyAdmins.js';
 
 export const config = {
   maxDuration: 30,
@@ -76,6 +77,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[ClockOut] ===== API ROUTE COMPLETED =====');
     console.log('[ClockOut] Clock entry updated:', data.id);
+
+    // Notify admins — fire-and-forget
+    void (async () => {
+      try {
+        const clockInMs = new Date(data.clock_in).getTime();
+        const clockOutMs = new Date(data.clock_out).getTime();
+        const hoursWorked = ((clockOutMs - clockInMs) / (1000 * 60 * 60)).toFixed(1);
+
+        const [name, projectRes] = await Promise.all([
+          getActorName(supabase, data.employee_id),
+          supabase.from('projects').select('name').eq('id', data.project_id).single(),
+        ]);
+        const projectName = projectRes.data?.name ?? 'a project';
+        await notifyCompanyAdmins(supabase, {
+          companyId: data.company_id,
+          actorId: data.employee_id,
+          type: 'general',
+          title: 'Employee Clocked Out',
+          message: `${name} clocked out of ${projectName} after ${hoursWorked}h`,
+          data: { projectId: data.project_id, clockEntryId: data.id },
+        });
+      } catch (e) {
+        console.warn('[ClockOut] Admin notify failed (non-fatal):', e);
+      }
+    })();
 
     return res.status(200).json({
       success: true,

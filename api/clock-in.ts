@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { getActorName, notifyCompanyAdmins } from '../backend/lib/notifyAdmins.js';
 
 export const config = {
   maxDuration: 30,
@@ -63,6 +64,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[ClockIn] ===== API ROUTE COMPLETED =====');
     console.log('[ClockIn] Clock entry created:', data.id);
+
+    // Notify admins — fire-and-forget
+    void (async () => {
+      try {
+        const [name, projectRes] = await Promise.all([
+          getActorName(supabase, employeeId),
+          supabase.from('projects').select('name').eq('id', projectId).single(),
+        ]);
+        const projectName = projectRes.data?.name ?? 'a project';
+        await notifyCompanyAdmins(supabase, {
+          companyId,
+          actorId: employeeId,
+          type: 'general',
+          title: 'Employee Clocked In',
+          message: `${name} clocked in on ${projectName}`,
+          data: { projectId, clockEntryId: data.id },
+        });
+      } catch (e) {
+        console.warn('[ClockIn] Admin notify failed (non-fatal):', e);
+      }
+    })();
 
     return res.status(200).json({
       success: true,
