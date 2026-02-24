@@ -1987,7 +1987,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     addNotification({
-      id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id:        crypto.randomUUID(),
       userId:    user?.id || '',
       companyId: company?.id || '',
       type:      'payment-received',
@@ -2148,7 +2148,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
 
     addNotification({
-      id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id:        crypto.randomUUID(),
       userId:    user?.id || '',
       companyId: company?.id || '',
       type:      'change-order',
@@ -2195,7 +2195,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     if (isBeingApproved) {
       addNotification({
-        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id:        crypto.randomUUID(),
         userId:    user?.id || '',
         companyId: company?.id || '',
         type:      'change-order',
@@ -2207,7 +2207,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       });
     } else if (isBeingRejected) {
       addNotification({
-        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id:        crypto.randomUUID(),
         userId:    user?.id || '',
         companyId: company?.id || '',
         type:      'change-order',

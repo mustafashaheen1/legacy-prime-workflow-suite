@@ -3027,18 +3027,20 @@ export default function ProjectDetailScreen() {
                     const base = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
                       (typeof window !== 'undefined' && window.location?.origin) ||
                       'https://legacy-prime-workflow-suite.vercel.app';
+                    const { data: { session: paymentSession } } = await supabase.auth.getSession();
                     const res = await fetch(`${base}/api/add-payment`, {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: {
+                        'Content-Type': 'application/json',
+                        ...(paymentSession?.access_token ? { 'Authorization': `Bearer ${paymentSession.access_token}` } : {}),
+                      },
                       body: JSON.stringify({
                         projectId: id as string,
-                        companyId: company!.id,
                         amount,
                         date: paymentDateInput.trim(),
                         clientName: paymentClientNameInput.trim(),
                         method: paymentMethodInput,
                         notes: paymentNotesInput.trim() || undefined,
-                        recordedBy: user?.id,
                       }),
                     });
                     if (!res.ok) {

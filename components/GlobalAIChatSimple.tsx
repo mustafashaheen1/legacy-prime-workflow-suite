@@ -1865,7 +1865,7 @@ Generate appropriate line items from the price list that fit this scope of work$
           case 'send_notification':
             if (addNotification && pendingAction.data) {
               const notification = {
-                id: `notif-${Date.now()}`,
+                id: crypto.randomUUID(),
                 userId: user?.id || '',
                 read: false,
                 createdAt: new Date().toISOString(),

@@ -103,7 +103,7 @@ export default function ChangeOrdersScreen() {
       });
       if (error) throw error;
       addNotification({
-        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id:        crypto.randomUUID(),
         userId:    user?.id || '',
         companyId: company?.id || '',
         type:      'change-order',
@@ -154,7 +154,7 @@ export default function ChangeOrdersScreen() {
     const doApprove = () => {
       updateChangeOrder(changeOrder.id, { status: 'approved', approvedDate: new Date().toISOString() });
       addNotification({
-        id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id:        crypto.randomUUID(),
         userId:    user?.id || '',
         companyId: company?.id || '',
         type:      'change-order',
@@ -211,7 +211,7 @@ export default function ChangeOrdersScreen() {
           onPress: () => {
             updateChangeOrder(changeOrder.id, { status: 'rejected' });
             addNotification({
-              id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              id:        crypto.randomUUID(),
               userId:    user?.id || '',
               companyId: company?.id || '',
               type:      'change-order',

@@ -42,7 +42,7 @@ export default function RequestEstimateComponent({ projectId, projectName }: Req
     };
 
     const notification: Notification = {
-      id:        `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id:        crypto.randomUUID(),
       userId:    user?.id || '',
       companyId: company?.id || '',
       type:      'general',
