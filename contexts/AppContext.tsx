@@ -1142,17 +1142,20 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const refreshNotifications = useCallback(async () => {
     if (!user?.id || !company?.id) return;
     try {
-      const { data } = await supabase.from('notifications').select('*')
+      const { data, error } = await supabase.from('notifications').select('*')
         .eq('user_id', user.id!).eq('company_id', company.id!)
         .order('created_at', { ascending: false }).limit(50);
-      if (data?.length) {
-        setNotifications(prev => {
-          const dbIds = new Set(data.map((n: any) => n.id));
-          const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
-          return [...data.map(mapNotification), ...localOnly];
-        });
-        console.log('[App] ✅ Refreshed', data.length, 'notifications');
+      if (error) {
+        console.warn('[Notifications] Refresh query error:', error.message, error.code);
+        return;
       }
+      const rows = data ?? [];
+      setNotifications(prev => {
+        const dbIds = new Set(rows.map((n: any) => n.id));
+        const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
+        return [...rows.map(mapNotification), ...localOnly];
+      });
+      console.log('[App] ✅ Refreshed', rows.length, 'notifications');
     } catch (error) {
       console.warn('[Notifications] Refresh failed (non-fatal):', error);
     }
@@ -2673,7 +2676,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // notifications after logout. Non-blocking — we clear local state regardless.
     if (user?.id) {
       supabase.from('push_tokens')
-        .update({ active: false })
+        .update({ is_active: false })
         .eq('user_id', user.id!)
         .then(({ error }) => {
           if (error) console.warn('[Notifications] Token deactivation on logout failed:', error);
