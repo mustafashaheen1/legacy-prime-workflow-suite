@@ -221,6 +221,21 @@ export default function SignupScreen() {
 
         console.log('[Signup] Employee account created successfully');
 
+        // Notify admins of the pending approval — fire-and-forget
+        if (result.user && result.company) {
+          const apiBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
+            (typeof window !== 'undefined' ? window.location.origin : '');
+          void fetch(`${apiBase}/api/notify-approval-request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId: result.company.id,
+              employeeId: result.user.id,
+              employeeName: result.user.name,
+            }),
+          }).catch((e) => console.warn('[Signup] Admin notify failed (non-fatal):', e));
+        }
+
         // Update app context with user data
         if (result.user) {
           setUser({
