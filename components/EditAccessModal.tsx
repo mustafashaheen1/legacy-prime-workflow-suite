@@ -11,7 +11,20 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { X, Shield } from 'lucide-react-native';
+import {
+  X,
+  LayoutDashboard,
+  Users,
+  Clock,
+  DollarSign,
+  Camera,
+  MessageSquare,
+  Calendar,
+  HardHat,
+  Bot,
+  FolderOpen,
+  BarChart2,
+} from 'lucide-react-native';
 import { User } from '@/types';
 import { FEATURE_TOGGLES, getEffectiveFeatureStates } from '@/lib/permissions';
 import { supabase } from '@/lib/supabase';
@@ -20,9 +33,28 @@ interface EditAccessModalProps {
   visible: boolean;
   user: User | null;
   onClose: () => void;
-  /** Called after a successful save so the parent can refresh its user list. */
   onSaved: (userId: string, customPermissions: Record<string, boolean>) => void;
 }
+
+// Per-feature visual metadata — icon, accent colour, background tint, description.
+const FEATURE_META: Record<string, {
+  Icon: React.ComponentType<{ size: number; color: string }>;
+  color: string;
+  bg: string;
+  description: string;
+}> = {
+  dashboard: { Icon: LayoutDashboard, color: '#2563EB', bg: '#EFF6FF', description: 'Overview & activity summary' },
+  crm:       { Icon: Users,           color: '#7C3AED', bg: '#F5F3FF', description: 'Clients, leads & contacts' },
+  clock:     { Icon: Clock,           color: '#16A34A', bg: '#F0FDF4', description: 'Clock in/out & time tracking' },
+  expenses:  { Icon: DollarSign,      color: '#D97706', bg: '#FFFBEB', description: 'Log & track job expenses' },
+  photos:    { Icon: Camera,          color: '#DB2777', bg: '#FDF2F8', description: 'Upload & view site photos' },
+  chat:      { Icon: MessageSquare,   color: '#0D9488', bg: '#F0FDFA', description: 'Team messaging' },
+  schedule:  { Icon: Calendar,        color: '#4F46E5', bg: '#EEF2FF', description: 'Project calendar & scheduling' },
+  subs:      { Icon: HardHat,         color: '#EA580C', bg: '#FFF7ED', description: 'Subcontractor management' },
+  chatbot:   { Icon: Bot,             color: '#6366F1', bg: '#EEFAFF', description: 'AI assistant access' },
+  projects:  { Icon: FolderOpen,      color: '#0369A1', bg: '#F0F9FF', description: 'View project details' },
+  reports:   { Icon: BarChart2,       color: '#059669', bg: '#ECFDF5', description: 'Financial & activity reports' },
+};
 
 const API_BASE =
   process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
@@ -38,12 +70,9 @@ export default function EditAccessModal({
   const [featureStates, setFeatureStates] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initialise toggle states whenever the modal opens or the target user changes.
   useEffect(() => {
     if (user) {
-      setFeatureStates(
-        getEffectiveFeatureStates(user.role, user.customPermissions)
-      );
+      setFeatureStates(getEffectiveFeatureStates(user.role, user.customPermissions));
     }
   }, [user?.id, user?.role, user?.customPermissions, visible]);
 
@@ -55,14 +84,10 @@ export default function EditAccessModal({
     if (!user) return;
     setIsSaving(true);
     try {
-      // Compute only the keys that differ from role defaults so we store a
-      // minimal diff rather than a full snapshot.
       const roleDefaults = getEffectiveFeatureStates(user.role);
       const overrides: Record<string, boolean> = {};
       for (const [key, value] of Object.entries(featureStates)) {
-        if (value !== roleDefaults[key]) {
-          overrides[key] = value;
-        }
+        if (value !== roleDefaults[key]) overrides[key] = value;
       }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -102,6 +127,15 @@ export default function EditAccessModal({
 
   if (!user) return null;
 
+  const initials = user.name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const enabledCount = Object.values(featureStates).filter(Boolean).length;
+
   return (
     <Modal
       visible={visible}
@@ -111,67 +145,84 @@ export default function EditAccessModal({
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
+          {/* Drag handle */}
+          <View style={styles.handle} />
+
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <Shield size={20} color="#2563EB" />
-              <View style={styles.headerText}>
-                <Text style={styles.title}>Edit Access</Text>
-                <Text style={styles.subtitle} numberOfLines={1}>
-                  {user.name}
-                </Text>
-              </View>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-              <X size={24} color="#6B7280" />
+            <View style={styles.headerText}>
+              <Text style={styles.title}>{user.name}</Text>
+              <Text style={styles.subtitle}>
+                {enabledCount} of {FEATURE_TOGGLES.length} features enabled
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            >
+              <X size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.hint}>
-            Toggle features on or off for this team member. Changes override their role defaults.
-          </Text>
-
-          {/* Feature toggles */}
+          {/* Feature rows */}
           <ScrollView
             style={styles.scroll}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {FEATURE_TOGGLES.map((feature, index) => {
+            {FEATURE_TOGGLES.map((feature) => {
               const isOn = featureStates[feature.key] ?? false;
+              const meta = FEATURE_META[feature.key];
+              const Icon = meta?.Icon;
+
               return (
-                <View
-                  key={feature.key}
-                  style={[
-                    styles.row,
-                    index < FEATURE_TOGGLES.length - 1 && styles.rowBorder,
-                  ]}
-                >
-                  <Text style={styles.featureLabel}>{feature.label}</Text>
+                <View key={feature.key} style={[styles.row, !isOn && styles.rowOff]}>
+                  {/* Icon chip */}
+                  <View style={[styles.iconChip, { backgroundColor: meta?.bg ?? '#F3F4F6' }]}>
+                    {Icon && <Icon size={20} color={isOn ? (meta?.color ?? '#6B7280') : '#9CA3AF'} />}
+                  </View>
+
+                  {/* Label + description */}
+                  <View style={styles.rowText}>
+                    <Text style={[styles.featureLabel, !isOn && styles.featureLabelOff]}>
+                      {feature.label}
+                    </Text>
+                    <Text style={styles.featureDesc} numberOfLines={1}>
+                      {meta?.description ?? ''}
+                    </Text>
+                  </View>
+
+                  {/* Toggle */}
                   <Switch
                     value={isOn}
                     onValueChange={(val) => handleToggle(feature.key, val)}
-                    trackColor={{ false: '#D1D5DB', true: '#BFDBFE' }}
-                    thumbColor={isOn ? '#2563EB' : '#9CA3AF'}
-                    ios_backgroundColor="#D1D5DB"
+                    trackColor={{ false: '#E5E7EB', true: '#BBF7D0' }}
+                    thumbColor={isOn ? '#16A34A' : '#D1D5DB'}
+                    ios_backgroundColor="#E5E7EB"
                   />
                 </View>
               );
             })}
           </ScrollView>
 
-          {/* Save button */}
-          <TouchableOpacity
-            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
-            onPress={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.saveButtonText}>Save Changes</Text>
-            )}
-          </TouchableOpacity>
+          {/* Save */}
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+              onPress={handleSave}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -181,81 +232,130 @@ export default function EditAccessModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-    height: '72%',
+    backgroundColor: '#F9FAFB',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '80%',
   },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  // ── Header ──────────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
+    gap: 12,
   },
-  headerLeft: {
-    flexDirection: 'row',
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#2563EB',
     alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    marginRight: 12,
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   headerText: {
     flex: 1,
   },
   title: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
     marginTop: 1,
   },
-  hint: {
-    fontSize: 13,
-    color: '#6B7280',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 4,
-    lineHeight: 18,
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  // ── List ────────────────────────────────────────────────────────────────
   scroll: {
     flex: 1,
-    marginTop: 8,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    padding: 16,
+    gap: 8,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  rowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+  rowOff: {
+    opacity: 0.65,
+  },
+  iconChip: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowText: {
+    flex: 1,
   },
   featureLabel: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '600',
     color: '#111827',
-    fontWeight: '500',
+  },
+  featureLabelOff: {
+    color: '#6B7280',
+  },
+  featureDesc: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 1,
+  },
+  // ── Footer ──────────────────────────────────────────────────────────────
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 20,
+    backgroundColor: '#F9FAFB',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
   saveButton: {
     backgroundColor: '#2563EB',
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginTop: 16,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingVertical: 15,
     alignItems: 'center',
   },
   saveButtonDisabled: {
@@ -265,5 +365,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+    letterSpacing: 0.2,
   },
 });
