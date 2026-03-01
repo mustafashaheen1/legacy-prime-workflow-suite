@@ -31,6 +31,9 @@ export interface User {
     reviewedBy?: string;
     reviewedDate?: string;
   };
+  /** Per-user feature overrides set by an admin. Keys are feature slugs (e.g. "dashboard"),
+   *  values are booleans. true = force-enable, false = force-disable, missing = role default. */
+  customPermissions?: Record<string, boolean>;
 }
 
 export interface Project {

@@ -60,6 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       address: row.address || undefined,
       hourlyRate: row.hourly_rate || undefined,
       rateChangeRequest: row.rate_change_request || undefined,
+      customPermissions: row.custom_permissions || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));

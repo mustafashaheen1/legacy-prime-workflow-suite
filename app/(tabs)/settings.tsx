@@ -5,6 +5,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
 import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permissions';
 import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, Wrench, DollarSign } from 'lucide-react-native';
+import EditAccessModal from '@/components/EditAccessModal';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -80,6 +81,8 @@ export default function SettingsScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
   const [isUpdatingUser, setIsUpdatingUser] = useState<boolean>(false);
+  const [showEditAccessModal, setShowEditAccessModal] = useState<boolean>(false);
+  const [editAccessUser, setEditAccessUser] = useState<User | null>(null);
 
   // Helper to get API base URL
   const getApiBaseUrl = () => {
@@ -841,6 +844,19 @@ export default function SettingsScreen() {
                         <View style={[styles.roleChip, { backgroundColor: getRoleColor(user.role) }]}>
                           <Text style={styles.roleChipText}>{getRoleDisplayName(user.role)}</Text>
                         </View>
+                        {(isAdmin || isSuperAdmin) && user.id !== currentUser?.id &&
+                          user.role !== 'admin' && user.role !== 'super-admin' && (
+                          <TouchableOpacity
+                            style={styles.editAccessButton}
+                            onPress={() => {
+                              setEditAccessUser(user);
+                              setShowEditAccessModal(true);
+                            }}
+                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                          >
+                            <Shield size={18} color="#2563EB" />
+                          </TouchableOpacity>
+                        )}
                         {availableRoles.length > 0 && user.id !== currentUser?.id && (
                           <ChevronRight size={20} color="#9CA3AF" />
                         )}
@@ -1151,6 +1167,21 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      <EditAccessModal
+        visible={showEditAccessModal}
+        user={editAccessUser}
+        onClose={() => {
+          setShowEditAccessModal(false);
+          setEditAccessUser(null);
+        }}
+        onSaved={(userId, customPermissions) => {
+          // Update local list so toggles reflect immediately without a full refetch.
+          setUsers(prev =>
+            prev.map(u => u.id === userId ? { ...u, customPermissions } : u)
+          );
+        }}
+      />
     </View>
   );
 }
@@ -1323,6 +1354,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
+  },
+  editAccessButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   roleChipText: {
     fontSize: 12,

@@ -161,6 +161,73 @@ export const shouldBlockChatbotQuery = (userRole: UserRole, query: string): { sh
   return { shouldBlock: false };
 };
 
+// ---------------------------------------------------------------------------
+// Per-user feature toggles
+// ---------------------------------------------------------------------------
+
+/**
+ * Canonical list of user-facing features and the permissions they encompass.
+ * Drives both the EditAccessModal UI and the getEffectiveFeatureStates helper.
+ */
+export const FEATURE_TOGGLES: Array<{
+  key: string;
+  label: string;
+  permissions: Permission[];
+}> = [
+  { key: 'dashboard', label: 'Dashboard',        permissions: ['view:dashboard'] },
+  { key: 'crm',       label: 'CRM',              permissions: ['view:crm', 'edit:crm'] },
+  { key: 'clock',     label: 'Clock',            permissions: ['clock:in-out'] },
+  { key: 'expenses',  label: 'Expenses',         permissions: ['add:expenses', 'delete:expenses'] },
+  { key: 'photos',    label: 'Photos',           permissions: ['view:photos', 'add:photos', 'delete:photos'] },
+  { key: 'chat',      label: 'Chat',             permissions: ['view:chat', 'send:chat'] },
+  { key: 'schedule',  label: 'Schedule',         permissions: ['view:schedule', 'edit:schedule'] },
+  { key: 'subs',      label: 'Subcontractors',   permissions: ['view:estimates', 'create:estimates'] },
+  { key: 'chatbot',   label: 'Chat Bot',         permissions: ['chatbot:unrestricted', 'chatbot:no-financials', 'chatbot:basic-only'] },
+  { key: 'projects',  label: 'Project Overview', permissions: ['view:projects', 'edit:projects'] },
+  { key: 'reports',   label: 'Reports',          permissions: ['view:reports'] },
+];
+
+/**
+ * Returns the current ON/OFF state for each feature for a given user.
+ * - If `customPermissions[key]` is present it takes precedence.
+ * - Otherwise, a feature is ON if the role has at least one of its permissions.
+ */
+export const getEffectiveFeatureStates = (
+  role: UserRole,
+  customPermissions?: Record<string, boolean>
+): Record<string, boolean> => {
+  const rolePerms = getPermissionsForRole(role);
+  const result: Record<string, boolean> = {};
+  for (const feature of FEATURE_TOGGLES) {
+    if (customPermissions && feature.key in customPermissions) {
+      result[feature.key] = customPermissions[feature.key];
+    } else {
+      result[feature.key] = feature.permissions.some(p => rolePerms.includes(p));
+    }
+  }
+  return result;
+};
+
+/**
+ * Returns true if the user has access to the given feature key,
+ * accounting for custom per-user overrides.
+ */
+export const hasFeatureAccess = (
+  role: UserRole,
+  featureKey: string,
+  customPermissions?: Record<string, boolean>
+): boolean => {
+  if (customPermissions && featureKey in customPermissions) {
+    return customPermissions[featureKey];
+  }
+  const feature = FEATURE_TOGGLES.find(f => f.key === featureKey);
+  if (!feature) return true; // unknown feature keys are not restricted
+  const rolePerms = getPermissionsForRole(role);
+  return feature.permissions.some(p => rolePerms.includes(p));
+};
+
+// ---------------------------------------------------------------------------
+
 export const getRoleDisplayName = (role: UserRole): string => {
   const roleNames: Record<UserRole, string> = {
     'super-admin': 'Super Admin',
