@@ -185,6 +185,175 @@ export interface Database {
           [key: string]: any
         }
       }
+      tasks: {
+        Row: {
+          id: string
+          company_id: string
+          project_id: string | null
+          name: string
+          date: string | null
+          reminder: string | null
+          completed: boolean
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          project_id?: string | null
+          name: string
+          date?: string | null
+          reminder?: string | null
+          completed?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          project_id?: string | null
+          name?: string
+          date?: string | null
+          reminder?: string | null
+          completed?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
+      photo_categories: {
+        Row: {
+          id: string
+          company_id: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          name?: string
+          created_at?: string
+        }
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          company_id: string
+          type: 'payment-received' | 'estimate-received' | 'proposal-submitted' | 'change-order' | 'general' | 'task-reminder'
+          title: string
+          message: string
+          data: Json | null
+          read: boolean
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          company_id: string
+          type: 'payment-received' | 'estimate-received' | 'proposal-submitted' | 'change-order' | 'general' | 'task-reminder'
+          title: string
+          message: string
+          data?: Json | null
+          read?: boolean
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          company_id?: string
+          type?: 'payment-received' | 'estimate-received' | 'proposal-submitted' | 'change-order' | 'general' | 'task-reminder'
+          title?: string
+          message?: string
+          data?: Json | null
+          read?: boolean
+          read_at?: string | null
+          created_at?: string
+        }
+      }
+      push_tokens: {
+        Row: {
+          id: string
+          user_id: string
+          token: string
+          is_active: boolean
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          token: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          token?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
+      users: {
+        Row: {
+          id: string
+          company_id: string
+          email: string
+          name: string
+          role: string
+          is_active: boolean
+          avatar: string | null
+          phone: string | null
+          address: string | null
+          hourly_rate: number | null
+          custom_permissions: Json | null
+          rate_change_request: Json | null
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          email: string
+          name: string
+          role: string
+          is_active?: boolean
+          avatar?: string | null
+          phone?: string | null
+          address?: string | null
+          hourly_rate?: number | null
+          custom_permissions?: Json | null
+          rate_change_request?: Json | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          email?: string
+          name?: string
+          role?: string
+          is_active?: boolean
+          avatar?: string | null
+          phone?: string | null
+          address?: string | null
+          hourly_rate?: number | null
+          custom_permissions?: Json | null
+          rate_change_request?: Json | null
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
