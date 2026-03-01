@@ -219,6 +219,7 @@ export interface Database {
           created_at?: string
           updated_at?: string | null
         }
+        Relationships: []
       }
       photo_categories: {
         Row: {
@@ -239,6 +240,7 @@ export interface Database {
           name?: string
           created_at?: string
         }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -277,6 +279,7 @@ export interface Database {
           read_at?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       push_tokens: {
         Row: {
@@ -303,6 +306,7 @@ export interface Database {
           created_at?: string
           updated_at?: string | null
         }
+        Relationships: []
       }
       users: {
         Row: {
@@ -353,6 +357,7 @@ export interface Database {
           created_at?: string
           updated_at?: string | null
         }
+        Relationships: []
       }
     }
     Views: {

@@ -1241,32 +1241,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     };
   }, [user?.id, company?.id]);
 
-  // ─── Realtime: permission sync ────────────────────────────────────────────────
-  // When an admin updates this user's custom_permissions in Supabase, the change
-  // is pushed immediately to the active session without requiring a re-login.
+  // ─── Realtime: permission sync (Broadcast) ───────────────────────────────────
+  // Uses Supabase Broadcast instead of postgres_changes — broadcast requires no
+  // table publication config or RLS and fires the moment the server sends it.
+  // The channel name must match exactly what update-user-permissions.ts sends to.
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
       .channel(`user-permissions:${user.id}`)
       .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'users',
-          filter: `id=eq.${user.id}`,
-        },
+        'broadcast',
+        { event: 'permission-update' },
         (payload) => {
-          const updated = payload.new as Record<string, any>;
-          if (!('custom_permissions' in updated)) return;
           const newPerms: Record<string, boolean> | undefined =
-            updated.custom_permissions ?? undefined;
-          console.log('[Realtime] Permission update received:', newPerms);
+            payload.payload?.customPermissions ?? undefined;
+          console.log('[Realtime] Permission broadcast received:', newPerms);
           setUserState(prev => {
             if (!prev) return prev;
             const next = { ...prev, customPermissions: newPerms };
-            // Persist to AsyncStorage so the update survives an app restart
+            // Persist so updated permissions survive an app restart
             AsyncStorage.setItem('user', JSON.stringify(next)).catch(() => {});
             return next;
           });
