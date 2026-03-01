@@ -14,6 +14,7 @@ import {
 import { X, Shield } from 'lucide-react-native';
 import { User } from '@/types';
 import { FEATURE_TOGGLES, getEffectiveFeatureStates } from '@/lib/permissions';
+import { supabase } from '@/lib/supabase';
 
 interface EditAccessModalProps {
   visible: boolean;
@@ -64,9 +65,13 @@ export default function EditAccessModal({
         }
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${API_BASE}/api/update-user-permissions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ userId: user.id, customPermissions: overrides }),
       });
 
