@@ -40,13 +40,14 @@ function RootLayoutNav() {
   useNotificationSetup(user, company, addNotification);
 
   // Global background poll — keeps the bell badge live on every screen.
-  // Runs every 30s whenever a user is logged in; clears on logout.
+  // Depends on both user AND company since refreshNotifications guards on both.
+  // Runs every 30s; clears on logout or company switch.
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !company?.id) return;
     refreshNotifications();
     const interval = setInterval(() => refreshNotifications(), 30_000);
     return () => clearInterval(interval);
-  }, [user?.id]);
+  }, [user?.id, company?.id, refreshNotifications]);
 
   // Keep native app icon badge in sync with the in-app unread count
   useEffect(() => {

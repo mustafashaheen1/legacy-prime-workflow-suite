@@ -99,9 +99,20 @@ export function useNotificationSetup(
           return;
         }
 
-        // getExpoPushTokenAsync requires a projectId in EAS builds.
-        // In local dev without EAS it can be omitted.
-        const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+        // getExpoPushTokenAsync requires a projectId on SDK 50+.
+        // Try the EAS runtime config first, then the app.json extra field as fallback.
+        const projectId: string | undefined =
+          (Constants.easConfig as any)?.projectId ??
+          Constants.expoConfig?.extra?.eas?.projectId;
+
+        if (!projectId) {
+          console.warn(
+            '[Notifications] No EAS projectId found. Push token registration will fail on physical devices. ' +
+            'Add "extra": { "eas": { "projectId": "<your-id>" } } to app.json, ' +
+            'or run `eas init` to link this project.'
+          );
+        }
+
         const tokenData = await Notifications.getExpoPushTokenAsync(
           projectId ? { projectId } : undefined
         );
