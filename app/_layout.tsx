@@ -36,8 +36,17 @@ const PUBLIC_ROUTES = [
 ];
 
 function RootLayoutNav() {
-  const { user, isLoading, company, addNotification, getNotifications } = useApp();
+  const { user, isLoading, company, addNotification, getNotifications, refreshNotifications } = useApp();
   useNotificationSetup(user, company, addNotification);
+
+  // Global background poll — keeps the bell badge live on every screen.
+  // Runs every 30s whenever a user is logged in; clears on logout.
+  useEffect(() => {
+    if (!user?.id) return;
+    refreshNotifications();
+    const interval = setInterval(() => refreshNotifications(), 30_000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   // Keep native app icon badge in sync with the in-app unread count
   useEffect(() => {
