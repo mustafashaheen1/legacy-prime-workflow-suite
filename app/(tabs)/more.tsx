@@ -4,9 +4,11 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { DollarSign, Calendar, MessageSquare, HardHat, Settings, ChevronRight } from 'lucide-react-native';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface MenuItem {
   key: string;
+  featureKey: string | null; // null = always visible (not feature-gated)
   icon: React.ReactNode;
   label: string;
   route: string;
@@ -17,10 +19,12 @@ export default function MoreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const { hasFeatureAccess } = usePermissions();
 
-  const menuItems: MenuItem[] = [
+  const allItems: MenuItem[] = [
     {
       key: 'expenses',
+      featureKey: 'expenses',
       icon: <DollarSign size={24} color="#2563EB" />,
       label: t('common.expenses'),
       route: '/(tabs)/expenses',
@@ -28,6 +32,7 @@ export default function MoreScreen() {
     },
     {
       key: 'schedule',
+      featureKey: 'schedule',
       icon: <Calendar size={24} color="#2563EB" />,
       label: t('common.schedule'),
       route: '/(tabs)/schedule',
@@ -35,6 +40,7 @@ export default function MoreScreen() {
     },
     {
       key: 'chat',
+      featureKey: 'chat',
       icon: <MessageSquare size={24} color="#2563EB" />,
       label: t('common.chat'),
       route: '/(tabs)/chat',
@@ -42,6 +48,7 @@ export default function MoreScreen() {
     },
     {
       key: 'subcontractors',
+      featureKey: 'subs',
       icon: <HardHat size={24} color="#2563EB" />,
       label: 'Subcontractors',
       route: '/(tabs)/subcontractors',
@@ -49,12 +56,18 @@ export default function MoreScreen() {
     },
     {
       key: 'settings',
+      featureKey: null, // settings always visible
       icon: <Settings size={24} color="#2563EB" />,
       label: t('common.settings'),
       route: '/(tabs)/settings',
       description: 'App settings and preferences',
     },
   ];
+
+  // Filter out items the user doesn't have access to.
+  const menuItems = allItems.filter(
+    (item) => item.featureKey === null || hasFeatureAccess(item.featureKey)
+  );
 
   const handleItemPress = (route: string) => {
     router.push(route as any);

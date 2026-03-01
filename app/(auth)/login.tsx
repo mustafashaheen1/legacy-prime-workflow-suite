@@ -88,6 +88,7 @@ export default function LoginScreen() {
           address: result.user.address || undefined,
           hourlyRate: result.user.hourly_rate || undefined,
           avatar: result.user.avatar || undefined,
+          customPermissions: result.user.custom_permissions || undefined,
         });
 
         // @ts-ignore - companies is joined in the query

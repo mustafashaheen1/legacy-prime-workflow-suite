@@ -6,6 +6,7 @@ import { Platform, TouchableOpacity } from 'react-native';
 import UserAvatar from '@/components/UserAvatar';
 import NotificationBell from '@/components/NotificationBell';
 import { useApp } from '@/contexts/AppContext';
+import { usePermissions } from '@/hooks/usePermissions';
 
 
 // Back button component for hidden tab screens
@@ -27,9 +28,22 @@ function BackButton() {
   );
 }
 
+// Maps tab screen names to their feature keys so we can gate them uniformly.
+const TAB_FEATURE_MAP: Record<string, string> = {
+  dashboard:      'dashboard',
+  crm:            'crm',
+  clock:          'clock',
+  photos:         'photos',
+  expenses:       'expenses',
+  schedule:       'schedule',
+  chat:           'chat',
+  subcontractors: 'subs',
+};
+
 export default function TabLayout() {
   const { t } = useTranslation();
   const { user, isLoading } = useApp();
+  const { hasFeatureAccess } = usePermissions();
   const router = useRouter();
   const segments = useSegments();
   const [navigationReady, setNavigationReady] = React.useState(false);
@@ -53,6 +67,28 @@ export default function TabLayout() {
       router.replace('/login');
     }
   }, [user, segments, navigationReady, isLoading]);
+
+  // If the user lands on a tab they no longer have access to (e.g. admin
+  // revoked the feature after they logged in), redirect to first allowed tab.
+  useEffect(() => {
+    if (!user || !navigationReady || isLoading) return;
+    const currentTab = segments[1] as string | undefined;
+    const featureKey = currentTab ? TAB_FEATURE_MAP[currentTab] : undefined;
+    if (featureKey && !hasFeatureAccess(featureKey)) {
+      const fallback = ['dashboard', 'crm', 'clock', 'photos'].find(
+        (tab) => hasFeatureAccess(TAB_FEATURE_MAP[tab])
+      );
+      router.replace(`/(tabs)/${fallback ?? 'more'}` as any);
+    }
+  }, [user?.id, user?.customPermissions, segments[1], navigationReady, isLoading]);
+
+  // Returns null (blocks tab bar entry) or undefined (keeps default behaviour).
+  // For "hidden" mobile tabs we also pass the web path so web users keep access.
+  const tabHref = (featureKey: string, webPath?: string): string | null | undefined => {
+    if (!hasFeatureAccess(featureKey)) return null;
+    if (webPath) return Platform.OS === 'web' ? webPath : null;
+    return undefined;
+  };
 
   // Don't render tabs if not authenticated
   if (!user) {
@@ -79,6 +115,7 @@ export default function TabLayout() {
         options={{
           title: t('common.dashboard'),
           tabBarIcon: ({ color }) => <LayoutDashboard size={24} color={color} />,
+          href: tabHref('dashboard'),
         }}
       />
       <Tabs.Screen
@@ -86,6 +123,7 @@ export default function TabLayout() {
         options={{
           title: t('common.crm'),
           tabBarIcon: ({ color }) => <Users size={24} color={color} />,
+          href: tabHref('crm'),
         }}
       />
       <Tabs.Screen
@@ -93,6 +131,7 @@ export default function TabLayout() {
         options={{
           title: t('common.clock'),
           tabBarIcon: ({ color }) => <Clock size={24} color={color} />,
+          href: tabHref('clock'),
         }}
       />
       <Tabs.Screen
@@ -100,6 +139,7 @@ export default function TabLayout() {
         options={{
           title: t('common.photos'),
           tabBarIcon: ({ color }) => <Camera size={24} color={color} />,
+          href: tabHref('photos'),
         }}
       />
       <Tabs.Screen
@@ -115,7 +155,7 @@ export default function TabLayout() {
         options={{
           title: t('common.expenses'),
           tabBarIcon: ({ color }) => <DollarSign size={24} color={color} />,
-          href: Platform.OS === 'web' ? '/expenses' : null, // Hide from tab bar on mobile
+          href: tabHref('expenses', '/expenses'),
           headerLeft: Platform.OS !== 'web' ? () => <BackButton /> : () => <UserAvatar />,
         }}
       />
@@ -125,7 +165,7 @@ export default function TabLayout() {
           title: t('common.schedule'),
           headerShown: false,
           tabBarIcon: ({ color }) => <Calendar size={24} color={color} />,
-          href: Platform.OS === 'web' ? '/schedule' : null, // Hide from tab bar on mobile
+          href: tabHref('schedule', '/schedule'),
         }}
       />
       <Tabs.Screen
@@ -133,7 +173,7 @@ export default function TabLayout() {
         options={{
           title: t('common.chat'),
           tabBarIcon: ({ color }) => <MessageSquare size={24} color={color} />,
-          href: Platform.OS === 'web' ? '/chat' : null, // Hide from tab bar on mobile
+          href: tabHref('chat', '/chat'),
           headerLeft: Platform.OS !== 'web' ? () => <BackButton /> : () => <UserAvatar />,
         }}
       />
@@ -142,7 +182,7 @@ export default function TabLayout() {
         options={{
           title: 'Subcontractors',
           tabBarIcon: ({ color }) => <HardHat size={24} color={color} />,
-          href: Platform.OS === 'web' ? '/subcontractors' : null, // Hide from tab bar on mobile
+          href: tabHref('subs', '/subcontractors'),
           headerLeft: Platform.OS !== 'web' ? () => <BackButton /> : () => <UserAvatar />,
         }}
       />
@@ -151,7 +191,7 @@ export default function TabLayout() {
         options={{
           title: t('common.settings'),
           tabBarIcon: ({ color }) => <Settings size={24} color={color} />,
-          href: Platform.OS === 'web' ? '/settings' : null, // Hide from tab bar on mobile
+          href: Platform.OS === 'web' ? '/settings' : null,
           headerLeft: Platform.OS !== 'web' ? () => <BackButton /> : () => <UserAvatar />,
         }}
       />

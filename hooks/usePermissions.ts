@@ -1,6 +1,6 @@
 import { useApp } from '@/contexts/AppContext';
 import { Permission } from '@/types';
-import { hasPermission, hasAnyPermission, hasAllPermissions, getChatbotRestrictionLevel, shouldBlockChatbotQuery } from '@/lib/permissions';
+import { hasPermission, hasAnyPermission, hasAllPermissions, getChatbotRestrictionLevel, shouldBlockChatbotQuery, hasFeatureAccess as _hasFeatureAccess } from '@/lib/permissions';
 
 export const usePermissions = () => {
   const { user } = useApp();
@@ -30,12 +30,20 @@ export const usePermissions = () => {
     return shouldBlockChatbotQuery(user.role, query);
   };
 
+  /** Returns true if the user has access to the given feature key,
+   *  respecting both their role defaults and any admin-set custom overrides. */
+  const checkFeatureAccess = (featureKey: string): boolean => {
+    if (!user) return false;
+    return _hasFeatureAccess(user.role, featureKey, user.customPermissions);
+  };
+
   return {
     hasPermission: checkPermission,
     hasAnyPermission: checkAnyPermission,
     hasAllPermissions: checkAllPermissions,
     getChatbotRestrictionLevel: getChatbotLevel,
     shouldBlockChatbotQuery: checkChatbotQuery,
+    hasFeatureAccess: checkFeatureAccess,
     userRole: user?.role,
     isAdmin: user?.role === 'admin' || user?.role === 'super-admin',
     isSuperAdmin: user?.role === 'super-admin',
