@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { notifyCompanyAdmins } from '../backend/lib/notifyAdmins.js';
 
 export const config = {
   maxDuration: 30,
@@ -56,6 +57,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('[Update Estimate] Successfully updated estimate:', estimateId, 'to status:', status);
+
+    // Notify admins of meaningful status changes — must complete BEFORE responding
+    const notifiableStatuses: Record<string, string> = {
+      accepted: 'Estimate Accepted',
+      rejected: 'Estimate Rejected',
+      paid:     'Estimate Paid',
+      sent:     'Estimate Sent',
+    };
+
+    if (notifiableStatuses[status] && data.company_id) {
+      try {
+        const projectRes = await supabase
+          .from('projects').select('name').eq('id', data.project_id).single();
+        const projectName = projectRes.data?.name ?? 'a project';
+        const clientName  = data.client_name ?? 'a client';
+        const messages: Record<string, string> = {
+          accepted: `Estimate for ${projectName} was accepted by ${clientName}`,
+          rejected: `Estimate for ${projectName} was rejected by ${clientName}`,
+          paid:     `Estimate for ${projectName} has been marked as paid`,
+          sent:     `Estimate for ${projectName} was sent to ${clientName}`,
+        };
+        await notifyCompanyAdmins(supabase, {
+          companyId: data.company_id,
+          actorId:   '00000000-0000-0000-0000-000000000000', // no actor to exclude
+          type:      'general',
+          title:     notifiableStatuses[status],
+          message:   messages[status],
+          data:      { estimateId, projectId: data.project_id },
+        });
+      } catch (e) {
+        console.warn('[Update Estimate] Admin notify failed (non-fatal):', e);
+      }
+    }
 
     return res.status(200).json({
       success: true,

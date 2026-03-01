@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getActorName, notifyCompanyAdmins } from '../backend/lib/notifyAdmins.js';
 
 // Initialize S3 client
 const s3Client = new S3Client({
@@ -422,6 +423,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('[Save Daily Log] Success. Total time:', Date.now() - startTime, 'ms');
+
+    // Notify admins — must complete BEFORE responding (Vercel freezes after res.json)
+    if (createdByUserId) {
+      try {
+        const [name, projectRes] = await Promise.all([
+          getActorName(supabase, createdByUserId),
+          supabase.from('projects').select('name').eq('id', projectId).single(),
+        ]);
+        const projectName = projectRes.data?.name ?? 'a project';
+        await notifyCompanyAdmins(supabase, {
+          companyId,
+          actorId:  createdByUserId,
+          type:     'general',
+          title:    'Daily Log Submitted',
+          message:  `${name} submitted a daily log for ${projectName}`,
+          data:     { dailyLogId: dailyLog.id, projectId },
+        });
+      } catch (e) {
+        console.warn('[Save Daily Log] Admin notify failed (non-fatal):', e);
+      }
+    }
 
     return res.status(200).json({
       success: true,

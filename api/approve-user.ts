@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { sendNotification } from '../backend/lib/sendNotification.js';
+import { notifyCompanyAdmins } from '../backend/lib/notifyAdmins.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow POST
@@ -73,6 +75,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('[Approve User] Success. Total time:', Date.now() - startTime, 'ms');
+
+    // Notify the approved employee their account is now active
+    try {
+      await sendNotification(supabase, {
+        userId:    data.id,
+        companyId: data.company_id,
+        type:      'general',
+        title:     'Account Approved',
+        message:   'Your account has been approved. Welcome to the team!',
+        data:      {},
+      });
+    } catch (e) {
+      console.warn('[Approve User] Employee notify failed (non-fatal):', e);
+    }
+
+    // Notify other admins that a new employee was approved
+    try {
+      await notifyCompanyAdmins(supabase, {
+        companyId: data.company_id,
+        actorId:   data.id, // exclude the approved user (not the approver, but avoids any match)
+        type:      'general',
+        title:     'New Employee Approved',
+        message:   `${data.name} has been approved and can now access the app`,
+        data:      { userId: data.id },
+      });
+    } catch (e) {
+      console.warn('[Approve User] Admin notify failed (non-fatal):', e);
+    }
 
     // Convert snake_case back to camelCase for response
     const user = {
