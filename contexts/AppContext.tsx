@@ -1205,6 +1205,42 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     }
   }, [user?.id, company?.id]);
 
+  // ─── Supabase Realtime subscription ──────────────────────────────────────────
+  // Listens for INSERT events on the notifications table filtered to this user.
+  // New rows are prepended to state instantly — no polling delay on any platform.
+  // The channel is torn down on logout or user/company switch.
+  useEffect(() => {
+    if (!user?.id || !company?.id) return;
+
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const incoming = mapNotification(payload.new);
+          console.log('[Realtime] New notification received:', incoming.title);
+          setNotifications(prev => {
+            // Deduplicate — the optimistic addNotification may have already added it
+            if (prev.some(n => n.id === incoming.id)) return prev;
+            return [incoming, ...prev];
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Realtime] Notifications channel status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, company?.id]);
+
   // Load daily logs when company is available
   useEffect(() => {
     if (company?.id) {
