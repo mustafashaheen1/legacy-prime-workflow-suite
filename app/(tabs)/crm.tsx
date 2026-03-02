@@ -133,7 +133,7 @@ export default function CRMScreen() {
 
     setIsLoadingCallLogs(true);
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
       const response = await fetch(`${baseUrl}/api/get-call-logs?companyId=${company.id}`);
       const data = await response.json();
 
@@ -194,7 +194,7 @@ export default function CRMScreen() {
       // Format phone number before saving
       const formattedPhone = formatUSPhone(newClientPhone);
 
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
       const response = await fetch(`${baseUrl}/api/add-client`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -722,7 +722,7 @@ export default function CRMScreen() {
       console.log('[CRM] handleConvert called - starting project creation');
             try {
               // Use direct API endpoint (bypassing tRPC due to timeout issue)
-              const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+              const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
               console.log('[CRM] Making fetch request to:', `${baseUrl}/api/test-insert-project`);
               const response = await fetch(`${baseUrl}/api/test-insert-project`, {
                 method: 'POST',
@@ -959,7 +959,7 @@ export default function CRMScreen() {
 
     try {
       // Save project directly to database using tRPC
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
       const response = await fetch(`${baseUrl}/trpc/projects.addProject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
