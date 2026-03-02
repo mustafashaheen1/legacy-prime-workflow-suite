@@ -27,6 +27,9 @@ interface AddTaskModalProps {
   }) => Promise<void>;
 }
 
+// iPad detection — Platform.isPad is only defined on the iOS static variant
+const isIPad = Platform.OS === 'ios' && !!(Platform as any).isPad;
+
 export default function AddTaskModal({ visible, onClose, onSubmit }: AddTaskModalProps) {
   const responsive = useDailyTaskResponsive();
 
@@ -37,7 +40,13 @@ export default function AddTaskModal({ visible, onClose, onSubmit }: AddTaskModa
   const [reminder, setReminder] = useState(false);
   const [notes, setNotes] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTime, setSelectedTime] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(9, 0, 0, 0);
+    return d;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const showAlert = (alertTitle: string, message: string) => {
@@ -55,7 +64,11 @@ export default function AddTaskModal({ visible, onClose, onSubmit }: AddTaskModa
     setReminder(false);
     setNotes('');
     setShowDatePicker(false);
+    setShowTimePicker(false);
     setSelectedDate(new Date());
+    const d = new Date();
+    d.setHours(9, 0, 0, 0);
+    setSelectedTime(d);
     setIsSubmitting(false);
   };
 
@@ -67,23 +80,41 @@ export default function AddTaskModal({ visible, onClose, onSubmit }: AddTaskModa
     return dateString >= today;
   };
 
-  const handleDateChange = (event: any, date?: Date) => {
+  const handleDateChange = (_event: any, date?: Date) => {
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
     }
-
     if (date) {
       setSelectedDate(date);
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       setDateString(`${year}-${month}-${day}`);
-
-      if (Platform.OS === 'ios') {
+      // iPhone: auto-close spinner after selection
+      // iPad: user taps the "Done" button to dismiss the inline calendar
+      if (!isIPad) {
         setShowDatePicker(false);
       }
     } else if (Platform.OS === 'android') {
       setShowDatePicker(false);
+    }
+  };
+
+  const handleTimeChange = (_event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+    if (date) {
+      setSelectedTime(date);
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      setTime(`${hours}:${minutes}`);
+      // iPhone: auto-close spinner. iPad: user taps "Done" to dismiss.
+      if (!isIPad) {
+        setShowTimePicker(false);
+      }
+    } else if (Platform.OS === 'android') {
+      setShowTimePicker(false);
     }
   };
 
@@ -125,93 +156,118 @@ export default function AddTaskModal({ visible, onClose, onSubmit }: AddTaskModa
   const isFormValid = title.trim() && isValidFutureDate();
 
   return (
-    <>
-      <Modal
-        visible={visible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleClose}
-      >
-        <View style={styles.overlay}>
-          <View style={[styles.content, { maxWidth: responsive.isMobile ? '95%' : 440 }]}>
-            {/* Header */}
-            <View style={[styles.header, { padding: responsive.sidebarPadding }]}>
-              <Text style={[styles.title, { fontSize: responsive.headerFontSize }]}>
-                Add New Task
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={handleClose}
+    >
+      <View style={styles.overlay}>
+        <View style={[styles.content, { maxWidth: responsive.isMobile ? '95%' : 440 }]}>
+          {/* Header */}
+          <View style={[styles.header, { padding: responsive.sidebarPadding }]}>
+            <Text style={[styles.title, { fontSize: responsive.headerFontSize }]}>
+              Add New Task
+            </Text>
+            <TouchableOpacity style={styles.closeButton} onPress={handleClose} activeOpacity={0.7}>
+              <X size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Form */}
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={{ padding: responsive.sidebarPadding }}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Task Title */}
+            <View style={styles.field}>
+              <Text style={styles.label}>
+                Task Title <Text style={styles.required}>*</Text>
               </Text>
-              <TouchableOpacity style={styles.closeButton} onPress={handleClose} activeOpacity={0.7}>
-                <X size={20} color="#6B7280" />
-              </TouchableOpacity>
+              <TextInput
+                style={styles.input}
+                placeholder="What needs to be done?"
+                placeholderTextColor="#9CA3AF"
+                value={title}
+                onChangeText={setTitle}
+                autoFocus={true}
+              />
             </View>
 
-            {/* Form */}
-            <ScrollView
-              style={styles.body}
-              contentContainerStyle={{ padding: responsive.sidebarPadding }}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Task Title */}
-              <View style={styles.field}>
-                <Text style={styles.label}>
-                  Task Title <Text style={styles.required}>*</Text>
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="What needs to be done?"
-                  placeholderTextColor="#9CA3AF"
-                  value={title}
-                  onChangeText={setTitle}
-                  autoFocus={true}
-                />
-              </View>
+            {/* Due Date */}
+            <View style={styles.field}>
+              <Text style={styles.label}>
+                Due Date <Text style={styles.required}>*</Text>
+              </Text>
+              {Platform.OS === 'web' ? (
+                <View style={styles.inputWithIcon}>
+                  <Calendar size={20} color="#6B7280" />
+                  <input
+                    type="date"
+                    style={{
+                      flex: 1,
+                      paddingTop: 14,
+                      paddingBottom: 14,
+                      fontSize: 16,
+                      color: '#1F2937',
+                      border: 'none',
+                      outline: 'none',
+                      backgroundColor: 'transparent',
+                      fontFamily:
+                        'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    }}
+                    value={dateString}
+                    onChange={(e) => {
+                      const value = (e.target as HTMLInputElement).value;
+                      setDateString(value);
+                    }}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.inputWithIcon}
+                  onPress={() => {
+                    setShowTimePicker(false);
+                    setShowDatePicker(prev => !prev);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Calendar size={20} color="#6B7280" />
+                  <Text style={[styles.dateText, !dateString && styles.datePlaceholder]}>
+                    {dateString || 'Select a date'}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
-              {/* Due Date */}
-              <View style={styles.field}>
-                <Text style={styles.label}>
-                  Due Date <Text style={styles.required}>*</Text>
-                </Text>
-                {Platform.OS === 'web' ? (
-                  <View style={styles.inputWithIcon}>
-                    <Calendar size={20} color="#6B7280" />
-                    <input
-                      type="date"
-                      style={{
-                        flex: 1,
-                        paddingTop: 14,
-                        paddingBottom: 14,
-                        fontSize: 16,
-                        color: '#1F2937',
-                        border: 'none',
-                        outline: 'none',
-                        backgroundColor: 'transparent',
-                        fontFamily:
-                          'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                      }}
-                      value={dateString}
-                      onChange={(e) => {
-                        const value = (e.target as HTMLInputElement).value;
-                        setDateString(value);
-                      }}
-                      min={new Date().toISOString().split('T')[0]}
-                    />
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.inputWithIcon}
-                    onPress={() => setShowDatePicker(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Calendar size={20} color="#6B7280" />
-                    <Text style={[styles.dateText, !dateString && styles.datePlaceholder]}>
-                      {dateString || 'Select a date'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              {/* Inline Native Date Picker — rendered inside Modal to work on iPad */}
+              {Platform.OS !== 'web' && showDatePicker && (
+                <View style={styles.inlinePickerWrapper}>
+                  <DateTimePicker
+                    value={selectedDate}
+                    mode="date"
+                    display={isIPad ? 'inline' : 'spinner'}
+                    onChange={handleDateChange}
+                    minimumDate={new Date()}
+                  />
+                  {isIPad && (
+                    <TouchableOpacity
+                      style={styles.pickerDoneBtn}
+                      onPress={() => setShowDatePicker(false)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.pickerDoneBtnText}>Done</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
 
-              {/* Due Time */}
-              <View style={styles.field}>
-                <Text style={styles.label}>Due Time</Text>
+            {/* Due Time */}
+            <View style={styles.field}>
+              <Text style={styles.label}>Due Time</Text>
+              {Platform.OS === 'web' ? (
                 <View style={styles.inputWithIcon}>
                   <Clock size={20} color="#6B7280" />
                   <TextInput
@@ -232,106 +288,158 @@ export default function AddTaskModal({ visible, onClose, onSubmit }: AddTaskModa
                     maxLength={5}
                   />
                   <View style={styles.timePresets}>
+                    <TouchableOpacity style={styles.presetBtn} onPress={() => setTime('09:00')} activeOpacity={0.7}>
+                      <Text style={styles.presetText}>9AM</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.presetBtn} onPress={() => setTime('12:00')} activeOpacity={0.7}>
+                      <Text style={styles.presetText}>12PM</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.presetBtn} onPress={() => setTime('17:00')} activeOpacity={0.7}>
+                      <Text style={styles.presetText}>5PM</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                // Native: tappable row that opens a time picker
+                <TouchableOpacity
+                  style={styles.inputWithIcon}
+                  onPress={() => {
+                    setShowDatePicker(false);
+                    setShowTimePicker(prev => !prev);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Clock size={20} color="#6B7280" />
+                  <Text style={styles.timeDisplayText}>{time || '09:00'}</Text>
+                  <View style={styles.timePresets}>
                     <TouchableOpacity
                       style={styles.presetBtn}
-                      onPress={() => setTime('09:00')}
+                      onPress={() => {
+                        const d = new Date();
+                        d.setHours(9, 0, 0, 0);
+                        setTime('09:00');
+                        setSelectedTime(d);
+                        setShowTimePicker(false);
+                      }}
                       activeOpacity={0.7}
                     >
                       <Text style={styles.presetText}>9AM</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.presetBtn}
-                      onPress={() => setTime('12:00')}
+                      onPress={() => {
+                        const d = new Date();
+                        d.setHours(12, 0, 0, 0);
+                        setTime('12:00');
+                        setSelectedTime(d);
+                        setShowTimePicker(false);
+                      }}
                       activeOpacity={0.7}
                     >
                       <Text style={styles.presetText}>12PM</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.presetBtn}
-                      onPress={() => setTime('17:00')}
+                      onPress={() => {
+                        const d = new Date();
+                        d.setHours(17, 0, 0, 0);
+                        setTime('17:00');
+                        setSelectedTime(d);
+                        setShowTimePicker(false);
+                      }}
                       activeOpacity={0.7}
                     >
                       <Text style={styles.presetText}>5PM</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
-              </View>
-
-              {/* Reminder Toggle */}
-              <View style={styles.field}>
-                <TouchableOpacity
-                  style={styles.reminderRow}
-                  onPress={() => setReminder(!reminder)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.reminderIcon, reminder && styles.reminderIconActive]}>
-                    <Bell size={20} color={reminder ? '#F59E0B' : '#9CA3AF'} />
-                  </View>
-                  <View style={styles.reminderText}>
-                    <Text style={styles.reminderLabel}>Set Reminder</Text>
-                    <Text style={styles.reminderHint}>Get notified when task is due</Text>
-                  </View>
-                  <View style={[styles.toggle, reminder && styles.toggleActive]}>
-                    <View style={[styles.toggleKnob, reminder && styles.toggleKnobActive]} />
-                  </View>
                 </TouchableOpacity>
-              </View>
+              )}
 
-              {/* Notes */}
-              <View style={styles.field}>
-                <Text style={styles.label}>
-                  Notes <Text style={styles.optional}>(Optional)</Text>
-                </Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Add any additional details..."
-                  placeholderTextColor="#9CA3AF"
-                  value={notes}
-                  onChangeText={setNotes}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
-            </ScrollView>
+              {/* Inline Native Time Picker — rendered inside Modal to work on iPad */}
+              {Platform.OS !== 'web' && showTimePicker && (
+                <View style={styles.inlinePickerWrapper}>
+                  <DateTimePicker
+                    value={selectedTime}
+                    mode="time"
+                    display="spinner"
+                    onChange={handleTimeChange}
+                  />
+                  {isIPad && (
+                    <TouchableOpacity
+                      style={styles.pickerDoneBtn}
+                      onPress={() => setShowTimePicker(false)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.pickerDoneBtnText}>Done</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
 
-            {/* Footer */}
-            <View style={[styles.footer, { padding: responsive.sidebarPadding }]}>
+            {/* Reminder Toggle */}
+            <View style={styles.field}>
               <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={handleClose}
+                style={styles.reminderRow}
+                onPress={() => setReminder(!reminder)}
                 activeOpacity={0.7}
-                disabled={isSubmitting}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitBtn, (!isFormValid || isSubmitting) && styles.submitBtnDisabled]}
-                onPress={handleSubmit}
-                activeOpacity={0.7}
-                disabled={!isFormValid || isSubmitting}
-              >
-                <Plus size={18} color="#FFFFFF" />
-                <Text style={styles.submitBtnText}>
-                  {isSubmitting ? 'Adding...' : 'Add Task'}
-                </Text>
+                <View style={[styles.reminderIcon, reminder && styles.reminderIconActive]}>
+                  <Bell size={20} color={reminder ? '#F59E0B' : '#9CA3AF'} />
+                </View>
+                <View style={styles.reminderText}>
+                  <Text style={styles.reminderLabel}>Set Reminder</Text>
+                  <Text style={styles.reminderHint}>Get notified when task is due</Text>
+                </View>
+                <View style={[styles.toggle, reminder && styles.toggleActive]}>
+                  <View style={[styles.toggleKnob, reminder && styles.toggleKnobActive]} />
+                </View>
               </TouchableOpacity>
             </View>
+
+            {/* Notes */}
+            <View style={styles.field}>
+              <Text style={styles.label}>
+                Notes <Text style={styles.optional}>(Optional)</Text>
+              </Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Add any additional details..."
+                placeholderTextColor="#9CA3AF"
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
+
+          {/* Footer */}
+          <View style={[styles.footer, { padding: responsive.sidebarPadding }]}>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={handleClose}
+              activeOpacity={0.7}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.submitBtn, (!isFormValid || isSubmitting) && styles.submitBtnDisabled]}
+              onPress={handleSubmit}
+              activeOpacity={0.7}
+              disabled={!isFormValid || isSubmitting}
+            >
+              <Plus size={18} color="#FFFFFF" />
+              <Text style={styles.submitBtnText}>
+                {isSubmitting ? 'Adding...' : 'Add Task'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
-
-      {/* Date Picker - Native Only */}
-      {Platform.OS !== 'web' && showDatePicker && (
-        <DateTimePicker
-          value={selectedDate}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-          minimumDate={new Date()}
-        />
-      )}
-    </>
+      </View>
+    </Modal>
   );
 }
 
@@ -444,6 +552,35 @@ const styles = StyleSheet.create({
   },
   datePlaceholder: {
     color: '#9CA3AF',
+  },
+  timeDisplayText: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1F2937',
+  },
+
+  // Inline Picker (date + time) — shown inside the Modal for iPad compatibility
+  inlinePickerWrapper: {
+    marginTop: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  pickerDoneBtn: {
+    alignSelf: 'flex-end',
+    margin: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#10B981',
+    borderRadius: 8,
+  },
+  pickerDoneBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 
   // Time Presets

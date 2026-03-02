@@ -2568,7 +2568,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/get-daily-tasks?companyId=${company.id}&userId=${user.id}`);
       if (response.ok) {
-        const tasks = await response.json();
+        const data = await response.json();
+        const tasks = data.tasks ?? data;
         if (Array.isArray(tasks)) {
           setDailyTasks(tasks);
         }
@@ -2606,7 +2607,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       });
 
       if (response.ok) {
-        const newTask = await response.json();
+        const data = await response.json();
+        const newTask = data.task ?? data;
         // Replace temp task with real one from DB
         setDailyTasks(prev => prev.map(t => t.id === tempTask.id ? newTask : t));
 
