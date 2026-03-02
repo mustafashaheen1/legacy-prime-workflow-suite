@@ -19,6 +19,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { ProjectFile, FileCategory } from '@/types';
 import { photoCategories } from '@/mocks/data';
 import { compressImage, uriToBase64 } from '@/lib/upload-utils';
+import * as FileSystem from 'expo-file-system/legacy';
 
 type TabType = 'overview' | 'schedule' | 'estimate' | 'change-orders' | 'clock' | 'expenses' | 'photos' | 'videos' | 'files' | 'reports';
 
@@ -1970,16 +1971,6 @@ export default function ProjectDetailScreen() {
             // This avoids the unreliable fetch().blob() path on iOS photo-picker URIs.
             const compressed = await compressImage(selectedPhotoImage, { quality: 0.8 });
 
-            // Build a Blob from base64 for the S3 PUT upload
-            let blob: Blob;
-            if (Platform.OS === 'web') {
-              const resp = await fetch(compressed.uri);
-              blob = await resp.blob();
-            } else {
-              const byteArray = Uint8Array.from(atob(compressed.base64), c => c.charCodeAt(0));
-              blob = new Blob([byteArray], { type: 'image/jpeg' });
-            }
-
             // Get pre-signed upload URL (absolute URL — required on native iOS)
             const fileName = `photo-${Date.now()}-${photoCategory.toLowerCase().replace(/\s+/g, '-')}.jpg`;
             const urlResponse = await fetch(`${API_BASE}/api/get-s3-upload-url`, {
@@ -1996,15 +1987,28 @@ export default function ProjectDetailScreen() {
             const { uploadUrl, fileUrl } = await urlResponse.json();
             console.log('[Photos] Got upload URL, uploading to S3...');
 
-            // Upload to S3
-            const uploadResponse = await fetch(uploadUrl, {
-              method: 'PUT',
-              body: blob,
-              headers: { 'Content-Type': 'image/jpeg' },
-            });
-
-            if (!uploadResponse.ok) {
-              throw new Error('Failed to upload photo to S3');
+            // Upload to S3.
+            // On native: use FileSystem.uploadAsync which reads the file natively and sends
+            // raw bytes — avoids the Blob/ArrayBuffer limitation in Hermes.
+            // On web: Blob is fully supported so we fetch → blob → PUT.
+            if (Platform.OS === 'web') {
+              const resp = await fetch(compressed.uri);
+              const blob = await resp.blob();
+              const uploadResponse = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: blob,
+                headers: { 'Content-Type': 'image/jpeg' },
+              });
+              if (!uploadResponse.ok) throw new Error('Failed to upload photo to S3');
+            } else {
+              const uploadResult = await FileSystem.uploadAsync(uploadUrl, compressed.uri, {
+                httpMethod: 'PUT',
+                headers: { 'Content-Type': 'image/jpeg' },
+                uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+              });
+              if (uploadResult.status < 200 || uploadResult.status >= 300) {
+                throw new Error('Failed to upload photo to S3');
+              }
             }
 
             console.log('[Photos] Photo uploaded successfully:', fileUrl);

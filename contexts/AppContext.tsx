@@ -149,7 +149,7 @@ interface AppState {
   addClient: (client: Client) => void;
   updateClient: (id: string, updates: Partial<Client>) => void;
   addExpense: (expense: Expense) => void;
-  addPhoto: (photo: Photo) => void;
+  addPhoto: (photo: Photo) => Promise<void>;
   updatePhoto: (id: string, updates: Partial<Photo>) => void;
   addTask: (task: Task) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
