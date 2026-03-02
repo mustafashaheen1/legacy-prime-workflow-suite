@@ -7,6 +7,7 @@ import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment, ScheduledTas
 import { supabase } from '@/lib/supabase';
 import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
+import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import RequestEstimateComponent from '@/components/RequestEstimate';
 import GlobalAIChatSimple from '@/components/GlobalAIChatSimple';
 import { Image } from 'expo-image';
@@ -83,6 +84,7 @@ export default function ProjectDetailScreen() {
   const [paymentMethodInput, setPaymentMethodInput] = useState<Payment['method']>('cash');
   const [paymentClientNameInput, setPaymentClientNameInput] = useState('');
   const [paymentNotesInput, setPaymentNotesInput] = useState('');
+  const [showPaymentDatePicker, setShowPaymentDatePicker] = useState(false);
   const insets = useSafeAreaInsets();
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
@@ -729,6 +731,7 @@ export default function ProjectDetailScreen() {
                       setPaymentMethodInput('cash');
                       setPaymentClientNameInput('');
                       setPaymentNotesInput('');
+                      setShowPaymentDatePicker(false);
                       setShowAddPaymentModal(true);
                     }}
                     style={{
@@ -2953,13 +2956,34 @@ export default function ProjectDetailScreen() {
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>
                 Payment Date *
               </Text>
-              <TextInput
-                value={paymentDateInput}
-                onChangeText={setPaymentDateInput}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#9CA3AF"
-                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: '#111827', backgroundColor: '#F9FAFB', marginBottom: 14 }}
-              />
+              <TouchableOpacity
+                onPress={() => setShowPaymentDatePicker(p => !p)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: showPaymentDatePicker ? '#10B981' : '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: showPaymentDatePicker ? '#F0FDF4' : '#F9FAFB', marginBottom: 6 }}
+                activeOpacity={0.7}
+              >
+                <Calendar size={18} color={showPaymentDatePicker ? '#10B981' : '#6B7280'} />
+                <Text style={{ flex: 1, fontSize: 15, color: paymentDateInput ? '#111827' : '#9CA3AF' }}>
+                  {paymentDateInput
+                    ? new Date(paymentDateInput + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'Select payment date'}
+                </Text>
+                {paymentDateInput ? (
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); setPaymentDateInput(''); setShowPaymentDatePicker(false); }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.7}
+                  >
+                    <X size={15} color="#9CA3AF" />
+                  </TouchableOpacity>
+                ) : null}
+              </TouchableOpacity>
+              {showPaymentDatePicker && (
+                <CustomDatePicker
+                  value={paymentDateInput}
+                  onChange={(date) => { setPaymentDateInput(date); setShowPaymentDatePicker(false); }}
+                />
+              )}
+              <View style={{ marginBottom: 8 }} />
 
               {/* Payment Method */}
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 }}>
@@ -3014,8 +3038,8 @@ export default function ProjectDetailScreen() {
                     Alert.alert('Invalid Amount', 'Please enter a valid payment amount greater than $0.');
                     return;
                   }
-                  if (!paymentDateInput.trim()) {
-                    Alert.alert('Date Required', 'Please enter the payment date (YYYY-MM-DD).');
+                  if (!paymentDateInput.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDateInput.trim())) {
+                    Alert.alert('Date Required', 'Please select the payment date.');
                     return;
                   }
                   if (!paymentClientNameInput.trim()) {
