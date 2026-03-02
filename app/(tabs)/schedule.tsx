@@ -14,7 +14,7 @@ import {
   Pressable,
   KeyboardAvoidingView,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
@@ -177,6 +177,7 @@ export default function ScheduleScreen() {
   const [newTaskIsReminder, setNewTaskIsReminder] = useState<boolean>(false);
   const [showCompletedTasks, setShowCompletedTasks] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [showCompletionDatePicker, setShowCompletionDatePicker] = useState<boolean>(false);
   
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [customSubPhases, setCustomSubPhases] = useState<PhaseStructure[]>([]);
@@ -1909,15 +1910,26 @@ ${pdfDates.length > 0 ? `
                           style={{ border: '1px solid #D1D5DB', borderRadius: 8, padding: '8px 12px', fontSize: 14, color: '#111827', background: '#fff', outline: 'none' } as any}
                         />
                       ) : (
-                        <DateTimePicker
-                          value={editCompletedDate ? new Date(editCompletedDate + 'T00:00:00') : new Date()}
-                          mode="date"
-                          display="compact"
-                          minimumDate={editingTask ? new Date(editingTask.startDate.split('T')[0] + 'T00:00:00') : undefined}
-                          onChange={(_: any, date?: Date) => {
-                            if (date) setEditCompletedDate(date.toISOString().split('T')[0]);
-                          }}
-                        />
+                        <>
+                          <TouchableOpacity
+                            onPress={() => setShowCompletionDatePicker(p => !p)}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#F3F4F6', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' }}
+                          >
+                            <Calendar size={14} color="#6B7280" />
+                            <Text style={{ fontSize: 13, color: '#374151', fontWeight: '500' }}>
+                              {editCompletedDate
+                                ? new Date(editCompletedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                : 'Select date'}
+                            </Text>
+                          </TouchableOpacity>
+                          {showCompletionDatePicker && (
+                            <CustomDatePicker
+                              value={editCompletedDate}
+                              onChange={(date) => { setEditCompletedDate(date); setShowCompletionDatePicker(false); }}
+                              minimumDate={editingTask ? new Date(editingTask.startDate.split('T')[0] + 'T00:00:00') : undefined}
+                            />
+                          )}
+                        </>
                       )}
                     </View>
                   )}
@@ -2341,75 +2353,25 @@ ${pdfDates.length > 0 ? `
                   <View style={styles.dueDateSection}>
                     <Text style={styles.smallLabel}>Due Date</Text>
                     <View style={styles.dateInputContainer}>
-                      {Platform.OS === 'web' ? (
-                        <>
-                          <TextInput
-                            style={styles.dateInput}
-                            value={newTaskDueDate}
-                            onChangeText={setNewTaskDueDate}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor="#9CA3AF"
-                          />
-                          <TouchableOpacity
-                            style={styles.calendarIconButton}
-                            onPress={() => {
-                              const dateInput = document.createElement('input');
-                              dateInput.type = 'date';
-                              dateInput.value = newTaskDueDate;
-                              dateInput.onchange = (e) => {
-                                const target = e.target as HTMLInputElement;
-                                if (target.value) {
-                                  setNewTaskDueDate(target.value);
-                                }
-                              };
-                              dateInput.click();
-                            }}
-                          >
-                            <Calendar size={20} color="#0EA5E9" />
-                          </TouchableOpacity>
-                        </>
-                      ) : (
-                        <>
-                          <TextInput
-                            style={styles.dateInput}
-                            value={newTaskDueDate}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor="#9CA3AF"
-                            editable={false}
-                          />
-                          <TouchableOpacity
-                            style={[styles.calendarIconButton, showDatePicker && styles.calendarIconButtonActive]}
-                            onPress={() => setShowDatePicker(!showDatePicker)}
-                          >
-                            <Calendar size={20} color={showDatePicker ? "#FFFFFF" : "#0EA5E9"} />
-                          </TouchableOpacity>
-                        </>
-                      )}
+                      <TextInput
+                        style={styles.dateInput}
+                        value={newTaskDueDate}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor="#9CA3AF"
+                        editable={false}
+                      />
+                      <TouchableOpacity
+                        style={[styles.calendarIconButton, showDatePicker && styles.calendarIconButtonActive]}
+                        onPress={() => setShowDatePicker(p => !p)}
+                      >
+                        <Calendar size={20} color={showDatePicker ? "#FFFFFF" : "#0EA5E9"} />
+                      </TouchableOpacity>
                     </View>
-                    {showDatePicker && Platform.OS !== 'web' && (
-                      <View style={styles.inlineDatePickerContainer}>
-                        <View style={styles.inlineDatePickerHeader}>
-                          <Text style={styles.inlineDatePickerTitle}>Select Due Date</Text>
-                          <TouchableOpacity style={styles.inlineDatePickerCloseButton} onPress={() => setShowDatePicker(false)}>
-                            <X size={20} color="#6B7280" />
-                          </TouchableOpacity>
-                        </View>
-                        <DateTimePicker
-                          value={new Date(newTaskDueDate)}
-                          mode="date"
-                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                          onChange={(event, selectedDate) => {
-                            if (Platform.OS === 'android') setShowDatePicker(false);
-                            if (selectedDate) setNewTaskDueDate(selectedDate.toISOString().split('T')[0]);
-                          }}
-                          style={{ width: '100%' }}
-                        />
-                        {Platform.OS === 'ios' && (
-                          <TouchableOpacity style={styles.inlineDatePickerDoneButton} onPress={() => setShowDatePicker(false)}>
-                            <Text style={styles.inlineDatePickerDoneText}>Done</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
+                    {showDatePicker && (
+                      <CustomDatePicker
+                        value={newTaskDueDate}
+                        onChange={(date) => { setNewTaskDueDate(date); setShowDatePicker(false); }}
+                      />
                     )}
                   </View>
 
