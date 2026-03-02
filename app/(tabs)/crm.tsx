@@ -160,31 +160,35 @@ export default function CRMScreen() {
 
   // Handle adding a new client via direct API
   const handleAddClient = async (fromModal: boolean = false) => {
-    if (!newClientName || !newClientEmail || !newClientPhone || !newClientSource) {
-      showAlert('Error', 'Please fill in all required fields (Name, Email, Phone, Source)');
+    // Collect all field errors at once so every invalid field is highlighted together
+    const errors: typeof clientFieldErrors = {};
+
+    if (!newClientName.trim()) {
+      errors.name = "Please enter the client's name";
+    }
+    if (!newClientEmail.trim()) {
+      errors.email = 'An email address is required';
+    } else if (!isValidEmail(newClientEmail)) {
+      errors.email = "That email doesn't look right — check the format";
+    }
+    if (!newClientPhone) {
+      errors.phone = 'A phone number is required';
+    } else if (!isValidUSPhone(newClientPhone)) {
+      errors.phone = 'Enter a valid 10-digit US phone number (e.g. 5551234567)';
+    }
+    if (!newClientSource) {
+      errors.source = 'Please select how you found this client';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setClientFieldErrors(errors);
       return;
     }
 
-    // Validate US phone number
-    if (!isValidUSPhone(newClientPhone)) {
-      showAlert('Error', 'Please enter a valid US phone number (10 digits)');
-      return;
-    }
-
-    // Validate email address
-    if (!isValidEmail(newClientEmail)) {
-      showAlert('Error', 'Please enter a valid email address');
-      return;
-    }
-
-    const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
-    if (!validSources.includes(newClientSource)) {
-      showAlert('Error', 'Source must be one of: Google, Referral, Ad, Phone Call');
-      return;
-    }
+    setClientFieldErrors({});
 
     if (!company?.id) {
-      showAlert('Error', 'No company found. Please log in again.');
+      showAlert('Error', 'Something went wrong — please log out and back in.');
       return;
     }
 
@@ -250,6 +254,7 @@ export default function CRMScreen() {
     setNewClientEmail('');
     setNewClientPhone('');
     setNewClientSource('');
+    setClientFieldErrors({});
     setShowAddClientModal(true);
   };
 
@@ -261,6 +266,12 @@ export default function CRMScreen() {
   const [newClientEmail, setNewClientEmail] = useState<string>('');
   const [newClientPhone, setNewClientPhone] = useState<string>('');
   const [newClientSource, setNewClientSource] = useState<string>('');
+  const [clientFieldErrors, setClientFieldErrors] = useState<{
+    name?: string;
+    email?: string;
+    phone?: string;
+    source?: string;
+  }>({});
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [showMessageModal, setShowMessageModal] = useState<boolean>(false);
   const [messageType, setMessageType] = useState<MessageType>('email');
@@ -1758,48 +1769,66 @@ export default function CRMScreen() {
             </View>
 
             <ScrollView style={styles.modalBody}>
-              <Text style={styles.inputLabel}>Name *</Text>
+              <Text style={styles.inputLabel}>Full Name <Text style={styles.requiredStar}>*</Text></Text>
               <TextInput
-                style={styles.modalInput}
-                placeholder="Client name"
+                style={[styles.modalInput, clientFieldErrors.name && styles.modalInputError]}
+                placeholder="e.g. John Smith"
                 placeholderTextColor="#9CA3AF"
                 value={newClientName}
-                onChangeText={setNewClientName}
+                onChangeText={(text) => {
+                  setNewClientName(text);
+                  if (clientFieldErrors.name) setClientFieldErrors(e => ({ ...e, name: undefined }));
+                }}
               />
+              {clientFieldErrors.name && (
+                <Text style={styles.fieldErrorText}>{clientFieldErrors.name}</Text>
+              )}
 
-              <Text style={styles.inputLabel}>Email *</Text>
+              <Text style={styles.inputLabel}>Email Address <Text style={styles.requiredStar}>*</Text></Text>
               <TextInput
-                style={styles.modalInput}
-                placeholder="client@email.com"
+                style={[styles.modalInput, clientFieldErrors.email && styles.modalInputError]}
+                placeholder="e.g. john@example.com"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={newClientEmail}
-                onChangeText={setNewClientEmail}
+                onChangeText={(text) => {
+                  setNewClientEmail(text);
+                  if (clientFieldErrors.email) setClientFieldErrors(e => ({ ...e, email: undefined }));
+                }}
               />
+              {clientFieldErrors.email && (
+                <Text style={styles.fieldErrorText}>{clientFieldErrors.email}</Text>
+              )}
 
-              <Text style={styles.inputLabel}>Phone * (10 digits only)</Text>
+              <Text style={styles.inputLabel}>Phone Number <Text style={styles.requiredStar}>*</Text></Text>
               <TextInput
-                style={styles.modalInput}
-                placeholder="5551234567"
+                style={[styles.modalInput, clientFieldErrors.phone && styles.modalInputError]}
+                placeholder="e.g. 5551234567"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="number-pad"
                 maxLength={10}
                 value={newClientPhone}
-                onChangeText={(text) => setNewClientPhone(filterPhoneInput(text))}
+                onChangeText={(text) => {
+                  setNewClientPhone(filterPhoneInput(text));
+                  if (clientFieldErrors.phone) setClientFieldErrors(e => ({ ...e, phone: undefined }));
+                }}
               />
+              {clientFieldErrors.phone && (
+                <Text style={styles.fieldErrorText}>{clientFieldErrors.phone}</Text>
+              )}
 
-              <Text style={styles.inputLabel}>Address</Text>
+              <Text style={styles.inputLabel}>Address <Text style={styles.optionalHint}>(optional)</Text></Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="123 Main St, City, State"
+                placeholder="e.g. 123 Main St, Dallas, TX"
                 placeholderTextColor="#9CA3AF"
                 value={newClientAddress}
                 onChangeText={setNewClientAddress}
               />
 
-              <Text style={styles.inputLabel}>Source *</Text>
-              <View style={styles.sourceButtonsContainer}>
+              <Text style={styles.inputLabel}>How did they find you? <Text style={styles.requiredStar}>*</Text></Text>
+              <View style={[styles.sourceButtonsContainer, clientFieldErrors.source && styles.sourceButtonsError]}>
                 {['Google', 'Referral', 'Ad', 'Phone Call'].map((source) => (
                   <TouchableOpacity
                     key={source}
@@ -1807,7 +1836,10 @@ export default function CRMScreen() {
                       styles.sourceButton,
                       newClientSource === source && styles.sourceButtonActive
                     ]}
-                    onPress={() => setNewClientSource(source)}
+                    onPress={() => {
+                      setNewClientSource(source);
+                      if (clientFieldErrors.source) setClientFieldErrors(e => ({ ...e, source: undefined }));
+                    }}
                   >
                     <Text style={[
                       styles.sourceButtonText,
@@ -1816,6 +1848,9 @@ export default function CRMScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              {clientFieldErrors.source && (
+                <Text style={styles.fieldErrorText}>{clientFieldErrors.source}</Text>
+              )}
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -5207,7 +5242,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1F2937',
     backgroundColor: '#F9FAFB',
-    marginBottom: 16,
+    marginBottom: 4,
+  },
+  modalInputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FFF5F5',
+  },
+  fieldErrorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginBottom: 12,
+    marginTop: 2,
+  },
+  requiredStar: {
+    color: '#EF4444',
+  },
+  optionalHint: {
+    color: '#9CA3AF',
+    fontWeight: '400' as const,
+    fontSize: 12,
+  },
+  sourceButtonsError: {
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    borderRadius: 8,
+    padding: 6,
   },
   submitButtonDisabled: {
     opacity: 0.6,
