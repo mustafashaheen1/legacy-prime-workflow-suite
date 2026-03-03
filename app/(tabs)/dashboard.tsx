@@ -73,28 +73,41 @@ export default function DashboardScreen() {
     [expenses, activeProjects]
   );
 
-  // Monthly expenses for the last 8 months — real data from the expenses array.
-  const monthlySales = useMemo(() => {
+  // Monthly revenue for the last 8 months — grouped by project startDate.
+  // Each bar = sum of contractAmount for all projects that started in that month.
+  const monthlyRevenue = useMemo(() => {
     const now = new Date();
+    const allNonArchived = projects.filter(p => p.status !== 'archived');
     return Array.from({ length: 8 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - (7 - i), 1);
       const monthNum = d.getMonth();
       const year = d.getFullYear();
-      const amount = expenses
-        .filter(e => {
-          const ed = new Date(e.date);
-          return ed.getMonth() === monthNum && ed.getFullYear() === year &&
-            activeProjects.some(p => p.id === e.projectId);
+      const revenue = allNonArchived
+        .filter(p => {
+          if (!p.startDate || !(p.contractAmount ?? 0)) return false;
+          const sd = new Date(p.startDate);
+          return sd.getMonth() === monthNum && sd.getFullYear() === year;
         })
-        .reduce((sum, e) => sum + e.amount, 0);
+        .reduce((sum, p) => sum + (p.contractAmount ?? 0), 0);
+      const count = allNonArchived.filter(p => {
+        if (!p.startDate || !(p.contractAmount ?? 0)) return false;
+        const sd = new Date(p.startDate);
+        return sd.getMonth() === monthNum && sd.getFullYear() === year;
+      }).length;
       return {
         month: d.toLocaleString('default', { month: 'short' }),
-        amount,
+        revenue,
+        count,
       };
     });
-  }, [expenses, activeProjects]);
+  }, [projects]);
 
-  const maxSale = Math.max(...monthlySales.map(s => s.amount), 1); // guard against 0
+  const maxRevenue = Math.max(...monthlyRevenue.map(m => m.revenue), 1);
+
+  const totalProjectsWithContract = useMemo(() =>
+    activeProjects.filter(p => (p.contractAmount ?? 0) > 0).length,
+    [activeProjects]
+  );
 
   const projectExpenses = useMemo(() => {
     return activeProjects.map(project => ({
@@ -1212,14 +1225,24 @@ export default function DashboardScreen() {
           <View style={styles.statCard}>
             <Text style={styles.statTitle}>{t('dashboard.totalSold')}</Text>
             <Text style={styles.statValue}>${totalSold.toLocaleString()}</Text>
-            <Text style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>Monthly Expenses</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ fontSize: 11, color: '#6B7280' }}>Monthly Revenue</Text>
+              <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '600' }}>
+                {totalProjectsWithContract} contract{totalProjectsWithContract !== 1 ? 's' : ''}
+              </Text>
+            </View>
             <View style={styles.chartContainer}>
-              {monthlySales.map((sale, index) => {
-                const height = (sale.amount / maxSale) * 100;
+              {monthlyRevenue.map((item, index) => {
+                const height = (item.revenue / maxRevenue) * 100;
                 return (
                   <View key={index} style={styles.barWrapper}>
-                    <View style={[styles.bar, { height: `${height}%` }]} />
-                    <Text style={styles.barLabel}>{sale.month}</Text>
+                    {item.count > 0 && (
+                      <Text style={{ fontSize: 8, color: '#10B981', fontWeight: '700', marginBottom: 2, textAlign: 'center' }}>
+                        ${item.revenue >= 1000 ? `${(item.revenue / 1000).toFixed(0)}k` : item.revenue}
+                      </Text>
+                    )}
+                    <View style={[styles.bar, { height: `${Math.max(height, item.count > 0 ? 4 : 0)}%`, backgroundColor: item.count > 0 ? '#10B981' : '#E5E7EB' }]} />
+                    <Text style={styles.barLabel}>{item.month}</Text>
                   </View>
                 );
               })}
