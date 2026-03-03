@@ -8,7 +8,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'expo-image';
-import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Check, Edit3, Clock, Info } from 'lucide-react-native';
+import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Check, Edit3, Clock, Info, Users, DollarSign } from 'lucide-react-native';
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
 import DocumentScannerModal, { DocumentScanResult } from '@/components/DocumentScannerModal';
 
@@ -72,6 +72,27 @@ export default function ProjectExpensesScreen() {
     expenses.filter(e => e.projectId === id),
     [expenses, id]
   );
+
+  const laborSummary = useMemo(() => {
+    const laborExpenses = filteredExpenses.filter(e => e.type === 'Labor');
+    const totalLaborCost = laborExpenses.reduce((sum, e) => sum + e.amount, 0);
+    // Parse hours from notes field: "2.50 hrs @ $25/hr"
+    const totalHours = laborExpenses.reduce((sum, e) => {
+      const match = e.notes?.match(/^([\d.]+)\s*hrs?/);
+      return sum + (match ? parseFloat(match[1]) : 0);
+    }, 0);
+    // Group by employee name for breakdown
+    const byEmployee: Record<string, { hours: number; cost: number; rate: number }> = {};
+    laborExpenses.forEach(e => {
+      const name = e.store || 'Unknown';
+      if (!byEmployee[name]) byEmployee[name] = { hours: 0, cost: 0, rate: 0 };
+      const match = e.notes?.match(/^([\d.]+)\s*hrs?\s*@\s*\$([\d.]+)/);
+      byEmployee[name].hours += match ? parseFloat(match[1]) : 0;
+      byEmployee[name].cost += e.amount;
+      byEmployee[name].rate = match ? parseFloat(match[2]) : byEmployee[name].rate;
+    });
+    return { totalLaborCost, totalHours, byEmployee, count: laborExpenses.length };
+  }, [filteredExpenses]);
 
   const projectExpenseTotal = useMemo(() =>
     filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
@@ -892,6 +913,54 @@ export default function ProjectExpensesScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* ── Labor Cost Summary Card ─────────────────── */}
+          {user?.role === 'admin' && laborSummary.count > 0 && (
+            <View style={styles.laborSummaryCard}>
+              <View style={styles.laborSummaryHeader}>
+                <Clock size={18} color="#7C3AED" />
+                <Text style={styles.laborSummaryTitle}>Labor Cost Summary</Text>
+              </View>
+
+              {/* Totals row */}
+              <View style={styles.laborTotalsRow}>
+                <View style={styles.laborTotalBlock}>
+                  <Text style={styles.laborTotalValue}>${laborSummary.totalLaborCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                  <Text style={styles.laborTotalLabel}>Total Labor Cost</Text>
+                </View>
+                <View style={styles.laborTotalDivider} />
+                <View style={styles.laborTotalBlock}>
+                  <Text style={styles.laborTotalValue}>{laborSummary.totalHours.toFixed(2)}h</Text>
+                  <Text style={styles.laborTotalLabel}>Total Hours</Text>
+                </View>
+                <View style={styles.laborTotalDivider} />
+                <View style={styles.laborTotalBlock}>
+                  <Text style={styles.laborTotalValue}>{Object.keys(laborSummary.byEmployee).length}</Text>
+                  <Text style={styles.laborTotalLabel}>Employees</Text>
+                </View>
+              </View>
+
+              {/* Per-employee breakdown */}
+              {Object.entries(laborSummary.byEmployee).map(([name, data]) => (
+                <View key={name} style={styles.laborEmployeeRow}>
+                  <View style={styles.laborEmployeeLeft}>
+                    <View style={styles.laborEmployeeAvatar}>
+                      <Users size={12} color="#7C3AED" />
+                    </View>
+                    <View>
+                      <Text style={styles.laborEmployeeName}>{name}</Text>
+                      {data.rate > 0 && (
+                        <Text style={styles.laborEmployeeRate}>{data.hours.toFixed(2)}h @ ${data.rate}/hr</Text>
+                      )}
+                    </View>
+                  </View>
+                  <Text style={styles.laborEmployeeCost}>
+                    ${data.cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           {user?.role === 'admin' && (
             <View style={styles.expensesList}>
               <Text style={styles.sectionTitle}>Recent Expenses</Text>
@@ -901,7 +970,7 @@ export default function ProjectExpensesScreen() {
                 <View style={styles.infoBox}>
                   <Info size={16} color="#3B82F6" />
                   <Text style={styles.infoText}>
-                    Labor expenses are automatically created when employees clock out. To modify, adjust the clock entry or employee's hourly rate.
+                    Labor expenses are auto-created when employees clock out. To modify, adjust the clock entry or hourly rate in the employee profile.
                   </Text>
                 </View>
               )}
@@ -2139,6 +2208,93 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
     fontStyle: 'italic' as const,
+  },
+
+  // ── Labor cost summary card ──────────────────────────────
+  laborSummaryCard: {
+    backgroundColor: '#FAF5FF',
+    borderRadius: 14,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+  },
+  laborSummaryHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: 14,
+  },
+  laborSummaryTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#6D28D9',
+  },
+  laborTotalsRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
+  laborTotalBlock: {
+    flex: 1,
+    alignItems: 'center' as const,
+  },
+  laborTotalValue: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  laborTotalLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    textAlign: 'center' as const,
+  },
+  laborTotalDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#E5E7EB',
+  },
+  laborEmployeeRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#EDE9FE',
+  },
+  laborEmployeeLeft: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    flex: 1,
+  },
+  laborEmployeeAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EDE9FE',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  laborEmployeeName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  laborEmployeeRate: {
+    fontSize: 12,
+    color: '#7C3AED',
+    marginTop: 1,
+  },
+  laborEmployeeCost: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: '#6D28D9',
   },
 
   // ── Expense detail bottom sheet ─────────────────────────

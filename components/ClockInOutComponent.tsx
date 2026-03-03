@@ -198,7 +198,8 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     console.log(`[Clock Out] Work performed: ${workPerformed || 'N/A'}`);
 
     // Auto-create labor expense if hourly rate is set
-    if (user?.hourlyRate && hoursWorked > 0 && projectId) {
+    let laborCostMessage = '';
+    if (user?.hourlyRate && user.hourlyRate > 0 && hoursWorked > 0 && projectId) {
       // Check if labor expense already exists for this clock entry
       const existingExpense = expenses.find(exp =>
         exp.clockEntryId === currentEntry.id && exp.type === 'Labor'
@@ -207,7 +208,7 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
       if (existingExpense) {
         console.log('[Clock Out] Labor expense already exists for this clock entry');
       } else {
-        const laborCost = hoursWorked * user.hourlyRate;
+        const laborCost = Math.round(hoursWorked * user.hourlyRate * 100) / 100;
 
         const laborExpense = {
           id: `labor-${currentEntry.id}-${Date.now()}`,
@@ -218,14 +219,13 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
           amount: laborCost,
           store: user.name || 'Unknown Employee',
           date: clockOutTime,
-          receiptUrl: '',
-          notes: `${hoursWorked.toFixed(2)} hours @ $${user.hourlyRate}/hour`,
+          notes: `${hoursWorked.toFixed(2)} hrs @ $${user.hourlyRate}/hr`,
           createdAt: new Date().toISOString(),
           clockEntryId: currentEntry.id,
         };
 
         await addExpense(laborExpense);
-
+        laborCostMessage = `\nLabor cost: $${laborCost.toFixed(2)} (${hoursWorked.toFixed(2)} hrs @ $${user.hourlyRate}/hr)`;
         console.log('[Clock Out] Created labor expense:', laborExpense.id, `$${laborCost.toFixed(2)}`);
       }
     } else {
@@ -242,7 +242,7 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
     setWorkPerformed('');
     setSelectedCategory('');
     setShowClockOutModal(false);
-    Alert.alert('Success', `Clocked out successfully. Total hours: ${hoursWorked.toFixed(2)}h`);
+    Alert.alert('Clocked Out', `Total hours: ${hoursWorked.toFixed(2)}h${laborCostMessage}`);
   };
 
   const isOnLunch = () => {

@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const { projectId, type, subcategory, amount, store, date, receiptUrl, imageHash, ocrFingerprint, imageSizeBytes } = req.body;
+    const { projectId, type, subcategory, amount, store, date, receiptUrl, imageHash, ocrFingerprint, imageSizeBytes, clockEntryId, notes } = req.body;
 
     console.log('[AddExpense] Adding expense:', amount, 'for project:', projectId, 'by user:', authUser.id);
 
@@ -101,7 +101,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         image_hash: imageHash || null,
         ocr_fingerprint: ocrFingerprint || null,
         image_size_bytes: imageSizeBytes || null,
-        uploaded_by: authUser.id, // 🎯 PHASE 3: Auto-capture uploader
+        clock_entry_id: clockEntryId || null,
+        notes: notes || null,
+        uploaded_by: authUser.id,
       })
       .select()
       .single();
@@ -143,6 +145,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         store: data.store,
         date: data.date,
         receiptUrl: data.receipt_url || undefined,
+        clockEntryId: data.clock_entry_id || undefined,
+        notes: data.notes || undefined,
       },
       insertDuration,
     });

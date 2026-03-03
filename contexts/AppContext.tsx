@@ -1337,7 +1337,6 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
-            // 🎯 SECURITY: Remove companyId from body - comes from JWT now
             projectId: expense.projectId,
             type: expense.type,
             subcategory: expense.subcategory,
@@ -1348,6 +1347,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             imageHash: expense.imageHash,
             ocrFingerprint: expense.ocrFingerprint,
             imageSizeBytes: expense.imageSizeBytes,
+            clockEntryId: expense.clockEntryId,
+            notes: expense.notes,
           }),
         });
 
@@ -1360,10 +1361,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         const result = await response.json();
         console.log('[App] Expense saved to backend:', result.expense?.id);
 
-        // Update the expense with the database ID
+        // Update the expense with the database-assigned values
         if (result.expense?.id) {
           setExpenses(prev => prev.map(e =>
-            e.id === expense.id ? { ...e, id: result.expense.id } : e
+            e.id === expense.id ? { ...e, id: result.expense.id, clockEntryId: result.expense.clockEntryId ?? e.clockEntryId } : e
           ));
         }
       } catch (error) {
