@@ -1286,8 +1286,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [company?.id, refreshDailyLogs]);
 
   const addExpense = useCallback(async (expense: Expense) => {
-    // Optimistically update UI
-    setExpenses(prev => [...prev, expense]);
+    // Optimistically update UI — attach current user so name shows immediately
+    const optimisticExpense: Expense = {
+      ...expense,
+      uploader: user ? { id: user.id, name: user.name, email: user.email, avatar: user.avatar } : null,
+    };
+    setExpenses(prev => [...prev, optimisticExpense]);
 
     // Save to backend if company exists
     if (company?.id) {

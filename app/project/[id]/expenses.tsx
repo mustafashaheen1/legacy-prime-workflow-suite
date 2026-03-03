@@ -956,6 +956,9 @@ export default function ProjectExpensesScreen() {
                               <Text style={styles.expenseNotes}>{expense.notes}</Text>
                             )}
                           </View>
+                        </View>
+                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                          <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
                           {expense.receiptUrl && (
                             <TouchableOpacity
                               style={styles.receiptBadge}
@@ -965,7 +968,6 @@ export default function ProjectExpensesScreen() {
                             </TouchableOpacity>
                           )}
                         </View>
-                        <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
                       </View>
                       <Text style={styles.expenseStore}>{expense.store}</Text>
                       <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
