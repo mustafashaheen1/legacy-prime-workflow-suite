@@ -6,6 +6,7 @@ import { useApp } from '@/contexts/AppContext';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'expo-image';
 import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Check, Edit3, Clock, Info } from 'lucide-react-native';
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
@@ -547,6 +548,24 @@ export default function ProjectExpensesScreen() {
 
       if (!imageData || imageData.length < 100) {
         throw new Error('Invalid file data');
+      }
+
+      // Safety cap: if base64 payload is > 3 MB, re-compress to avoid Vercel's
+      // 4.5 MB serverless body limit (base64 + JSON overhead would exceed it)
+      const BASE64_LIMIT = 3 * 1024 * 1024;
+      if (!isPdf && imageData.length > BASE64_LIMIT) {
+        console.log(`[Receipt] Image too large (${Math.round(imageData.length / 1024)}KB base64), re-compressing...`);
+        try {
+          const recompressed = await ImageManipulator.manipulateAsync(
+            uri,
+            [{ resize: { width: 1024 } }],
+            { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+          );
+          imageData = `data:image/jpeg;base64,${recompressed.base64 ?? ''}`;
+          console.log(`[Receipt] Re-compressed to ${Math.round(imageData.length / 1024)}KB`);
+        } catch (compressErr) {
+          console.warn('[Receipt] Re-compression failed, proceeding with original:', compressErr);
+        }
       }
 
       // Analyze with OpenAI

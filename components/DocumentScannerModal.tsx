@@ -127,11 +127,12 @@ export default function DocumentScannerModal({
     if (!capturedUri) return;
     setPhase('processing');
     try {
-      // Resize to 2048 px wide for OCR accuracy; extract base64
+      // Resize to 1024 px wide — sufficient for OCR/AI receipt analysis and
+      // keeps base64 payload well under Vercel's 4.5 MB serverless body limit.
       const processed = await ImageManipulator.manipulateAsync(
         capturedUri,
-        [{ resize: { width: 2048 } }],
-        { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        [{ resize: { width: 1024 } }],
+        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true }
       );
       onCapture({ uri: processed.uri, base64: processed.base64 ?? '' });
     } catch (e) {
