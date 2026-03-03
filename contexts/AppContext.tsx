@@ -1293,8 +1293,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (company?.id) {
       try {
         // Use direct API endpoint (bypasses tRPC for reliability)
-        const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-                      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+        const apiUrl = getApiBaseUrl();
 
         console.log('[App] Saving expense to:', `${apiUrl}/api/add-expense`);
 
@@ -1472,8 +1471,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (company?.id && user?.id) {
       try {
         console.log('[App] Calling /api/clock-in...');
-        const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-                      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+        const apiUrl = getApiBaseUrl();
 
         const response = await fetch(`${apiUrl}/api/clock-in`, {
           method: 'POST',
@@ -1526,8 +1524,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     if (updates.clockOut) {
       try {
         console.log('[App] Calling /api/clock-out...');
-        const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-                      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+        const apiUrl = getApiBaseUrl();
 
         // Transform lunchBreaks to match backend schema (startTime/endTime -> start/end)
         const transformedLunchBreaks = updates.lunchBreaks?.map(lb => ({

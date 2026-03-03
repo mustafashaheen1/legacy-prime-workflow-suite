@@ -157,7 +157,7 @@ export default function PhotosScreen() {
         throw new Error('You must be logged in to upload photos');
       }
 
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
       const response = await fetch(`${baseUrl}/api/add-photo`, {
         method: 'POST',
         headers: {
