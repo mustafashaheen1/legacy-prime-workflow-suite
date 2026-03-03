@@ -9,6 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Check, Edit3, Clock, Info } from 'lucide-react-native';
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
+import DocumentScannerModal, { DocumentScanResult } from '@/components/DocumentScannerModal';
 
 interface ExtractedExpense {
   store: string;
@@ -46,6 +47,7 @@ export default function ProjectExpensesScreen() {
   const [modalAmount, setModalAmount] = useState<string>('');
   const [modalCategory, setModalCategory] = useState<string>('');
   const [isSavingExpense, setIsSavingExpense] = useState<boolean>(false);
+  const [showDocumentScanner, setShowDocumentScanner] = useState<boolean>(false);
 
   // Receipt viewer state
   const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
@@ -82,8 +84,7 @@ export default function ProjectExpensesScreen() {
   const uploadToS3 = async (fileData: string | Blob, fileName: string, fileType: string): Promise<string> => {
     console.log('[S3] Uploading receipt to S3 using presigned URL...');
 
-    const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-                  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
     // Step 1: Get presigned URL from API
     const urlResponse = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
@@ -140,8 +141,7 @@ export default function ProjectExpensesScreen() {
   const analyzeReceiptWithOpenAI = async (imageData: string): Promise<{ data: ExtractedExpense | null; isValidReceipt: boolean; message?: string }> => {
     console.log('[OpenAI] Analyzing receipt...');
 
-    const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-                  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
     const response = await fetch(`${apiUrl}/api/analyze-receipt`, {
       method: 'POST',
@@ -217,8 +217,7 @@ export default function ProjectExpensesScreen() {
   // Check for duplicate receipts
   const checkForDuplicates = async (imageBase64: string, ocrData: any) => {
     try {
-      const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-                    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
       const response = await fetch(`${apiUrl}/api/check-duplicate-receipt`, {
         method: 'POST',
@@ -608,34 +607,19 @@ export default function ProjectExpensesScreen() {
     }
   };
 
-  // Button 1: Scan Receipt (Camera)
-  const handleScanReceipt = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Camera access is required to scan receipts.');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        await processReceipt(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error scanning receipt:', error);
-      Alert.alert('Error', 'Failed to access camera. Please try again.');
-    }
+  // Button 1: Scan Receipt (Document Scanner)
+  const handleScanReceipt = () => {
+    setShowDocumentScanner(true);
   };
 
-  // Button 2: Receipt (also camera, same as scan)
-  const handleReceiptButton = async () => {
-    await handleScanReceipt();
+  const handleDocScanCapture = async (result: DocumentScanResult) => {
+    setShowDocumentScanner(false);
+    await processReceipt(result.uri);
+  };
+
+  // Button 2: Receipt (same as scan)
+  const handleReceiptButton = () => {
+    handleScanReceipt();
   };
 
   // Button 3: Upload Receipt (Photo Library)
@@ -1363,6 +1347,13 @@ export default function ProjectExpensesScreen() {
             </View>
           </View>
         )}
+
+        <DocumentScannerModal
+          visible={showDocumentScanner}
+          onCapture={handleDocScanCapture}
+          onClose={() => setShowDocumentScanner(false)}
+          title="Scan Receipt"
+        />
       </View>
     </>
   );

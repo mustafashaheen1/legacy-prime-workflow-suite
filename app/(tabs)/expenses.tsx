@@ -9,6 +9,7 @@ import { Image } from 'expo-image';
 import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File } from 'lucide-react-native';
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
 import UploaderBadge from '@/components/UploaderBadge';
+import DocumentScannerModal, { DocumentScanResult } from '@/components/DocumentScannerModal';
 
 export default function ExpensesScreen() {
   const { expenses, addExpense, projects, user, refreshExpenses, priceListCategories } = useApp();
@@ -36,6 +37,7 @@ export default function ExpensesScreen() {
   const [validationError, setValidationError] = useState<string>('');
   const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
   const [ocrData, setOcrData] = useState<any>(null);
+  const [showDocumentScanner, setShowDocumentScanner] = useState<boolean>(false);
 
   // Reload expenses when component mounts
   useEffect(() => {
@@ -79,8 +81,7 @@ export default function ExpensesScreen() {
   // Check for duplicate receipts
   const checkForDuplicates = async (imageBase64: string, ocrData: any) => {
     try {
-      const apiUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-                    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
       const response = await fetch(`${apiUrl}/api/check-duplicate-receipt`, {
         method: 'POST',
@@ -213,28 +214,13 @@ export default function ExpensesScreen() {
     }
   };
 
-  const handleScanReceipt = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Camera access is required to scan receipts.');
-        return;
-      }
+  const handleScanReceipt = () => {
+    setShowDocumentScanner(true);
+  };
 
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        await processReceipt(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error scanning receipt:', error);
-      Alert.alert('Error', 'Failed to scan receipt. Please try again.');
-    }
+  const handleDocScanCapture = async (result: DocumentScanResult) => {
+    setShowDocumentScanner(false);
+    await processReceipt(result.uri);
   };
 
   const handleUploadReceipt = async () => {
@@ -389,7 +375,7 @@ export default function ExpensesScreen() {
       console.log('[OCR] Sending request to API...');
 
       // Call the API endpoint instead of using SDK
-      const apiUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081';
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
       const apiResponse = await fetch(`${apiUrl}/api/analyze-receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -919,6 +905,13 @@ export default function ExpensesScreen() {
           </View>
         </View>
       )}
+
+      <DocumentScannerModal
+        visible={showDocumentScanner}
+        onCapture={handleDocScanCapture}
+        onClose={() => setShowDocumentScanner(false)}
+        title="Scan Receipt"
+      />
     </View>
   );
 }
