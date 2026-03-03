@@ -968,18 +968,38 @@ export default function ProjectExpensesScreen() {
                         </View>
                         <View style={{ alignItems: 'flex-end', gap: 6 }}>
                           <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
-                          {expense.receiptUrl && (
-                            <TouchableOpacity
-                              style={styles.receiptBadge}
-                              onPress={() => handleViewReceipt(expense.receiptUrl!)}
-                            >
-                              <ImageIcon size={12} color="#10B981" />
-                            </TouchableOpacity>
-                          )}
                         </View>
                       </View>
                       <Text style={styles.expenseStore}>{expense.store}</Text>
                       <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
+
+                      {/* Inline receipt image/PDF — admin sees actual receipt */}
+                      {expense.receiptUrl && !expense.receiptUrl.toLowerCase().includes('.pdf') && (
+                        <TouchableOpacity
+                          style={styles.receiptThumb}
+                          onPress={() => handleViewReceipt(expense.receiptUrl!)}
+                          activeOpacity={0.85}
+                        >
+                          <Image
+                            source={{ uri: expense.receiptUrl }}
+                            style={styles.receiptThumbImage}
+                            contentFit="cover"
+                          />
+                          <View style={styles.receiptThumbOverlay}>
+                            <ImageIcon size={13} color="#FFFFFF" />
+                            <Text style={styles.receiptThumbText}>Tap to view</Text>
+                          </View>
+                        </TouchableOpacity>
+                      )}
+                      {expense.receiptUrl && expense.receiptUrl.toLowerCase().includes('.pdf') && (
+                        <TouchableOpacity
+                          style={styles.pdfReceiptBadge}
+                          onPress={() => handleViewReceipt(expense.receiptUrl!)}
+                        >
+                          <File size={14} color="#DC2626" />
+                          <Text style={styles.pdfReceiptBadgeText}>PDF Receipt — Tap to open</Text>
+                        </TouchableOpacity>
+                      )}
                     </TouchableOpacity>
                   );
                 })
@@ -1735,6 +1755,53 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1FAE5',
     padding: 4,
     borderRadius: 4,
+  },
+  // ── Admin: inline receipt thumbnail ──────────────────────────────────────
+  receiptThumb: {
+    marginTop: 10,
+    borderRadius: 8,
+    overflow: 'hidden' as const,
+    height: 120,
+    width: '100%' as any,
+    position: 'relative' as const,
+  },
+  receiptThumbImage: {
+    width: '100%' as any,
+    height: '100%' as any,
+  },
+  receiptThumbOverlay: {
+    position: 'absolute' as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 5,
+  },
+  receiptThumbText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '500' as const,
+  },
+  pdfReceiptBadge: {
+    marginTop: 10,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  pdfReceiptBadgeText: {
+    fontSize: 13,
+    color: '#DC2626',
+    fontWeight: '500' as const,
   },
   emptyState: {
     padding: 40,

@@ -578,6 +578,21 @@ export default function ExpensesScreen() {
 
 
         <View style={styles.form}>
+          {/* Prominent AI Scanner — shown when no receipt has been captured yet */}
+          {!receiptImage && (
+            <>
+              <TouchableOpacity style={styles.aiScannerBtn} onPress={handleScanReceipt}>
+                <Scan size={22} color="#FFFFFF" />
+                <Text style={styles.aiScannerBtnText}>Scan Receipt with AI</Text>
+              </TouchableOpacity>
+              <View style={styles.formDivider}>
+                <View style={styles.formDividerLine} />
+                <Text style={styles.formDividerText}>or enter manually</Text>
+                <View style={styles.formDividerLine} />
+              </View>
+            </>
+          )}
+
           {receiptImage && receiptType === 'image' && (
             <View style={styles.receiptPreview}>
               <Image
@@ -728,11 +743,7 @@ export default function ExpensesScreen() {
                   <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
                 </View>
 
-                {/* Store/Details */}
-                <Text style={styles.expenseStore}>{expense.store}</Text>
-
-                {/* Date */}
-                <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
+                {/* Employees see type + amount only — no receipt images or store details */}
               </View>
             ))
           )}
@@ -1162,6 +1173,38 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1FAE5',
     padding: 4,
     borderRadius: 4,
+  },
+  // ── AI Scanner button (prominent, in form body) ──────────────────────────
+  aiScannerBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: '#2563EB',
+    borderRadius: 10,
+    paddingVertical: 14,
+    gap: 10,
+    marginBottom: 16,
+  },
+  aiScannerBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700' as const,
+  },
+  formDivider: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    marginBottom: 16,
+  },
+  formDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  formDividerText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500' as const,
   },
   emptyState: {
     padding: 40,
