@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const { projectId, type, subcategory, amount, store, date, receiptUrl, imageHash, ocrFingerprint, imageSizeBytes, clockEntryId, notes } = req.body;
+    const { projectId, type, subcategory, amount, store, date, receiptUrl, imageHash, ocrFingerprint, imageSizeBytes, clockEntryId } = req.body;
 
     console.log('[AddExpense] Adding expense:', amount, 'for project:', projectId, 'by user:', authUser.id);
 
@@ -102,7 +102,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ocr_fingerprint: ocrFingerprint || null,
         image_size_bytes: imageSizeBytes || null,
         clock_entry_id: clockEntryId || null,
-        notes: notes || null,
         uploaded_by: authUser.id,
       })
       .select()
@@ -146,7 +145,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         date: data.date,
         receiptUrl: data.receipt_url || undefined,
         clockEntryId: data.clock_entry_id || undefined,
-        notes: data.notes || undefined,
       },
       insertDuration,
     });

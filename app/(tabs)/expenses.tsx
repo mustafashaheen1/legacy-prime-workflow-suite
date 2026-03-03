@@ -170,6 +170,51 @@ export default function ExpensesScreen() {
         ? getBase64ByteSize(receiptBase64)
         : undefined;
 
+      // Upload receipt to S3 so a persistent URL is saved — never write a blob: URL to the DB
+      let uploadedReceiptUrl: string | undefined;
+      if (receiptImage) {
+        try {
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+          const isPdf = receiptType === 'file';
+          const fileType = isPdf ? 'application/pdf' : 'image/jpeg';
+          const uploadFileName = receiptFileName || `receipt-${Date.now()}.${isPdf ? 'pdf' : 'jpg'}`;
+
+          if (receiptImage.startsWith('http')) {
+            // Already a persisted S3/HTTP URL — use as-is
+            uploadedReceiptUrl = receiptImage;
+          } else {
+            const urlResponse = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fileName: `receipts/${uploadFileName}`, fileType }),
+            });
+            if (urlResponse.ok) {
+              const { uploadUrl, fileUrl } = await urlResponse.json();
+              if (Platform.OS === 'web') {
+                // receiptBase64 is already a data: URI resolved from the blob — use it directly
+                const srcResponse = await fetch(receiptBase64 ?? receiptImage);
+                const blob = await srcResponse.blob();
+                await fetch(uploadUrl, { method: 'PUT', body: blob, headers: { 'Content-Type': fileType } });
+              } else {
+                // Native: XHR streams the file:// URI bytes directly to S3
+                await new Promise<void>((resolve, reject) => {
+                  const xhr = new XMLHttpRequest();
+                  xhr.open('PUT', uploadUrl, true);
+                  xhr.setRequestHeader('Content-Type', fileType);
+                  xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`S3 upload failed: ${xhr.status}`)));
+                  xhr.onerror = () => reject(new Error('S3 upload network error'));
+                  xhr.send({ uri: receiptImage, type: fileType, name: uploadFileName } as any);
+                });
+              }
+              uploadedReceiptUrl = fileUrl;
+            }
+          }
+        } catch (uploadError) {
+          console.error('[Expenses] Receipt S3 upload failed, saving without receipt:', uploadError);
+          // Fail open — don't block the expense save over a receipt upload failure
+        }
+      }
+
       await addExpense({
         id: Date.now().toString(),
         projectId: selectedProjectId,
@@ -178,7 +223,7 @@ export default function ExpensesScreen() {
         amount: parseFloat(amount),
         store,
         date: new Date().toISOString(),
-        receiptUrl: receiptImage || undefined,
+        receiptUrl: uploadedReceiptUrl,
         imageHash,
         ocrFingerprint,
         imageSizeBytes,

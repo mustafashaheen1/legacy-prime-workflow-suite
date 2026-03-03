@@ -988,8 +988,8 @@ export default function ProjectExpensesScreen() {
                       <Text style={styles.expenseStore}>{expense.store}</Text>
                       <Text style={styles.expenseDate}>{new Date(expense.date).toLocaleDateString()}</Text>
 
-                      {/* Inline receipt image/PDF — admin sees actual receipt */}
-                      {expense.receiptUrl && !expense.receiptUrl.toLowerCase().includes('.pdf') && (
+                      {/* Inline receipt image/PDF — admin sees actual receipt (skip ephemeral blob: URLs) */}
+                      {expense.receiptUrl && !expense.receiptUrl.startsWith('blob:') && !expense.receiptUrl.toLowerCase().includes('.pdf') && (
                         <TouchableOpacity
                           style={styles.receiptThumb}
                           onPress={() => handleViewReceipt(expense.receiptUrl!)}
@@ -1006,7 +1006,7 @@ export default function ProjectExpensesScreen() {
                           </View>
                         </TouchableOpacity>
                       )}
-                      {expense.receiptUrl && expense.receiptUrl.toLowerCase().includes('.pdf') && (
+                      {expense.receiptUrl && !expense.receiptUrl.startsWith('blob:') && expense.receiptUrl.toLowerCase().includes('.pdf') && (
                         <TouchableOpacity
                           style={styles.pdfReceiptBadge}
                           onPress={() => handleViewReceipt(expense.receiptUrl!)}
@@ -1547,8 +1547,8 @@ export default function ProjectExpensesScreen() {
                     </View>
                   ) : null}
 
-                  {/* Receipt image preview */}
-                  {selectedExpense.receiptUrl && !selectedExpense.receiptUrl.toLowerCase().includes('.pdf') && (
+                  {/* Receipt image preview — skip blob: URLs (ephemeral web object URLs) */}
+                  {selectedExpense.receiptUrl && !selectedExpense.receiptUrl.startsWith('blob:') && !selectedExpense.receiptUrl.toLowerCase().includes('.pdf') && (
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => { setShowExpenseDetail(false); handleViewReceipt(selectedExpense.receiptUrl!); }}
