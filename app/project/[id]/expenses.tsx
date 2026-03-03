@@ -81,7 +81,7 @@ export default function ProjectExpensesScreen() {
   }, [priceListCategories, category]);
 
   // Upload file to S3 using presigned URL (handles large files like PDFs)
-  const uploadToS3 = async (fileData: string | Blob, fileName: string, fileType: string): Promise<string> => {
+  const uploadToS3 = async (fileData: string, fileName: string, fileType: string): Promise<string> => {
     console.log('[S3] Uploading receipt to S3 using presigned URL...');
 
     const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
@@ -104,10 +104,23 @@ export default function ProjectExpensesScreen() {
     const { uploadUrl, fileUrl } = await urlResponse.json();
     console.log('[S3] Got presigned URL, uploading directly to S3...');
 
-    // Step 2: Convert base64 to Blob if needed
-    let uploadData: Blob;
-    if (typeof fileData === 'string') {
-      // It's base64 data
+    if (Platform.OS !== 'web') {
+      // React Native / Hermes: XHR with { uri } reads the file natively and sends
+      // raw bytes — avoids "Creating blobs from ArrayBufferView not supported" error.
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', uploadUrl, true);
+        xhr.setRequestHeader('Content-Type', fileType);
+        xhr.onload = () =>
+          xhr.status >= 200 && xhr.status < 300
+            ? resolve()
+            : reject(new Error(`S3 upload failed: ${xhr.status}`));
+        xhr.onerror = () => reject(new Error('S3 upload network error'));
+        // { uri, type, name } is React Native's native file-upload pattern
+        xhr.send({ uri: fileData, type: fileType, name: fileName } as any);
+      });
+    } else {
+      // Web: Blob is supported — decode base64 and upload via fetch
       const base64Content = fileData.replace(/^data:.+;base64,/, '');
       const byteCharacters = atob(base64Content);
       const byteNumbers = new Array(byteCharacters.length);
@@ -115,22 +128,15 @@ export default function ProjectExpensesScreen() {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      uploadData = new Blob([byteArray], { type: fileType });
-    } else {
-      uploadData = fileData;
-    }
-
-    // Step 3: Upload directly to S3 using presigned URL
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: uploadData,
-      headers: {
-        'Content-Type': fileType,
-      },
-    });
-
-    if (!uploadResponse.ok) {
-      throw new Error('Failed to upload to S3');
+      const blob = new Blob([byteArray], { type: fileType });
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: blob,
+        headers: { 'Content-Type': fileType },
+      });
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload to S3');
+      }
     }
 
     console.log('[S3] Upload successful:', fileUrl);
@@ -275,16 +281,13 @@ export default function ProjectExpensesScreen() {
             ? (receiptFileName || `receipt-${Date.now()}.pdf`)
             : `receipt-${Date.now()}.jpg`;
 
-          // Convert to base64
-          let base64Data: string;
-          if (isPdf) {
-            // For PDFs, read directly
-            if (Platform.OS !== 'web' && receiptImage.startsWith('file://')) {
-              const base64 = await FileSystem.readAsStringAsync(receiptImage, {
-                encoding: 'base64' as any,
-              });
-              base64Data = `data:application/pdf;base64,${base64}`;
-            } else {
+          if (Platform.OS !== 'web') {
+            // Native: pass the file:// URI directly — XHR in uploadToS3 reads it natively
+            receiptUrl = await uploadToS3(receiptImage, fileName, fileType);
+          } else {
+            // Web: must convert to base64 data URL first (Blob approach)
+            let base64Data: string;
+            if (isPdf) {
               const response = await fetch(receiptImage);
               const blob = await response.blob();
               base64Data = await new Promise<string>((resolve, reject) => {
@@ -293,13 +296,11 @@ export default function ProjectExpensesScreen() {
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
               });
+            } else {
+              base64Data = await convertToBase64(receiptImage);
             }
-          } else {
-            // For images, use existing compression function
-            base64Data = await convertToBase64(receiptImage);
+            receiptUrl = await uploadToS3(base64Data, fileName, fileType);
           }
-
-          receiptUrl = await uploadToS3(base64Data, fileName, fileType);
           console.log('[Expenses] Receipt uploaded to S3:', receiptUrl);
         } catch (uploadError) {
           console.error('[Expenses] S3 upload failed, continuing without receipt URL:', uploadError);

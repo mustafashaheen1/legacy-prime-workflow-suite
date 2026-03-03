@@ -1,4 +1,26 @@
 PODS:
+  - DocumentScanner (2.0.4):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - EXApplication (7.0.8):
     - ExpoModulesCore
   - EXAV (16.0.7):
@@ -2247,6 +2269,7 @@ PODS:
     - ZXingObjC/Core
 
 DEPENDENCIES:
+  - DocumentScanner (from `../node_modules/react-native-document-scanner-plugin`)
   - EXApplication (from `../node_modules/expo-application/ios`)
   - EXAV (from `../node_modules/expo-av/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
@@ -2378,6 +2401,8 @@ SPEC REPOS:
     - ZXingObjC
 
 EXTERNAL SOURCES:
+  DocumentScanner:
+    :path: "../node_modules/react-native-document-scanner-plugin"
   EXApplication:
     :path: "../node_modules/expo-application/ios"
   EXAV:
@@ -2599,6 +2624,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
+  DocumentScanner: 8409e7cb95cfea9c445c36886c4adc9a927973aa
   EXApplication: 1e98d4b1dccdf30627f92917f4b2c5a53c330e5f
   EXAV: e3fefaca88f14624bca01d9a128562a5f8e738f8
   EXConstants: fd688cef4e401dcf798a021cfb5d87c890c30ba3
