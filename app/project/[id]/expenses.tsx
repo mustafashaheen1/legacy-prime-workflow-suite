@@ -796,6 +796,21 @@ export default function ProjectExpensesScreen() {
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           <View style={styles.form}>
+            {/* Prominent AI scanner — shown to all roles when no receipt captured yet */}
+            {!receiptImage && (
+              <>
+                <TouchableOpacity style={styles.aiScannerBtn} onPress={handleScanReceipt}>
+                  <Scan size={22} color="#FFFFFF" />
+                  <Text style={styles.aiScannerBtnText}>Scan Receipt with AI</Text>
+                </TouchableOpacity>
+                <View style={styles.formDivider}>
+                  <View style={styles.formDividerLine} />
+                  <Text style={styles.formDividerText}>or enter manually</Text>
+                  <View style={styles.formDividerLine} />
+                </View>
+              </>
+            )}
+
             {receiptImage && receiptType === 'image' && (
               <View style={styles.receiptPreview}>
                 <Image
@@ -1003,6 +1018,52 @@ export default function ProjectExpensesScreen() {
                     </TouchableOpacity>
                   );
                 })
+              )}
+            </View>
+          )}
+
+          {/* Employee view: uploader name + amount only — no receipt images */}
+          {user?.role !== 'admin' && user?.role !== 'super-admin' && (
+            <View style={styles.expensesList}>
+              <View style={styles.employeeTotalCard}>
+                <Text style={styles.employeeTotalLabel}>Project Total</Text>
+                <Text style={styles.employeeTotalAmount}>${projectExpenseTotal.toLocaleString()}</Text>
+              </View>
+
+              <Text style={styles.sectionTitle}>Expenses</Text>
+
+              {filteredExpenses.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No expenses recorded for this project</Text>
+                </View>
+              ) : (
+                filteredExpenses.map((expense) => (
+                  <View key={expense.id} style={styles.expenseCard}>
+                    <View style={styles.expenseMainRow}>
+                      <View style={styles.expenseLeftSection}>
+                        {expense.uploader?.avatar ? (
+                          <Image
+                            source={{ uri: expense.uploader.avatar }}
+                            style={styles.expenseAvatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.expenseAvatarPlaceholder}>
+                            <Text style={styles.expenseAvatarInitials}>
+                              {expense.uploader
+                                ? expense.uploader.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+                                : '?'}
+                            </Text>
+                          </View>
+                        )}
+                        <Text style={styles.expenseUploaderName}>
+                          {expense.uploader ? expense.uploader.name : 'Unknown'}
+                        </Text>
+                      </View>
+                      <Text style={styles.expenseAmount}>${expense.amount.toLocaleString()}</Text>
+                    </View>
+                  </View>
+                ))
               )}
             </View>
           )}
@@ -2297,5 +2358,56 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 20,
     backgroundColor: '#F3F4F6',
+  },
+  // AI scanner button + divider (shown in form body for all roles)
+  aiScannerBtn: {
+    backgroundColor: '#2563EB',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingVertical: 14,
+    borderRadius: 10,
+    gap: 8,
+    marginBottom: 12,
+  },
+  aiScannerBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  formDivider: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginBottom: 16,
+    gap: 8,
+  },
+  formDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  formDividerText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+  },
+  // Employee-only totals card
+  employeeTotalCard: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  },
+  employeeTotalLabel: {
+    fontSize: 14,
+    color: '#3B82F6',
+    fontWeight: '600' as const,
+  },
+  employeeTotalAmount: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#1D4ED8',
   },
 });

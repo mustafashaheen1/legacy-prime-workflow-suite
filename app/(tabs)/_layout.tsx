@@ -155,7 +155,8 @@ export default function TabLayout() {
         options={{
           title: t('common.expenses'),
           tabBarIcon: ({ color }) => <DollarSign size={24} color={color} />,
-          href: tabHref('expenses', '/expenses'),
+          // Field employees add expenses from the project screen only, not this dashboard tab.
+          href: user?.role === 'field-employee' ? null : tabHref('expenses', '/expenses'),
           headerLeft: Platform.OS !== 'web' ? () => <BackButton /> : () => <UserAvatar />,
         }}
       />

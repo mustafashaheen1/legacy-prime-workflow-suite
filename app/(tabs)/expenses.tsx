@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Platform, RefreshControl } from 'react-native';
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useRouter } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 // priceListCategories now comes from AppContext
 import * as ImagePicker from 'expo-image-picker';
@@ -13,6 +14,15 @@ import DocumentScannerModal, { DocumentScanResult } from '@/components/DocumentS
 
 export default function ExpensesScreen() {
   const { expenses, addExpense, projects, user, refreshExpenses, priceListCategories } = useApp();
+  const router = useRouter();
+
+  // Field employees must submit expenses via their project screen, not this dashboard tab.
+  useEffect(() => {
+    if (user?.role === 'field-employee') {
+      router.replace('/(tabs)/more' as any);
+    }
+  }, [user?.role]);
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

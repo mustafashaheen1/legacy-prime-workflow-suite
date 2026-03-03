@@ -31,7 +31,8 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
-import DocumentScanner from 'react-native-document-scanner-plugin';
+// DocumentScanner is native-only — imported dynamically inside launchScanner
+// to prevent TurboModuleRegistry.getEnforcing() crash on web.
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'expo-image';
 import { X, RotateCcw, Check, ScanLine } from 'lucide-react-native';
@@ -88,7 +89,14 @@ export default function DocumentScannerModal({
   }, [visible]);
 
   const launchScanner = async () => {
+    if (Platform.OS === 'web') {
+      // Native document scanner is unavailable on web — close gracefully.
+      onClose();
+      return;
+    }
     try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const DocumentScanner = require('react-native-document-scanner-plugin').default;
       const { scannedImages } = await DocumentScanner.scanDocument({
         croppedImageQuality: 100,
         maxNumDocuments: 1,
