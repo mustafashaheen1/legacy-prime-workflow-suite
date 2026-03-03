@@ -61,6 +61,8 @@ const mapPhoto = (row: any) => ({
   s3Key: row.s3_key ?? row.s3Key,
   compressed: row.compressed,
   uploadedBy: row.uploaded_by ?? row.uploadedBy,
+  // Populated when query uses FK join: select('*, uploader:uploaded_by(id,name,email,avatar)')
+  uploader: row.uploader ?? null,
 });
 
 const mapTask = (row: any) => ({
@@ -350,7 +352,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load photos
           try {
-            const { data: photoRows } = await supabase.from('photos').select('*').eq('company_id', company.id).order('created_at', { ascending: false });
+            const { data: photoRows } = await supabase.from('photos').select('*, uploader:uploaded_by(id,name,email,avatar)').eq('company_id', company.id).order('created_at', { ascending: false });
             setPhotos((photoRows ?? []).map(mapPhoto));
             console.log('[App] ✅ Loaded', photoRows?.length ?? 0, 'photos');
           } catch (error: any) {
@@ -669,7 +671,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
           // Load photos from database
           try {
-            const { data: photoRows } = await supabase.from('photos').select('*').eq('company_id', parsedCompany.id).order('created_at', { ascending: false });
+            const { data: photoRows } = await supabase.from('photos').select('*, uploader:uploaded_by(id,name,email,avatar)').eq('company_id', parsedCompany.id).order('created_at', { ascending: false });
             setPhotos((photoRows ?? []).map(mapPhoto));
             console.log('[App] Loaded', photoRows?.length ?? 0, 'photos from database');
           } catch (error) {
@@ -1160,7 +1162,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const refreshPhotos = useCallback(async () => {
     if (!company?.id) return;
     try {
-      const { data: photoRows } = await supabase.from('photos').select('*').eq('company_id', company.id).order('created_at', { ascending: false });
+      const { data: photoRows } = await supabase.from('photos').select('*, uploader:uploaded_by(id,name,email,avatar)').eq('company_id', company.id).order('created_at', { ascending: false });
       setPhotos((photoRows ?? []).map(mapPhoto));
       console.log('[App] ✅ Refreshed', photoRows?.length ?? 0, 'photos');
     } catch (error) {
@@ -1356,8 +1358,12 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   }, [company, expenses]);
 
   const addPhoto = useCallback(async (photo: Photo) => {
-    // Optimistically update UI
-    setPhotos(prev => [...prev, photo]);
+    // Optimistically update UI — include current user as uploader so the name shows immediately
+    const optimisticPhoto: Photo = {
+      ...photo,
+      uploader: user ? { id: user.id, name: user.name, email: user.email, avatar: user.avatar } : null,
+    };
+    setPhotos(prev => [...prev, optimisticPhoto]);
 
     // Save to backend if company exists
     if (company?.id) {
@@ -1402,7 +1408,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         throw error;
       }
     }
-  }, [company]);
+  }, [company, user]);
 
   const updatePhoto = useCallback((id: string, updates: Partial<Photo>) => {
     setPhotos(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
