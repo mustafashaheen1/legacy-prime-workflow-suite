@@ -220,7 +220,7 @@ export default function ExpensesScreen() {
 
   const handleDocScanCapture = async (result: DocumentScanResult) => {
     setShowDocumentScanner(false);
-    await processReceipt(result.uri);
+    await processReceipt(result.uri, result.base64 || undefined);
   };
 
   const handleUploadReceipt = async () => {
@@ -281,7 +281,7 @@ export default function ExpensesScreen() {
     }
   };
 
-  const processReceipt = async (uri: string) => {
+  const processReceipt = async (uri: string, preExtractedBase64?: string) => {
     try {
       setIsScanning(true);
       setReceiptImage(uri);
@@ -293,7 +293,11 @@ export default function ExpensesScreen() {
 
       let imageData = uri;
 
-      if (Platform.OS !== 'web' && uri.startsWith('file://')) {
+      if (preExtractedBase64) {
+        // Already processed by DocumentScannerModal — skip the file re-read
+        imageData = `data:image/jpeg;base64,${preExtractedBase64}`;
+        console.log('[OCR] Using pre-extracted base64 from scanner');
+      } else if (Platform.OS !== 'web' && uri.startsWith('file://')) {
         console.log('[OCR] Reading local file as base64...');
         try {
           const base64 = await FileSystem.readAsStringAsync(uri, {

@@ -160,7 +160,8 @@ export default function ProjectExpensesScreen() {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to analyze receipt');
+      console.error('[OpenAI] API error:', response.status, error);
+      throw new Error(error.error || `Failed to analyze receipt (${response.status})`);
     }
 
     const result = await response.json();
@@ -508,7 +509,7 @@ export default function ProjectExpensesScreen() {
   };
 
   // Process receipt (image or PDF)
-  const processReceipt = async (uri: string, isPdf: boolean = false, fileName?: string) => {
+  const processReceipt = async (uri: string, isPdf: boolean = false, fileName?: string, preExtractedBase64?: string) => {
     try {
       setIsScanning(true);
       setScanningMessage('Processing image...');
@@ -519,7 +520,10 @@ export default function ProjectExpensesScreen() {
       setScanningMessage('Converting image...');
       let imageData: string;
 
-      if (isPdf) {
+      if (preExtractedBase64) {
+        // Use the already-processed base64 from the document scanner (avoids re-reading the file)
+        imageData = `data:image/jpeg;base64,${preExtractedBase64}`;
+      } else if (isPdf) {
         // For PDFs, we need to handle differently
         // OpenAI can analyze PDF images if we convert them
         if (Platform.OS !== 'web' && uri.startsWith('file://')) {
@@ -615,7 +619,8 @@ export default function ProjectExpensesScreen() {
 
   const handleDocScanCapture = async (result: DocumentScanResult) => {
     setShowDocumentScanner(false);
-    await processReceipt(result.uri);
+    // Pass pre-extracted base64 to skip the redundant file re-read in processReceipt
+    await processReceipt(result.uri, false, undefined, result.base64 || undefined);
   };
 
   // Button 2: Receipt (same as scan)
