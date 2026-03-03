@@ -62,6 +62,9 @@ export default function PhotosScreen() {
       setSelectedImage(imageUri);
       setPreviewNotes('');
       setTempCategory(category);
+      // iOS needs a tick after the native picker dismisses before we can
+      // present another Modal — without this the modal is silently dropped.
+      await new Promise(resolve => setTimeout(resolve, 350));
       setShowPreviewModal(true);
     }
   };
@@ -93,6 +96,9 @@ export default function PhotosScreen() {
       setSelectedImage(imageUri);
       setPreviewNotes('');
       setTempCategory(category);
+      // iOS needs a tick after the native camera sheet dismisses before we
+      // can present another Modal — without this the modal is silently dropped.
+      await new Promise(resolve => setTimeout(resolve, 350));
       setShowPreviewModal(true);
     }
   };
@@ -1197,8 +1203,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '92%',
     paddingBottom: 20,
+    flex: 1,
   },
   previewModalHeader: {
     flexDirection: 'row',
