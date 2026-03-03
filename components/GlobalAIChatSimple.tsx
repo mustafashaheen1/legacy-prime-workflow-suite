@@ -2945,11 +2945,12 @@ Generate appropriate line items from the price list that fit this scope of work$
 
       console.log('[Attachment] Image uploaded successfully to S3:', fileUrl);
 
-      // Update the attached file with S3 URL and remove uploading flag
+      // Update the attached file: keep original local URI so convertFileToDataUri
+      // can still read/compress it; store S3 URL separately in s3Url.
       setAttachedFiles(prev =>
         prev.map(f =>
           f.name === fileName
-            ? { ...f, uri: fileUrl, uploading: false, s3Url: fileUrl }
+            ? { ...f, uploading: false, s3Url: fileUrl }
             : f
         )
       );
