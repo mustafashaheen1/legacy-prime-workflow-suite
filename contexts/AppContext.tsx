@@ -1397,7 +1397,6 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             ocrFingerprint: expense.ocrFingerprint,
             imageSizeBytes: expense.imageSizeBytes,
             clockEntryId: expense.clockEntryId,
-            notes: expense.notes,
           }),
         });
 

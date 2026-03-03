@@ -26,7 +26,7 @@ interface ExtractedExpense {
 export default function ProjectExpensesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { expenses, addExpense, projects, user, company, priceListCategories } = useApp();
+  const { expenses, addExpense, projects, user, company, priceListCategories, refreshExpenses } = useApp();
   const [expenseType, setExpenseType] = useState<string>('Subcontractor');
   const [category, setCategory] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
@@ -77,6 +77,11 @@ export default function ProjectExpensesScreen() {
     filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
     [filteredExpenses]
   );
+
+  // Refresh expenses on mount so admin always sees the latest data from all users
+  useEffect(() => {
+    refreshExpenses();
+  }, []);
 
   // Set first category when loaded
   useEffect(() => {
