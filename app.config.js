@@ -42,6 +42,9 @@ module.exports = {
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       rorkApiBaseUrl: process.env.EXPO_PUBLIC_RORK_API_BASE_URL,
+      eas: {
+        projectId: "fe5b6952-88a7-4df1-9377-521962ec7732"
+      }
     }
   }
 };
