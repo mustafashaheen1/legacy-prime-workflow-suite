@@ -11,7 +11,6 @@ import {
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Bell, BellOff, CheckCheck } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
-import { supabase } from '@/lib/supabase';
 import type { Notification } from '@/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -77,7 +76,7 @@ function NotificationRow({ notification, onPress }: NotificationRowProps) {
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { user, getNotifications, markNotificationRead, refreshNotifications } = useApp();
+  const { getNotifications, markNotificationRead, markAllNotificationsRead, refreshNotifications } = useApp();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -98,18 +97,10 @@ export default function NotificationsScreen() {
   const unread = notifications.filter(n => !n.read);
 
   const handleMarkAllRead = useCallback(() => {
-    if (!user?.id || unread.length === 0) return;
-    // Single bulk UPDATE instead of N mutations
-    supabase.from('notifications')
-      .update({ read: true, read_at: new Date().toISOString() })
-      .eq('user_id', user.id!)
-      .eq('read', false)
-      .then(({ error }) => {
-        if (error) console.warn('[Notifications] Mark-all-read failed:', error);
-      });
-    // Optimistic local update so the UI clears immediately
-    unread.forEach(n => markNotificationRead(n.id));
-  }, [user, unread, markNotificationRead]);
+    if (unread.length === 0) return;
+    // Single atomic update in AppContext — no race between N local calls and DB update
+    markAllNotificationsRead();
+  }, [unread.length, markAllNotificationsRead]);
 
   const handleRowPress = useCallback(
     (notification: Notification) => {

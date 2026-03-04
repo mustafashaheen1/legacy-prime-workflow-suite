@@ -216,7 +216,8 @@ interface AppState {
   getProposals: (projectId?: string) => SubcontractorProposal[];
   addNotification: (notification: Notification) => Promise<void>;
   getNotifications: (unreadOnly?: boolean) => Notification[];
-  markNotificationRead: (id: string) => Promise<void>;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
   deleteClient: (clientId: string) => Promise<void>;
   updateExpense: (expenseId: string, updates: Partial<Expense>) => Promise<void>;
   deleteExpense: (expenseId: string) => Promise<void>;
@@ -2498,18 +2499,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   const addNotification = useCallback(async (notification: Notification) => {
     // Ensure the id is a valid UUID so the DB insert succeeds.
-    // Non-UUID ids (e.g. notif_${Date.now()}) cause a silent PG type error.
     const notif = notification.id && /^[0-9a-f-]{36}$/i.test(notification.id)
       ? notification
       : { ...notification, id: generateUUID() };
-    const updated = [notif, ...notifications];
-    setNotifications(updated);
-    await AsyncStorage.setItem('notifications', JSON.stringify(updated));
-    console.log('[Storage] Notification saved successfully');
 
-    // Fire-and-forget: persist to DB (uses the UUID-normalised notif, not the raw input)
+    // Functional update — no stale closure, deduplicates concurrent adds.
+    setNotifications(prev => {
+      if (prev.some(n => n.id === notif.id)) return prev;
+      const updated = [notif, ...prev];
+      AsyncStorage.setItem('notifications', JSON.stringify(updated)).catch(console.error);
+      return updated;
+    });
+
+    // Persist to DB (awaited so callers can handle errors if needed)
     if (user?.id && company?.id) {
-      supabase.from('notifications').insert({
+      const { error } = await supabase.from('notifications').insert({
         id: notif.id,
         user_id: user.id!,
         company_id: company.id!,
@@ -2518,11 +2522,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
         message: notif.message,
         data: notif.data,
         read: false,
-      }).then(({ error }) => {
-        if (error) console.warn('[Notifications] DB persist failed (non-fatal):', error);
       });
+      if (error) console.warn('[Notifications] DB persist failed (non-fatal):', error);
     }
-  }, [notifications, user, company]);
+  }, [user?.id, company?.id]);
 
   const getNotifications = useCallback((unreadOnly?: boolean) => {
     if (unreadOnly) {
@@ -2531,13 +2534,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     return notifications;
   }, [notifications]);
 
-  const markNotificationRead = useCallback(async (id: string) => {
-    const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
-    setNotifications(updated);
-    await AsyncStorage.setItem('notifications', JSON.stringify(updated));
-    console.log('[Storage] Notification marked as read');
-
-    // Fire-and-forget: sync read state to DB
+  const markNotificationRead = useCallback((id: string) => {
+    // Functional update — no stale closure, safe to call from N concurrent handlers.
+    setNotifications(prev => {
+      const updated = prev.map(n => n.id === id ? { ...n, read: true } : n);
+      AsyncStorage.setItem('notifications', JSON.stringify(updated)).catch(console.error);
+      return updated;
+    });
     if (user?.id) {
       supabase.from('notifications')
         .update({ read: true, read_at: new Date().toISOString() })
@@ -2547,7 +2550,25 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           if (error) console.warn('[Notifications] DB mark-read failed (non-fatal):', error);
         });
     }
-  }, [notifications, user]);
+  }, [user?.id]);
+
+  const markAllNotificationsRead = useCallback(() => {
+    setNotifications(prev => {
+      if (!prev.some(n => !n.read)) return prev; // already all read — no-op
+      const updated = prev.map(n => ({ ...n, read: true }));
+      AsyncStorage.setItem('notifications', JSON.stringify(updated)).catch(console.error);
+      return updated;
+    });
+    if (user?.id) {
+      supabase.from('notifications')
+        .update({ read: true, read_at: new Date().toISOString() })
+        .eq('user_id', user.id!)
+        .eq('read', false)
+        .then(({ error }) => {
+          if (error) console.warn('[Notifications] DB mark-all-read failed (non-fatal):', error);
+        });
+    }
+  }, [user?.id]);
 
   // Schedule/Appointment Management
   const addAppointment = useCallback(async (appointment: any) => {
@@ -3000,6 +3021,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addNotification,
     getNotifications,
     markNotificationRead,
+    markAllNotificationsRead,
     addAppointment,
     deleteAppointment,
     addTeamMember,
@@ -3122,6 +3144,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     addNotification,
     getNotifications,
     markNotificationRead,
+    markAllNotificationsRead,
     addAppointment,
     deleteAppointment,
     addTeamMember,

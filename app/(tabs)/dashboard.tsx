@@ -528,7 +528,7 @@ export default function DashboardScreen() {
       });
 
       // Call the AI report generation API
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
       const response = await fetch(`${baseUrl}/api/generate-ai-report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -892,8 +892,7 @@ export default function DashboardScreen() {
   useEffect(() => {
     const checkReminders = async () => {
       try {
-        const baseUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-          (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+        const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
         const apiUrl = `${baseUrl}/api/check-task-reminders`;
 
         const response = await fetch(apiUrl, {

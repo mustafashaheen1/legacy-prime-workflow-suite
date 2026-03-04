@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { sendNotification } from '../backend/lib/sendNotification.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow POST
@@ -105,30 +106,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[API] Registration completed successfully:', newSubcontractor.id);
 
-    // Create notification for user who sent invitation
+    // Notify the user who sent the invitation via DB + push
     if (tokenData.invited_by) {
-      const notificationData = {
-        user_id: tokenData.invited_by,
-        type: 'subcontractor_registered',
-        title: 'Subcontractor Registration Completed',
-        message: `${subcontractor.name} has completed their registration`,
-        data: JSON.stringify({
-          subcontractorId: newSubcontractor.id,
-          subcontractorName: subcontractor.name,
-        }),
-        read: false,
-        created_at: new Date().toISOString(),
-      };
-
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert(notificationData);
-
-      if (notificationError) {
-        console.error('[API] Failed to create notification:', notificationError);
-        // Don't fail the request if notification creation fails
-      } else {
-        console.log('[API] Notification created for user:', tokenData.invited_by);
+      try {
+        await sendNotification(supabase, {
+          userId: tokenData.invited_by,
+          companyId: tokenData.company_id,
+          type: 'proposal-submitted',
+          title: 'Subcontractor Registration Completed',
+          message: `${subcontractor.name} has completed their registration`,
+          data: {
+            subcontractorId: newSubcontractor.id,
+            subcontractorName: subcontractor.name,
+          },
+        });
+        console.log('[API] Registration notification sent to user:', tokenData.invited_by);
+      } catch (notifErr) {
+        console.error('[API] Failed to send registration notification (non-fatal):', notifErr);
       }
     }
 
