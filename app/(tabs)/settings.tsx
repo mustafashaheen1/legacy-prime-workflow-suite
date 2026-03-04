@@ -86,10 +86,7 @@ export default function SettingsScreen() {
 
   // Helper to get API base URL
   const getApiBaseUrl = () => {
-    const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-    if (rorkApi) return rorkApi;
-    if (typeof window !== 'undefined') return window.location.origin;
-    return 'http://localhost:8081';
+    return process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
   };
 
   // Fetch users from Vercel backend
@@ -435,7 +432,7 @@ export default function SettingsScreen() {
       setIsUploadingLogo(true);
 
       // Get presigned URL from API
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
       const response = await fetch(`${baseUrl}/api/upload-company-logo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -541,8 +538,7 @@ export default function SettingsScreen() {
 
     try {
       // Use Vercel API endpoint (works in production)
-      const baseUrl = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-                      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
       console.log('[Settings] Updating company via:', `${baseUrl}/api/update-company`);
 
