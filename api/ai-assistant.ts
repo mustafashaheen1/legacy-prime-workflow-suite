@@ -24,7 +24,7 @@ async function extractPdfText(pdfUrl: string, fileName: string): Promise<string>
       return '';
     }
 
-    const result = await response.json();
+    const result = await response.json() as any;
     if (result.success && result.text) {
       console.log('[AI Assistant] PDF text received, pages:', result.pages, 'chars:', result.text.length);
       return result.text as string;
