@@ -3144,7 +3144,7 @@ Generate appropriate line items from the price list that fit this scope of work$
   const handleSend = async (speakResponse = false) => {
     if (!input.trim() && attachedFiles.length === 0) return;
 
-    const userMessage = input.trim() || 'Please analyze the attached images';
+    let userMessage = input.trim() || 'Please analyze the attached images';
     const hasImages = attachedFiles.some(f => f.mimeType.startsWith('image/'));
     const hasPDFs = attachedFiles.some(f => f.mimeType === 'application/pdf');
 
@@ -3291,48 +3291,76 @@ Generate appropriate line items from the price list that fit this scope of work$
           });
         }
 
-        // Add PDFs with S3 URLs (already uploaded when attached)
+        // Extract PDF text client-side and embed in message (avoids pdfjs in serverless)
         for (const file of filesWithS3Urls.filter(f => f.mimeType === 'application/pdf')) {
-          filesForAI.push({
-            type: 'file',
-            mimeType: file.mimeType,
-            uri: file.uri, // This is the S3 URL from when file was attached
-            name: file.name,
-            size: file.size,
-            s3Url: file.uri, // Set s3Url for consistency
-          });
+          const pdfUrl = file.s3Url || (file.uri?.startsWith('http') ? file.uri : null);
+          if (pdfUrl) {
+            try {
+              console.log('[Send] Extracting PDF text client-side:', file.name);
+              const pdfResp = await fetch(`${API_BASE}/api/extract-pdf-text`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pdfUrl, fileName: file.name }),
+              });
+              if (pdfResp.ok) {
+                const pdfResult = await pdfResp.json();
+                if (pdfResult.text) {
+                  userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n${pdfResult.text}`;
+                  console.log('[Send] PDF text embedded in message, chars:', pdfResult.text.length);
+                } else {
+                  userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n(This PDF appears to be image-based and could not be parsed for text.)`;
+                }
+              } else {
+                userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n(PDF text extraction failed — status ${pdfResp.status}.)`;
+              }
+            } catch (pdfErr) {
+              console.warn('[Send] PDF text extraction error:', pdfErr);
+              userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n(PDF text extraction failed.)`;
+            }
+          }
         }
 
         console.log('[Send] Files being sent to AI with S3 URLs:', filesForAI.map(f => ({ name: f.name, hasS3Url: !!f.s3Url, s3Url: f.s3Url?.substring(0, 50) })));
 
-        // Send message with files
+        // Send images + embedded PDF text (no PDF file objects needed — text is in message)
         await sendMessage({
           text: userMessage,
           files: filesForAI as any,
         });
       } else if (hasPDFs) {
-        // PDFs only (no images) - already uploaded when attached
-        console.log('[Send] Sending message with PDFs');
-        const filesForAI: { type: 'file'; mimeType: string; uri: string; name?: string; size?: number; s3Url?: string; }[] = [];
+        // PDFs only (no images) — extract text client-side and embed in message
+        console.log('[Send] Extracting PDF text before sending');
 
         for (const file of filesWithS3Urls.filter(f => f.mimeType === 'application/pdf')) {
-          filesForAI.push({
-            type: 'file',
-            mimeType: file.mimeType,
-            uri: file.uri, // This is the S3 URL from when file was attached
-            name: file.name,
-            size: file.size,
-            s3Url: file.uri, // Set s3Url for consistency
-          });
+          const pdfUrl = file.s3Url || (file.uri?.startsWith('http') ? file.uri : null);
+          if (pdfUrl) {
+            try {
+              console.log('[Send] Extracting PDF text client-side:', file.name);
+              const pdfResp = await fetch(`${API_BASE}/api/extract-pdf-text`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pdfUrl, fileName: file.name }),
+              });
+              if (pdfResp.ok) {
+                const pdfResult = await pdfResp.json();
+                if (pdfResult.text) {
+                  userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n${pdfResult.text}`;
+                  console.log('[Send] PDF text embedded in message, chars:', pdfResult.text.length);
+                } else {
+                  userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n(This PDF appears to be image-based and could not be parsed for text.)`;
+                }
+              } else {
+                userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n(PDF text extraction failed — status ${pdfResp.status}.)`;
+              }
+            } catch (pdfErr) {
+              console.warn('[Send] PDF text extraction error:', pdfErr);
+              userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n(PDF text extraction failed.)`;
+            }
+          }
         }
 
-        console.log('[Send] Files being sent to AI with S3 URLs:', filesForAI.map(f => ({ name: f.name, hasS3Url: !!f.s3Url, s3Url: f.s3Url?.substring(0, 50) })));
-
-        // Send message with PDF files
-        await sendMessage({
-          text: userMessage,
-          files: filesForAI as any,
-        });
+        // Send with embedded PDF text — no file objects needed
+        await sendMessage(userMessage);
       } else {
         console.log('[Send] Sending text message');
         await sendMessage(userMessage);

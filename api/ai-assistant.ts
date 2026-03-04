@@ -1,65 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
-// @ts-ignore — pdfjs-dist types not available for this build path
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-
-// Mirror the exact worker setup from convert-pdf-to-image.ts which is proven to work
-// (empty workerSrc caused runtime crash; explicit worker path does not)
-// @ts-ignore
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker.mjs';
-
-/**
- * Extracts full text from a PDF URL using PDF.js.
- * Uses the same static import + workerSrc pattern as convert-pdf-to-image.ts
- * which is proven to work in Vercel serverless.
- */
-async function extractPdfText(pdfUrl: string, fileName: string): Promise<string> {
-  try {
-    console.log('[AI Assistant] Fetching PDF for text extraction:', fileName);
-    const response = await fetch(pdfUrl);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = new Uint8Array(await response.arrayBuffer());
-    console.log('[AI Assistant] PDF fetched, size:', data.length, 'bytes');
-
-    // @ts-ignore
-    const pdf = await pdfjsLib.getDocument({
-      data,
-      useSystemFonts: true,
-      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
-    }).promise;
-
-    const totalPages: number = pdf.numPages;
-    const maxPages = Math.min(totalPages, 25);
-    console.log('[AI Assistant] PDF pages:', totalPages, '— extracting', maxPages);
-
-    const pageTexts: string[] = [];
-    for (let p = 1; p <= maxPages; p++) {
-      const page = await pdf.getPage(p);
-      const textContent = await page.getTextContent();
-      const text = (textContent.items as any[])
-        .filter((item: any) => item.str)
-        .map((item: any) => item.str)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (text) {
-        pageTexts.push(totalPages > 1 ? `[Page ${p}/${totalPages}]\n${text}` : text);
-      }
-    }
-
-    if (totalPages > maxPages) {
-      pageTexts.push(`[Note: Document has ${totalPages} pages; only first ${maxPages} extracted.]`);
-    }
-
-    const result = pageTexts.join('\n\n');
-    console.log('[AI Assistant] PDF text extracted, chars:', result.length);
-    return result;
-  } catch (err: any) {
-    console.error('[AI Assistant] PDF text extraction failed for', fileName, ':', err.message);
-    return '';
-  }
-}
 
 export const config = {
   maxDuration: 60,
@@ -6230,7 +6170,7 @@ ${attachedFiles.map((f: any, idx: number) => `File ${idx}: ${f.name || 'Unknown'
 **CRITICAL INSTRUCTIONS:**
 - These files are ALREADY attached - do NOT ask the user to attach files
 - When user says "create takeoff estimate" or "analyze this", they mean these attached files
-${pdfFiles.length > 0 ? `- PDF file(s) (${pdfFiles.map((f: any) => f.name).join(', ')}): their full text content is embedded directly in the user message — you CAN read and answer questions about their content` : ''}
+${pdfFiles.length > 0 ? `- PDF file(s) (${pdfFiles.map((f: any) => f.name).join(', ')}): their full text is embedded in the user message as "[PDF Attachment: filename]" blocks — read and answer based on that text` : ''}
 ${imageFiles.length > 0 ? `- Image file(s) are attached as visual inputs — you can see them directly` : ''}
 - For takeoff estimates: Call generate_takeoff_estimate with imageIndexes: [${Array.from({length: attachedFiles.length}, (_, i) => i).join(', ')}]
 - DO NOT ask for confirmation - the files are attached and ready to analyze
@@ -6262,30 +6202,12 @@ When the user says "this project", "this client", "this estimate", etc., they ar
             { type: 'text', text: messageText }
           ];
 
-          // Add file attachments — images as vision URLs, PDFs as extracted text
+          // Add file attachments — images as vision URLs
+          // PDF text is extracted client-side and embedded directly in the message text above.
           for (const file of msg.files) {
             if (file.mimeType === 'application/pdf') {
-              // Extract text from PDF and inject inline so the model can read it
-              const pdfUrl = file.s3Url || (file.uri?.startsWith('http') ? file.uri : null);
-              if (pdfUrl) {
-                const pdfText = await extractPdfText(pdfUrl, file.name || 'document.pdf');
-                if (pdfText) {
-                  contentParts.push({
-                    type: 'text',
-                    text: `\n[PDF Attachment: ${file.name || 'document.pdf'}]\n${pdfText}\n`,
-                  });
-                  console.log('[AI Assistant] PDF text injected, chars:', pdfText.length);
-                } else {
-                  // Always inject a notice so the AI knows the PDF is present even if unreadable
-                  contentParts.push({
-                    type: 'text',
-                    text: `\n[PDF Attachment: ${file.name || 'document.pdf'}]\n(This PDF appears to be image-based or could not be parsed for text. If possible, please describe its contents or ask a specific question about it.)\n`,
-                  });
-                  console.log('[AI Assistant] PDF text extraction empty for:', file.name, '— injecting fallback notice');
-                }
-              } else {
-                console.log('[AI Assistant] No URL available for PDF:', file.name);
-              }
+              // Text was already extracted and embedded in the message by the client.
+              console.log('[AI Assistant] PDF received:', file.name, '— text already embedded in message');
               continue;
             }
 
