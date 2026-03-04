@@ -2,71 +2,35 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
 
 /**
- * Fetches a PDF from its S3 URL and extracts full text content using PDF.js.
- * Uses a dynamic import so pdfjs-dist is not bundled at module load time —
- * a static top-level import crashed the cold start in Vercel serverless.
- * Returns formatted text with page markers, capped at 25 pages.
+ * Delegates PDF text extraction to /api/extract-pdf-text which uses a static
+ * pdfjs-dist import (same as convert-pdf-to-image.ts). Keeping pdfjs-dist out
+ * of ai-assistant.ts avoids cold-start crashes from module-level side effects.
  */
 async function extractPdfText(pdfUrl: string, fileName: string): Promise<string> {
   try {
-    console.log('[AI Assistant] Fetching PDF for text extraction:', fileName);
+    console.log('[AI Assistant] Requesting PDF text extraction for:', fileName);
+    const base = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : (process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app');
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15_000);
-    let data: Uint8Array;
-    try {
-      const response = await fetch(pdfUrl, { signal: controller.signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      data = new Uint8Array(await response.arrayBuffer());
-    } finally {
-      clearTimeout(timeoutId);
-    }
-    console.log('[AI Assistant] PDF fetched, size:', data.length, 'bytes');
+    const response = await fetch(`${base}/api/extract-pdf-text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pdfUrl, fileName }),
+    });
 
-    // Dynamic import — keeps pdfjs-dist out of the cold-start bundle
-    let pdfjsLib: any;
-    try {
-      pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-      // Disable worker thread for inline serverless execution
-      if (pdfjsLib.GlobalWorkerOptions) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-      }
-    } catch (importErr: any) {
-      console.error('[AI Assistant] pdfjs-dist import failed:', importErr.message);
+    if (!response.ok) {
+      console.warn('[AI Assistant] extract-pdf-text returned', response.status);
       return '';
     }
 
-    const loadingTask = pdfjsLib.getDocument({
-      data,
-      useSystemFonts: true,
-      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
-    });
-
-    const pdf = await loadingTask.promise;
-    const totalPages: number = pdf.numPages;
-    const maxPages = Math.min(totalPages, 25);
-    console.log('[AI Assistant] PDF pages:', totalPages, '— extracting', maxPages);
-
-    const pageTexts: string[] = [];
-    for (let p = 1; p <= maxPages; p++) {
-      const page = await pdf.getPage(p);
-      const textContent = await page.getTextContent();
-      const text = (textContent.items as any[])
-        .filter((item) => item.str)
-        .map((item) => item.str)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (text) {
-        pageTexts.push(totalPages > 1 ? `[Page ${p}/${totalPages}]\n${text}` : text);
-      }
+    const result = await response.json();
+    if (result.success && result.text) {
+      console.log('[AI Assistant] PDF text received, pages:', result.pages, 'chars:', result.text.length);
+      return result.text as string;
     }
 
-    if (totalPages > maxPages) {
-      pageTexts.push(`[Note: Document has ${totalPages} pages; only first ${maxPages} extracted.]`);
-    }
-
-    return pageTexts.join('\n\n');
+    return '';
   } catch (err: any) {
     console.error('[AI Assistant] PDF text extraction failed for', fileName, ':', err.message);
     return '';
