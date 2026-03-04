@@ -3191,7 +3191,21 @@ Generate appropriate line items from the price list that fit this scope of work$
           // Use dedicated receipt analysis endpoint to avoid payload size issues
           console.log('[Send] Using dedicated receipt analysis endpoint');
           const file = filesWithS3Urls[0];
-          const dataUri = await convertFileToDataUri(file);
+
+          // Prefer S3 URL — avoids base64 conversion and large payload
+          const receiptImageUrl = file.s3Url || (file.uri?.startsWith('http') ? file.uri : null);
+          let imageData: string | undefined;
+          let displayUri: string;
+
+          if (receiptImageUrl) {
+            displayUri = receiptImageUrl;
+            console.log('[Send] Using S3 URL for receipt analysis (no base64 needed)');
+          } else {
+            // Fallback: convert to base64 only if no S3 URL available
+            imageData = await convertFileToDataUri(file);
+            displayUri = imageData;
+            console.log('[Send] Falling back to base64 for receipt analysis');
+          }
 
           // Add user message to chat
           addMessage({
@@ -3199,7 +3213,7 @@ Generate appropriate line items from the price list that fit this scope of work$
             role: 'user',
             parts: [{ type: 'text', text: userMessage }],
             text: userMessage,
-            files: [{ uri: dataUri, mimeType: file.mimeType || 'image/jpeg' }],
+            files: [{ uri: displayUri, mimeType: file.mimeType || 'image/jpeg' }],
           });
 
           // Show loading message
@@ -3214,9 +3228,7 @@ Generate appropriate line items from the price list that fit this scope of work$
             const response = await fetch(`${API_BASE}/api/analyze-receipt`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                imageData: dataUri,
-              }),
+              body: JSON.stringify(receiptImageUrl ? { imageUrl: receiptImageUrl } : { imageData }),
             });
 
             if (!response.ok) {
@@ -3228,32 +3240,12 @@ Generate appropriate line items from the price list that fit this scope of work$
             if (result.success && result.data) {
               const { store, amount, category, items, confidence } = result.data;
 
-              // Upload receipt image to S3 immediately so it persists
-              let receiptS3Url: string | undefined;
-              try {
-                console.log('[Send] Uploading receipt to S3...');
-                const uploadResponse = await fetch(`${API_BASE}/api/upload-to-s3`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    fileData: dataUri,
-                    fileName: `receipt-${Date.now()}.jpg`,
-                    fileType: 'image/jpeg',
-                  }),
-                });
-                if (uploadResponse.ok) {
-                  const uploadResult = await uploadResponse.json();
-                  receiptS3Url = uploadResult.url;
-                  console.log('[Send] Receipt uploaded to S3:', receiptS3Url);
-                }
-              } catch (uploadError) {
-                console.error('[Send] Failed to upload receipt to S3:', uploadError);
-              }
+              // Image is already on S3 — no second upload needed
+              const receiptS3Url = receiptImageUrl || undefined;
 
               // Store the receipt data for when user specifies the project
-              // Use S3 URL if available, otherwise fall back to base64 data
               pendingReceiptDataRef.current = {
-                imageData: receiptS3Url || dataUri,
+                imageData: receiptS3Url || imageData || '',
                 store: store || '',
                 amount: amount || 0,
                 category: category || 'Material',
