@@ -3184,7 +3184,7 @@ Generate appropriate line items from the price list that fit this scope of work$
           lowerMessage.includes('expense') ||
           lowerMessage.includes('receipt') ||
           lowerMessage.includes('add this') ||
-          lowerMessage.includes('analyze this') ||
+          lowerMessage.includes('analyze') ||
           lowerMessage === 'please analyze the attached images';
 
         if (isReceiptRequest && filesWithS3Urls.length === 1 && !hasPDFs) {
@@ -3270,16 +3270,24 @@ Generate appropriate line items from the price list that fit this scope of work$
         // For non-receipt images or multiple images, use the regular flow
         const filesForAI: { type: 'file'; mimeType: string; uri: string; name?: string; size?: number; s3Url?: string; }[] = [];
 
-        // Add images
+        // Add images — use S3 URL directly when available to avoid large base64 payloads
         for (const file of filesWithS3Urls.filter(f => f.mimeType.startsWith('image/'))) {
-          const dataUri = await convertFileToDataUri(file);
+          const s3OrHttpUri = file.s3Url || (file.uri?.startsWith('http') ? file.uri : null);
+          let fileUri: string;
+          if (s3OrHttpUri) {
+            // Already on S3 — no conversion needed
+            fileUri = s3OrHttpUri;
+          } else {
+            // No S3 URL yet — fall back to base64
+            fileUri = await convertFileToDataUri(file);
+          }
           filesForAI.push({
             type: 'file',
             mimeType: file.mimeType,
-            uri: dataUri,
+            uri: fileUri,
             name: file.name,
             size: file.size,
-            s3Url: file.s3Url, // Preserve S3 URL for email attachments
+            s3Url: file.s3Url,
           });
         }
 
