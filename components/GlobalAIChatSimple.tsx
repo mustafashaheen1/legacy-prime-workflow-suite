@@ -2704,9 +2704,12 @@ Generate appropriate line items from the price list that fit this scope of work$
         const file = result.assets[0];
         const mimeType = getSanitizedMimeType(file.mimeType, file.name);
 
+        const safeName = (!file.name || file.name === 'about:blank' || file.name.startsWith('about:'))
+          ? `document-${Date.now()}.pdf`
+          : file.name;
         const newFile: AttachedFile = {
           uri: file.uri,
-          name: file.name,
+          name: safeName,
           mimeType,
           size: file.size || 0,
           type: 'file',
@@ -3169,9 +3172,9 @@ Generate appropriate line items from the price list that fit this scope of work$
   const handleSend = async (speakResponse = false) => {
     if (!input.trim() && attachedFiles.length === 0) return;
 
-    let userMessage = input.trim() || 'Please analyze the attached images';
     const hasImages = attachedFiles.some(f => f.mimeType.startsWith('image/'));
     const hasPDFs = attachedFiles.some(f => f.mimeType === 'application/pdf');
+    let userMessage = input.trim() || (hasPDFs && !hasImages ? 'Please analyze the attached file' : 'Please analyze the attached images');
 
     const isImageGenerationRequest = userMessage.toLowerCase().includes('genera') &&
       (userMessage.toLowerCase().includes('imagen') || userMessage.toLowerCase().includes('image'));
@@ -3337,7 +3340,9 @@ Generate appropriate line items from the price list that fit this scope of work$
           ]);
 
           // Prefer PDF's internal /Title, then the cached displayName, then raw file.name
-          const displayName = textResult?.title || (file as any).displayName || file.name || 'document.pdf';
+          // Guard against 'about:blank' or other invalid names from DocumentPicker
+          const rawFileName = file.name && !file.name.startsWith('about:') ? file.name : 'document.pdf';
+          const displayName = textResult?.title || (file as any).displayName || rawFileName;
           console.log('[Send] PDF — text chars:', textResult?.text?.length ?? 0, 'pages rendered:', imageResult?.convertedPages ?? 0, 'title:', textResult?.title || '(none)');
 
           // Always add converted page images — vision reads encoded/scanned fonts correctly
@@ -3353,13 +3358,25 @@ Generate appropriate line items from the price list that fit this scope of work$
             });
           }
 
+          // Always push a PDF sentinel so msg.files is never empty for PDFs.
+          // This ensures the API's system prompt always receives the instruction
+          // to read [PDF Attachment: ...] blocks from the message text, even when
+          // image conversion fails and no PNG pages are added.
+          filesForAI.push({
+            type: 'file',
+            mimeType: 'application/pdf',
+            uri: pdfUrl,
+            name: displayName,
+            s3Url: pdfUrl,
+          });
+
           // Embed extracted text for additional context (even if partially garbled)
           if (textResult?.text) {
             userMessage += `\n\n[PDF Attachment: ${displayName}]\n${textResult.text}`;
           } else if (imageResult?.imageUrls?.length) {
             userMessage += `\n\n[PDF Attachment: ${displayName}]\n(Image-based PDF — ${imageResult.convertedPages} page(s) rendered for visual analysis.)`;
           } else {
-            userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n(Could not process this PDF.)`;
+            userMessage += `\n\n[PDF Attachment: ${displayName}]\n(Could not process this PDF.)`;
           }
         }
 
@@ -3395,7 +3412,9 @@ Generate appropriate line items from the price list that fit this scope of work$
           ]);
 
           // Prefer PDF's internal /Title, then the cached displayName, then raw file.name
-          const displayName = textResult?.title || (file as any).displayName || file.name || 'document.pdf';
+          // Guard against 'about:blank' or other invalid names from DocumentPicker
+          const rawFileName = file.name && !file.name.startsWith('about:') ? file.name : 'document.pdf';
+          const displayName = textResult?.title || (file as any).displayName || rawFileName;
           console.log('[Send] PDF — text chars:', textResult?.text?.length ?? 0, 'pages rendered:', imageResult?.convertedPages ?? 0, 'title:', textResult?.title || '(none)');
 
           // Always add converted page images — vision reads encoded/scanned fonts correctly
@@ -3411,25 +3430,33 @@ Generate appropriate line items from the price list that fit this scope of work$
             });
           }
 
+          // Always push a PDF sentinel so msg.files is never empty for PDFs.
+          // This ensures the API's system prompt always receives the instruction
+          // to read [PDF Attachment: ...] blocks from the message text, even when
+          // image conversion fails and no PNG pages are added.
+          pdfPageImages.push({
+            type: 'file',
+            mimeType: 'application/pdf',
+            uri: pdfUrl,
+            name: displayName,
+            s3Url: pdfUrl,
+          });
+
           // Embed extracted text for additional context (even if partially garbled)
           if (textResult?.text) {
             userMessage += `\n\n[PDF Attachment: ${displayName}]\n${textResult.text}`;
           } else if (imageResult?.imageUrls?.length) {
             userMessage += `\n\n[PDF Attachment: ${displayName}]\n(Image-based PDF — ${imageResult.convertedPages} page(s) rendered for visual analysis.)`;
           } else {
-            userMessage += `\n\n[PDF Attachment: ${file.name || 'document.pdf'}]\n(Could not process this PDF.)`;
+            userMessage += `\n\n[PDF Attachment: ${displayName}]\n(Could not process this PDF.)`;
           }
         }
 
-        if (pdfPageImages.length > 0) {
-          console.log('[Send] Sending with', pdfPageImages.length, 'PDF page image(s) for vision');
-          await sendMessage({
-            text: userMessage,
-            files: pdfPageImages as any,
-          });
-        } else {
-          await sendMessage(userMessage);
-        }
+        console.log('[Send] Sending with', pdfPageImages.length, 'file(s) for PDF pipeline');
+        await sendMessage({
+          text: userMessage,
+          files: pdfPageImages as any,
+        });
       } else {
         console.log('[Send] Sending text message');
         await sendMessage(userMessage);
