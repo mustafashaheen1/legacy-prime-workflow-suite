@@ -10,7 +10,7 @@ import { FileCategory, ProjectFile } from '@/types';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabase';
 import { Linking } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 type FolderType = 'photos' | 'receipts' | 'permit-files' | 'inspections' | 'agreements' | 'videos';
 

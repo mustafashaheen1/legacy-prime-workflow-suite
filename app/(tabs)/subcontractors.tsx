@@ -8,7 +8,7 @@ import DailyTasksButton from '@/components/DailyTasksButton';
 import { Stack, router } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { compressImage } from '@/lib/upload-utils';
 import { generateUUID } from '@/utils/uuid';
 
