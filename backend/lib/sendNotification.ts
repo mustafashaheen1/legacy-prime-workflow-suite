@@ -53,64 +53,63 @@ export async function sendNotification(
     return notif.id;
   }
 
-  // 3. Fire push delivery without blocking the return.
-  //    The DB record is already committed — push is best-effort.
-  //    Awaiting Expo's API inside a Vercel serverless function risks
-  //    FUNCTION_INVOCATION_TIMEOUT, so we fire-and-forget here.
+  // 3. Deliver push — awaited so Vercel doesn't freeze the process before
+  //    the HTTP request to Expo completes (fire-and-forget void IIFEs are
+  //    killed when the serverless function returns its HTTP response).
+  //    The Expo push API is fast (<300 ms p99), so latency impact is minimal.
+  //    'type' is included in data so background/killed-state tap handlers
+  //    can route correctly via useNotificationSetup responseListener.
   const messages = tokenRows.map(row => ({
     to:    row.token,
     title: params.title,
     body:  params.message,
-    data:  params.data ?? {},
+    data:  { type: params.type, ...(params.data ?? {}) },
     sound: 'default' as const,
     badge: 1,
   }));
 
-  void (async () => {
-    try {
-      const response = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type':    'application/json',
-          'Accept':          'application/json',
-          'Accept-Encoding': 'gzip, deflate',
-        },
-        body: JSON.stringify(messages),
-      });
+  try {
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type':    'application/json',
+        'Accept':          'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+      body: JSON.stringify(messages),
+    });
 
-      if (!response.ok) {
-        console.warn('[sendNotification] Expo push API returned non-OK:', response.status);
-        return;
-      }
-
-      const result = await response.json() as {
-        data: Array<{ status: string; message?: string; details?: { error?: string } }>;
-      };
-      console.log('[sendNotification] Push dispatched to', tokenRows.length, 'device(s)');
-
-      const deadTokens: string[] = [];
-      result.data?.forEach((ticket, i) => {
-        if (ticket.status === 'error') {
-          const errCode = ticket.details?.error;
-          console.warn('[sendNotification] Expo ticket error for token', tokenRows[i]?.token, ':', errCode, ticket.message);
-          if (errCode === 'DeviceNotRegistered') {
-            deadTokens.push(tokenRows[i].token);
-          }
-        }
-      });
-
-      if (deadTokens.length > 0) {
-        console.log('[sendNotification] Deactivating', deadTokens.length, 'dead token(s)');
-        await supabase
-          .from('push_tokens')
-          .update({ is_active: false, updated_at: new Date().toISOString() })
-          .in('token', deadTokens);
-      }
-    } catch (pushErr) {
-      console.warn('[sendNotification] Expo push dispatch failed (non-fatal):', pushErr);
+    if (!response.ok) {
+      console.warn('[sendNotification] Expo push API returned non-OK:', response.status);
+      return notif.id;
     }
-  })();
 
-  // Return immediately after DB insert — don't wait for push delivery
+    const result = await response.json() as {
+      data: Array<{ status: string; message?: string; details?: { error?: string } }>;
+    };
+    console.log('[sendNotification] Push dispatched to', tokenRows.length, 'device(s)');
+
+    const deadTokens: string[] = [];
+    result.data?.forEach((ticket, i) => {
+      if (ticket.status === 'error') {
+        const errCode = ticket.details?.error;
+        console.warn('[sendNotification] Expo ticket error for token', tokenRows[i]?.token, ':', errCode, ticket.message);
+        if (errCode === 'DeviceNotRegistered') {
+          deadTokens.push(tokenRows[i].token);
+        }
+      }
+    });
+
+    if (deadTokens.length > 0) {
+      console.log('[sendNotification] Deactivating', deadTokens.length, 'dead token(s)');
+      await supabase
+        .from('push_tokens')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .in('token', deadTokens);
+    }
+  } catch (pushErr) {
+    console.warn('[sendNotification] Expo push dispatch failed (non-fatal):', pushErr);
+  }
+
   return notif.id;
 }
