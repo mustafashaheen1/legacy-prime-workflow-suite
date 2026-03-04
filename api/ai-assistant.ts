@@ -1,41 +1,60 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
+// @ts-ignore — pdfjs-dist types not available for this build path
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+
+// Mirror the exact worker setup from convert-pdf-to-image.ts which is proven to work
+// (empty workerSrc caused runtime crash; explicit worker path does not)
+// @ts-ignore
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker.mjs';
 
 /**
- * Delegates PDF text extraction to /api/extract-pdf-text which uses a static
- * pdfjs-dist import (same as convert-pdf-to-image.ts). Keeping pdfjs-dist out
- * of ai-assistant.ts avoids cold-start crashes from module-level side effects.
+ * Extracts full text from a PDF URL using PDF.js.
+ * Uses the same static import + workerSrc pattern as convert-pdf-to-image.ts
+ * which is proven to work in Vercel serverless.
  */
 async function extractPdfText(pdfUrl: string, fileName: string): Promise<string> {
   try {
-    console.log('[AI Assistant] Requesting PDF text extraction for:', fileName);
-    // VERCEL_PROJECT_PRODUCTION_URL is the stable production alias (no hash suffix).
-    // VERCEL_URL is per-deployment and may include a hash for preview builds.
-    const rawUrl =
-      process.env.VERCEL_PROJECT_PRODUCTION_URL ||
-      process.env.VERCEL_URL ||
-      process.env.EXPO_PUBLIC_API_URL ||
-      'legacy-prime-workflow-suite.vercel.app';
-    const base = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+    console.log('[AI Assistant] Fetching PDF for text extraction:', fileName);
+    const response = await fetch(pdfUrl);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const response = await fetch(`${base}/api/extract-pdf-text`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pdfUrl, fileName }),
-    });
+    const data = new Uint8Array(await response.arrayBuffer());
+    console.log('[AI Assistant] PDF fetched, size:', data.length, 'bytes');
 
-    if (!response.ok) {
-      console.warn('[AI Assistant] extract-pdf-text returned', response.status);
-      return '';
+    // @ts-ignore
+    const pdf = await pdfjsLib.getDocument({
+      data,
+      useSystemFonts: true,
+      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
+    }).promise;
+
+    const totalPages: number = pdf.numPages;
+    const maxPages = Math.min(totalPages, 25);
+    console.log('[AI Assistant] PDF pages:', totalPages, '— extracting', maxPages);
+
+    const pageTexts: string[] = [];
+    for (let p = 1; p <= maxPages; p++) {
+      const page = await pdf.getPage(p);
+      const textContent = await page.getTextContent();
+      const text = (textContent.items as any[])
+        .filter((item: any) => item.str)
+        .map((item: any) => item.str)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (text) {
+        pageTexts.push(totalPages > 1 ? `[Page ${p}/${totalPages}]\n${text}` : text);
+      }
     }
 
-    const result = await response.json() as any;
-    if (result.success && result.text) {
-      console.log('[AI Assistant] PDF text received, pages:', result.pages, 'chars:', result.text.length);
-      return result.text as string;
+    if (totalPages > maxPages) {
+      pageTexts.push(`[Note: Document has ${totalPages} pages; only first ${maxPages} extracted.]`);
     }
 
-    return '';
+    const result = pageTexts.join('\n\n');
+    console.log('[AI Assistant] PDF text extracted, chars:', result.length);
+    return result;
   } catch (err: any) {
     console.error('[AI Assistant] PDF text extraction failed for', fileName, ':', err.message);
     return '';
