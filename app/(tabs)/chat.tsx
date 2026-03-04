@@ -404,12 +404,16 @@ export default function ChatScreen() {
   };
 
   const handlePickImage = async () => {
+    // Dismiss the attach menu FIRST and wait for its animation to finish.
+    // Launching a system picker while the Modal is still animating out causes
+    // "Attempt to present while a presentation is in progress" on iOS.
+    setShowAttachMenu(false);
+    await new Promise(resolve => setTimeout(resolve, 300));
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.6,
-        // Resize to max 1920x1080 to reduce file size
         maxWidth: 1920,
         maxHeight: 1920,
       });
@@ -421,10 +425,12 @@ export default function ChatScreen() {
       console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
-    setShowAttachMenu(false);
   };
 
   const handleTakePhoto = async () => {
+    // Dismiss modal first — same reason as handlePickImage above.
+    setShowAttachMenu(false);
+    await new Promise(resolve => setTimeout(resolve, 300));
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -435,7 +441,6 @@ export default function ChatScreen() {
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
         quality: 0.6,
-        // Resize to max 1920x1080 to reduce file size
         maxWidth: 1920,
         maxHeight: 1920,
       });
@@ -447,7 +452,6 @@ export default function ChatScreen() {
       console.error('Error taking photo:', error);
       Alert.alert('Error', 'Failed to take photo');
     }
-    setShowAttachMenu(false);
   };
 
   const handleSendImage = async () => {
@@ -572,6 +576,10 @@ export default function ChatScreen() {
   const handlePickDocument = async () => {
     if (!selectedChat) return;
 
+    // Dismiss modal first — same race condition fix as handlePickImage/handleTakePhoto.
+    setShowAttachMenu(false);
+    await new Promise(resolve => setTimeout(resolve, 300));
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
@@ -689,7 +697,6 @@ export default function ChatScreen() {
       console.error('Error with document:', error);
       Alert.alert('Error', error.message || 'Failed to send document');
     }
-    setShowAttachMenu(false);
   };
 
   const startRecording = async () => {
@@ -1687,13 +1694,15 @@ placeholder={t('common.search')}
           onPress={() => setShowAttachMenu(false)}
         >
           <View style={styles.attachMenu}>
-            <TouchableOpacity style={styles.attachOption} onPress={handleTakePhoto}>
-              <View style={[styles.attachIconContainer, { backgroundColor: '#EF4444' }]}>
-                <ImageIcon size={24} color="#FFFFFF" />
-              </View>
-              <Text style={styles.attachOptionText}>Take Photo</Text>
-            </TouchableOpacity>
-            
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity style={styles.attachOption} onPress={handleTakePhoto}>
+                <View style={[styles.attachIconContainer, { backgroundColor: '#EF4444' }]}>
+                  <ImageIcon size={24} color="#FFFFFF" />
+                </View>
+                <Text style={styles.attachOptionText}>Take Photo</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity style={styles.attachOption} onPress={handlePickImage}>
               <View style={[styles.attachIconContainer, { backgroundColor: '#8B5CF6' }]}>
                 <ImageIcon size={24} color="#FFFFFF" />
