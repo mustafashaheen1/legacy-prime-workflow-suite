@@ -1,24 +1,42 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-
-// Disable worker for Node.js serverless — text extraction runs inline
-(pdfjsLib as any).GlobalWorkerOptions.workerSrc = '';
 
 /**
  * Fetches a PDF from its S3 URL and extracts full text content using PDF.js.
- * Returns formatted text with page markers, capped at 25 pages to stay within token limits.
+ * Uses a dynamic import so pdfjs-dist is not bundled at module load time —
+ * a static top-level import crashed the cold start in Vercel serverless.
+ * Returns formatted text with page markers, capped at 25 pages.
  */
 async function extractPdfText(pdfUrl: string, fileName: string): Promise<string> {
   try {
     console.log('[AI Assistant] Fetching PDF for text extraction:', fileName);
-    const response = await fetch(pdfUrl, { signal: AbortSignal.timeout(15_000) });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const data = new Uint8Array(await response.arrayBuffer());
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15_000);
+    let data: Uint8Array;
+    try {
+      const response = await fetch(pdfUrl, { signal: controller.signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      data = new Uint8Array(await response.arrayBuffer());
+    } finally {
+      clearTimeout(timeoutId);
+    }
     console.log('[AI Assistant] PDF fetched, size:', data.length, 'bytes');
 
-    const loadingTask = (pdfjsLib as any).getDocument({
+    // Dynamic import — keeps pdfjs-dist out of the cold-start bundle
+    let pdfjsLib: any;
+    try {
+      pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      // Disable worker thread for inline serverless execution
+      if (pdfjsLib.GlobalWorkerOptions) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      }
+    } catch (importErr: any) {
+      console.error('[AI Assistant] pdfjs-dist import failed:', importErr.message);
+      return '';
+    }
+
+    const loadingTask = pdfjsLib.getDocument({
       data,
       useSystemFonts: true,
       standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
