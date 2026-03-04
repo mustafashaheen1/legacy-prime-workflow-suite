@@ -332,8 +332,12 @@ function useOpenAIChat(appData: {
     }
   };
 
-  const sendMessage = async (userMessage: string | { text: string; files: any[] }) => {
+  const sendMessage = async (userMessage: string | { text: string; displayText?: string; files: any[] }) => {
     const messageText = typeof userMessage === 'string' ? userMessage : userMessage.text;
+    // displayText is what the user sees in the bubble — original input only, no extracted PDF content
+    const displayText = typeof userMessage === 'object' && userMessage.displayText !== undefined
+      ? userMessage.displayText
+      : messageText;
     const files = typeof userMessage === 'object' && 'files' in userMessage ? userMessage.files : [];
 
     console.log('[sendMessage] Message text:', messageText);
@@ -343,9 +347,9 @@ function useOpenAIChat(appData: {
     const userMsg = {
       id: Date.now().toString(),
       role: 'user',
-      text: messageText,
+      text: messageText,      // Full AI context (includes extracted PDF text) — sent to API & stored in DB
       files,
-      parts: [{ type: 'text', text: messageText }],
+      parts: [{ type: 'text', text: displayText }],  // Clean display text — shown in chat bubble
     };
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
@@ -3174,7 +3178,10 @@ Generate appropriate line items from the price list that fit this scope of work$
 
     const hasImages = attachedFiles.some(f => f.mimeType.startsWith('image/'));
     const hasPDFs = attachedFiles.some(f => f.mimeType === 'application/pdf');
-    let userMessage = input.trim() || (hasPDFs && !hasImages ? 'Please analyze the attached file' : 'Please analyze the attached images');
+    // displayText = what the user sees in the chat bubble (their typed input only)
+    const displayText = input.trim() || (hasPDFs && !hasImages ? 'Please analyze the attached file' : 'Please analyze the attached images');
+    // userMessage starts as displayText then gets PDF context appended — sent to AI only
+    let userMessage = displayText;
 
     const isImageGenerationRequest = userMessage.toLowerCase().includes('genera') &&
       (userMessage.toLowerCase().includes('imagen') || userMessage.toLowerCase().includes('image'));
@@ -3368,6 +3375,7 @@ Generate appropriate line items from the price list that fit this scope of work$
             uri: pdfUrl,
             name: displayName,
             s3Url: pdfUrl,
+            size: file.size,
           });
 
           // Embed extracted text for additional context (even if partially garbled)
@@ -3385,6 +3393,7 @@ Generate appropriate line items from the price list that fit this scope of work$
         // Send images + embedded PDF text (no PDF file objects needed — text is in message)
         await sendMessage({
           text: userMessage,
+          displayText,
           files: filesForAI as any,
         });
       } else if (hasPDFs) {
@@ -3440,6 +3449,7 @@ Generate appropriate line items from the price list that fit this scope of work$
             uri: pdfUrl,
             name: displayName,
             s3Url: pdfUrl,
+            size: file.size,
           });
 
           // Embed extracted text for additional context (even if partially garbled)
@@ -3455,6 +3465,7 @@ Generate appropriate line items from the price list that fit this scope of work$
         console.log('[Send] Sending with', pdfPageImages.length, 'file(s) for PDF pipeline');
         await sendMessage({
           text: userMessage,
+          displayText,
           files: pdfPageImages as any,
         });
       } else {
