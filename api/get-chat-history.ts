@@ -70,13 +70,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
+      // For user messages, strip the embedded PDF context block from the display text.
+      // The full content (with extracted PDF text) is preserved in `text` for AI context,
+      // but `parts[0].text` is what renders in the chat bubble — it should show only
+      // the user's original typed input, not the internal extraction plumbing.
+      const displayText = msg.role === 'user'
+        ? (msg.content.replace(/\n\n\[PDF Attachment:[\s\S]*$/, '').trim() || msg.content)
+        : msg.content;
+
       return {
         id: msg.id,
         role: msg.role,
-        text: msg.content,
+        text: msg.content,          // Full AI context — used for history sent to OpenAI
         files: msg.files || [],
         createdAt: msg.created_at,
-        parts: [{ type: 'text', text: msg.content }],
+        parts: [{ type: 'text', text: displayText }],  // Clean display text for the bubble
         // Include metadata for estimate links and takeoff links
         ...(metadata?.estimateLink && { estimateLink: metadata.estimateLink }),
         ...(metadata?.takeoffLink && { takeoffLink: metadata.takeoffLink }),
