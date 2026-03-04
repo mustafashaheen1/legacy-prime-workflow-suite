@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Alert, Modal, FlatList, useWindowDimensions, KeyboardAvoidingView, ActivityIndicator, Linking } from 'react-native';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Users, Search, Paperclip, Image as ImageIcon, Mic, Send, Play, X, Check, Bot, Sparkles, Trash2 } from 'lucide-react-native';
@@ -93,6 +93,11 @@ export default function ChatScreen() {
   const webAudioRef = useRef<HTMLAudioElement | null>(null);
   const recordingStartTimeRef = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  // Ref so polling effects always read the latest conversations without needing
+  // conversations in their dependency array (which would re-create the interval
+  // on every message add, causing excessive re-fetches).
+  const conversationsRef = useRef(conversations);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
   const selectedConversation = conversations.find(c => c.id === selectedChat);
   const messages = selectedConversation?.messages || [];
@@ -230,7 +235,7 @@ export default function ChatScreen() {
         return;
       }
 
-      const conversation = conversations.find(c => c.id === selectedChat);
+      const conversation = conversationsRef.current.find(c => c.id === selectedChat);
       if (!conversation || (conversation.type !== 'individual' && conversation.type !== 'group')) {
         return; // Not a team chat
       }
@@ -247,8 +252,9 @@ export default function ChatScreen() {
         if (result.success) {
           console.log('[Chat] Fetched', result.messages.length, 'messages');
 
-          // Get existing message IDs to avoid duplicates
-          const existingMessageIds = new Set((conversation.messages || []).map(m => m.id));
+          // Read the latest conversation snapshot to avoid stale dedup misses
+          const latestConv = conversationsRef.current.find(c => c.id === selectedChat);
+          const existingMessageIds = new Set((latestConv?.messages || []).map(m => m.id));
 
           // Only add new messages that don't exist yet
           result.messages.forEach((msg: any) => {
@@ -1271,11 +1277,27 @@ export default function ChatScreen() {
         );
 
       case 'file':
+        const fileDownloadUrl = message.content;
         return (
-          <View style={styles.fileMessage}>
+          <TouchableOpacity
+            style={styles.fileMessage}
+            onPress={() => {
+              if (!fileDownloadUrl) return;
+              if (Platform.OS === 'web') {
+                window.open(fileDownloadUrl, '_blank');
+              } else {
+                Linking.openURL(fileDownloadUrl).catch(() =>
+                  Alert.alert('Error', 'Unable to open file')
+                );
+              }
+            }}
+            activeOpacity={fileDownloadUrl ? 0.7 : 1}
+          >
             <Paperclip size={16} color={message.senderId === user?.id ? '#1F2937' : '#FFFFFF'} />
-            <Text style={[styles.fileName, message.senderId === user?.id && styles.fileNameOwn]}>{message.fileName}</Text>
-          </View>
+            <Text style={[styles.fileName, message.senderId === user?.id && styles.fileNameOwn]}>
+              {message.fileName || 'Download file'}
+            </Text>
+          </TouchableOpacity>
         );
       
       default:
