@@ -62,7 +62,6 @@
     "jspdf": "^3.0.4",
     "lucide-react-native": "^0.475.0",
     "openai": "^6.15.0",
-    "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^3.11.174",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -94,6 +93,7 @@
     "dotenv": "^16.4.5",
     "eslint": "9.31.0",
     "eslint-config-expo": "9.2.0",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.16.3",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.2"
