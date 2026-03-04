@@ -491,21 +491,17 @@ export default function ChatScreen() {
           contentType = blob.type || 'image/jpeg';
           fileExtension = contentType.split('/')[1] || 'jpg';
         } else {
-          // Mobile: Read file and create blob
+          // Mobile (iOS/Android/Hermes): new Blob([Uint8Array]) is NOT supported.
+          // Fetch a data URI instead — this is the only reliable way to get a Blob
+          // from base64 in React Native's Hermes runtime.
           const base64 = await FileSystem.readAsStringAsync(previewImage, {
             encoding: FileSystem.EncodingType.Base64,
           });
-          fileExtension = previewImage.split('.').pop() || 'jpg';
+          fileExtension = previewImage.split('.').pop()?.toLowerCase() || 'jpg';
           contentType = `image/${fileExtension}`;
-
-          // Convert base64 to blob
-          const byteCharacters = atob(base64);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          blob = new Blob([byteArray], { type: contentType });
+          const dataUri = `data:${contentType};base64,${base64}`;
+          const fetchResponse = await fetch(dataUri);
+          blob = await fetchResponse.blob();
         }
 
         // Get presigned URL
@@ -617,19 +613,13 @@ export default function ChatScreen() {
             const response = await fetch(result.assets[0].uri);
             blob = await response.blob();
           } else {
-            // Mobile: Read file and create blob
+            // Mobile (Hermes): new Blob([Uint8Array]) unsupported — use data URI fetch.
             const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
               encoding: FileSystem.EncodingType.Base64,
             });
-
-            // Convert base64 to blob
-            const byteCharacters = atob(base64);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            blob = new Blob([byteArray], { type: mimeType });
+            const dataUri = `data:${mimeType};base64,${base64}`;
+            const fetchResponse = await fetch(dataUri);
+            blob = await fetchResponse.blob();
           }
 
           // Get presigned URL
