@@ -36,6 +36,7 @@ const PUBLIC_ROUTES = [
   '/reset-password',
   '/forgot-password',
   '/phone-login',
+  '/auth/callback',
 ];
 
 function RootLayoutNav() {
@@ -161,6 +162,7 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen name="admin/employee-management" options={{ title: 'Employee Management' }} />
+      <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
       <Stack.Screen name="stripe-test" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
     </Stack>
