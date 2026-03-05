@@ -129,6 +129,7 @@ export default function SignupScreen() {
 
         // If user came from phone login, save verified phone number in E.164 format
         if (phoneParam && result.user) {
+          // @ts-ignore - phone column exists but not in generated Supabase types
           await supabase.from('users').update({ phone: phoneParam }).eq('id', result.user.id);
         }
 
@@ -234,6 +235,7 @@ export default function SignupScreen() {
 
         // If user came from phone login, overwrite phone with verified E.164 format
         if (phoneParam && result.user) {
+          // @ts-ignore - phone column exists but not in generated Supabase types
           await supabase.from('users').update({ phone: phoneParam }).eq('id', result.user.id);
         }
 
