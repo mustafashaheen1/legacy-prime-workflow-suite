@@ -50,7 +50,16 @@ export default function PhoneLoginScreen() {
         type: 'sms',
       });
 
-      if (error) throw error;
+      if (error) {
+        const msg = error.message?.toLowerCase() ?? '';
+        if (msg.includes('expired') || msg.includes('invalid') || msg.includes('not found')) {
+          setCode('');
+          Alert.alert('Code Expired', 'This code has expired or is invalid. Please request a new one.');
+        } else {
+          Alert.alert('Verification Failed', error.message || 'Failed to verify code');
+        }
+        return;
+      }
       if (!data.user) throw new Error('Authentication failed');
 
       // Load user profile by phone number (phone OTP creates a new auth user,
