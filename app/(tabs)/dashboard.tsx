@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
-import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, AlertTriangle } from 'lucide-react-native';
+import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, AlertTriangle, Camera } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -9,6 +9,8 @@ import Svg, { Circle, G } from 'react-native-svg';
 import { Project, Report, ProjectReportData } from '@/types';
 import DailyTaskCard from '@/components/DailyTasks/DailyTaskCard';
 import AddTaskModal from '@/components/DailyTasks/AddTaskModal';
+import * as ImagePicker from 'expo-image-picker';
+import { compressImage } from '@/lib/upload-utils';
 
 
 export default function DashboardScreen() {
@@ -22,7 +24,7 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [refreshReports, loadDailyTasks]);
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
-  const [showArchived, setShowArchived] = useState<boolean>(false);
+  const [projectFilter, setProjectFilter] = useState<'active' | 'completed' | 'archived'>('active');
   const [showImportOptions, setShowImportOptions] = useState<boolean>(false);
   const [projectName, setProjectName] = useState<string>('');
   const [projectAddress, setProjectAddress] = useState<string>('');
@@ -43,6 +45,8 @@ export default function DashboardScreen() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
   const [isCreatingProject, setIsCreatingProject] = useState<boolean>(false);
+  const [coverPhotoUri, setCoverPhotoUri] = useState<string>('');
+  const [isUploadingCover, setIsUploadingCover] = useState<boolean>(false);
   const [reportGenerationProgress, setReportGenerationProgress] = useState<{ current: number; total: number; projectName: string }>({ current: 0, total: 0, projectName: '' });
   const [showClientPickerModal, setShowClientPickerModal] = useState<boolean>(false);
   const [showEstimatePickerModal, setShowEstimatePickerModal] = useState<boolean>(false);
@@ -53,17 +57,25 @@ export default function DashboardScreen() {
   const [showAddTaskModal, setShowAddTaskModal] = useState<boolean>(false);
   const [taskFilter, setTaskFilter] = useState<'today' | 'upcoming' | 'all'>('today');
 
-  const activeProjects = projects.filter(p => p.status !== 'archived');
+  const activeProjects = projects.filter(p => p.status === 'active');
+  const completedProjects = projects.filter(p => p.status === 'completed');
   const archivedProjects = projects.filter(p => p.status === 'archived');
-  
-  const filteredActiveProjects = activeProjects.filter(p => 
+
+  const filteredActiveProjects = activeProjects.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const filteredArchivedProjects = archivedProjects.filter(p => 
+  const filteredCompletedProjects = completedProjects.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  
-  const displayProjects = showArchived ? filteredArchivedProjects : filteredActiveProjects;
+  const filteredArchivedProjects = archivedProjects.filter(p =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const displayProjects =
+    projectFilter === 'active' ? filteredActiveProjects :
+    projectFilter === 'completed' ? filteredCompletedProjects :
+    filteredArchivedProjects;
+
 
   const totalBudget = activeProjects.reduce((sum, p) => sum + p.budget, 0);
   const totalSold = activeProjects.reduce((sum, p) => sum + (p.contractAmount ?? 0), 0);
@@ -171,6 +183,38 @@ export default function DashboardScreen() {
     }
   };
 
+  const handlePickCoverPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setCoverPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const uploadCoverPhoto = async (localUri: string): Promise<string> => {
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+    const urlRes = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: `project-cover-${Date.now()}.jpg`,
+        fileType: 'image/jpeg',
+        companyId: company?.id,
+      }),
+    });
+    const urlData = await urlRes.json();
+    if (!urlData.uploadUrl) throw new Error('Failed to get upload URL');
+
+    const compressed = await compressImage(localUri, { maxWidth: 1200, quality: 0.8 });
+    const blob = await fetch(compressed.uri).then(r => r.blob());
+    await fetch(urlData.uploadUrl, { method: 'PUT', body: blob, headers: { 'Content-Type': 'image/jpeg' } });
+    return urlData.fileUrl as string;
+  };
+
   const handleCreateProject = async () => {
     // Validation
     if (!projectName.trim()) {
@@ -211,6 +255,19 @@ export default function DashboardScreen() {
     setIsCreatingProject(true);
 
     try {
+      // Upload cover photo if selected
+      let coverImageUrl = 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400';
+      if (coverPhotoUri) {
+        setIsUploadingCover(true);
+        try {
+          coverImageUrl = await uploadCoverPhoto(coverPhotoUri);
+        } catch (e) {
+          console.warn('[Dashboard] Cover photo upload failed, using default:', e);
+        } finally {
+          setIsUploadingCover(false);
+        }
+      }
+
       // Determine source
       const sourceValue = projectSource.trim() || 'Phone Call';
       const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
@@ -283,7 +340,7 @@ export default function DashboardScreen() {
           expenses: 0,
           progress: 0,
           status: 'active',
-          image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+          image: coverImageUrl,
           hoursWorked: 0,
           startDate: new Date().toISOString(),
           clientId: clientId,
@@ -325,6 +382,7 @@ export default function DashboardScreen() {
       setProjectPhone('');
       setProjectSource('');
       setProjectBudget('');
+      setCoverPhotoUri('');
       setShowCreateModal(false);
       showAlert('Success', 'Project created successfully!');
     } catch (error: any) {
@@ -950,19 +1008,27 @@ export default function DashboardScreen() {
               <Text style={styles.headerTitle}>{t('dashboard.title')}</Text>
               <View style={styles.filterChipsRow}>
                 <TouchableOpacity
-                  style={[styles.filterChip, !showArchived && styles.filterChipActive]}
-                  onPress={() => setShowArchived(false)}
+                  style={[styles.filterChip, projectFilter === 'active' && styles.filterChipActive]}
+                  onPress={() => setProjectFilter('active')}
                 >
-                  <Text style={[styles.filterChipText, !showArchived && styles.filterChipTextActive]}>
+                  <Text style={[styles.filterChipText, projectFilter === 'active' && styles.filterChipTextActive]}>
                     {t('dashboard.activeProjects')} ({activeProjects.length})
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.filterChip, showArchived && styles.filterChipActive]}
-                  onPress={() => setShowArchived(true)}
+                  style={[styles.filterChip, projectFilter === 'completed' && styles.filterChipActive]}
+                  onPress={() => setProjectFilter('completed')}
                 >
-                  <Archive size={16} color={showArchived ? '#FFFFFF' : '#6B7280'} />
-                  <Text style={[styles.filterChipText, showArchived && styles.filterChipTextActive]}>
+                  <Text style={[styles.filterChipText, projectFilter === 'completed' && styles.filterChipTextActive]}>
+                    Completed ({completedProjects.length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterChip, projectFilter === 'archived' && styles.filterChipActive]}
+                  onPress={() => setProjectFilter('archived')}
+                >
+                  <Archive size={16} color={projectFilter === 'archived' ? '#FFFFFF' : '#6B7280'} />
+                  <Text style={[styles.filterChipText, projectFilter === 'archived' && styles.filterChipTextActive]}>
                     {t('dashboard.archivedProjects')} ({archivedProjects.length})
                   </Text>
                 </TouchableOpacity>
@@ -1158,7 +1224,11 @@ export default function DashboardScreen() {
           <View style={styles.emptyState}>
             <Archive size={48} color="#9CA3AF" />
             <Text style={styles.emptyStateText}>
-              {showArchived ? t('dashboard.noArchivedProjects') : t('dashboard.noActiveProjects')}
+              {projectFilter === 'archived'
+                ? t('dashboard.noArchivedProjects')
+                : projectFilter === 'completed'
+                ? 'No completed projects yet'
+                : t('dashboard.noActiveProjects')}
             </Text>
           </View>
         ) : (
@@ -1468,12 +1538,33 @@ export default function DashboardScreen() {
                   />
                 </View>
 
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Cover Photo (optional)</Text>
+                  <TouchableOpacity
+                    style={styles.coverPhotoPickerButton}
+                    onPress={handlePickCoverPhoto}
+                  >
+                    {coverPhotoUri ? (
+                      <Image
+                        source={{ uri: coverPhotoUri }}
+                        style={styles.coverPhotoPreview}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={styles.coverPhotoPlaceholder}>
+                        <Camera size={28} color="#9CA3AF" />
+                        <Text style={styles.coverPhotoPlaceholderText}>Tap to add a project photo</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
                 <TouchableOpacity
-                  style={[styles.createButton, isCreatingProject && styles.createButtonDisabled]}
+                  style={[styles.createButton, (isCreatingProject || isUploadingCover) && styles.createButtonDisabled]}
                   onPress={handleCreateProject}
-                  disabled={isCreatingProject}
+                  disabled={isCreatingProject || isUploadingCover}
                 >
-                  {isCreatingProject ? (
+                  {isCreatingProject || isUploadingCover ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
                     <Text style={styles.createButtonText}>{t('projects.createNew')}</Text>
@@ -2661,14 +2752,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   // Daily Tasks Styles
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   dailyTasksOverlay: {
     flex: 1,
     flexDirection: 'row',
@@ -2722,16 +2805,6 @@ const styles = StyleSheet.create({
     gap: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-  },
-  filterChip: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  filterChipActive: {
-    backgroundColor: '#2563EB',
   },
   filterText: {
     fontSize: 13,
@@ -3137,5 +3210,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#4B5563',
+  },
+  coverPhotoPickerButton: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  coverPhotoPreview: {
+    width: '100%',
+    height: 140,
+  },
+  coverPhotoPlaceholder: {
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F9FAFB',
+  },
+  coverPhotoPlaceholderText: {
+    fontSize: 13,
+    color: '#9CA3AF',
   },
 });

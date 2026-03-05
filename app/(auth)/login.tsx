@@ -7,11 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import Logo from '@/components/Logo';
+import * as WebBrowser from 'expo-web-browser';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSocialLoading, setIsSocialLoading] = useState<boolean>(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState<boolean>(false);
   const { setUser, setCompany } = useApp();
   const insets = useSafeAreaInsets();
@@ -147,6 +149,33 @@ export default function LoginScreen() {
 
 
 
+  const handleOAuthLogin = async (provider: 'google' | 'apple') => {
+    setIsSocialLoading(true);
+    try {
+      const result = await auth.signInWithOAuth(provider);
+      if (!result.success || !result.url) {
+        Alert.alert('Error', result.error || 'OAuth login failed');
+        return;
+      }
+      if (Platform.OS === 'web') {
+        window.location.href = result.url;
+      } else {
+        const redirectUrl = process.env.EXPO_PUBLIC_API_URL
+          ? `${process.env.EXPO_PUBLIC_API_URL}/auth/callback`
+          : 'https://legacy-prime-workflow-suite.vercel.app/auth/callback';
+        const browserResult = await WebBrowser.openAuthSessionAsync(result.url, redirectUrl);
+        if (browserResult.type === 'success') {
+          // onAuthStateChange in _layout.tsx will detect the new session
+          router.replace('/(tabs)/dashboard');
+        }
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'An unexpected error occurred');
+    } finally {
+      setIsSocialLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -168,45 +197,95 @@ export default function LoginScreen() {
 
         <View style={styles.form}>
 
-        <TextInput
-          style={styles.input}
-          placeholder={t('login.emailPlaceholder')}
-          placeholderTextColor="#9CA3AF"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+          <TextInput
+            style={styles.input}
+            placeholder={t('login.emailPlaceholder')}
+            placeholderTextColor="#9CA3AF"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
 
-        <TextInput
-          style={styles.input}
-          placeholder={t('login.passwordPlaceholder')}
-          placeholderTextColor="#9CA3AF"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+          <TextInput
+            style={styles.input}
+            placeholder={t('login.passwordPlaceholder')}
+            placeholderTextColor="#9CA3AF"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
 
-        <TouchableOpacity
-          style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-          onPress={handleLogin}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.loginButtonText}>{t('login.loginButton')}</Text>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.signupContainer}>
-          <Text style={styles.noAccountText}>{t('login.noAccount')} </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
-            <Text style={styles.signupText}>{t('login.signUp')}</Text>
+          <TouchableOpacity
+            style={styles.forgotPasswordButton}
+            onPress={() => router.push('/(auth)/forgot-password')}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+            onPress={handleLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.loginButtonText}>{t('login.loginButton')}</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Phone Login */}
+          <TouchableOpacity
+            style={styles.socialButton}
+            onPress={() => router.push('/(auth)/phone-login')}
+            disabled={isSocialLoading}
+          >
+            <Text style={styles.socialButtonText}>📱  Continue with Phone</Text>
+          </TouchableOpacity>
+
+          {/* Google Login */}
+          <TouchableOpacity
+            style={[styles.socialButton, isSocialLoading && styles.socialButtonDisabled]}
+            onPress={() => handleOAuthLogin('google')}
+            disabled={isSocialLoading}
+          >
+            {isSocialLoading ? (
+              <ActivityIndicator color="#1F2937" />
+            ) : (
+              <Text style={styles.socialButtonText}>🇬  Continue with Google</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Apple Login — only show on iOS and web */}
+          {Platform.OS !== 'android' && (
+            <TouchableOpacity
+              style={[styles.socialButton, styles.appleButton, isSocialLoading && styles.appleButtonDisabled]}
+              onPress={() => handleOAuthLogin('apple')}
+              disabled={isSocialLoading}
+            >
+              {isSocialLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={[styles.socialButtonText, styles.appleButtonText]}>🍎  Continue with Apple</Text>
+              )}
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.signupContainer}>
+            <Text style={styles.noAccountText}>{t('login.noAccount')} </Text>
+            <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
+              <Text style={styles.signupText}>{t('login.signUp')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-    </View>
     </KeyboardAvoidingView>
   );
 }
@@ -299,6 +378,16 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 12,
   },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginBottom: 4,
+    marginTop: -4,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#2563EB',
+  },
   loginButton: {
     backgroundColor: '#2563EB',
     borderRadius: 12,
@@ -316,6 +405,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 16,
   },
   noAccountText: {
     fontSize: 15,

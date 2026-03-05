@@ -592,11 +592,58 @@ export default function ProjectDetailScreen() {
               return <View style={bannerStyle}>{innerContent}</View>;
             })()}
 
-            <Image
-              source={{ uri: project.image }}
-              style={styles.projectImage}
-              contentFit="cover"
-            />
+            <View style={styles.coverPhotoContainer}>
+              <Image
+                source={{ uri: project.image }}
+                style={styles.projectImage}
+                contentFit="cover"
+              />
+              {project.status !== 'completed' && project.status !== 'archived' && (
+                <TouchableOpacity
+                  style={styles.changeCoverPhotoButton}
+                  onPress={async () => {
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ['images'],
+                      allowsEditing: true,
+                      aspect: [16, 9],
+                      quality: 0.8,
+                    });
+                    if (result.canceled || !result.assets[0]) return;
+
+                    const uri = result.assets[0].uri;
+                    try {
+                      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+                      // Get S3 presigned upload URL
+                      const urlRes = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          fileName: `project-cover-${project.id}-${Date.now()}.jpg`,
+                          fileType: 'image/jpeg',
+                          companyId: company?.id,
+                        }),
+                      });
+                      const urlData = await urlRes.json();
+                      if (!urlData.uploadUrl) throw new Error('Failed to get upload URL');
+
+                      // Compress and upload
+                      const compressed = await compressImage(uri, { maxWidth: 1200, quality: 0.8 });
+                      const blob = await fetch(compressed.uri).then(r => r.blob());
+                      await fetch(urlData.uploadUrl, { method: 'PUT', body: blob, headers: { 'Content-Type': 'image/jpeg' } });
+
+                      // Save URL to project
+                      updateProject(project.id, { image: urlData.fileUrl });
+                      Alert.alert('Done', 'Cover photo updated!');
+                    } catch (e: any) {
+                      Alert.alert('Error', e.message || 'Failed to upload cover photo');
+                    }
+                  }}
+                >
+                  <Camera size={18} color="#FFFFFF" />
+                  <Text style={styles.changeCoverPhotoText}>Change Photo</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {user?.role !== 'field-employee' && (
               <View style={styles.balancesCard}>
@@ -1835,6 +1882,15 @@ export default function ProjectDetailScreen() {
         );
 
       case 'clock':
+        if (project.status === 'completed') {
+          return (
+            <View style={styles.lockedTabContainer}>
+              <Clock size={48} color="#9CA3AF" />
+              <Text style={styles.lockedTabTitle}>Project Completed</Text>
+              <Text style={styles.lockedTabText}>Clock-in is disabled for completed projects. Reactivate the project to resume time tracking.</Text>
+            </View>
+          );
+        }
         return (
           <View style={styles.clockTabContent}>
             <ClockInOutComponent projectId={project.id} projectName={project.name} />
@@ -1842,6 +1898,15 @@ export default function ProjectDetailScreen() {
         );
 
       case 'expenses':
+        if (project.status === 'completed') {
+          return (
+            <View style={styles.lockedTabContainer}>
+              <DollarSign size={48} color="#9CA3AF" />
+              <Text style={styles.lockedTabTitle}>Project Completed</Text>
+              <Text style={styles.lockedTabText}>Adding expenses is disabled for completed projects. Reactivate the project to add expenses.</Text>
+            </View>
+          );
+        }
         return (
           <View style={styles.expensesTabContent}>
             <View style={styles.expensesHeader}>
@@ -1920,6 +1985,15 @@ export default function ProjectDetailScreen() {
         );
 
       case 'photos':
+        if (project.status === 'completed') {
+          return (
+            <View style={styles.lockedTabContainer}>
+              <Camera size={48} color="#9CA3AF" />
+              <Text style={styles.lockedTabTitle}>Project Completed</Text>
+              <Text style={styles.lockedTabText}>Photo uploads are disabled for completed projects. Reactivate the project to add new photos.</Text>
+            </View>
+          );
+        }
         const pickPhotoImage = async () => {
           const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
@@ -2836,46 +2910,49 @@ export default function ProjectDetailScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{project.name}</Text>
         <DailyTasksButton />
-        {project.status !== 'archived' && (
+        {project.status === 'active' && (
           <TouchableOpacity
             style={styles.completeButton}
             onPress={() => {
               Alert.alert(
-                'Complete Project',
-                `Are you sure you want to complete "${project.name}"?\n\nThis will archive all project data including:\n• Photos\n• Expenses\n• Time logs\n• Estimates\n• Tasks\n\nThe project will be moved to cloud storage and removed from your active dashboard.`,
+                'Mark as Complete',
+                `Mark "${project.name}" as completed?\n\nThe project will move to Completed status. You can reactivate it at any time.\n\nTo permanently archive, use the archive option.`,
                 [
+                  { text: 'Cancel', style: 'cancel' },
                   {
-                    text: 'Cancel',
-                    style: 'cancel',
-                  },
-                  {
-                    text: 'Complete Project',
-                    style: 'destructive',
+                    text: 'Mark Complete',
                     onPress: async () => {
-                      try {
-                        await archiveProject(project.id);
-                        Alert.alert(
-                          'Success',
-                          'Project completed and archived to cloud storage.',
-                          [
-                            {
-                              text: 'OK',
-                              onPress: () => router.back(),
-                            },
-                          ]
-                        );
-                      } catch (error) {
-                        console.error('Error archiving project:', error);
-                        Alert.alert('Error', 'Failed to archive project. Please try again.');
-                      }
+                      await updateProject(project.id, { status: 'completed', endDate: new Date().toISOString() });
+                      Alert.alert('Done', 'Project marked as completed.');
                     },
                   },
-                ],
-                { cancelable: true }
+                ]
               );
             }}
           >
             <Archive size={24} color="#10B981" />
+          </TouchableOpacity>
+        )}
+        {project.status === 'completed' && (
+          <TouchableOpacity
+            style={[styles.completeButton, { backgroundColor: '#FEF3C7' }]}
+            onPress={() => {
+              Alert.alert(
+                'Reactivate Project',
+                `Move "${project.name}" back to Active?`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Reactivate',
+                    onPress: async () => {
+                      await updateProject(project.id, { status: 'active', endDate: undefined });
+                    },
+                  },
+                ]
+              );
+            }}
+          >
+            <TrendingUp size={24} color="#F59E0B" />
           </TouchableOpacity>
         )}
       </View>
@@ -2964,6 +3041,14 @@ export default function ProjectDetailScreen() {
           </TouchableOpacity>
         </ScrollView>
       </View>
+
+      {project.status === 'completed' && (
+        <View style={styles.completedBanner}>
+          <Text style={styles.completedBannerText}>
+            ✓ Project Completed — Clock-in, Photos & Expenses are locked. Tap the button above to reactivate.
+          </Text>
+        </View>
+      )}
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {renderTabContent()}
@@ -3556,6 +3641,28 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 16,
     marginBottom: 20,
+  },
+  coverPhotoContainer: {
+    position: 'relative' as const,
+    width: '100%',
+    marginBottom: 20,
+  },
+  changeCoverPhotoButton: {
+    position: 'absolute' as const,
+    bottom: 28,
+    right: 12,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  changeCoverPhotoText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -5551,5 +5658,56 @@ const styles = StyleSheet.create({
   changeOrderDate: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    padding: 48,
+    gap: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#374151',
+    textAlign: 'center' as const,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center' as const,
+    lineHeight: 20,
+  },
+  completedBanner: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#A7F3D0',
+  },
+  completedBannerText: {
+    fontSize: 13,
+    color: '#065F46',
+    fontWeight: '500' as const,
+    textAlign: 'center' as const,
+  },
+  lockedTabContainer: {
+    flex: 1,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    padding: 48,
+    gap: 16,
+  },
+  lockedTabTitle: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: '#374151',
+    textAlign: 'center' as const,
+  },
+  lockedTabText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center' as const,
+    lineHeight: 20,
   },
 });

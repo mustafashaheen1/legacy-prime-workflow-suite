@@ -314,8 +314,9 @@ export const auth = {
    */
   resetPassword: async (email: string) => {
     try {
+      const appUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'exp://localhost:8081/(auth)/reset-password',
+        redirectTo: `${appUrl}/auth/reset-password`,
       });
 
       if (error) throw error;
@@ -330,6 +331,28 @@ export const auth = {
         success: false,
         error: error.message,
       };
+    }
+  },
+
+  /**
+   * Sign in with OAuth provider (Google or Apple).
+   * Returns the OAuth URL to open in a browser — caller handles WebBrowser.
+   */
+  signInWithOAuth: async (provider: 'google' | 'apple') => {
+    try {
+      const appUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${appUrl}/auth/callback`,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error) throw error;
+      return { success: true, url: data?.url };
+    } catch (error: any) {
+      console.error('[Auth] OAuth error:', error);
+      return { success: false, error: error.message };
     }
   },
 };
