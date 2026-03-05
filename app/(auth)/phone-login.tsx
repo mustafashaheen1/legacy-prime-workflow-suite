@@ -55,6 +55,7 @@ export default function PhoneLoginScreen() {
 
       // Load user profile by phone number (phone OTP creates a new auth user,
       // so we match by phone field rather than auth UUID)
+      // @ts-ignore - phone column exists but may not be in generated types
       const { data: userProfile, error: profileError } = await supabase
         .from('users')
         .select('*, companies(*)')
