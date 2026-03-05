@@ -155,7 +155,12 @@ export default function LoginScreen() {
   const handleOAuthLogin = async (provider: 'google' | 'apple') => {
     setIsSocialLoading(true);
     try {
-      const result = await auth.signInWithOAuth(provider);
+      // Native uses a custom scheme so ASWebAuthenticationSession closes the modal.
+      // Web uses the HTTPS callback page.
+      const redirectTo = Platform.OS === 'web'
+        ? undefined // defaults to https://.../auth/callback in signInWithOAuth
+        : 'legacyprime://auth/callback';
+      const result = await auth.signInWithOAuth(provider, redirectTo);
       if (!result.success || !result.url) {
         Alert.alert('Error', result.error || 'OAuth login failed');
         return;
@@ -163,18 +168,19 @@ export default function LoginScreen() {
       if (Platform.OS === 'web') {
         window.location.href = result.url;
       } else {
-        const redirectUrl = process.env.EXPO_PUBLIC_API_URL
-          ? `${process.env.EXPO_PUBLIC_API_URL}/auth/callback`
-          : 'https://legacy-prime-workflow-suite.vercel.app/auth/callback';
+        // Use custom URL scheme so ASWebAuthenticationSession closes the modal
+        // when Google redirects back (HTTPS redirects don't close the modal on iOS).
+        const redirectUrl = 'legacyprime://auth/callback';
 
         const browserResult = await WebBrowser.openAuthSessionAsync(result.url, redirectUrl);
 
         if (browserResult.type === 'success') {
-          // Parse tokens from the returned URL hash (e.g. /auth/callback#access_token=...&refresh_token=...)
+          // Parse tokens from the returned URL — Supabase puts them in the hash fragment.
+          // e.g. legacyprime://auth/callback#access_token=...&refresh_token=...
           const urlStr = browserResult.url;
-          const hashIndex = urlStr.indexOf('#');
-          if (hashIndex !== -1) {
-            const params = new URLSearchParams(urlStr.substring(hashIndex + 1));
+          const separatorIndex = urlStr.indexOf('#') !== -1 ? urlStr.indexOf('#') : urlStr.indexOf('?');
+          if (separatorIndex !== -1) {
+            const params = new URLSearchParams(urlStr.substring(separatorIndex + 1));
             const accessToken = params.get('access_token');
             const refreshToken = params.get('refresh_token');
 

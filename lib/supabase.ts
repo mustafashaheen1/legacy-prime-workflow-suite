@@ -340,13 +340,13 @@ export const auth = {
    * Sign in with OAuth provider (Google or Apple).
    * Returns the OAuth URL to open in a browser — caller handles WebBrowser.
    */
-  signInWithOAuth: async (provider: 'google' | 'apple') => {
+  signInWithOAuth: async (provider: 'google' | 'apple', redirectTo?: string) => {
     try {
       const appUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${appUrl}/auth/callback`,
+          redirectTo: redirectTo ?? `${appUrl}/auth/callback`,
           skipBrowserRedirect: true,
         },
       });
