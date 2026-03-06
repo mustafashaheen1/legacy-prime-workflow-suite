@@ -372,8 +372,8 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Apple Login — only show on iOS and web */}
-          {Platform.OS !== 'android' && (
+          {/* Apple Login — iOS only */}
+          {Platform.OS === 'ios' && (
             <TouchableOpacity
               style={[styles.socialButton, styles.appleButton, isSocialLoading && styles.appleButtonDisabled]}
               onPress={() => handleOAuthLogin('apple')}
