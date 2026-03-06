@@ -12,7 +12,7 @@ import { useApp } from '@/contexts/AppContext';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthCallbackScreen() {
-  const { user: currentUser, setUser, setCompany, logout } = useApp();
+  const { user: currentUser, setUser, setCompany } = useApp();
   const [status, setStatus] = useState<'loading' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -46,13 +46,13 @@ export default function AuthCallbackScreen() {
             .forEach(k => sessionStorage.removeItem(k));
           window.history.replaceState(null, '', window.location.pathname);
 
-          // abort: sign out (clears Supabase session AND AppContext via logout()),
-          // then show the error on this page. /auth/callback is a PUBLIC_ROUTE so
-          // the _layout auth guard will not redirect away even with user = null.
+          // abort: the original user's session was NEVER touched — detectSessionInUrl:false
+          // means Supabase ignores the hash tokens on page load. So we just store
+          // the error in sessionStorage and redirect back to /profile where the
+          // original user is still active and the Google card will show the message.
           const abort = async (msg: string) => {
-            await logout();
-            setErrorMsg(msg);
-            setStatus('error');
+            sessionStorage.setItem('google_connect_error', msg);
+            router.replace('/profile' as any);
           };
 
           // Get Google email: try hash → query params → already-set session
