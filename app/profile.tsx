@@ -29,6 +29,7 @@ export default function ProfileScreen() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [isSendingReset, setIsSendingReset] = useState<boolean>(false);
+  const [resetCooldown, setResetCooldown] = useState<number>(0);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState<boolean>(false);
   const [isGoogleLinked, setIsGoogleLinked] = useState<boolean>(false);
 
@@ -247,14 +248,34 @@ export default function ProfileScreen() {
     );
   };
 
+  const startResetCooldown = (seconds: number) => {
+    setResetCooldown(seconds);
+    const interval = setInterval(() => {
+      setResetCooldown(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const handleResetPassword = async () => {
+    if (resetCooldown > 0) return;
     setIsSendingReset(true);
     try {
       const result = await auth.resetPassword(user.email);
       if (result.success) {
         Alert.alert('Email Sent', `A password reset link has been sent to ${user.email}. Check your inbox.`);
+        startResetCooldown(60);
       } else {
-        Alert.alert('Error', result.error || 'Failed to send reset email. Please try again.');
+        // Parse "you can only request this after X seconds" from Supabase
+        const match = result.error?.match(/after (\d+) second/);
+        if (match) {
+          const secs = parseInt(match[1], 10);
+          startResetCooldown(secs);
+          Alert.alert('Please Wait', `You can request another reset link in ${secs} seconds.`);
+        } else {
+          Alert.alert('Error', result.error || 'Failed to send reset email. Please try again.');
+        }
       }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Something went wrong.');
@@ -518,15 +539,21 @@ export default function ProfileScreen() {
           <View style={styles.infoCard}>
 
             {/* Change Password */}
-            <TouchableOpacity style={styles.actionItem} onPress={handleResetPassword} disabled={isSendingReset}>
+            <TouchableOpacity style={styles.actionItem} onPress={handleResetPassword} disabled={isSendingReset || resetCooldown > 0}>
               <View style={[styles.infoIcon, { backgroundColor: '#FFF7ED' }]}>
                 {isSendingReset ? <ActivityIndicator size="small" color="#EA580C" /> : <KeyRound size={20} color="#EA580C" />}
               </View>
               <View style={styles.infoContent}>
                 <Text style={styles.actionLabel}>Change Password</Text>
-                <Text style={styles.actionSub}>Send a reset link to {user.email}</Text>
+                <Text style={styles.actionSub}>
+                  {resetCooldown > 0
+                    ? `Resend available in ${resetCooldown}s`
+                    : `Send a reset link to ${user.email}`}
+                </Text>
               </View>
-              <ChevronRight size={18} color="#9CA3AF" />
+              {resetCooldown > 0
+                ? <Text style={styles.cooldownText}>{resetCooldown}s</Text>
+                : <ChevronRight size={18} color="#9CA3AF" />}
             </TouchableOpacity>
 
             <View style={styles.divider} />
@@ -800,6 +827,13 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#F3F4F6',
     marginHorizontal: 16,
+  },
+  cooldownText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#9CA3AF',
+    minWidth: 32,
+    textAlign: 'right',
   },
   actionItem: {
     flexDirection: 'row',
