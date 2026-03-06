@@ -59,6 +59,17 @@ export default function ProfileScreen() {
       setIsGoogleLinked(providers.includes('google'));
       setIsAppleLinked(providers.includes('apple'));
     });
+
+    // On web, auth/callback.tsx stores any connect-flow error in sessionStorage
+    // (the page fully reloads during OAuth, so we can't pass state directly).
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const err = sessionStorage.getItem('google_connect_error');
+      if (err) {
+        sessionStorage.removeItem('google_connect_error');
+        setGoogleConnectError(err);
+        setShowGoogleConfirm(true); // open the card so the error is visible
+      }
+    }
   }, []);
 
   if (!user) {

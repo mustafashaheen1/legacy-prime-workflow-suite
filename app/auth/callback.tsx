@@ -43,6 +43,65 @@ export default function AuthCallbackScreen() {
         }
 
         if (accessToken && refreshToken) {
+          // ── Web Google-connect flow ──────────────────────────────────────────
+          // When the user clicks "Connect Google" from the profile page on web,
+          // we store intent in sessionStorage before redirecting to Google.
+          // On return, handle the connect logic here BEFORE setting any session.
+          const connectIntent = sessionStorage.getItem('profile_connect_intent');
+          const connectUserId  = sessionStorage.getItem('profile_connect_userId');
+
+          if (connectIntent === 'google' && connectUserId) {
+            sessionStorage.removeItem('profile_connect_intent');
+            sessionStorage.removeItem('profile_connect_userId');
+            window.history.replaceState(null, '', window.location.pathname);
+
+            // Decode email from JWT WITHOUT calling setSession() so the original
+            // user's session in storage is never overwritten on conflict.
+            let googleEmail: string | null = null;
+            try {
+              const payload = JSON.parse(atob(accessToken.split('.')[1]));
+              googleEmail = payload.email ?? null;
+            } catch {}
+
+            if (!googleEmail) {
+              sessionStorage.setItem('google_connect_error', 'Could not read Google account info. Please try again.');
+              router.replace('/profile' as any);
+              return;
+            }
+
+            // Check if this Google email already belongs to a different account.
+            const { data: taken } = await supabase
+              .from('users')
+              .select('id')
+              .eq('email', googleEmail)
+              .neq('id', connectUserId)
+              .maybeSingle();
+
+            if (taken) {
+              sessionStorage.setItem(
+                'google_connect_error',
+                `The Google account "${googleEmail}" is already registered to a different LegacyPrime account. Please choose a different Google account.`,
+              );
+              router.replace('/profile' as any);
+              return;
+            }
+
+            // No conflict — safe to establish session, update email, then sign out
+            // so the user re-authenticates cleanly with Google.
+            const { data: sd } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+            if (!sd?.session) {
+              sessionStorage.setItem('google_connect_error', 'Failed to establish session. Please try again.');
+              router.replace('/profile' as any);
+              return;
+            }
+
+            await supabase.from('users').update({ email: googleEmail }).eq('id', connectUserId);
+            await supabase.auth.signOut();
+            router.replace('/(auth)/login' as any);
+            return;
+          }
+          // ── End web connect flow ─────────────────────────────────────────────
+
           const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
