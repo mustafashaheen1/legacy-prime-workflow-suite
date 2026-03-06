@@ -356,6 +356,12 @@ export default function ProfileScreen() {
     setIsConnectingGoogle(true);
     setGoogleConnectError('');
     try {
+      // Snapshot the current session BEFORE opening the browser.
+      // Supabase may auto-process the incoming deep link and replace the active
+      // session with the Google user's session before we can validate anything.
+      // If validation fails we use these tokens to restore the original session.
+      const { data: { session: originalSession } } = await supabase.auth.getSession();
+
       const redirectTo = Platform.OS === 'web' ? undefined : 'legacyprime://auth/callback';
       const result = await auth.signInWithOAuth('google', redirectTo);
       if (!result.success || !result.url) {
@@ -388,18 +394,23 @@ export default function ProfileScreen() {
       if (!accessToken || !refreshToken) { setGoogleConnectError('Missing tokens. Please try again.'); return; }
 
       // Decode the email from the JWT payload WITHOUT calling setSession() yet.
-      // Calling setSession() first would immediately replace the active session with the
-      // Google user's session, logging the current user out before we can validate anything.
+      // Even so, Supabase may have already auto-swapped the internal session via
+      // deep-link handling — so we also restore the original session on any abort.
       let googleEmail: string | null = null;
       try {
         const payload = JSON.parse(atob(accessToken.split('.')[1]));
         googleEmail = payload.email ?? null;
       } catch {
+        if (originalSession) await supabase.auth.setSession({ access_token: originalSession.access_token, refresh_token: originalSession.refresh_token });
         setGoogleConnectError('Could not read Google account info. Please try again.');
         return;
       }
 
-      if (!googleEmail) { setGoogleConnectError('Could not retrieve Google account email.'); return; }
+      if (!googleEmail) {
+        if (originalSession) await supabase.auth.setSession({ access_token: originalSession.access_token, refresh_token: originalSession.refresh_token });
+        setGoogleConnectError('Could not retrieve Google account email.');
+        return;
+      }
 
       // Check if this Google email is already tied to a different account — BEFORE touching the session.
       const { data: existingUser } = await supabase
@@ -410,7 +421,10 @@ export default function ProfileScreen() {
         .maybeSingle();
 
       if (existingUser) {
-        // Session has NOT been replaced — user stays logged in as their original account.
+        // Restore the original user's session — Supabase may have replaced it internally.
+        if (originalSession) {
+          await supabase.auth.setSession({ access_token: originalSession.access_token, refresh_token: originalSession.refresh_token });
+        }
         setGoogleConnectError(
           `The Google account "${googleEmail}" is already registered to a different LegacyPrime account. ` +
           `Please choose a different Google account.`

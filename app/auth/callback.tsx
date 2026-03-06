@@ -12,7 +12,7 @@ import { useApp } from '@/contexts/AppContext';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthCallbackScreen() {
-  const { setUser, setCompany } = useApp();
+  const { user: currentUser, setUser, setCompany } = useApp();
   const [status, setStatus] = useState<'loading' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -22,6 +22,11 @@ export default function AuthCallbackScreen() {
 
   const handleCallback = async () => {
     try {
+      // If the user is already authenticated, this callback was triggered by a
+      // connect-account flow from the profile page (Expo received the deep link
+      // in parallel with WebBrowser.openAuthSessionAsync). Do NOT process it as
+      // a new login — doConnectGoogle in profile.tsx owns this token exchange.
+      if (currentUser) return;
       // Parse hash tokens from URL (web only — native uses deep links handled by Supabase)
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         const hash = window.location.hash.substring(1);
