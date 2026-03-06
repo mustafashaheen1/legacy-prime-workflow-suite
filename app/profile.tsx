@@ -34,11 +34,16 @@ export default function ProfileScreen() {
   const [isConnectingGoogle, setIsConnectingGoogle] = useState<boolean>(false);
   const [isGoogleLinked, setIsGoogleLinked] = useState<boolean>(false);
 
-  // Phone connect flow: idle → enter-phone → enter-otp
-  const [phoneStep, setPhoneStep] = useState<'idle' | 'enter-phone' | 'enter-otp'>('idle');
+  // Phone connect flow: idle → enter-phone → enter-otp → success
+  const [phoneStep, setPhoneStep] = useState<'idle' | 'enter-phone' | 'enter-otp' | 'success'>('idle');
   const [phoneInput, setPhoneInput] = useState<string>('');
   const [otpInput, setOtpInput] = useState<string>('');
   const [phoneLoading, setPhoneLoading] = useState<boolean>(false);
+  const [phoneError, setPhoneError] = useState<string>('');
+
+  // Google connect inline confirmation
+  const [showGoogleConfirm, setShowGoogleConfirm] = useState<boolean>(false);
+  const [googleConnectError, setGoogleConnectError] = useState<string>('');
 
   useEffect(() => {
     // Check if the current session is linked to Google
@@ -286,153 +291,120 @@ export default function ProfileScreen() {
   };
 
   const handleConnectGoogle = () => {
-    Alert.alert(
-      isGoogleLinked ? 'Google Account Linked' : 'Connect Google Account',
-      isGoogleLinked
-        ? 'Your account is already connected to Google. You can sign in using your Google account.'
-        : `Your account email (${user.email}) will be updated to the email of the Google account you select. You will be signed out and must sign back in using Google.\n\nThis cannot be undone. Continue?`,
-      isGoogleLinked
-        ? [{ text: 'OK' }]
-        : [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Connect', style: 'destructive', onPress: doConnectGoogle },
-          ]
-    );
+    setGoogleConnectError('');
+    setShowGoogleConfirm(prev => !prev); // toggle inline confirmation card
   };
 
   const doConnectGoogle = async () => {
     setIsConnectingGoogle(true);
+    setGoogleConnectError('');
     try {
       const redirectTo = Platform.OS === 'web' ? undefined : 'legacyprime://auth/callback';
       const result = await auth.signInWithOAuth('google', redirectTo);
       if (!result.success || !result.url) {
-        Alert.alert('Error', result.error || 'Could not start Google sign-in.');
+        setGoogleConnectError(result.error || 'Could not start Google sign-in.');
         return;
       }
 
-      let googleEmail: string | null = null;
-      let googleAuthId: string | null = null;
-
       if (Platform.OS === 'web') {
-        // Store intent then redirect — callback page will handle the update
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('profile_connect_intent', 'google');
           sessionStorage.setItem('profile_connect_userId', user.id);
         }
         window.location.href = result.url;
         return;
-      } else {
-        const browserResult = await WebBrowser.openAuthSessionAsync(result.url, 'legacyprime://auth/callback');
-        if (browserResult.type !== 'success') return;
-
-        const urlStr = (browserResult as any).url as string;
-        const sepIdx = urlStr.indexOf('#') !== -1 ? urlStr.indexOf('#') : urlStr.indexOf('?');
-        if (sepIdx === -1) return;
-
-        const params = new URLSearchParams(urlStr.substring(sepIdx + 1));
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
-        if (!accessToken || !refreshToken) return;
-
-        const { data: sessionData } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-        googleEmail = sessionData?.session?.user?.email ?? null;
-        googleAuthId = sessionData?.session?.user?.id ?? null;
       }
 
-      if (!googleEmail) {
-        Alert.alert('Error', 'Could not retrieve Google account email.');
+      const browserResult = await WebBrowser.openAuthSessionAsync(result.url, 'legacyprime://auth/callback');
+      if (browserResult.type !== 'success') {
+        setIsConnectingGoogle(false);
         return;
       }
 
-      // Update the users table email to the Google email
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ email: googleEmail })
-        .eq('id', user.id);
+      const urlStr = (browserResult as any).url as string;
+      const sepIdx = urlStr.indexOf('#') !== -1 ? urlStr.indexOf('#') : urlStr.indexOf('?');
+      if (sepIdx === -1) { setGoogleConnectError('No tokens returned. Please try again.'); return; }
 
-      if (updateError) {
-        Alert.alert('Error', 'Failed to link Google account. Please try again.');
-        return;
-      }
+      const params = new URLSearchParams(urlStr.substring(sepIdx + 1));
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+      if (!accessToken || !refreshToken) { setGoogleConnectError('Missing tokens. Please try again.'); return; }
+
+      const { data: sessionData } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      const googleEmail = sessionData?.session?.user?.email ?? null;
+
+      if (!googleEmail) { setGoogleConnectError('Could not retrieve Google account email.'); return; }
+
+      const { error: updateError } = await supabase.from('users').update({ email: googleEmail }).eq('id', user.id);
+      if (updateError) { setGoogleConnectError('Failed to link Google account. Please try again.'); return; }
 
       setIsGoogleLinked(true);
-      Alert.alert(
-        'Google Account Connected',
-        `Your account is now linked to ${googleEmail}. You will be signed out. Sign back in using "Continue with Google".`,
-        [{ text: 'Sign Out Now', onPress: () => { logout(); router.replace('/(auth)/login'); } }]
-      );
+      setShowGoogleConfirm(false);
+      // Sign out so user re-authenticates with Google
+      await logout();
+      router.replace('/(auth)/login');
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Something went wrong.');
+      setGoogleConnectError(e.message || 'Something went wrong.');
     } finally {
       setIsConnectingGoogle(false);
     }
   };
 
   const handleConnectPhone = () => {
-    if (user.phone) {
-      Alert.alert(
-        'Phone Number Linked',
-        `Your account is connected to ${user.phone}. To change it, tap "Update" below.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Update', onPress: () => { setPhoneInput(''); setOtpInput(''); setPhoneStep('enter-phone'); } },
-        ]
-      );
+    setPhoneError('');
+    if (phoneStep !== 'idle') {
+      // Toggle — close if already open
+      setPhoneStep('idle');
     } else {
-      Alert.alert(
-        'Connect Phone Number',
-        'Link a phone number to your account so you can sign in using SMS verification. Your existing login stays unchanged.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', onPress: () => { setPhoneInput(''); setOtpInput(''); setPhoneStep('enter-phone'); } },
-        ]
-      );
+      setPhoneInput('');
+      setOtpInput('');
+      setPhoneStep('enter-phone');
     }
   };
 
   const handleSendOtp = async () => {
     const digits = phoneInput.replace(/\D/g, '');
     if (digits.length !== 10) {
-      Alert.alert('Invalid Number', 'Please enter a valid 10-digit US phone number.');
+      setPhoneError('Please enter a valid 10-digit US phone number.');
       return;
     }
     const e164 = `+1${digits}`;
     setPhoneLoading(true);
+    setPhoneError('');
     try {
       const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
-      if (error) { Alert.alert('Error', error.message); return; }
+      if (error) { setPhoneError(error.message); return; }
       setPhoneStep('enter-otp');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      setPhoneError(e.message || 'Failed to send code.');
     } finally {
       setPhoneLoading(false);
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (otpInput.length < 4) { Alert.alert('Invalid Code', 'Please enter the verification code.'); return; }
+    if (otpInput.length < 4) { setPhoneError('Please enter the verification code.'); return; }
     const e164 = `+1${phoneInput.replace(/\D/g, '')}`;
     setPhoneLoading(true);
+    setPhoneError('');
     try {
       const { error } = await supabase.auth.verifyOtp({ phone: e164, token: otpInput, type: 'sms' });
       if (error) {
         const msg = error.message?.toLowerCase() ?? '';
         if (msg.includes('expired') || msg.includes('invalid')) {
-          Alert.alert('Code Expired', 'This code has expired or is invalid. Please request a new one.');
+          setPhoneError('Code expired or invalid. Please request a new one.');
           setPhoneStep('enter-phone');
         } else {
-          Alert.alert('Error', error.message);
+          setPhoneError(error.message);
         }
         return;
       }
-      // Update phone on the users table
       // @ts-ignore
       await supabase.from('users').update({ phone: e164 }).eq('id', user.id);
       setUser({ ...user, phone: e164 });
-      setPhoneStep('idle');
-      Alert.alert('Phone Linked', `Your account is now connected to ${e164}. You can sign in using phone verification.`);
+      setPhoneStep('success');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      setPhoneError(e.message || 'Verification failed.');
     } finally {
       setPhoneLoading(false);
     }
@@ -613,19 +585,21 @@ export default function ProfileScreen() {
             {/* Inline phone connect form */}
             {phoneStep !== 'idle' && (
               <View style={styles.connectForm}>
-                {phoneStep === 'enter-phone' ? (
+                {phoneStep === 'enter-phone' && (
                   <>
                     <Text style={styles.connectFormTitle}>Enter your phone number</Text>
                     <Text style={styles.connectFormSub}>We'll send a 6-digit verification code via SMS.</Text>
                     <TextInput
-                      style={styles.connectInput}
-                      placeholder="10-digit US number"
+                      style={[styles.connectInput, !!phoneError && styles.connectInputError]}
+                      placeholder="10-digit US number (e.g. 5551234567)"
                       placeholderTextColor="#9CA3AF"
                       value={phoneInput}
-                      onChangeText={(t) => setPhoneInput(t.replace(/\D/g, '').slice(0, 10))}
+                      onChangeText={(t) => { setPhoneError(''); setPhoneInput(t.replace(/\D/g, '').slice(0, 10)); }}
                       keyboardType="number-pad"
                       maxLength={10}
+                      autoFocus
                     />
+                    {!!phoneError && <Text style={styles.connectError}>{phoneError}</Text>}
                     <View style={styles.connectActions}>
                       <TouchableOpacity style={styles.connectCancelBtn} onPress={() => setPhoneStep('idle')}>
                         <Text style={styles.connectCancelText}>Cancel</Text>
@@ -635,19 +609,22 @@ export default function ProfileScreen() {
                       </TouchableOpacity>
                     </View>
                   </>
-                ) : (
+                )}
+                {phoneStep === 'enter-otp' && (
                   <>
                     <Text style={styles.connectFormTitle}>Enter verification code</Text>
-                    <Text style={styles.connectFormSub}>Sent to +1{phoneInput.replace(/\D/g, '')}</Text>
+                    <Text style={styles.connectFormSub}>Code sent to +1{phoneInput.replace(/\D/g, '')} via SMS.</Text>
                     <TextInput
-                      style={styles.connectInput}
+                      style={[styles.connectInput, !!phoneError && styles.connectInputError]}
                       placeholder="6-digit code"
                       placeholderTextColor="#9CA3AF"
                       value={otpInput}
-                      onChangeText={(t) => setOtpInput(t.replace(/\D/g, '').slice(0, 6))}
+                      onChangeText={(t) => { setPhoneError(''); setOtpInput(t.replace(/\D/g, '').slice(0, 6)); }}
                       keyboardType="number-pad"
                       maxLength={6}
+                      autoFocus
                     />
+                    {!!phoneError && <Text style={styles.connectError}>{phoneError}</Text>}
                     <View style={styles.connectActions}>
                       <TouchableOpacity style={styles.connectCancelBtn} onPress={() => setPhoneStep('enter-phone')}>
                         <Text style={styles.connectCancelText}>Back</Text>
@@ -658,6 +635,18 @@ export default function ProfileScreen() {
                     </View>
                   </>
                 )}
+                {phoneStep === 'success' && (
+                  <View style={styles.connectSuccess}>
+                    <CheckCircle size={20} color="#16A34A" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.connectSuccessTitle}>Phone number linked!</Text>
+                      <Text style={styles.connectSuccessSub}>You can now sign in using +1{phoneInput.replace(/\D/g, '')}.</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setPhoneStep('idle')}>
+                      <Text style={styles.inboxDismiss}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
 
@@ -666,14 +655,12 @@ export default function ProfileScreen() {
             {/* Connect Google */}
             <TouchableOpacity style={styles.actionItem} onPress={handleConnectGoogle} disabled={isConnectingGoogle}>
               <View style={[styles.infoIcon, { backgroundColor: isGoogleLinked ? '#F0FDF4' : '#F8FAFF' }]}>
-                {isConnectingGoogle ? <ActivityIndicator size="small" color="#4285F4" /> : (
-                  <Svg width={20} height={20} viewBox="0 0 24 24">
-                    <Path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                    <Path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                    <Path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                    <Path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                  </Svg>
-                )}
+                <Svg width={20} height={20} viewBox="0 0 24 24">
+                  <Path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                  <Path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <Path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                  <Path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                </Svg>
               </View>
               <View style={styles.infoContent}>
                 <View style={styles.actionLabelRow}>
@@ -686,11 +673,47 @@ export default function ProfileScreen() {
                   )}
                 </View>
                 <Text style={styles.actionSub}>
-                  {isGoogleLinked ? 'Your account is connected to Google' : 'Not linked — tap to connect'}
+                  {isGoogleLinked ? 'Connected — tap for details' : 'Not linked — tap to connect'}
                 </Text>
               </View>
               <ChevronRight size={18} color="#9CA3AF" />
             </TouchableOpacity>
+
+            {/* Inline Google confirmation / info card */}
+            {showGoogleConfirm && (
+              <View style={styles.connectForm}>
+                {isGoogleLinked ? (
+                  <View style={styles.connectSuccess}>
+                    <CheckCircle size={20} color="#16A34A" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.connectSuccessTitle}>Google account is linked</Text>
+                      <Text style={styles.connectSuccessSub}>You can sign in using "Continue with Google" on the login screen.</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setShowGoogleConfirm(false)}>
+                      <Text style={styles.inboxDismiss}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.connectFormTitle}>Connect Google Account</Text>
+                    <Text style={styles.connectFormSub}>
+                      You'll be asked to sign in with Google. Your account email will be updated to your Google email, and you'll be signed out to re-login with Google.{'\n\n'}Your existing data is preserved.
+                    </Text>
+                    {!!googleConnectError && <Text style={styles.connectError}>{googleConnectError}</Text>}
+                    <View style={styles.connectActions}>
+                      <TouchableOpacity style={styles.connectCancelBtn} onPress={() => setShowGoogleConfirm(false)}>
+                        <Text style={styles.connectCancelText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.connectConfirmBtn} onPress={doConnectGoogle} disabled={isConnectingGoogle}>
+                        {isConnectingGoogle
+                          ? <ActivityIndicator size="small" color="#fff" />
+                          : <Text style={styles.connectConfirmText}>Connect Google</Text>}
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
 
             {/* Apple — iOS only */}
             {Platform.OS === 'ios' && (
@@ -1001,6 +1024,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  connectInputError: {
+    borderColor: '#EF4444',
+  },
+  connectError: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: -8,
+    marginBottom: 8,
+  },
+  connectSuccess: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  connectSuccessTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: '#15803D',
+    marginBottom: 2,
+  },
+  connectSuccessSub: {
+    fontSize: 12,
+    color: '#374151',
+    lineHeight: 17,
   },
   logoutButton: {
     flexDirection: 'row',
