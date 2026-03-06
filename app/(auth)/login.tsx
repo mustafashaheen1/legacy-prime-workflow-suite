@@ -206,18 +206,25 @@ export default function LoginScreen() {
             return;
           }
 
-          // Load user profile
-          const authUserId = sessionData.session.user.id;
+          // Look up by email — Google auth creates a different Supabase auth UUID
+          // than an existing email/password account, so we must match by email.
+          const googleEmail = sessionData.session.user.email;
+          console.log('[OAuth] Looking up user by email:', googleEmail);
+
           const { data: userProfile } = await supabase
             .from('users')
             .select('*, companies(*)')
-            .eq('id', authUserId)
+            .eq('email', googleEmail)
             .single();
 
           if (!userProfile) {
-            // New Google user with no profile — send to signup
+            // New Google user — sign out the OAuth session and send to signup
+            // with the Google email pre-filled and locked.
             await supabase.auth.signOut();
-            router.replace('/(auth)/signup');
+            router.push({
+              pathname: '/(auth)/signup',
+              params: { email: googleEmail },
+            });
             return;
           }
 

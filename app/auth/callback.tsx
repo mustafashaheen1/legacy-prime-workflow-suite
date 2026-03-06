@@ -74,16 +74,31 @@ export default function AuthCallbackScreen() {
   };
 
   const completeLogin = async (authUserId: string) => {
-    const { data: userProfile, error: profileError } = await supabase
+    // Get the authenticated user's email to look up in our users table.
+    // Google OAuth creates a different Supabase auth UUID than an existing
+    // email/password account, so we match by email not by ID.
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const email = authUser?.email;
+
+    if (!email) {
+      setErrorMsg('Could not retrieve account email. Please try again.');
+      setStatus('error');
+      return;
+    }
+
+    const { data: userProfile } = await supabase
       .from('users')
       .select('*, companies(*)')
-      .eq('id', authUserId)
+      .eq('email', email)
       .single();
 
-    if (profileError || !userProfile) {
-      // New OAuth user — no profile yet, send to signup
+    if (!userProfile) {
+      // New Google user — sign out and redirect to signup with email pre-filled
       await supabase.auth.signOut();
-      router.replace('/(auth)/signup');
+      router.replace({
+        pathname: '/(auth)/signup',
+        params: { email },
+      } as any);
       return;
     }
 
@@ -97,7 +112,20 @@ export default function AuthCallbackScreen() {
     // @ts-ignore — companies is a joined object
     const company = userProfile.companies ?? null;
 
-    setUser(userProfile as any);
+    setUser({
+      id: userProfile.id,
+      name: userProfile.name,
+      email: userProfile.email,
+      role: userProfile.role,
+      companyId: userProfile.company_id || '',
+      isActive: userProfile.is_active,
+      createdAt: userProfile.created_at,
+      phone: userProfile.phone || undefined,
+      address: userProfile.address || undefined,
+      hourlyRate: userProfile.hourly_rate || undefined,
+      avatar: userProfile.avatar || undefined,
+      customPermissions: userProfile.custom_permissions || undefined,
+    } as any);
     setCompany(company);
 
     router.replace('/(tabs)/dashboard');

@@ -10,15 +10,17 @@ import { auth, supabase } from '@/lib/supabase';
 import Logo from '@/components/Logo';
 
 export default function SignupScreen() {
-  const { phone: phoneParam } = useLocalSearchParams<{ phone?: string }>();
+  const { phone: phoneParam, email: emailParam } = useLocalSearchParams<{ phone?: string; email?: string }>();
   // Strip +1 country code for the 10-digit field if pre-filled from phone login
   const initialPhone = phoneParam
     ? phoneParam.replace(/^\+1/, '').replace(/\D/g, '').slice(0, 10)
     : '';
+  // Email pre-filled and locked when coming from Google OAuth
+  const initialEmail = emailParam ? decodeURIComponent(emailParam as string) : '';
 
   const [accountType, setAccountType] = useState<'company' | 'employee' | null>(null);
   const [name, setName] = useState<string>('');
-  const [email, setEmail] = useState<string>('');
+  const [email, setEmail] = useState<string>(initialEmail);
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
@@ -402,14 +404,18 @@ export default function SignupScreen() {
 
           <Text style={styles.label}>{t('signup.email')}</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, !!initialEmail && styles.inputVerified]}
             placeholder={t('signup.emailPlaceholder')}
             placeholderTextColor="#9CA3AF"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(v) => { if (!initialEmail) setEmail(v); }}
             keyboardType="email-address"
             autoCapitalize="none"
+            editable={!initialEmail}
           />
+          {!!initialEmail && (
+            <Text style={styles.hintVerified}>✓ Email verified via Google</Text>
+          )}
 
           <Text style={styles.label}>{t('signup.password')}</Text>
           <TextInput
