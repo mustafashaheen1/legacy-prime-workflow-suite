@@ -19,7 +19,8 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "app.rork.legacy-prime-workflow-suite",
-      icon: "./assets/images/logo.png"
+      icon: "./assets/images/logo.png",
+      usesAppleSignIn: true,
     },
     android: {
       adaptiveIcon: {
@@ -34,7 +35,8 @@ module.exports = {
       bundler: "metro"
     },
     plugins: [
-      "react-native-document-scanner-plugin"
+      "react-native-document-scanner-plugin",
+      "expo-apple-authentication",
     ],
     extra: {
       // Make environment variables available to the app

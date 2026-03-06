@@ -15,6 +15,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import Svg, { Path } from 'react-native-svg';
 import { useApp } from '@/contexts/AppContext';
 import { getRoleDisplayName } from '@/lib/permissions';
@@ -50,6 +51,8 @@ export default function ProfileScreen() {
   // Apple
   const [isAppleLinked, setIsAppleLinked] = useState<boolean>(false);
   const [showAppleConfirm, setShowAppleConfirm] = useState<boolean>(false);
+  const [isConnectingApple, setIsConnectingApple] = useState<boolean>(false);
+  const [appleConnectError, setAppleConnectError] = useState<string>('');
   const [isUnlinkingApple, setIsUnlinkingApple] = useState<boolean>(false);
   const [appleUnlinkError, setAppleUnlinkError] = useState<string>('');
 
@@ -469,6 +472,84 @@ export default function ProfileScreen() {
     }
   };
 
+  const doConnectApple = async () => {
+    setIsConnectingApple(true);
+    setAppleConnectError('');
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const { identityToken } = credential;
+      if (!identityToken) {
+        setAppleConnectError('No identity token from Apple. Please try again.');
+        return;
+      }
+
+      // Decode email from the identity token payload (Apple JWT always includes it)
+      let appleEmail: string | null = null;
+      try {
+        const base64 = identityToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        appleEmail = JSON.parse(atob(base64)).email ?? null;
+      } catch {}
+
+      // Fallback: establish session to read email from Supabase
+      if (!appleEmail) {
+        const { data: { session: origSession } } = await supabase.auth.getSession();
+        const { data: sessionData } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: identityToken,
+        });
+        appleEmail = sessionData?.session?.user?.email ?? null;
+        // Restore original user session
+        if (origSession) {
+          await supabase.auth.setSession({
+            access_token: origSession.access_token,
+            refresh_token: origSession.refresh_token,
+          });
+        }
+      }
+
+      if (!appleEmail) {
+        setAppleConnectError('Could not read Apple account email. Please try again.');
+        return;
+      }
+
+      // Conflict check — make sure this Apple email isn't used by another account
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', appleEmail)
+        .neq('id', user.id)
+        .maybeSingle();
+
+      if (existingUser) {
+        setAppleConnectError(
+          `The Apple ID "${appleEmail}" is already registered to a different LegacyPrime account. ` +
+          `Please choose a different Apple ID.`
+        );
+        return;
+      }
+
+      // No conflict — establish Apple session, update email, sign out to re-auth
+      await supabase.auth.signInWithIdToken({ provider: 'apple', token: identityToken });
+      await supabase.from('users').update({ email: appleEmail }).eq('id', user.id);
+      setIsAppleLinked(true);
+      setShowAppleConfirm(false);
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (e: any) {
+      if (e.code !== 'ERR_REQUEST_CANCELED') {
+        setAppleConnectError(e.message || 'Something went wrong.');
+      }
+    } finally {
+      setIsConnectingApple(false);
+    }
+  };
+
   const handleConnectPhone = () => {
     setPhoneError('');
     if (phoneStep !== 'idle') {
@@ -878,8 +959,12 @@ export default function ProfileScreen() {
                 <View style={styles.divider} />
                 <TouchableOpacity
                   style={styles.actionItem}
-                  onPress={isAppleLinked ? () => { setAppleUnlinkError(''); setShowAppleConfirm(prev => !prev); } : undefined}
-                  disabled={!isAppleLinked}
+                  onPress={() => {
+                    setAppleUnlinkError('');
+                    setAppleConnectError('');
+                    setShowAppleConfirm(prev => !prev);
+                  }}
+                  disabled={isConnectingApple}
                 >
                   <View style={[styles.infoIcon, { backgroundColor: isAppleLinked ? '#F0FDF4' : '#F9FAFB' }]}>
                     <Svg width={18} height={20} viewBox="0 0 24 24">
@@ -897,25 +982,51 @@ export default function ProfileScreen() {
                       )}
                     </View>
                     <Text style={styles.actionSub}>
-                      {isAppleLinked ? 'Connected — tap to manage' : 'Coming soon'}
+                      {isAppleLinked ? 'Connected — tap to manage' : 'Not linked — tap to connect'}
                     </Text>
                   </View>
-                  {isAppleLinked && <ChevronRight size={18} color="#9CA3AF" />}
+                  <ChevronRight size={18} color="#9CA3AF" />
                 </TouchableOpacity>
 
-                {showAppleConfirm && isAppleLinked && (
+                {showAppleConfirm && (
                   <View style={styles.connectForm}>
-                    <Text style={styles.connectFormTitle}>Apple ID is linked</Text>
-                    <Text style={styles.connectFormSub}>You can sign in using "Continue with Apple" on the login screen.</Text>
-                    {!!appleUnlinkError && <Text style={styles.connectError}>{appleUnlinkError}</Text>}
-                    <View style={styles.connectActions}>
-                      <TouchableOpacity style={styles.connectCancelBtn} onPress={() => setShowAppleConfirm(false)}>
-                        <Text style={styles.connectCancelText}>Close</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.connectConfirmBtn, { backgroundColor: '#DC2626' }]} onPress={handleUnlinkApple} disabled={isUnlinkingApple}>
-                        {isUnlinkingApple ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.connectConfirmText}>Unlink Apple</Text>}
-                      </TouchableOpacity>
-                    </View>
+                    {isAppleLinked ? (
+                      <>
+                        <Text style={styles.connectFormTitle}>Apple ID is linked</Text>
+                        <Text style={styles.connectFormSub}>You can sign in using "Continue with Apple" on the login screen.</Text>
+                        {!!appleUnlinkError && <Text style={styles.connectError}>{appleUnlinkError}</Text>}
+                        <View style={styles.connectActions}>
+                          <TouchableOpacity style={styles.connectCancelBtn} onPress={() => setShowAppleConfirm(false)}>
+                            <Text style={styles.connectCancelText}>Close</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.connectConfirmBtn, { backgroundColor: '#DC2626' }]} onPress={handleUnlinkApple} disabled={isUnlinkingApple}>
+                            {isUnlinkingApple ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.connectConfirmText}>Unlink Apple</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.connectFormTitle}>Connect Apple ID</Text>
+                        <Text style={styles.connectFormSub}>
+                          You'll be asked to sign in with Apple. Your account email will be updated to your Apple ID email, and you'll be signed out to re-login with Apple.{'\n\n'}Your existing data is preserved.
+                        </Text>
+                        {!!appleConnectError && <Text style={styles.connectError}>{appleConnectError}</Text>}
+                        <View style={styles.connectActions}>
+                          <TouchableOpacity style={styles.connectCancelBtn} onPress={() => setShowAppleConfirm(false)}>
+                            <Text style={styles.connectCancelText}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.connectConfirmBtn, { backgroundColor: '#000000' }]}
+                            onPress={doConnectApple}
+                            disabled={isConnectingApple}
+                          >
+                            {isConnectingApple
+                              ? <ActivityIndicator size="small" color="#fff" />
+                              : <Text style={styles.connectConfirmText}>Connect Apple</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    )}
                   </View>
                 )}
               </>

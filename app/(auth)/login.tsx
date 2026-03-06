@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import Logo from '@/components/Logo';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { Phone, Eye, EyeOff } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -268,6 +269,89 @@ export default function LoginScreen() {
     }
   };
 
+  const handleAppleLogin = async () => {
+    setIsSocialLoading(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const { identityToken, fullName } = credential;
+      if (!identityToken) {
+        Alert.alert('Error', 'Apple Sign In failed: no identity token received.');
+        return;
+      }
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: identityToken,
+      });
+
+      if (sessionError || !sessionData.session) {
+        Alert.alert('Sign-in Failed', sessionError?.message || 'Could not establish session. Please try again.');
+        return;
+      }
+
+      const appleEmail = sessionData.session.user.email;
+      const appleName = fullName?.givenName
+        ? `${fullName.givenName}${fullName.familyName ? ' ' + fullName.familyName : ''}`
+        : (sessionData.session.user.user_metadata?.full_name || '');
+
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('*, companies(*)')
+        .eq('email', appleEmail)
+        .single();
+
+      if (!userProfile) {
+        // New Apple user — no users table entry yet, redirect to signup
+        router.push({
+          pathname: '/(auth)/signup',
+          params: {
+            email: appleEmail,
+            googleAuthId: sessionData.session.user.id,
+            googleName: appleName,
+          },
+        });
+        return;
+      }
+
+      if (!userProfile.is_active) {
+        await supabase.auth.signOut();
+        Alert.alert('Account Pending', 'Your account is pending approval from your administrator.');
+        return;
+      }
+
+      setUser({
+        id: userProfile.id,
+        name: userProfile.name,
+        email: userProfile.email,
+        role: userProfile.role,
+        companyId: userProfile.company_id || '',
+        isActive: userProfile.is_active,
+        createdAt: userProfile.created_at,
+        phone: userProfile.phone || undefined,
+        address: userProfile.address || undefined,
+        hourlyRate: userProfile.hourly_rate || undefined,
+        avatar: userProfile.avatar || undefined,
+        customPermissions: userProfile.custom_permissions || undefined,
+      } as any);
+
+      // @ts-ignore — companies is a joined object
+      setCompany(userProfile.companies ?? null);
+    } catch (e: any) {
+      // ERR_REQUEST_CANCELED = user dismissed the Apple sheet — not an error
+      if (e.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Error', e.message || 'An unexpected error occurred');
+      }
+    } finally {
+      setIsSocialLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -376,7 +460,7 @@ export default function LoginScreen() {
           {Platform.OS === 'ios' && (
             <TouchableOpacity
               style={[styles.socialButton, styles.appleButton, isSocialLoading && styles.appleButtonDisabled]}
-              onPress={() => handleOAuthLogin('apple')}
+              onPress={handleAppleLogin}
               disabled={isSocialLoading}
             >
               {isSocialLoading ? (
