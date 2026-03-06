@@ -214,13 +214,34 @@ export default function LoginScreen() {
             .eq('id', authUserId)
             .single();
 
-          if (userProfile) {
-            setUser(userProfile as any);
-            // @ts-ignore
-            setCompany(userProfile.companies ?? null);
+          if (!userProfile) {
+            // New Google user with no profile — send to signup
+            await supabase.auth.signOut();
+            router.replace('/(auth)/signup');
+            return;
           }
 
-          router.replace('/(tabs)/dashboard');
+          // Map snake_case DB row to camelCase User shape expected by AppContext
+          setUser({
+            id: userProfile.id,
+            name: userProfile.name,
+            email: userProfile.email,
+            role: userProfile.role,
+            companyId: userProfile.company_id || '',
+            isActive: userProfile.is_active,
+            createdAt: userProfile.created_at,
+            phone: userProfile.phone || undefined,
+            address: userProfile.address || undefined,
+            hourlyRate: userProfile.hourly_rate || undefined,
+            avatar: userProfile.avatar || undefined,
+            customPermissions: userProfile.custom_permissions || undefined,
+          } as any);
+
+          // @ts-ignore — companies is a joined object
+          setCompany(userProfile.companies ?? null);
+
+          // Navigation is handled by the auth guard in _layout.tsx reacting to
+          // the user state update — no manual router.replace() needed here.
         } else {
           console.log('[OAuth] Not successful, type was:', browserResult.type);
         }

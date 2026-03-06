@@ -94,7 +94,11 @@ function RootLayoutNav() {
       isTokenRoute,
     });
 
-    if (!user && !inAuthGroup && !isPublicRoute && !isTokenRoute) {
+    if (user && inAuthGroup && !pathname?.includes('reset-password')) {
+      // User is already authenticated but on an auth screen — send to dashboard
+      console.log('[Auth] Already logged in, redirecting to dashboard');
+      router.replace('/(tabs)/dashboard');
+    } else if (!user && !inAuthGroup && !isPublicRoute && !isTokenRoute) {
       // User is not signed in and trying to access protected route
       console.log('[Auth] Redirecting to login');
       router.replace('/login');
