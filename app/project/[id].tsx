@@ -1174,6 +1174,92 @@ export default function ProjectDetailScreen() {
                 )}
               </View>
             </View>
+
+            {/* Project Status Actions — admin only */}
+            {(user?.role === 'admin' || user?.role === 'super-admin') && (
+              <View style={{ marginTop: 8, marginBottom: 16, gap: 10 }}>
+                {project.status === 'active' && (
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#86EFAC', borderRadius: 12, paddingVertical: 14 }}
+                    onPress={() => Alert.alert(
+                      'Mark as Complete',
+                      `Mark "${project.name}" as completed?\n\nClock-in, Photos and Expenses will be locked. You can reactivate it at any time.`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Mark Complete', onPress: async () => { await updateProject(project.id, { status: 'completed', endDate: new Date().toISOString() }); } },
+                      ]
+                    )}
+                  >
+                    <Archive size={18} color="#16A34A" />
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#16A34A' }}>Mark as Complete</Text>
+                  </TouchableOpacity>
+                )}
+                {project.status === 'active' && (
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 14 }}
+                    onPress={() => Alert.alert(
+                      'Archive Project',
+                      `Archive "${project.name}"?\n\nArchived projects are hidden from the active list and fully locked. You can unarchive at any time.`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Archive', style: 'destructive', onPress: async () => { await updateProject(project.id, { status: 'archived' }); } },
+                      ]
+                    )}
+                  >
+                    <Archive size={18} color="#6B7280" />
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>Archive Project</Text>
+                  </TouchableOpacity>
+                )}
+                {project.status === 'completed' && (
+                  <>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FCD34D', borderRadius: 12, paddingVertical: 14 }}
+                      onPress={() => Alert.alert(
+                        'Reactivate Project',
+                        `Move "${project.name}" back to Active?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Reactivate', onPress: async () => { await updateProject(project.id, { status: 'active', endDate: undefined }); } },
+                        ]
+                      )}
+                    >
+                      <TrendingUp size={18} color="#F59E0B" />
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#F59E0B' }}>Reactivate Project</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 14 }}
+                      onPress={() => Alert.alert(
+                        'Archive Project',
+                        `Archive "${project.name}"?\n\nArchived projects are fully locked. You can unarchive at any time.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Archive', style: 'destructive', onPress: async () => { await updateProject(project.id, { status: 'archived' }); } },
+                        ]
+                      )}
+                    >
+                      <Archive size={18} color="#6B7280" />
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>Archive Project</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+                {project.status === 'archived' && (
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FCD34D', borderRadius: 12, paddingVertical: 14 }}
+                    onPress={() => Alert.alert(
+                      'Unarchive Project',
+                      `Move "${project.name}" back to Active?`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Unarchive', onPress: async () => { await updateProject(project.id, { status: 'active', endDate: undefined }); } },
+                      ]
+                    )}
+                  >
+                    <TrendingUp size={18} color="#F59E0B" />
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#F59E0B' }}>Unarchive Project</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         );
 
@@ -1882,12 +1968,12 @@ export default function ProjectDetailScreen() {
         );
 
       case 'clock':
-        if (project.status === 'completed') {
+        if (project.status === 'completed' || project.status === 'archived') {
           return (
             <View style={styles.lockedTabContainer}>
               <Clock size={48} color="#9CA3AF" />
-              <Text style={styles.lockedTabTitle}>Project Completed</Text>
-              <Text style={styles.lockedTabText}>Clock-in is disabled for completed projects. Reactivate the project to resume time tracking.</Text>
+              <Text style={styles.lockedTabTitle}>Project {project.status === 'archived' ? 'Archived' : 'Completed'}</Text>
+              <Text style={styles.lockedTabText}>Clock-in is disabled for {project.status} projects. {project.status === 'archived' ? 'Unarchive' : 'Reactivate'} the project to resume time tracking.</Text>
             </View>
           );
         }
@@ -1898,12 +1984,12 @@ export default function ProjectDetailScreen() {
         );
 
       case 'expenses':
-        if (project.status === 'completed') {
+        if (project.status === 'completed' || project.status === 'archived') {
           return (
             <View style={styles.lockedTabContainer}>
               <DollarSign size={48} color="#9CA3AF" />
-              <Text style={styles.lockedTabTitle}>Project Completed</Text>
-              <Text style={styles.lockedTabText}>Adding expenses is disabled for completed projects. Reactivate the project to add expenses.</Text>
+              <Text style={styles.lockedTabTitle}>Project {project.status === 'archived' ? 'Archived' : 'Completed'}</Text>
+              <Text style={styles.lockedTabText}>Adding expenses is disabled for {project.status} projects. {project.status === 'archived' ? 'Unarchive' : 'Reactivate'} the project to add expenses.</Text>
             </View>
           );
         }
@@ -1985,12 +2071,12 @@ export default function ProjectDetailScreen() {
         );
 
       case 'photos':
-        if (project.status === 'completed') {
+        if (project.status === 'completed' || project.status === 'archived') {
           return (
             <View style={styles.lockedTabContainer}>
               <Camera size={48} color="#9CA3AF" />
-              <Text style={styles.lockedTabTitle}>Project Completed</Text>
-              <Text style={styles.lockedTabText}>Photo uploads are disabled for completed projects. Reactivate the project to add new photos.</Text>
+              <Text style={styles.lockedTabTitle}>Project {project.status === 'archived' ? 'Archived' : 'Completed'}</Text>
+              <Text style={styles.lockedTabText}>Photo uploads are disabled for {project.status} projects. {project.status === 'archived' ? 'Unarchive' : 'Reactivate'} the project to add new photos.</Text>
             </View>
           );
         }
@@ -3042,10 +3128,12 @@ export default function ProjectDetailScreen() {
         </ScrollView>
       </View>
 
-      {project.status === 'completed' && (
-        <View style={styles.completedBanner}>
+      {(project.status === 'completed' || project.status === 'archived') && (
+        <View style={[styles.completedBanner, project.status === 'archived' && { backgroundColor: '#F3F4F6', borderColor: '#D1D5DB' }]}>
           <Text style={styles.completedBannerText}>
-            ✓ Project Completed — Clock-in, Photos & Expenses are locked. Tap the button above to reactivate.
+            {project.status === 'archived'
+              ? '📦 Project Archived — All editing is locked. Go to Overview to unarchive.'
+              : '✓ Project Completed — Clock-in, Photos & Expenses are locked. Go to Overview to reactivate.'}
           </Text>
         </View>
       )}
