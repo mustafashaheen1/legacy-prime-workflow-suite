@@ -72,6 +72,13 @@ export function useNotificationSetup(
 
     let mounted = true;
 
+    // getExpoPushTokenAsync requires a projectId on SDK 50+.
+    // Declared at effect scope so both setup() and tokenRefreshListener share the same value.
+    const projectId: string =
+      (Constants.easConfig as any)?.projectId ??
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      'fe5b6952-88a7-4df1-9377-521962ec7732';
+
     async function setup() {
       try {
         // Android 8+ requires a notification channel before any notification can appear.
@@ -98,13 +105,6 @@ export function useNotificationSetup(
           console.log('[Notifications] Permission not granted — skipping token registration');
           return;
         }
-
-        // getExpoPushTokenAsync requires a projectId on SDK 50+.
-        // Try the EAS runtime config first, then the app.json extra field, then hardcoded fallback.
-        const projectId: string =
-          (Constants.easConfig as any)?.projectId ??
-          Constants.expoConfig?.extra?.eas?.projectId ??
-          'fe5b6952-88a7-4df1-9377-521962ec7732';
 
         const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
 

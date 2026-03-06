@@ -1221,6 +1221,9 @@ export default function ChatScreen() {
                 setPlayingAudioId(null);
                 setAudioProgress(prev => ({ ...prev, [messageId]: 0 }));
                 sound?.unloadAsync();
+                // Null the ref so the next tap creates a fresh Sound instance
+                // rather than calling playAsync() on an unloaded sound.
+                audioPlayerRef.current = null;
               } else if (status.durationMillis) {
                 const progress = (status.positionMillis / status.durationMillis) * 100;
                 setAudioProgress(prev => ({ ...prev, [messageId]: progress }));
@@ -1228,7 +1231,20 @@ export default function ChatScreen() {
             }
           });
         } else {
-          await sound.playAsync();
+          // Sound ref exists — check it's still loaded before resuming.
+          const status = await sound.getStatusAsync();
+          if (!status.isLoaded) {
+            // Was unloaded (e.g. after natural end) — recreate.
+            await sound.unloadAsync().catch(() => {});
+            audioPlayerRef.current = null;
+            const { sound: newSound } = await Audio.Sound.createAsync(
+              { uri: audioUrl },
+              { shouldPlay: true }
+            );
+            audioPlayerRef.current = newSound;
+          } else {
+            await sound.playAsync();
+          }
         }
 
         setPlayingAudioId(messageId);
