@@ -30,6 +30,7 @@ export default function ProfileScreen() {
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [isSendingReset, setIsSendingReset] = useState<boolean>(false);
   const [resetCooldown, setResetCooldown] = useState<number>(0);
+  const [resetEmailSent, setResetEmailSent] = useState<boolean>(false);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState<boolean>(false);
   const [isGoogleLinked, setIsGoogleLinked] = useState<boolean>(false);
 
@@ -264,7 +265,7 @@ export default function ProfileScreen() {
     try {
       const result = await auth.resetPassword(user.email);
       if (result.success) {
-        Alert.alert('Email Sent', `A password reset link has been sent to ${user.email}. Check your inbox.`);
+        setResetEmailSent(true);
         startResetCooldown(60);
       } else {
         // Parse "you can only request this after X seconds" from Supabase
@@ -556,6 +557,35 @@ export default function ProfileScreen() {
                 : <ChevronRight size={18} color="#9CA3AF" />}
             </TouchableOpacity>
 
+            {/* Inbox guidance — shown after reset email sent */}
+            {resetEmailSent && (
+              <View style={styles.inboxCard}>
+                <CheckCircle size={20} color="#16A34A" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inboxTitle}>Check your inbox</Text>
+                  <Text style={styles.inboxSub}>
+                    We sent a password reset link to{'\n'}
+                    <Text style={styles.inboxEmail}>{user.email}</Text>
+                  </Text>
+                  <Text style={styles.inboxHint}>
+                    {resetCooldown > 0
+                      ? `Didn't receive it? Resend in ${resetCooldown}s`
+                      : "Didn't receive it?"}
+                  </Text>
+                  {resetCooldown === 0 && (
+                    <TouchableOpacity onPress={handleResetPassword} disabled={isSendingReset}>
+                      <Text style={styles.inboxResend}>
+                        {isSendingReset ? 'Sending...' : 'Resend email'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => setResetEmailSent(false)}>
+                  <Text style={styles.inboxDismiss}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <View style={styles.divider} />
 
             {/* Connect Phone */}
@@ -827,6 +857,49 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#F3F4F6',
     marginHorizontal: 16,
+  },
+  inboxCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F0FDF4',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    gap: 12,
+  },
+  inboxTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: '#15803D',
+    marginBottom: 3,
+  },
+  inboxSub: {
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  inboxEmail: {
+    fontWeight: '600' as const,
+    color: '#111827',
+  },
+  inboxHint: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  inboxResend: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#2563EB',
+    marginTop: 2,
+  },
+  inboxDismiss: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    padding: 4,
   },
   cooldownText: {
     fontSize: 13,
