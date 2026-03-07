@@ -52,7 +52,7 @@ type PreviewEntry = { text: string; timestamp: string; senderId: string; type?: 
 
 export default function ChatScreen() {
   const { t } = useTranslation();
-  const { user, conversations, addConversation, addMessageToConversation } =
+  const { user, conversations, addConversation, addMessageToConversation, setUnreadChatCount } =
     useApp();
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 768;
@@ -89,6 +89,10 @@ export default function ChatScreen() {
   // Reset to false when user changes so a fresh load happens on re-login.
   const seenLoadedRef = useRef(false);
   const [unreadConversations, setUnreadConversations] = useState<Set<string>>(new Set());
+  // Keep AppContext (and FloatingChatButton) in sync with the authoritative count.
+  useEffect(() => {
+    setUnreadChatCount(unreadConversations.size);
+  }, [unreadConversations]);
   const [conversationPreviews, setConversationPreviews] = useState<Map<string, PreviewEntry>>(new Map());
 
   const scrollViewRef = useRef<ScrollView>(null);

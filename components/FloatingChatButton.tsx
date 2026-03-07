@@ -2,22 +2,15 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MessageCircle } from 'lucide-react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
-import { useMemo } from 'react';
 
 export default function FloatingChatButton() {
   const router = useRouter();
   const pathname = usePathname();
-  const { conversations, user } = useApp();
+  const { unreadChatCount, user } = useApp();
 
-  const unreadCount = useMemo(() => {
-    return conversations.reduce((count, conv) => {
-      const lastMessage = conv.lastMessage;
-      if (lastMessage && lastMessage.senderId !== user?.id) {
-        return count + 1;
-      }
-      return count;
-    }, 0);
-  }, [conversations, user]);
+  // unreadChatCount is maintained by chat.tsx via setUnreadChatCount — it is
+  // the authoritative value driven by AsyncStorage-persisted seen-timestamps,
+  // so it correctly goes to 0 when all conversations are read.
 
   const isOnChatScreen = pathname === '/chat';
   const isOnAuthScreen = pathname?.includes('/login') || pathname?.includes('/subscription') || pathname?.includes('/signup') || pathname?.includes('/(auth)');
@@ -33,10 +26,10 @@ export default function FloatingChatButton() {
       activeOpacity={0.8}
     >
       <MessageCircle size={26} color="#FFFFFF" strokeWidth={2.5} />
-      {unreadCount > 0 && (
+      {unreadChatCount > 0 && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>
-            {unreadCount > 99 ? '99+' : unreadCount}
+            {unreadChatCount > 99 ? '99+' : unreadChatCount}
           </Text>
         </View>
       )}
