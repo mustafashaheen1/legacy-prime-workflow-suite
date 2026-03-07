@@ -854,37 +854,26 @@ export default function ChatScreen() {
 
     try {
       if (isTeam) {
-        let base64Audio: string;
+        // Build a local URI for the audio so uploadToS3 can handle it uniformly.
+        // Web: blob → object URL; Native: file URI from expo-av recording.
+        let audioLocalUri: string;
         if (result.blob) {
-          base64Audio = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(result.blob!);
-          });
+          audioLocalUri = URL.createObjectURL(result.blob);
         } else if (result.uri) {
-          base64Audio = await FileSystem.readAsStringAsync(result.uri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
+          audioLocalUri = result.uri;
         } else {
           throw new Error('No audio data');
         }
 
-        // Derive extension from mimeType (audio/mp4→m4a, audio/webm→webm, audio/mpeg→mp3)
-        const mimeToExt: Record<string, string> = { 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav' };
-        const ext = mimeToExt[result.mimeType] ?? result.mimeType.split('/')[1] ?? 'm4a';
-        const uploadResp = await fetch(`${rorkApi}/api/upload-audio`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            audioData: `data:${result.mimeType};base64,${base64Audio}`,
-            userId: user?.id,
-            fileName: `voice-message.${ext}`,
-          }),
-        });
+        // Reuse the same presigned-URL + direct-S3-PUT path as images.
+        // The previous /api/upload-audio approach uploaded server-side without
+        // a public ACL, so the resulting S3 URL returned 403 for other users —
+        // iOS AVFoundation parsed the 403 XML body as audio and threw
+        // "format not supported", showing "Audio not supported on this device".
+        const { publicUrl: audioUrl } = await uploadToS3(audioLocalUri, result.mimeType);
 
-        const uploadResult = await uploadResp.json();
-        if (!uploadResult.success) throw new Error(uploadResult.error);
+        // Revoke the object URL immediately after upload (web only)
+        if (result.blob) URL.revokeObjectURL(audioLocalUri);
 
         const msgResp = await fetch(`${rorkApi}/api/team/send-message`, {
           method: 'POST',
@@ -893,7 +882,7 @@ export default function ChatScreen() {
             conversationId: selectedChat,
             senderId: user?.id,
             type: 'voice',
-            content: uploadResult.url,
+            content: audioUrl,
             duration: result.durationSec,
           }),
         });
@@ -904,7 +893,7 @@ export default function ChatScreen() {
             id: msgResult.message.id,
             senderId: user?.id || '',
             type: 'voice',
-            content: uploadResult.url,
+            content: audioUrl,
             duration: result.durationSec,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           });
