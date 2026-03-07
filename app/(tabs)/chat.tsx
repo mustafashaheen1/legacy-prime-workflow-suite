@@ -98,6 +98,12 @@ export default function ChatScreen() {
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+  // Mirror selectedChat in a ref so the fetchConversations closure (keyed on
+  // user?.id, not selectedChat) always reads the current value.
+  const selectedChatRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+  }, [selectedChat]);
 
   // Track keyboard height on iOS to apply exact paddingBottom to the chat column.
   // KeyboardAvoidingView is unreliable on iPad because it needs to know its own
@@ -262,7 +268,9 @@ export default function ChatScreen() {
 
           if (conv.lastMessageAt) {
             const knownAt = conversationLastMsgAtRef.current.get(conv.id);
-            const isSelected = conv.id === selectedChat;
+            // Use ref — selectedChat inside this closure is stale (effect only
+            // re-runs on user?.id change, not on every conversation switch).
+            const isSelected = conv.id === selectedChatRef.current;
             // Only count as unread / notify if the message was sent by someone else
             const isOwnMessage = conv.lastMessage?.sender_id === user?.id;
             if (!isSelected && !isOwnMessage && knownAt && conv.lastMessageAt > knownAt) {
@@ -303,7 +311,9 @@ export default function ChatScreen() {
     };
 
     fetchConversations();
-    const interval = setInterval(fetchConversations, 30000);
+    // Poll every 5s (same as fetchMessages) so unread badges and previews
+    // appear quickly — previously 30s which felt very laggy.
+    const interval = setInterval(fetchConversations, 5000);
     return () => clearInterval(interval);
   }, [user?.id]);
 
@@ -421,6 +431,21 @@ export default function ChatScreen() {
       next.delete(convId);
       return next;
     });
+    // Immediately advance the persisted timestamp for this conversation so
+    // the next fetchConversations poll won't re-add the unread badge and so
+    // next login correctly knows this conversation was read.
+    if (user?.id) {
+      const ts = conversationLastMsgAtRef.current.get(convId);
+      if (ts) {
+        AsyncStorage.getItem(`chat_seen_${user.id}`)
+          .then((raw) => {
+            const obj = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+            obj[convId] = ts;
+            return AsyncStorage.setItem(`chat_seen_${user.id}`, JSON.stringify(obj));
+          })
+          .catch(() => {});
+      }
+    }
   };
 
   const handleToggleParticipant = (personId: string) => {
