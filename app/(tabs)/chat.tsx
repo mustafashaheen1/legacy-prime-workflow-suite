@@ -186,13 +186,20 @@ export default function ChatScreen() {
           });
 
           if (conv.lastMessage) {
+            const lmType = conv.lastMessage.type;
+            const previewText =
+              lmType === 'image' ? '📷 Photo'
+              : lmType === 'voice' ? '🎤 Voice message'
+              : lmType === 'video' ? '🎬 Video'
+              : lmType === 'file' ? `📎 ${conv.lastMessage.file_name || 'File'}`
+              : conv.lastMessage.content || '';
             setConversationPreviews((prev) => {
               const next = new Map(prev);
               next.set(conv.id, {
-                text: conv.lastMessage.content || '',
+                text: previewText,
                 timestamp: conv.lastMessage.created_at,
                 senderId: conv.lastMessage.sender_id,
-                type: conv.lastMessage.type,
+                type: lmType,
               });
               return next;
             });
@@ -204,17 +211,13 @@ export default function ChatScreen() {
             if (!isSelected && knownAt && conv.lastMessageAt > knownAt) {
               setUnreadConversations((prev) => new Set(prev).add(conv.id));
               if (Platform.OS !== 'web') {
+                const lm = conv.lastMessage;
                 const msgText =
-                  conv.lastMessage?.content ||
-                  (conv.lastMessage?.type === 'image'
-                    ? '📷 Photo'
-                    : conv.lastMessage?.type === 'voice'
-                    ? '🎤 Voice message'
-                    : conv.lastMessage?.type === 'video'
-                    ? '🎬 Video'
-                    : conv.lastMessage?.type === 'file'
-                    ? '📎 File'
-                    : 'New message');
+                  lm?.type === 'image' ? '📷 Photo'
+                  : lm?.type === 'voice' ? '🎤 Voice message'
+                  : lm?.type === 'video' ? '🎬 Video'
+                  : lm?.type === 'file' ? `📎 ${lm?.file_name || 'File'}`
+                  : (lm?.content || 'New message');
                 Notifications.scheduleNotificationAsync({
                   content: {
                     title: conv.name,

@@ -1,8 +1,16 @@
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  PanResponder,
+  Animated,
+  LayoutChangeEvent,
+} from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Play, Pause, AlertCircle } from 'lucide-react-native';
 import { Audio } from 'expo-av';
-import Slider from '@react-native-community/slider';
 
 interface Props {
   uri: string;
@@ -19,29 +27,53 @@ interface Props {
 const isUnsupportedOnIOS = (url: string) =>
   Platform.OS !== 'web' && /\.webm($|\?)/i.test(url);
 
-export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, shouldStop }: Props) {
+// Static waveform bar heights — deterministic per component instance
+const BAR_COUNT = 30;
+const WAVEFORM = Array.from({ length: BAR_COUNT }, (_, i) => {
+  // Generate a natural-looking waveform using a mix of sine harmonics
+  const t = i / BAR_COUNT;
+  const v =
+    0.4 +
+    0.25 * Math.sin(t * Math.PI * 3.7) +
+    0.15 * Math.sin(t * Math.PI * 8.3 + 1) +
+    0.1 * Math.sin(t * Math.PI * 15 + 2) +
+    0.1 * Math.abs(Math.sin(t * Math.PI * 6 + 0.5));
+  return Math.max(0.15, Math.min(1, v));
+});
+
+export default function AudioPlayer({
+  uri,
+  duration,
+  messageId,
+  isOwn,
+  onPlay,
+  shouldStop,
+}: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [positionSec, setPositionSec] = useState(0);
   const [totalSec, setTotalSec] = useState(duration || 0);
   const [formatError, setFormatError] = useState(false);
+  const [waveWidth, setWaveWidth] = useState(0);
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const webAudioRef = useRef<HTMLAudioElement | null>(null);
   const isSeeking = useRef(false);
-  // Keep a stable ref to the current sound instance to avoid stale closures
-  const soundInstanceRef = useRef<Audio.Sound | null>(null);
+  const waveWidthRef = useRef(0); // stable ref so PanResponder closure always has current width
+
+  // Progress: 0–1
+  const progress = totalSec > 0 ? Math.min(positionSec / totalSec, 1) : 0;
 
   // Stop when parent signals
   useEffect(() => {
     if (shouldStop && isPlaying) {
       handlePauseStop(false);
     }
-  }, [shouldStop]);
+  }, [shouldStop]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      soundInstanceRef.current?.unloadAsync().catch(() => {});
-      soundInstanceRef.current = null;
+      soundRef.current?.unloadAsync().catch(() => {});
       soundRef.current = null;
       if (webAudioRef.current) {
         webAudioRef.current.pause();
@@ -58,7 +90,7 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
         if (andReset) webAudioRef.current.currentTime = 0;
       }
     } else {
-      const sound = soundInstanceRef.current;
+      const sound = soundRef.current;
       if (sound) {
         const status = await sound.getStatusAsync().catch(() => null);
         if (status?.isLoaded) {
@@ -99,21 +131,18 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
 
     // Native (iOS/Android)
     try {
-      // Set audio mode ONCE — do not call inside tight loops
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
       });
 
-      let sound = soundInstanceRef.current;
+      let sound = soundRef.current;
 
       if (sound) {
-        // Check if the existing instance is still valid
         const status = await sound.getStatusAsync().catch(() => ({ isLoaded: false }));
         if (!status.isLoaded) {
           await sound.unloadAsync().catch(() => {});
-          soundInstanceRef.current = null;
           soundRef.current = null;
           sound = null;
         }
@@ -135,12 +164,10 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
               setIsPlaying(false);
               setPositionSec(0);
               newSound.unloadAsync().catch(() => {});
-              soundInstanceRef.current = null;
               soundRef.current = null;
             }
           }
         );
-        soundInstanceRef.current = newSound;
         soundRef.current = newSound;
       } else {
         await sound.playAsync();
@@ -149,7 +176,6 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
       setIsPlaying(true);
     } catch (e: any) {
       console.warn('[AudioPlayer] play error:', e?.message || e);
-      // AVErrorFormatUnsupported — likely a webm recorded from web browser
       if (
         e?.code === 'EXAV' ||
         String(e?.message).includes('format') ||
@@ -169,21 +195,42 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
     }
   };
 
-  const handleSeek = async (value: number) => {
-    isSeeking.current = false;
-    setPositionSec(value);
+  const seekToFraction = async (fraction: number) => {
+    const target = Math.max(0, Math.min(1, fraction)) * (totalSec > 0 ? totalSec : duration || 0);
+    setPositionSec(target);
     if (Platform.OS === 'web' && webAudioRef.current) {
-      webAudioRef.current.currentTime = value;
+      webAudioRef.current.currentTime = target;
     } else {
-      const sound = soundInstanceRef.current;
+      const sound = soundRef.current;
       if (sound) {
         const status = await sound.getStatusAsync().catch(() => null);
         if (status?.isLoaded) {
-          await sound.setPositionAsync(value * 1000).catch(() => {});
+          await sound.setPositionAsync(target * 1000).catch(() => {});
         }
       }
     }
   };
+
+  // PanResponder for tap/drag to seek on the waveform.
+  // Uses waveWidthRef (not waveWidth state) so the closure always sees the current width.
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => waveWidthRef.current > 0,
+      onMoveShouldSetPanResponder: () => waveWidthRef.current > 0,
+      onPanResponderGrant: (evt) => {
+        isSeeking.current = true;
+        const fraction = evt.nativeEvent.locationX / waveWidthRef.current;
+        seekToFraction(fraction);
+      },
+      onPanResponderMove: (evt) => {
+        const fraction = evt.nativeEvent.locationX / waveWidthRef.current;
+        seekToFraction(fraction);
+      },
+      onPanResponderRelease: () => {
+        isSeeking.current = false;
+      },
+    })
+  ).current;
 
   const formatTime = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -192,14 +239,12 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
   };
 
   const iconColor = isOwn ? '#1F2937' : '#FFFFFF';
-  const sliderThumb = isOwn ? '#1F2937' : '#FFFFFF';
-  const sliderMin = isOwn ? '#1F2937' : '#FFFFFF';
-  const sliderMax = isOwn ? 'rgba(31,41,55,0.3)' : 'rgba(255,255,255,0.4)';
+  const playedColor = isOwn ? '#1F2937' : '#FFFFFF';
+  const unplayedColor = isOwn ? 'rgba(31,41,55,0.3)' : 'rgba(255,255,255,0.35)';
   const timeColor = isOwn ? 'rgba(31,41,55,0.7)' : 'rgba(255,255,255,0.8)';
 
   const effectiveTotal = totalSec > 0 ? totalSec : duration || 1;
 
-  // Format not supported on this device (e.g. webm on iOS)
   if (formatError) {
     return (
       <View style={styles.errorContainer}>
@@ -213,6 +258,7 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
 
   return (
     <View style={styles.container}>
+      {/* Play/Pause button */}
       <TouchableOpacity style={styles.playBtn} onPress={togglePlayback} activeOpacity={0.7}>
         {isPlaying
           ? <Pause size={18} color={iconColor} fill={iconColor} />
@@ -220,20 +266,35 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
         }
       </TouchableOpacity>
 
-      <View style={styles.sliderContainer}>
-        <Slider
-          style={styles.slider}
-          minimumValue={0}
-          maximumValue={effectiveTotal}
-          value={positionSec}
-          onSlidingStart={() => { isSeeking.current = true; }}
-          onSlidingComplete={handleSeek}
-          minimumTrackTintColor={sliderMin}
-          maximumTrackTintColor={sliderMax}
-          thumbTintColor={sliderThumb}
-        />
+      {/* Waveform bars */}
+      <View
+        style={styles.waveformContainer}
+        onLayout={(e: LayoutChangeEvent) => {
+          const w = e.nativeEvent.layout.width;
+          waveWidthRef.current = w;
+          setWaveWidth(w);
+        }}
+        {...panResponder.panHandlers}
+      >
+        {WAVEFORM.map((amp, i) => {
+          const barProgress = i / BAR_COUNT;
+          const played = barProgress < progress;
+          return (
+            <View
+              key={i}
+              style={[
+                styles.bar,
+                {
+                  height: Math.max(3, amp * 28),
+                  backgroundColor: played ? playedColor : unplayedColor,
+                },
+              ]}
+            />
+          );
+        })}
       </View>
 
+      {/* Time */}
       <Text style={[styles.time, { color: timeColor }]}>
         {isPlaying || positionSec > 0
           ? formatTime(positionSec)
@@ -258,11 +319,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sliderContainer: {
+  waveformContainer: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    height: 32,
+    paddingVertical: 4,
   },
-  slider: {
-    height: 30,
+  bar: {
+    flex: 1,
+    borderRadius: 2,
   },
   time: {
     fontSize: 12,
