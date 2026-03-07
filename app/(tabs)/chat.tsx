@@ -779,7 +779,9 @@ export default function ChatScreen() {
           throw new Error('No audio data');
         }
 
-        const ext = result.mimeType === 'audio/webm' ? 'webm' : 'm4a';
+        // Derive extension from mimeType (audio/mp4→m4a, audio/webm→webm, audio/mpeg→mp3)
+        const mimeToExt: Record<string, string> = { 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav' };
+        const ext = mimeToExt[result.mimeType] ?? result.mimeType.split('/')[1] ?? 'm4a';
         const uploadResp = await fetch(`${rorkApi}/api/upload-audio`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

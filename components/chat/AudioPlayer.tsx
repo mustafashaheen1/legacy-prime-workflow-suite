@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
-import { Play, Pause } from 'lucide-react-native';
+import { Play, Pause, AlertCircle } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import Slider from '@react-native-community/slider';
 
@@ -15,14 +15,21 @@ interface Props {
   shouldStop?: boolean;
 }
 
+/** iOS cannot play WebM/Opus — these are web-only formats */
+const isUnsupportedOnIOS = (url: string) =>
+  Platform.OS !== 'web' && /\.webm($|\?)/i.test(url);
+
 export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, shouldStop }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [positionSec, setPositionSec] = useState(0);
   const [totalSec, setTotalSec] = useState(duration || 0);
+  const [formatError, setFormatError] = useState(false);
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const webAudioRef = useRef<HTMLAudioElement | null>(null);
   const isSeeking = useRef(false);
+  // Keep a stable ref to the current sound instance to avoid stale closures
+  const soundInstanceRef = useRef<Audio.Sound | null>(null);
 
   // Stop when parent signals
   useEffect(() => {
@@ -33,11 +40,9 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
 
   useEffect(() => {
     return () => {
-      // Cleanup on unmount
-      if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => {});
-        soundRef.current = null;
-      }
+      soundInstanceRef.current?.unloadAsync().catch(() => {});
+      soundInstanceRef.current = null;
+      soundRef.current = null;
       if (webAudioRef.current) {
         webAudioRef.current.pause();
         webAudioRef.current = null;
@@ -53,11 +58,12 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
         if (andReset) webAudioRef.current.currentTime = 0;
       }
     } else {
-      if (soundRef.current) {
-        const status = await soundRef.current.getStatusAsync().catch(() => null);
+      const sound = soundInstanceRef.current;
+      if (sound) {
+        const status = await sound.getStatusAsync().catch(() => null);
         if (status?.isLoaded) {
-          await soundRef.current.pauseAsync().catch(() => {});
-          if (andReset) await soundRef.current.setPositionAsync(0).catch(() => {});
+          await sound.pauseAsync().catch(() => {});
+          if (andReset) await sound.setPositionAsync(0).catch(() => {});
         }
       }
     }
@@ -65,6 +71,11 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
   };
 
   const handlePlay = async () => {
+    if (isUnsupportedOnIOS(uri)) {
+      setFormatError(true);
+      return;
+    }
+
     onPlay?.(messageId);
 
     if (Platform.OS === 'web') {
@@ -81,43 +92,72 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
         };
         audio.onerror = () => setIsPlaying(false);
       }
-      await webAudioRef.current.play();
+      await webAudioRef.current.play().catch(() => setIsPlaying(false));
       setIsPlaying(true);
-    } else {
-      try {
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      return;
+    }
 
-        if (!soundRef.current) {
-          const { sound } = await Audio.Sound.createAsync(
-            { uri },
-            { shouldPlay: true, progressUpdateIntervalMillis: 200 },
-            (status) => {
-              if (!status.isLoaded) return;
-              if (!isSeeking.current) setPositionSec((status.positionMillis || 0) / 1000);
-              if (status.durationMillis) setTotalSec(status.durationMillis / 1000);
-              if (status.didJustFinish) {
-                setIsPlaying(false);
-                setPositionSec(0);
-                sound.unloadAsync().catch(() => {});
-                soundRef.current = null;
-              }
-            }
-          );
-          soundRef.current = sound;
-        } else {
-          const status = await soundRef.current.getStatusAsync();
-          if (status.isLoaded) {
-            await soundRef.current.playAsync();
-          } else {
-            soundRef.current = null;
-            return handlePlay();
-          }
+    // Native (iOS/Android)
+    try {
+      // Set audio mode ONCE — do not call inside tight loops
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+      });
+
+      let sound = soundInstanceRef.current;
+
+      if (sound) {
+        // Check if the existing instance is still valid
+        const status = await sound.getStatusAsync().catch(() => ({ isLoaded: false }));
+        if (!status.isLoaded) {
+          await sound.unloadAsync().catch(() => {});
+          soundInstanceRef.current = null;
+          soundRef.current = null;
+          sound = null;
         }
-        setIsPlaying(true);
-      } catch (e) {
-        console.error('[AudioPlayer] play error:', e);
-        setIsPlaying(false);
       }
+
+      if (!sound) {
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { uri },
+          { shouldPlay: true, progressUpdateIntervalMillis: 250 },
+          (status) => {
+            if (!status.isLoaded) return;
+            if (!isSeeking.current) {
+              setPositionSec((status.positionMillis || 0) / 1000);
+            }
+            if (status.durationMillis) {
+              setTotalSec(status.durationMillis / 1000);
+            }
+            if (status.didJustFinish) {
+              setIsPlaying(false);
+              setPositionSec(0);
+              newSound.unloadAsync().catch(() => {});
+              soundInstanceRef.current = null;
+              soundRef.current = null;
+            }
+          }
+        );
+        soundInstanceRef.current = newSound;
+        soundRef.current = newSound;
+      } else {
+        await sound.playAsync();
+      }
+
+      setIsPlaying(true);
+    } catch (e: any) {
+      console.warn('[AudioPlayer] play error:', e?.message || e);
+      // AVErrorFormatUnsupported — likely a webm recorded from web browser
+      if (
+        e?.code === 'EXAV' ||
+        String(e?.message).includes('format') ||
+        String(e?.message).includes('supported')
+      ) {
+        setFormatError(true);
+      }
+      setIsPlaying(false);
     }
   };
 
@@ -134,10 +174,13 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
     setPositionSec(value);
     if (Platform.OS === 'web' && webAudioRef.current) {
       webAudioRef.current.currentTime = value;
-    } else if (soundRef.current) {
-      const status = await soundRef.current.getStatusAsync().catch(() => null);
-      if (status?.isLoaded) {
-        await soundRef.current.setPositionAsync(value * 1000).catch(() => {});
+    } else {
+      const sound = soundInstanceRef.current;
+      if (sound) {
+        const status = await sound.getStatusAsync().catch(() => null);
+        if (status?.isLoaded) {
+          await sound.setPositionAsync(value * 1000).catch(() => {});
+        }
       }
     }
   };
@@ -155,6 +198,18 @@ export default function AudioPlayer({ uri, duration, messageId, isOwn, onPlay, s
   const timeColor = isOwn ? 'rgba(31,41,55,0.7)' : 'rgba(255,255,255,0.8)';
 
   const effectiveTotal = totalSec > 0 ? totalSec : duration || 1;
+
+  // Format not supported on this device (e.g. webm on iOS)
+  if (formatError) {
+    return (
+      <View style={styles.errorContainer}>
+        <AlertCircle size={14} color={isOwn ? '#6B7280' : 'rgba(255,255,255,0.7)'} />
+        <Text style={[styles.errorText, { color: isOwn ? '#6B7280' : 'rgba(255,255,255,0.7)' }]}>
+          Audio not supported on this device
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -214,5 +269,16 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
     minWidth: 36,
     textAlign: 'right',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 180,
+    paddingVertical: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    fontStyle: 'italic',
   },
 });

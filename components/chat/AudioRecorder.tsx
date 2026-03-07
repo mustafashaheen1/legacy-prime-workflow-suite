@@ -103,31 +103,29 @@ export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
         const { status } = await Audio.requestPermissionsAsync();
         if (status !== 'granted') return;
 
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+        });
 
+        // Use HIGH_QUALITY preset directly (MPEG4AAC → .m4a, fully supported on iOS/Android).
+        // isMeteringEnabled causes AVAudioSession contention on some iOS versions (-12785 errors),
+        // so we animate the waveform with a simple timer-driven sine instead.
         const { recording } = await Audio.Recording.createAsync(
-          {
-            ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
-            android: { ...Audio.RecordingOptionsPresets.HIGH_QUALITY.android },
-            ios: {
-              ...Audio.RecordingOptionsPresets.HIGH_QUALITY.ios,
-              extension: '.m4a',
-            },
-            isMeteringEnabled: true,
-          },
-          (status) => {
-            if (status.isRecording && status.metering !== undefined) {
-              // metering is dBFS [-160..0]; map to bar heights 4..28
-              const normalized = Math.max(0, (status.metering + 60) / 60);
-              setAmplitudes((prev) => {
-                const next = [...prev.slice(1), Math.max(4, normalized * 28)];
-                return next;
-              });
-            }
-          },
-          200
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
         );
         recordingRef.current = recording;
+
+        // Animate waveform with pseudo-random heights instead of real metering
+        // to avoid the iOS audio session errors caused by isMeteringEnabled
+        const animInterval = setInterval(() => {
+          setAmplitudes(() =>
+            Array.from({ length: 20 }, () => Math.random() * 22 + 4)
+          );
+        }, 150);
+        // Store interval on ref so we can clear it in stopRecording
+        (recordingRef as any)._animInterval = animInterval;
       }
 
       setState('recording');
@@ -154,11 +152,17 @@ export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
         mr.stop();
       });
     } else if (recordingRef.current) {
+      // Clear the waveform animation interval if running
+      if ((recordingRef as any)._animInterval) {
+        clearInterval((recordingRef as any)._animInterval);
+        (recordingRef as any)._animInterval = null;
+      }
       await recordingRef.current.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
-      return { uri: uri ?? null, durationSec, mimeType: 'audio/m4a' };
+      // 'audio/mp4' is the correct IANA MIME type for .m4a files (AAC in MPEG-4 container)
+      return { uri: uri ?? null, durationSec, mimeType: 'audio/mp4' };
     }
 
     return null;

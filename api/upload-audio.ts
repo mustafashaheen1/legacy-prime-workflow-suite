@@ -54,11 +54,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     // Generate unique filename
-    const fileExtension = fileName?.split('.').pop() || 'm4a';
+    const fileExtension = (fileName?.split('.').pop() || 'm4a').toLowerCase();
     const uniqueFileName = `voice-messages/${userId}/${uuidv4()}.${fileExtension}`;
 
+    // Map extension to correct IANA MIME type
+    // 'audio/m4a' is not valid — iOS AVPlayer and browsers need 'audio/mp4'
+    const contentTypeMap: Record<string, string> = {
+      m4a: 'audio/mp4',
+      mp4: 'audio/mp4',
+      mp3: 'audio/mpeg',
+      webm: 'audio/webm',
+      ogg: 'audio/ogg',
+      wav: 'audio/wav',
+      aac: 'audio/aac',
+      caf: 'audio/x-caf',
+    };
+    const contentType = contentTypeMap[fileExtension] ?? `audio/${fileExtension}`;
+
     // Convert base64 to buffer
-    const base64Data = audioData.replace(/^data:audio\/\w+;base64,/, '');
+    const base64Data = audioData.replace(/^data:audio\/[\w+-]+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
 
     // Upload to S3
@@ -66,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       Bucket: AWS_S3_BUCKET,
       Key: uniqueFileName,
       Body: buffer,
-      ContentType: `audio/${fileExtension}`,
+      ContentType: contentType,
       // ACL removed - bucket should be configured with public access policy
     });
 
