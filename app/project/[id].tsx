@@ -1181,14 +1181,7 @@ export default function ProjectDetailScreen() {
                 {project.status === 'active' && (
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#86EFAC', borderRadius: 12, paddingVertical: 14 }}
-                    onPress={() => Alert.alert(
-                      'Mark as Complete',
-                      `Mark "${project.name}" as completed?\n\nClock-in, Photos and Expenses will be locked. You can reactivate it at any time.`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Mark Complete', onPress: async () => { await updateProject(project.id, { status: 'completed', endDate: new Date().toISOString() }); } },
-                      ]
-                    )}
+                    onPress={() => updateProject(project.id, { status: 'completed', endDate: new Date().toISOString() })}
                   >
                     <Archive size={18} color="#16A34A" />
                     <Text style={{ fontSize: 15, fontWeight: '600', color: '#16A34A' }}>Mark as Complete</Text>
@@ -1197,14 +1190,7 @@ export default function ProjectDetailScreen() {
                 {project.status === 'active' && (
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 14 }}
-                    onPress={() => Alert.alert(
-                      'Archive Project',
-                      `Archive "${project.name}"?\n\nArchived projects are hidden from the active list and fully locked. You can unarchive at any time.`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Archive', style: 'destructive', onPress: async () => { await updateProject(project.id, { status: 'archived' }); } },
-                      ]
-                    )}
+                    onPress={() => updateProject(project.id, { status: 'archived' })}
                   >
                     <Archive size={18} color="#6B7280" />
                     <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>Archive Project</Text>
@@ -1214,28 +1200,14 @@ export default function ProjectDetailScreen() {
                   <>
                     <TouchableOpacity
                       style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FCD34D', borderRadius: 12, paddingVertical: 14 }}
-                      onPress={() => Alert.alert(
-                        'Reactivate Project',
-                        `Move "${project.name}" back to Active?`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Reactivate', onPress: async () => { await updateProject(project.id, { status: 'active', endDate: undefined }); } },
-                        ]
-                      )}
+                      onPress={() => updateProject(project.id, { status: 'active', endDate: undefined })}
                     >
                       <TrendingUp size={18} color="#F59E0B" />
                       <Text style={{ fontSize: 15, fontWeight: '600', color: '#F59E0B' }}>Reactivate Project</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 14 }}
-                      onPress={() => Alert.alert(
-                        'Archive Project',
-                        `Archive "${project.name}"?\n\nArchived projects are fully locked. You can unarchive at any time.`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Archive', style: 'destructive', onPress: async () => { await updateProject(project.id, { status: 'archived' }); } },
-                        ]
-                      )}
+                      onPress={() => updateProject(project.id, { status: 'archived' })}
                     >
                       <Archive size={18} color="#6B7280" />
                       <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>Archive Project</Text>
@@ -1245,14 +1217,7 @@ export default function ProjectDetailScreen() {
                 {project.status === 'archived' && (
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FCD34D', borderRadius: 12, paddingVertical: 14 }}
-                    onPress={() => Alert.alert(
-                      'Unarchive Project',
-                      `Move "${project.name}" back to Active?`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Unarchive', onPress: async () => { await updateProject(project.id, { status: 'active', endDate: undefined }); } },
-                      ]
-                    )}
+                    onPress={() => updateProject(project.id, { status: 'active', endDate: undefined })}
                   >
                     <TrendingUp size={18} color="#F59E0B" />
                     <Text style={{ fontSize: 15, fontWeight: '600', color: '#F59E0B' }}>Unarchive Project</Text>
@@ -2999,22 +2964,7 @@ export default function ProjectDetailScreen() {
         {project.status === 'active' && (
           <TouchableOpacity
             style={styles.completeButton}
-            onPress={() => {
-              Alert.alert(
-                'Mark as Complete',
-                `Mark "${project.name}" as completed?\n\nThe project will move to Completed status. You can reactivate it at any time.\n\nTo permanently archive, use the archive option.`,
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Mark Complete',
-                    onPress: async () => {
-                      await updateProject(project.id, { status: 'completed', endDate: new Date().toISOString() });
-                      Alert.alert('Done', 'Project marked as completed.');
-                    },
-                  },
-                ]
-              );
-            }}
+            onPress={() => updateProject(project.id, { status: 'completed', endDate: new Date().toISOString() })}
           >
             <Archive size={24} color="#10B981" />
           </TouchableOpacity>
@@ -3022,21 +2972,7 @@ export default function ProjectDetailScreen() {
         {project.status === 'completed' && (
           <TouchableOpacity
             style={[styles.completeButton, { backgroundColor: '#FEF3C7' }]}
-            onPress={() => {
-              Alert.alert(
-                'Reactivate Project',
-                `Move "${project.name}" back to Active?`,
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Reactivate',
-                    onPress: async () => {
-                      await updateProject(project.id, { status: 'active', endDate: undefined });
-                    },
-                  },
-                ]
-              );
-            }}
+            onPress={() => updateProject(project.id, { status: 'active', endDate: undefined })}
           >
             <TrendingUp size={24} color="#F59E0B" />
           </TouchableOpacity>
