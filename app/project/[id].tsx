@@ -5,7 +5,7 @@ import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
 import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment, ScheduledTask } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon } from 'lucide-react-native';
+import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon, PlayCircle, PauseCircle } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
 import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import { generateUUID } from '@/utils/uuid';
@@ -1189,12 +1189,39 @@ export default function ProjectDetailScreen() {
                 )}
                 {project.status === 'active' && (
                   <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', borderRadius: 12, paddingVertical: 14 }}
+                    onPress={() => updateProject(project.id, { status: 'on-hold' })}
+                  >
+                    <PauseCircle size={18} color="#F59E0B" />
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#F59E0B' }}>Delay Project</Text>
+                  </TouchableOpacity>
+                )}
+                {project.status === 'active' && (
+                  <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 14 }}
                     onPress={() => updateProject(project.id, { status: 'archived' })}
                   >
                     <Archive size={18} color="#6B7280" />
                     <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>Archive Project</Text>
                   </TouchableOpacity>
+                )}
+                {project.status === 'on-hold' && (
+                  <>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#86EFAC', borderRadius: 12, paddingVertical: 14 }}
+                      onPress={() => updateProject(project.id, { status: 'active' })}
+                    >
+                      <PlayCircle size={18} color="#16A34A" />
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#16A34A' }}>Resume Project</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 14 }}
+                      onPress={() => updateProject(project.id, { status: 'archived' })}
+                    >
+                      <Archive size={18} color="#6B7280" />
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>Archive Project</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
                 {project.status === 'completed' && (
                   <>
@@ -2967,6 +2994,14 @@ export default function ProjectDetailScreen() {
             onPress={() => updateProject(project.id, { status: 'completed', endDate: new Date().toISOString() })}
           >
             <Archive size={24} color="#10B981" />
+          </TouchableOpacity>
+        )}
+        {project.status === 'on-hold' && (
+          <TouchableOpacity
+            style={[styles.completeButton, { backgroundColor: '#FFF7ED' }]}
+            onPress={() => updateProject(project.id, { status: 'active' })}
+          >
+            <PlayCircle size={24} color="#F59E0B" />
           </TouchableOpacity>
         )}
         {project.status === 'completed' && (
