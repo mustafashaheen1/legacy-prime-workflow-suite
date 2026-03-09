@@ -26,7 +26,7 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [refreshing, refreshReports, loadDailyTasks]);
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
-  const [projectFilter, setProjectFilter] = useState<'active' | 'completed' | 'archived'>('active');
+  const [projectFilter, setProjectFilter] = useState<'active' | 'delayed' | 'completed' | 'archived'>('active');
   const [showImportOptions, setShowImportOptions] = useState<boolean>(false);
   const [projectName, setProjectName] = useState<string>('');
   const [projectAddress, setProjectAddress] = useState<string>('');
@@ -74,11 +74,15 @@ export default function DashboardScreen() {
   const [showAddTaskModal, setShowAddTaskModal] = useState<boolean>(false);
   const [taskFilter, setTaskFilter] = useState<'today' | 'upcoming' | 'all'>('today');
 
-  const activeProjects = projects.filter(p => p.status === 'active' || p.status === 'on-hold');
+  const activeProjects = projects.filter(p => p.status === 'active');
+  const delayedProjects = projects.filter(p => p.status === 'on-hold');
   const completedProjects = projects.filter(p => p.status === 'completed');
   const archivedProjects = projects.filter(p => p.status === 'archived');
 
   const filteredActiveProjects = activeProjects.filter(p =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredDelayedProjects = delayedProjects.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
   const filteredCompletedProjects = completedProjects.filter(p =>
@@ -90,6 +94,7 @@ export default function DashboardScreen() {
 
   const displayProjects =
     projectFilter === 'active' ? filteredActiveProjects :
+    projectFilter === 'delayed' ? filteredDelayedProjects :
     projectFilter === 'completed' ? filteredCompletedProjects :
     filteredArchivedProjects;
 
@@ -1084,6 +1089,15 @@ export default function DashboardScreen() {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  style={[styles.filterChip, projectFilter === 'delayed' && styles.filterChipActive, projectFilter === 'delayed' && { backgroundColor: '#F59E0B' }]}
+                  onPress={() => setProjectFilter('delayed')}
+                >
+                  <PauseCircle size={14} color={projectFilter === 'delayed' ? '#FFFFFF' : '#F59E0B'} />
+                  <Text style={[styles.filterChipText, projectFilter === 'delayed' && styles.filterChipTextActive]}>
+                    Delayed ({delayedProjects.length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={[styles.filterChip, projectFilter === 'completed' && styles.filterChipActive]}
                   onPress={() => setProjectFilter('completed')}
                 >
@@ -1296,6 +1310,8 @@ export default function DashboardScreen() {
                 ? t('dashboard.noArchivedProjects')
                 : projectFilter === 'completed'
                 ? 'No completed projects yet'
+                : projectFilter === 'delayed'
+                ? 'No delayed projects'
                 : t('dashboard.noActiveProjects')}
             </Text>
           </View>
