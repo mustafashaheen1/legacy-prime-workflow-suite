@@ -14,16 +14,10 @@ import { useApp } from '@/contexts/AppContext';
 // priceListItems now comes from AppContext
 import { sendEstimate } from '@/utils/sendEstimate';
 import { mockPhotos } from '@/mocks/data';
-import * as pdfjsLib from 'pdfjs-dist';
 import { generateUUID } from '@/utils/uuid';
 
 // Absolute base URL — required on native iOS where relative paths fail
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-
-// Configure PDF.js worker (only on web)
-if (Platform.OS === 'web') {
-  (pdfjsLib as any).GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-}
 
 interface GlobalAIChatProps {
   currentPageContext?: string;
@@ -961,9 +955,11 @@ Generate appropriate line items from the price list that fit this scope of work$
                 const imageUrls: string[] = [];
                 for (const file of selectedFiles) {
                   if (file.mimeType === 'application/pdf' && Platform.OS === 'web') {
-                    // Convert PDF to images
+                    // Convert PDF to images (dynamic import — pdfjs-dist is browser-only)
                     console.log('[Takeoff] Converting PDF to images:', file.name);
                     try {
+                      const pdfjsLib = await import('pdfjs-dist');
+                      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
                       const response = await fetch(file.uri);
                       const arrayBuffer = await response.arrayBuffer();
                       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
