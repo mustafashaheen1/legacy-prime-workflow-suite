@@ -8,26 +8,15 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'expo-image';
-import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Check, Edit3, Clock, Info } from 'lucide-react-native';
+import { ArrowLeft, X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Clock, Info } from 'lucide-react-native';
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
 import DocumentScannerModal, { DocumentScanResult } from '@/components/DocumentScannerModal';
-
-interface ExtractedExpense {
-  store: string;
-  amount: number;
-  date: string;
-  category: string;
-  items: string;
-  confidence: number;
-  imageUri: string;
-  imageBase64: string;
-}
 
 export default function ProjectExpensesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { expenses, addExpense, projects, user, company, priceListCategories, refreshExpenses } = useApp();
-  const [expenseType, setExpenseType] = useState<string>('Subcontractor');
+  const [expenseType, setExpenseType] = useState<string>('');
   const [category, setCategory] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   const [store, setStore] = useState<string>('');
@@ -35,20 +24,14 @@ export default function ProjectExpensesScreen() {
   const [receiptType, setReceiptType] = useState<'image' | 'file' | null>(null);
   const [receiptFileName, setReceiptFileName] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
-  const [scanningMessage, setScanningMessage] = useState<string>('Processing...');
+  const [scanningMessage] = useState<string>('Processing...');
   const [showExpenseTypePicker, setShowExpenseTypePicker] = useState<boolean>(false);
   const [showSubcategoryPicker, setShowSubcategoryPicker] = useState<boolean>(false);
   const [customCategory, setCustomCategory] = useState<string>('');
 
-  // Confirmation modal state
-  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
-  const [extractedExpense, setExtractedExpense] = useState<ExtractedExpense | null>(null);
-  const [editingInModal, setEditingInModal] = useState<boolean>(false);
-  const [modalStore, setModalStore] = useState<string>('');
-  const [modalAmount, setModalAmount] = useState<string>('');
-  const [modalCategory, setModalCategory] = useState<string>('');
-  const [isSavingExpense, setIsSavingExpense] = useState<boolean>(false);
   const [showDocumentScanner, setShowDocumentScanner] = useState<boolean>(false);
+  const [validationError, setValidationError] = useState<string>('');
+  const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
 
   // Receipt viewer state
   const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
@@ -57,11 +40,6 @@ export default function ProjectExpensesScreen() {
   // Expense detail modal state
   const [selectedExpense, setSelectedExpense] = useState<any>(null);
   const [showExpenseDetail, setShowExpenseDetail] = useState<boolean>(false);
-
-  // Duplicate detection state
-  const [duplicateCheckResult, setDuplicateCheckResult] = useState<any>(null);
-  const [showDuplicateWarning, setShowDuplicateWarning] = useState<boolean>(false);
-  const [pendingExpenseData, setPendingExpenseData] = useState<any>(null);
 
   const project = useMemo(() =>
     projects.find(p => p.id === id),
@@ -83,12 +61,12 @@ export default function ProjectExpensesScreen() {
     refreshExpenses();
   }, []);
 
-  // Set first category when loaded
+  // Set first category when Subcontractor type is selected and category is empty
   useEffect(() => {
-    if (priceListCategories.length > 0 && !category) {
+    if (expenseType === 'Subcontractor' && priceListCategories.length > 0 && !category) {
       setCategory(priceListCategories[0]);
     }
-  }, [priceListCategories, category]);
+  }, [expenseType, priceListCategories, category]);
 
   // Upload file to S3 using presigned URL (handles large files like PDFs)
   const uploadToS3 = async (fileData: string, fileName: string, fileType: string): Promise<string> => {
@@ -153,84 +131,6 @@ export default function ProjectExpensesScreen() {
     return fileUrl;
   };
 
-  // Analyze receipt with OpenAI
-  const analyzeReceiptWithOpenAI = async (imageData: string): Promise<{ data: ExtractedExpense | null; isValidReceipt: boolean; message?: string }> => {
-    console.log('[OpenAI] Analyzing receipt...');
-
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-
-    const response = await fetch(`${apiUrl}/api/analyze-receipt`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageData,
-        categories: priceListCategories,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      console.error('[OpenAI] API error:', response.status, error);
-      throw new Error(error.error || `Failed to analyze receipt (${response.status})`);
-    }
-
-    const result = await response.json();
-    console.log('[OpenAI] Analysis result:', result);
-    console.log('[OpenAI] Has error field:', !!result.error, 'Error value:', result.error);
-
-    // Check if the API returned an error message (even with success: true)
-    // This happens when OpenAI couldn't parse the image properly
-    if (result.error) {
-      console.log('[OpenAI] Returning isValidReceipt: false due to error field');
-      return {
-        data: null,
-        isValidReceipt: false,
-        message: result.error || 'Could not analyze this image. Please upload a photo of a receipt or invoice.',
-      };
-    }
-
-    if (result.success && result.data) {
-      const { store, amount, confidence } = result.data;
-
-      // Check if this looks like a valid receipt
-      // If confidence is very low or no store/amount found, it's probably not a receipt
-      const hasStore = store && store.trim().length > 0;
-      const hasAmount = amount && amount > 0;
-      const hasGoodConfidence = confidence && confidence >= 20;
-
-      if (!hasStore && !hasAmount) {
-        return {
-          data: null,
-          isValidReceipt: false,
-          message: 'This image does not appear to be a receipt or invoice. Please upload a photo of a receipt with visible store name and total amount.',
-        };
-      }
-
-      if (!hasGoodConfidence && !hasAmount) {
-        return {
-          data: null,
-          isValidReceipt: false,
-          message: 'Could not identify this as a receipt. Please upload a clearer photo of a receipt or invoice.',
-        };
-      }
-
-      return {
-        data: {
-          ...result.data,
-          imageUri: '',
-          imageBase64: imageData,
-        },
-        isValidReceipt: true,
-      };
-    }
-
-    return {
-      data: null,
-      isValidReceipt: false,
-      message: 'Failed to analyze the image. Please try again or enter details manually.',
-    };
-  };
-
   // Check for duplicate receipts
   const checkForDuplicates = async (imageBase64: string, ocrData: any) => {
     try {
@@ -268,8 +168,31 @@ export default function ProjectExpensesScreen() {
   const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
 
   const handleSave = async () => {
-    if (!amount || !store) {
-      Alert.alert('Missing Information', 'Please enter amount and store/invoice details.');
+    setValidationError('');
+
+    const missingFields: string[] = [];
+
+    if (!expenseType) {
+      missingFields.push('Expense Type');
+    }
+
+    if (expenseType === 'Subcontractor' && !category) {
+      missingFields.push('Category');
+    }
+
+    if (!amount || amount.trim() === '') {
+      missingFields.push('Amount');
+    } else if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      setValidationError('Please enter a valid amount greater than 0');
+      return;
+    }
+
+    if (!store || store.trim() === '') {
+      missingFields.push('Store/Invoice');
+    }
+
+    if (missingFields.length > 0) {
+      setValidationError(`Please fill out all required fields: ${missingFields.join(', ')}`);
       return;
     }
 
@@ -278,6 +201,19 @@ export default function ProjectExpensesScreen() {
     try {
       console.log('[Expenses] Saving expense:', { amount, store, type: expenseType });
 
+      // Generate duplicate detection fields if we have receipt data
+      const imageHash = receiptBase64
+        ? await generateImageHash(receiptBase64)
+        : undefined;
+
+      const ocrFingerprint = store && amount
+        ? generateOCRFingerprint(store, parseFloat(amount), new Date().toISOString())
+        : undefined;
+
+      const imageSizeBytes = receiptBase64
+        ? getBase64ByteSize(receiptBase64)
+        : undefined;
+
       let receiptUrl: string | undefined;
 
       // Upload receipt to S3 if present
@@ -285,7 +221,6 @@ export default function ProjectExpensesScreen() {
         try {
           console.log('[Expenses] Uploading receipt to S3...');
 
-          // Determine file type
           const isPdf = receiptType === 'file' || receiptImage.includes('.pdf') || receiptImage.includes('application/pdf');
           const fileType = isPdf ? 'application/pdf' : 'image/jpeg';
           const fileName = isPdf
@@ -293,10 +228,8 @@ export default function ProjectExpensesScreen() {
             : `receipt-${Date.now()}.jpg`;
 
           if (Platform.OS !== 'web') {
-            // Native: pass the file:// URI directly — XHR in uploadToS3 reads it natively
             receiptUrl = await uploadToS3(receiptImage, fileName, fileType);
           } else {
-            // Web: must convert to base64 data URL first (Blob approach)
             let base64Data: string;
             if (isPdf) {
               const response = await fetch(receiptImage);
@@ -308,18 +241,17 @@ export default function ProjectExpensesScreen() {
                 reader.readAsDataURL(blob);
               });
             } else {
-              base64Data = await convertToBase64(receiptImage);
+              base64Data = receiptBase64 ?? await convertToBase64(receiptImage);
             }
             receiptUrl = await uploadToS3(base64Data, fileName, fileType);
           }
           console.log('[Expenses] Receipt uploaded to S3:', receiptUrl);
         } catch (uploadError) {
           console.error('[Expenses] S3 upload failed, continuing without receipt URL:', uploadError);
-          // Continue without receipt URL if upload fails
         }
       }
 
-      await addExpense({
+      addExpense({
         id: Date.now().toString(),
         projectId: id as string,
         type: expenseType,
@@ -328,110 +260,44 @@ export default function ProjectExpensesScreen() {
         store,
         date: new Date().toISOString(),
         receiptUrl,
-      });
-
-      console.log('[Expenses] Expense saved successfully');
-
-      setAmount('');
-      setStore('');
-      setReceiptImage(null);
-      setReceiptType(null);
-      setReceiptFileName(null);
-      Alert.alert('Success', 'Expense added successfully!');
-    } catch (error: any) {
-      console.error('[Expenses] Error saving expense:', error);
-      Alert.alert('Error', `Failed to save expense: ${error.message || 'Unknown error'}`);
-    } finally {
-      setIsSavingManual(false);
-    }
-  };
-
-  // Save expense from confirmation modal
-  const handleSaveFromModal = async () => {
-    if (!extractedExpense || !modalAmount || !modalStore) {
-      Alert.alert('Missing Information', 'Please fill in all required fields.');
-      return;
-    }
-
-    setIsSavingExpense(true);
-
-    try {
-      // Upload receipt to S3
-      let receiptUrl: string | undefined;
-
-      if (extractedExpense.imageBase64) {
-        setScanningMessage('Uploading receipt...');
-        try {
-          receiptUrl = await uploadToS3(
-            extractedExpense.imageBase64,
-            `receipt-${Date.now()}.jpg`,
-            'image/jpeg'
-          );
-        } catch (uploadError) {
-          console.error('[Expenses] S3 upload failed, continuing without receipt URL:', uploadError);
-          // Continue without receipt URL if upload fails
-        }
-      }
-
-      // Generate duplicate detection fields
-      const imageHash = extractedExpense.imageBase64
-        ? await generateImageHash(extractedExpense.imageBase64)
-        : undefined;
-
-      const ocrFingerprint = modalStore && modalAmount
-        ? generateOCRFingerprint(modalStore, parseFloat(modalAmount), extractedExpense.date || new Date().toISOString())
-        : undefined;
-
-      const imageSizeBytes = extractedExpense.imageBase64
-        ? getBase64ByteSize(extractedExpense.imageBase64)
-        : undefined;
-
-      // Save the expense
-      await addExpense({
-        id: Date.now().toString(),
-        projectId: id as string,
-        type: 'Subcontractor',
-        subcategory: modalCategory || priceListCategories[0],
-        amount: parseFloat(modalAmount),
-        store: modalStore,
-        date: extractedExpense.date || new Date().toISOString(),
-        receiptUrl,
         imageHash,
         ocrFingerprint,
         imageSizeBytes,
       });
 
-      console.log('[Expenses] Expense saved from modal successfully');
+      await refreshExpenses();
 
-      // Close modal and reset state
-      setShowConfirmModal(false);
-      setExtractedExpense(null);
-      setEditingInModal(false);
-      setModalStore('');
-      setModalAmount('');
-      setModalCategory('');
+      console.log('[Expenses] Expense saved successfully');
+
+      setAmount('');
+      setStore('');
+      setExpenseType('');
+      setCategory('');
+      setReceiptImage(null);
+      setReceiptType(null);
+      setReceiptFileName(null);
+      setReceiptBase64(null);
+      setValidationError('');
 
       if (Platform.OS === 'web') {
-        window.alert('Expense saved successfully!');
+        window.alert('Expense added successfully!');
       } else {
-        Alert.alert('Success', 'Expense saved successfully!');
+        Alert.alert('Success', 'Expense added successfully!');
       }
     } catch (error: any) {
-      console.error('[Expenses] Error saving expense from modal:', error);
-
-      // Show user-friendly error message
+      console.error('[Expenses] Error saving expense:', error);
       let errorMessage = error.message || 'Failed to save expense';
       if (errorMessage.includes('Duplicate receipt')) {
         errorMessage = 'This receipt has already been added to your expenses. Please use a different receipt.';
       }
-
+      setValidationError(errorMessage);
       if (Platform.OS === 'web') {
         window.alert(`Error: ${errorMessage}`);
       } else {
         Alert.alert('Error', errorMessage);
       }
     } finally {
-      setIsSavingExpense(false);
+      setIsSavingManual(false);
     }
   };
 
@@ -518,30 +384,35 @@ export default function ProjectExpensesScreen() {
     return uri;
   };
 
-  // Process receipt (image or PDF)
-  const processReceipt = async (uri: string, isPdf: boolean = false, fileName?: string, preExtractedBase64?: string) => {
+  // Process receipt — inline-fill version (no confirmation modal)
+  const processReceipt = async (uri: string, preExtractedBase64?: string) => {
     try {
       setIsScanning(true);
-      setScanningMessage('Processing image...');
+      setReceiptImage(uri);
+      setReceiptType('image');
 
-      console.log('[Receipt] Processing:', { uri: uri.substring(0, 50), isPdf, fileName });
+      console.log('[OCR] Processing receipt image...');
 
-      // Convert to base64
-      setScanningMessage('Converting image...');
-      let imageData: string;
+      let imageData = uri;
 
       if (preExtractedBase64) {
-        // Use the already-processed base64 from the document scanner (avoids re-reading the file)
         imageData = `data:image/jpeg;base64,${preExtractedBase64}`;
-      } else if (isPdf) {
-        // For PDFs, we need to handle differently
-        // OpenAI can analyze PDF images if we convert them
-        if (Platform.OS !== 'web' && uri.startsWith('file://')) {
+        console.log('[OCR] Using pre-extracted base64 from scanner');
+      } else if (Platform.OS !== 'web' && uri.startsWith('file://')) {
+        console.log('[OCR] Reading local file as base64...');
+        try {
           const base64 = await FileSystem.readAsStringAsync(uri, {
             encoding: 'base64' as any,
           });
-          imageData = `data:application/pdf;base64,${base64}`;
-        } else {
+          const mimeType = uri.endsWith('.png') ? 'image/png' : 'image/jpeg';
+          imageData = `data:${mimeType};base64,${base64}`;
+        } catch (conversionError) {
+          console.error('[OCR] Error converting image:', conversionError);
+          throw new Error('Failed to convert image to base64');
+        }
+      } else if (Platform.OS === 'web' && !uri.startsWith('data:')) {
+        console.log('[OCR] Converting web image to base64...');
+        try {
           const response = await fetch(uri);
           const blob = await response.blob();
           imageData = await new Promise<string>((resolve, reject) => {
@@ -550,20 +421,19 @@ export default function ProjectExpensesScreen() {
             reader.onerror = reject;
             reader.readAsDataURL(blob);
           });
+        } catch (conversionError) {
+          console.error('[OCR] Error converting image:', conversionError);
+          throw new Error('Failed to convert image to base64');
         }
-      } else {
-        imageData = await convertToBase64(uri);
       }
 
       if (!imageData || imageData.length < 100) {
-        throw new Error('Invalid file data');
+        throw new Error('Invalid image data - image is too small or corrupted');
       }
 
-      // Safety cap: if base64 payload is > 3 MB, re-compress to avoid Vercel's
-      // 4.5 MB serverless body limit (base64 + JSON overhead would exceed it)
-      const BASE64_LIMIT = 3 * 1024 * 1024;
-      if (!isPdf && imageData.length > BASE64_LIMIT) {
-        console.log(`[Receipt] Image too large (${Math.round(imageData.length / 1024)}KB base64), re-compressing...`);
+      // Compress if too large
+      if (imageData.length > 8 * 1024 * 1024) {
+        console.log('[OCR] Image too large, compressing...');
         try {
           const recompressed = await ImageManipulator.manipulateAsync(
             uri,
@@ -571,72 +441,128 @@ export default function ProjectExpensesScreen() {
             { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true }
           );
           imageData = `data:image/jpeg;base64,${recompressed.base64 ?? ''}`;
-          console.log(`[Receipt] Re-compressed to ${Math.round(imageData.length / 1024)}KB`);
+          console.log('[OCR] Re-compressed image');
         } catch (compressErr) {
-          console.warn('[Receipt] Re-compression failed, proceeding with original:', compressErr);
+          console.warn('[OCR] Re-compression failed, proceeding with original:', compressErr);
         }
       }
 
-      // Analyze with OpenAI
-      setScanningMessage('Analyzing with AI...');
-      const result = await analyzeReceiptWithOpenAI(imageData);
+      console.log('[OCR] Sending request to API...');
 
-      if (result.isValidReceipt && result.data) {
-        // Check for duplicates
-        setScanningMessage('Checking for duplicates...');
-        const duplicateCheck = await checkForDuplicates(imageData, result.data);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+      const apiResponse = await fetch(`${apiUrl}/api/analyze-receipt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageData,
+          categories: priceListCategories,
+        }),
+      });
 
-        if (duplicateCheck.isDuplicate) {
-          if (!duplicateCheck.canOverride) {
-            // Exact duplicate - block
-            setIsScanning(false);
-            Alert.alert('Duplicate Receipt', duplicateCheck.message);
-            return;
+      if (!apiResponse.ok) {
+        throw new Error(`API error: ${apiResponse.status}`);
+      }
+
+      const apiResult = await apiResponse.json();
+      console.log('[OCR] API Response:', apiResult);
+
+      if (!apiResult.success) {
+        throw new Error(apiResult.error || 'Failed to analyze receipt');
+      }
+
+      const result = apiResult.data;
+
+      // Store base64 for duplicate detection
+      setReceiptBase64(imageData);
+
+      // Check for duplicates before auto-filling
+      const duplicateCheck = await checkForDuplicates(imageData, result);
+
+      if (duplicateCheck.isDuplicate) {
+        if (!duplicateCheck.canOverride) {
+          const blockMessage = 'This receipt has already been added to your expenses. You cannot add the same receipt image twice.';
+          if (Platform.OS === 'web') {
+            window.alert(blockMessage);
           } else {
-            // Similar receipt - show warning modal
-            setDuplicateCheckResult(duplicateCheck);
-            setPendingExpenseData({ imageUri: uri, imageData, extractedData: result.data });
-            setIsScanning(false);
-            setShowDuplicateWarning(true);
+            Alert.alert('Duplicate Receipt', blockMessage);
+          }
+          setReceiptImage(null);
+          setReceiptType(null);
+          setReceiptBase64(null);
+          return;
+        } else {
+          if (Platform.OS === 'web') {
+            const proceed = window.confirm(`${duplicateCheck.message}\n\nDo you want to add this expense anyway?`);
+            if (!proceed) {
+              setReceiptImage(null);
+              setReceiptType(null);
+              setReceiptBase64(null);
+              return;
+            }
+          } else {
+            Alert.alert(
+              'Possible Duplicate Receipt',
+              `${duplicateCheck.message}\n\nDo you want to add this expense anyway?`,
+              [
+                {
+                  text: 'Cancel',
+                  style: 'cancel',
+                  onPress: () => {
+                    setReceiptImage(null);
+                    setReceiptType(null);
+                    setReceiptBase64(null);
+                  },
+                },
+                {
+                  text: 'Add Anyway',
+                  onPress: () => {
+                    if (result.store) setStore(result.store);
+                    if (result.amount) setAmount(result.amount.toFixed(2));
+                    if (result.category && priceListCategories.includes(result.category)) setCategory(result.category);
+                  },
+                },
+              ]
+            );
             return;
           }
         }
+      }
 
-        // No duplicate, continue normally
-        result.data.imageUri = uri;
-        result.data.imageBase64 = imageData;
+      // No duplicate — auto-fill the form inline
+      if (result.store) setStore(result.store);
+      if (result.amount) setAmount(result.amount.toFixed(2));
+      if (result.category && priceListCategories.includes(result.category)) setCategory(result.category);
 
-        setExtractedExpense(result.data);
-        setModalStore(result.data.store || '');
-        setModalAmount(result.data.amount ? result.data.amount.toFixed(2) : '');
-        setModalCategory(result.data.category || priceListCategories[0]);
-        setEditingInModal(false);
-        setShowConfirmModal(true);
-      } else {
-        // Show user-friendly message explaining why analysis failed
-        console.log('[Receipt] Analysis failed, showing alert:', result.message);
-        if (Platform.OS === 'web') {
-          window.alert(result.message || 'Could not extract expense information from this image. Please upload a photo of a receipt or invoice.');
+      console.log('[OCR] Successfully extracted receipt data');
+
+      const confidenceMsg = result.confidence >= 80
+        ? 'High confidence extraction'
+        : result.confidence >= 60
+        ? 'Medium confidence extraction'
+        : 'Low confidence extraction';
+
+      Alert.alert(
+        '✓ Receipt Analyzed',
+        `${confidenceMsg}. Fields have been auto-filled. Please review and edit if needed, then tap Save.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('[OCR] Error processing receipt:', error);
+
+      let errorMessage = 'Could not extract receipt information. Please enter details manually.';
+      if (error instanceof Error) {
+        if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error: Unable to connect to AI service. Please check your internet connection and try again.';
+        } else if (error.message.includes('base64')) {
+          errorMessage = 'Image processing error: Could not read the image file. Please try a different photo.';
         } else {
-          Alert.alert(
-            'Not a Receipt',
-            result.message || 'Could not extract expense information from this image. Please upload a photo of a receipt or invoice.',
-            [{ text: 'OK' }]
-          );
+          errorMessage = `Error: ${error.message}`;
         }
       }
-    } catch (error: any) {
-      console.error('[Receipt] Processing error:', error);
 
-      let errorMessage = 'Failed to process receipt. Please try again or enter details manually.';
-      if (error.message?.includes('Network')) {
-        errorMessage = 'Network error. Please check your connection and try again.';
-      }
-
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Processing Error', errorMessage, [{ text: 'OK' }]);
     } finally {
       setIsScanning(false);
-      setScanningMessage('Processing...');
     }
   };
 
@@ -647,8 +573,7 @@ export default function ProjectExpensesScreen() {
 
   const handleDocScanCapture = async (result: DocumentScanResult) => {
     setShowDocumentScanner(false);
-    // Pass pre-extracted base64 to skip the redundant file re-read in processReceipt
-    await processReceipt(result.uri, false, undefined, result.base64 || undefined);
+    await processReceipt(result.uri, result.base64 || undefined);
   };
 
   // Button 2: Receipt (same as scan)
@@ -697,7 +622,7 @@ export default function ProjectExpensesScreen() {
       console.log('[File] Selected:', { name: file.name, type: file.mimeType });
 
       if (file.mimeType?.startsWith('image/')) {
-        await processReceipt(file.uri, false, file.name);
+        await processReceipt(file.uri);
       } else if (file.mimeType === 'application/pdf') {
         // PDFs cannot be analyzed by OpenAI Vision API directly
         // Set the PDF as receipt for manual entry immediately
@@ -719,19 +644,6 @@ export default function ProjectExpensesScreen() {
       console.error('Error uploading file:', error);
       Alert.alert('Error', 'Failed to upload file. Please try again.');
     }
-  };
-
-  // Get confidence color
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 80) return '#10B981';
-    if (confidence >= 60) return '#F59E0B';
-    return '#EF4444';
-  };
-
-  const getConfidenceLabel = (confidence: number) => {
-    if (confidence >= 80) return 'High';
-    if (confidence >= 60) return 'Medium';
-    return 'Low';
   };
 
   // View receipt handler
@@ -863,7 +775,7 @@ export default function ProjectExpensesScreen() {
               style={styles.categoryPicker}
               onPress={() => setShowExpenseTypePicker(true)}
             >
-              <Text style={styles.pickerText}>{expenseType}</Text>
+              <Text style={[styles.pickerText, !expenseType && { color: '#9CA3AF' }]}>{expenseType || 'Select expense type...'}</Text>
               <ChevronDown size={16} color="#6B7280" />
             </TouchableOpacity>
 
@@ -874,7 +786,7 @@ export default function ProjectExpensesScreen() {
                   style={styles.categoryPicker}
                   onPress={() => setShowSubcategoryPicker(true)}
                 >
-                  <Text style={styles.pickerText}>{category}</Text>
+                  <Text style={[styles.pickerText, !category && { color: '#9CA3AF' }]}>{category || 'Select category...'}</Text>
                   <ChevronDown size={16} color="#6B7280" />
                 </TouchableOpacity>
               </>
@@ -898,6 +810,12 @@ export default function ProjectExpensesScreen() {
               value={store}
               onChangeText={setStore}
             />
+
+            {validationError ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorInlineText}>{validationError}</Text>
+              </View>
+            ) : null}
 
             <TouchableOpacity
               style={[styles.saveButton, isSavingManual && styles.buttonDisabled]}
@@ -941,7 +859,7 @@ export default function ProjectExpensesScreen() {
                       activeOpacity={0.75}
                       onPress={() => { setSelectedExpense(expense); setShowExpenseDetail(true); }}
                     >
-                      {/* 🎯 CLIENT DESIGN: Avatar + Name + Amount on first row */}
+                      {/* CLIENT DESIGN: Avatar + Name + Amount on first row */}
                       <View style={styles.expenseMainRow}>
                         {/* Left: Avatar + Name + Category */}
                         <View style={styles.expenseLeftSection}>
@@ -1188,229 +1106,6 @@ export default function ProjectExpensesScreen() {
               </ScrollView>
             </View>
           </TouchableOpacity>
-        </Modal>
-
-        {/* Expense Confirmation Modal */}
-        <Modal
-          visible={showConfirmModal}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowConfirmModal(false)}
-        >
-          <View style={styles.confirmModalOverlay}>
-            <View style={styles.confirmModalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Confirm Expense</Text>
-                <TouchableOpacity onPress={() => setShowConfirmModal(false)}>
-                  <X size={24} color="#1F2937" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={styles.confirmModalBody}>
-                {/* Receipt Preview */}
-                {extractedExpense?.imageUri && (
-                  <View style={styles.modalReceiptPreview}>
-                    <Image
-                      source={{ uri: extractedExpense.imageUri }}
-                      style={styles.modalReceiptImage}
-                      contentFit="cover"
-                    />
-                  </View>
-                )}
-
-                {/* Confidence Badge */}
-                {extractedExpense && (
-                  <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(extractedExpense.confidence) + '20' }]}>
-                    <View style={[styles.confidenceDot, { backgroundColor: getConfidenceColor(extractedExpense.confidence) }]} />
-                    <Text style={[styles.confidenceText, { color: getConfidenceColor(extractedExpense.confidence) }]}>
-                      {getConfidenceLabel(extractedExpense.confidence)} Confidence ({extractedExpense.confidence}%)
-                    </Text>
-                    <TouchableOpacity onPress={() => setEditingInModal(!editingInModal)}>
-                      <Edit3 size={16} color="#6B7280" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Items Description */}
-                {extractedExpense?.items && (
-                  <View style={styles.itemsBox}>
-                    <Text style={styles.itemsLabel}>Items Detected</Text>
-                    <Text style={styles.itemsText}>{extractedExpense.items}</Text>
-                  </View>
-                )}
-
-                {/* Form Fields */}
-                <View style={styles.modalFormGroup}>
-                  <Text style={styles.modalLabel}>Store/Vendor</Text>
-                  {editingInModal ? (
-                    <TextInput
-                      style={styles.modalInput}
-                      value={modalStore}
-                      onChangeText={setModalStore}
-                      placeholder="Enter store name"
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  ) : (
-                    <Text style={styles.modalValue}>{modalStore || 'Not detected'}</Text>
-                  )}
-                </View>
-
-                <View style={styles.modalFormGroup}>
-                  <Text style={styles.modalLabel}>Amount</Text>
-                  {editingInModal ? (
-                    <TextInput
-                      style={styles.modalInput}
-                      value={modalAmount}
-                      onChangeText={setModalAmount}
-                      placeholder="0.00"
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="numeric"
-                    />
-                  ) : (
-                    <Text style={styles.modalValueLarge}>${modalAmount || '0.00'}</Text>
-                  )}
-                </View>
-
-                <View style={styles.modalFormGroup}>
-                  <Text style={styles.modalLabel}>Category</Text>
-                  {editingInModal ? (
-                    <TextInput
-                      style={styles.modalInput}
-                      value={modalCategory}
-                      onChangeText={setModalCategory}
-                      placeholder="Select category"
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  ) : (
-                    <Text style={styles.modalValue}>{modalCategory || 'Not detected'}</Text>
-                  )}
-                </View>
-
-                {extractedExpense?.date && (
-                  <View style={styles.modalFormGroup}>
-                    <Text style={styles.modalLabel}>Date</Text>
-                    <Text style={styles.modalValue}>
-                      {new Date(extractedExpense.date).toLocaleDateString()}
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
-
-              <View style={styles.confirmModalButtons}>
-                <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={() => setEditingInModal(!editingInModal)}
-                >
-                  <Edit3 size={18} color="#2563EB" />
-                  <Text style={styles.editButtonText}>{editingInModal ? 'Done Editing' : 'Edit'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.confirmSaveButton, isSavingExpense && styles.buttonDisabled]}
-                  onPress={handleSaveFromModal}
-                  disabled={isSavingExpense}
-                >
-                  {isSavingExpense ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Check size={18} color="#FFFFFF" />
-                      <Text style={styles.confirmSaveButtonText}>Save Expense</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Duplicate Warning Modal */}
-        <Modal
-          visible={showDuplicateWarning}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowDuplicateWarning(false)}
-        >
-          <View style={styles.confirmModalOverlay}>
-            <View style={styles.confirmModalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Possible Duplicate Receipt</Text>
-                <TouchableOpacity onPress={() => {
-                  setShowDuplicateWarning(false);
-                  setDuplicateCheckResult(null);
-                  setPendingExpenseData(null);
-                }}>
-                  <X size={24} color="#1F2937" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={styles.confirmModalBody}>
-                <View style={styles.duplicateWarningBox}>
-                  <Text style={styles.duplicateWarningText}>
-                    {duplicateCheckResult?.message}
-                  </Text>
-                </View>
-
-                {duplicateCheckResult?.matchedExpense && (
-                  <View style={styles.matchedExpenseBox}>
-                    <Text style={styles.matchedExpenseTitle}>Previous Expense:</Text>
-                    <View style={styles.matchedExpenseRow}>
-                      <Text style={styles.matchedExpenseLabel}>Store:</Text>
-                      <Text style={styles.matchedExpenseValue}>{duplicateCheckResult.matchedExpense.store}</Text>
-                    </View>
-                    <View style={styles.matchedExpenseRow}>
-                      <Text style={styles.matchedExpenseLabel}>Amount:</Text>
-                      <Text style={styles.matchedExpenseValue}>${duplicateCheckResult.matchedExpense.amount.toFixed(2)}</Text>
-                    </View>
-                    <View style={styles.matchedExpenseRow}>
-                      <Text style={styles.matchedExpenseLabel}>Date:</Text>
-                      <Text style={styles.matchedExpenseValue}>
-                        {new Date(duplicateCheckResult.matchedExpense.date).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                <Text style={styles.duplicateQuestionText}>
-                  Do you want to add this expense anyway?
-                </Text>
-              </ScrollView>
-
-              <View style={styles.confirmModalButtons}>
-                <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={() => {
-                    setShowDuplicateWarning(false);
-                    setDuplicateCheckResult(null);
-                    setPendingExpenseData(null);
-                  }}
-                >
-                  <Text style={styles.editButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.confirmSaveButton}
-                  onPress={() => {
-                    // Proceed with confirmation flow
-                    setShowDuplicateWarning(false);
-                    if (pendingExpenseData) {
-                      const { extractedData, imageUri, imageData } = pendingExpenseData;
-                      extractedData.imageUri = imageUri;
-                      extractedData.imageBase64 = imageData;
-                      setExtractedExpense(extractedData);
-                      setModalStore(extractedData.store || '');
-                      setModalAmount(extractedData.amount ? extractedData.amount.toFixed(2) : '');
-                      setModalCategory(extractedData.category || priceListCategories[0]);
-                      setEditingInModal(false);
-                      setShowConfirmModal(true);
-                    }
-                    setDuplicateCheckResult(null);
-                    setPendingExpenseData(null);
-                  }}
-                >
-                  <Text style={styles.confirmSaveButtonText}>Add Anyway</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
         </Modal>
 
         {/* Receipt Viewer Modal */}
@@ -1727,7 +1422,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  // 🎯 CLIENT DESIGN: Uploader styles
+  // CLIENT DESIGN: Uploader styles
   expenseMainRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1822,7 +1517,7 @@ const styles = StyleSheet.create({
     padding: 4,
     borderRadius: 4,
   },
-  // ── Admin: inline receipt thumbnail ──────────────────────────────────────
+  // Admin: inline receipt thumbnail
   receiptThumb: {
     marginTop: 10,
     borderRadius: 8,
@@ -2001,136 +1696,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 40,
   },
-  // Confirmation Modal Styles
-  confirmModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  confirmModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-  },
-  confirmModalBody: {
-    padding: 20,
-    maxHeight: 500,
-  },
-  modalReceiptPreview: {
-    width: '100%',
-    height: 150,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  modalReceiptImage: {
-    width: '100%',
-    height: '100%',
-  },
-  confidenceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 16,
-    gap: 8,
-  },
-  confidenceDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  confidenceText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600' as const,
-  },
-  itemsBox: {
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  itemsLabel: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  itemsText: {
-    fontSize: 14,
-    color: '#1F2937',
-  },
-  modalFormGroup: {
-    marginBottom: 16,
-  },
-  modalLabel: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-    marginBottom: 6,
-  },
-  modalValue: {
-    fontSize: 16,
-    color: '#1F2937',
-    fontWeight: '500' as const,
-  },
-  modalValueLarge: {
-    fontSize: 24,
-    color: '#2563EB',
-    fontWeight: '700' as const,
-  },
-  modalInput: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  confirmModalButtons: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  editButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingVertical: 14,
-    borderRadius: 8,
-    gap: 8,
-  },
-  editButtonText: {
-    color: '#2563EB',
-    fontSize: 16,
-    fontWeight: '600' as const,
-  },
-  confirmSaveButton: {
-    flex: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#10B981',
-    paddingVertical: 14,
-    borderRadius: 8,
-    gap: 8,
-  },
-  confirmSaveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600' as const,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
   // Receipt Viewer Styles
   receiptViewerOverlay: {
     flex: 1,
@@ -2188,52 +1753,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
   },
-  // Duplicate Warning Styles
-  duplicateWarningBox: {
-    backgroundColor: '#FEF3C7',
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  duplicateWarningText: {
-    fontSize: 14,
-    color: '#92400E',
-    lineHeight: 20,
-  },
-  matchedExpenseBox: {
-    backgroundColor: '#F3F4F6',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  matchedExpenseTitle: {
-    fontSize: 14,
-    fontWeight: '700' as const,
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  matchedExpenseRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  matchedExpenseLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  matchedExpenseValue: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-  },
-  duplicateQuestionText: {
-    fontSize: 16,
-    color: '#1F2937',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -2274,8 +1793,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic' as const,
   },
 
-  // ── Labor cost summary card ──────────────────────────────
-  // ── Expense detail bottom sheet ─────────────────────────
+  // Expense detail bottom sheet
   detailSheet: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
@@ -2414,5 +1932,21 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700' as const,
     color: '#1D4ED8',
+  },
+  errorContainer: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorInlineText: {
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '500' as const,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
