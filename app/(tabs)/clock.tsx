@@ -19,7 +19,7 @@ export default function ClockScreen() {
     }
   }, [params.projectId]);
 
-  const activeProjects = projects.filter(p => p.status !== 'archived');
+  const activeProjects = projects.filter(p => p.status === 'active');
   const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) : null;
 
   // ─── Project Selection Screen ────────────────────────────────────────────────

@@ -806,7 +806,7 @@ export default function PhotosScreen() {
 
             <ScrollView style={{ maxHeight: 400 }}>
               {projects
-                .filter(p => p.status === 'active' || p.status === 'on-hold')
+                .filter(p => p.status === 'active')
                 .map(project => (
                   <TouchableOpacity
                     key={project.id}
