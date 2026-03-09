@@ -969,13 +969,21 @@ export default function DashboardScreen() {
     if (!dashEditClientId) return;
     setIsUpdatingDashClient(true);
     try {
+      const newName = dashEditClientName.trim();
+      const oldName = clients.find(c => c.id === dashEditClientId)?.name ?? '';
       await updateClient(dashEditClientId, {
-        name: dashEditClientName.trim(),
+        name: newName,
         email: dashEditClientEmail.trim().toLowerCase(),
         phone: formatUSPhone(dashEditClientPhone),
         address: dashEditClientAddress.trim() || undefined,
         source: dashEditClientSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call',
       });
+      // Rename linked projects whose name starts with the old client name
+      if (oldName && oldName !== newName) {
+        projects
+          .filter(p => p.clientId === dashEditClientId && p.name.startsWith(oldName))
+          .forEach(p => updateProject(p.id, { name: newName + p.name.slice(oldName.length) }));
+      }
       setShowDashEditClientModal(false);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to update client.');

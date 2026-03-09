@@ -284,13 +284,21 @@ export default function CRMScreen() {
     setIsUpdatingClient(true);
     try {
       const formattedPhone = formatUSPhone(editClientPhone);
+      const newName = editClientName.trim();
+      const oldName = clients.find(c => c.id === editingClientId)?.name ?? '';
       await updateClient(editingClientId, {
-        name: editClientName.trim(),
+        name: newName,
         email: editClientEmail.trim().toLowerCase(),
         phone: formattedPhone,
         address: editClientAddress.trim() || undefined,
         source: editClientSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call',
       });
+      // Rename linked projects whose name starts with the old client name
+      if (oldName && oldName !== newName) {
+        projects
+          .filter(p => p.clientId === editingClientId && p.name.startsWith(oldName))
+          .forEach(p => updateProject(p.id, { name: newName + p.name.slice(oldName.length) }));
+      }
       setShowEditClientModal(false);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to update client.');
