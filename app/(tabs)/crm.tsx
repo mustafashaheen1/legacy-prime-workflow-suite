@@ -1675,19 +1675,7 @@ export default function CRMScreen() {
                     style={styles.actionButton}
                     onPress={() => {
                       const isOnHold = linkedProject.status === 'on-hold';
-                      Alert.alert(
-                        isOnHold ? 'Resume Project' : 'Delay Project',
-                        isOnHold
-                          ? `Resume "${linkedProject.name}"? It will be set back to active.`
-                          : `Put "${linkedProject.name}" on hold? You can resume it any time.`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: isOnHold ? 'Resume' : 'Delay',
-                            onPress: () => updateProject(linkedProject.id, { status: isOnHold ? 'active' : 'on-hold' }),
-                          },
-                        ]
-                      );
+                      updateProject(linkedProject.id, { status: isOnHold ? 'active' : 'on-hold' });
                     }}
                   >
                     {linkedProject.status === 'on-hold' ? (

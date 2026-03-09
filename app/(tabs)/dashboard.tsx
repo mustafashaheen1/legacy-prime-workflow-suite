@@ -981,20 +981,8 @@ export default function DashboardScreen() {
 
   const handleDelayProject = (project: Project) => {
     const isOnHold = project.status === 'on-hold';
+    updateProject(project.id, { status: isOnHold ? 'active' : 'on-hold' });
     setShowProjectActionsModal(false);
-    Alert.alert(
-      isOnHold ? 'Resume Project' : 'Delay Project',
-      isOnHold
-        ? `Resume "${project.name}"? It will be set back to active.`
-        : `Put "${project.name}" on hold? You can resume it any time.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: isOnHold ? 'Resume' : 'Delay',
-          onPress: () => updateProject(project.id, { status: isOnHold ? 'active' : 'on-hold' }),
-        },
-      ]
-    );
   };
 
   const pieChartData = useMemo(() => {
