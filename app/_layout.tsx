@@ -7,6 +7,7 @@ import { AppProvider, useApp } from "@/contexts/AppContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import GlobalAIChat from "@/components/GlobalAIChatSimple";
 import FloatingChatButton from "@/components/FloatingChatButton";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import AnimatedSplashScreen from "@/components/AnimatedSplashScreen";
 import { useNotificationSetup } from "@/hooks/useNotificationSetup";
 import * as Notifications from 'expo-notifications';
@@ -206,7 +207,9 @@ function ChatWidgets() {
 
   return (
     <>
-      <GlobalAIChat />
+      <ErrorBoundary fallback={null}>
+        <GlobalAIChat />
+      </ErrorBoundary>
       <FloatingChatButton />
     </>
   );

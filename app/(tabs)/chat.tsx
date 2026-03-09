@@ -41,6 +41,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useApp } from '@/contexts/AppContext';
 import { ChatMessage } from '@/types';
 import GlobalAIChat from '@/components/GlobalAIChatSimple';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { getTipOfTheDay } from '@/constants/construction-tips';
 import ChatListItem from '@/components/chat/ChatListItem';
 import ChatTabs, { ChatTab } from '@/components/chat/ChatTabs';
@@ -1062,7 +1063,9 @@ export default function ChatScreen() {
                     </View>
                   </View>
                 )}
-                <GlobalAIChat inline />
+                <ErrorBoundary fallback={null}>
+                  <GlobalAIChat inline />
+                </ErrorBoundary>
               </View>
             ) : selectedChat ? (
               <>
