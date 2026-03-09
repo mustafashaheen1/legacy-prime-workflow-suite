@@ -3,7 +3,7 @@ import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
-import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon, Camera } from 'lucide-react-native';
+import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon, Camera, Pencil, PauseCircle, PlayCircle } from 'lucide-react-native';
 import { Project, Client, CallLog } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
@@ -105,7 +105,7 @@ const promotionTemplates: MessageTemplate[] = [
 ];
 
 export default function CRMScreen() {
-  const { clients, addClient, addProject, updateClient, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog, setCallLogs, company, refreshClients, refreshEstimates, projects, customPriceListItems, isLoading, isCompanyReloading } = useApp();
+  const { clients, addClient, addProject, updateClient, updateProject, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog, setCallLogs, company, refreshClients, refreshEstimates, projects, customPriceListItems, isLoading, isCompanyReloading } = useApp();
   const router = useRouter();
   const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
   const { initiateCall, isLoadingCall } = useTwilioCalls();
@@ -260,6 +260,45 @@ export default function CRMScreen() {
     setShowAddClientModal(true);
   };
 
+  const openEditClientModal = (client: typeof clients[0]) => {
+    setEditingClientId(client.id);
+    setEditClientName(client.name);
+    setEditClientAddress(client.address || '');
+    setEditClientEmail(client.email);
+    setEditClientPhone(client.phone.replace(/\D/g, '').slice(-10));
+    setEditClientSource(client.source);
+    setEditClientFieldErrors({});
+    setShowEditClientModal(true);
+  };
+
+  const handleUpdateClient = async () => {
+    const errors: typeof editClientFieldErrors = {};
+    if (!editClientName.trim()) errors.name = 'Name is required';
+    if (!editClientEmail.trim()) errors.email = 'Email is required';
+    else if (!isValidEmail(editClientEmail)) errors.email = 'Enter a valid email address';
+    if (!editClientPhone) errors.phone = 'Phone is required';
+    else if (!isValidUSPhone(editClientPhone)) errors.phone = 'Enter a valid 10-digit US phone number';
+    if (!editClientSource) errors.source = 'Select how they found you';
+    if (Object.keys(errors).length > 0) { setEditClientFieldErrors(errors); return; }
+    if (!editingClientId) return;
+    setIsUpdatingClient(true);
+    try {
+      const formattedPhone = formatUSPhone(editClientPhone);
+      await updateClient(editingClientId, {
+        name: editClientName.trim(),
+        email: editClientEmail.trim().toLowerCase(),
+        phone: formattedPhone,
+        address: editClientAddress.trim() || undefined,
+        source: editClientSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call',
+      });
+      setShowEditClientModal(false);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update client.');
+    } finally {
+      setIsUpdatingClient(false);
+    }
+  };
+
   const [showAddForm, setShowAddForm] = useState<boolean>(true);
   const [showAddClientModal, setShowAddClientModal] = useState<boolean>(false);
   const [isAddingClient, setIsAddingClient] = useState<boolean>(false);
@@ -300,6 +339,18 @@ export default function CRMScreen() {
   const [showPaymentRequestModal, setShowPaymentRequestModal] = useState<boolean>(false);
   const [selectedClientForPayment, setSelectedClientForPayment] = useState<string | null>(null);
   const [isCreatingPaymentLink, setIsCreatingPaymentLink] = useState<boolean>(false);
+
+  // ===== EDIT CLIENT STATE =====
+  const [showEditClientModal, setShowEditClientModal] = useState<boolean>(false);
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
+  const [editClientName, setEditClientName] = useState<string>('');
+  const [editClientAddress, setEditClientAddress] = useState<string>('');
+  const [editClientEmail, setEditClientEmail] = useState<string>('');
+  const [editClientPhone, setEditClientPhone] = useState<string>('');
+  const [editClientSource, setEditClientSource] = useState<string>('');
+  const [editClientFieldErrors, setEditClientFieldErrors] = useState<{ name?: string; email?: string; phone?: string; source?: string }>({});
+  const [isUpdatingClient, setIsUpdatingClient] = useState<boolean>(false);
+
   const [callAssistantConfig, setCallAssistantConfig] = useState({
     enabled: true,
     businessName: 'Legacy Prime Construction',
@@ -1382,7 +1433,9 @@ export default function CRMScreen() {
               const dateA = new Date(a.createdAt || a.lastContactDate || a.lastContacted).getTime();
               const dateB = new Date(b.createdAt || b.lastContactDate || b.lastContacted).getTime();
               return dateB - dateA;
-            }).map((client) => (
+            }).map((client) => {
+            const linkedProject = projects.find(p => p.clientId === client.id);
+            return (
             <View key={client.id} style={styles.clientRow}>
               <View style={styles.clientRowHeader}>
                 <TouchableOpacity 
@@ -1610,9 +1663,46 @@ export default function CRMScreen() {
                     <Text style={styles.paymentButtonText}>Request Payment</Text>
                   </TouchableOpacity>
                 )}
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => openEditClientModal(client)}
+                >
+                  <Pencil size={16} color="#6B7280" />
+                  <Text style={styles.actionButtonText}>Edit Info</Text>
+                </TouchableOpacity>
+                {client.status === 'Project' && linkedProject && (
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                      const isOnHold = linkedProject.status === 'on-hold';
+                      Alert.alert(
+                        isOnHold ? 'Resume Project' : 'Delay Project',
+                        isOnHold
+                          ? `Resume "${linkedProject.name}"? It will be set back to active.`
+                          : `Put "${linkedProject.name}" on hold? You can resume it any time.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: isOnHold ? 'Resume' : 'Delay',
+                            onPress: () => updateProject(linkedProject.id, { status: isOnHold ? 'active' : 'on-hold' }),
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    {linkedProject.status === 'on-hold' ? (
+                      <PlayCircle size={16} color="#10B981" />
+                    ) : (
+                      <PauseCircle size={16} color="#F59E0B" />
+                    )}
+                    <Text style={styles.actionButtonText}>
+                      {linkedProject.status === 'on-hold' ? 'Resume Project' : 'Delay Project'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
-          ))}
+          ); })}
 
           <View style={styles.metricsWidget}>
             <TouchableOpacity 
@@ -1889,6 +1979,113 @@ export default function CRMScreen() {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.submitButtonText}>Add Client</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Client Modal */}
+      <Modal
+        visible={showEditClientModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditClientModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Client Info</Text>
+              <TouchableOpacity onPress={() => setShowEditClientModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Full Name <Text style={styles.requiredStar}>*</Text></Text>
+              <TextInput
+                style={[styles.modalInput, editClientFieldErrors.name && styles.modalInputError]}
+                placeholder="e.g. John Smith"
+                placeholderTextColor="#9CA3AF"
+                value={editClientName}
+                onChangeText={(text) => {
+                  setEditClientName(text);
+                  if (editClientFieldErrors.name) setEditClientFieldErrors(e => ({ ...e, name: undefined }));
+                }}
+              />
+              {editClientFieldErrors.name && <Text style={styles.fieldErrorText}>{editClientFieldErrors.name}</Text>}
+
+              <Text style={styles.inputLabel}>Email Address <Text style={styles.requiredStar}>*</Text></Text>
+              <TextInput
+                style={[styles.modalInput, editClientFieldErrors.email && styles.modalInputError]}
+                placeholder="e.g. john@example.com"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={editClientEmail}
+                onChangeText={(text) => {
+                  setEditClientEmail(text);
+                  if (editClientFieldErrors.email) setEditClientFieldErrors(e => ({ ...e, email: undefined }));
+                }}
+              />
+              {editClientFieldErrors.email && <Text style={styles.fieldErrorText}>{editClientFieldErrors.email}</Text>}
+
+              <Text style={styles.inputLabel}>Phone Number <Text style={styles.requiredStar}>*</Text></Text>
+              <TextInput
+                style={[styles.modalInput, editClientFieldErrors.phone && styles.modalInputError]}
+                placeholder="e.g. 5551234567"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="number-pad"
+                maxLength={10}
+                value={editClientPhone}
+                onChangeText={(text) => {
+                  setEditClientPhone(filterPhoneInput(text));
+                  if (editClientFieldErrors.phone) setEditClientFieldErrors(e => ({ ...e, phone: undefined }));
+                }}
+              />
+              {editClientFieldErrors.phone && <Text style={styles.fieldErrorText}>{editClientFieldErrors.phone}</Text>}
+
+              <Text style={styles.inputLabel}>Address <Text style={styles.optionalHint}>(optional)</Text></Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. 123 Main St, Dallas, TX"
+                placeholderTextColor="#9CA3AF"
+                value={editClientAddress}
+                onChangeText={setEditClientAddress}
+              />
+
+              <Text style={styles.inputLabel}>How did they find you? <Text style={styles.requiredStar}>*</Text></Text>
+              <View style={[styles.sourceButtonsContainer, editClientFieldErrors.source && styles.sourceButtonsError]}>
+                {['Google', 'Referral', 'Ad', 'Phone Call'].map((source) => (
+                  <TouchableOpacity
+                    key={source}
+                    style={[styles.sourceButton, editClientSource === source && styles.sourceButtonActive]}
+                    onPress={() => {
+                      setEditClientSource(source);
+                      if (editClientFieldErrors.source) setEditClientFieldErrors(e => ({ ...e, source: undefined }));
+                    }}
+                  >
+                    <Text style={[styles.sourceButtonText, editClientSource === source && styles.sourceButtonTextActive]}>{source}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {editClientFieldErrors.source && <Text style={styles.fieldErrorText}>{editClientFieldErrors.source}</Text>}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setShowEditClientModal(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitButton, isUpdatingClient && styles.submitButtonDisabled]}
+                onPress={handleUpdateClient}
+                disabled={isUpdatingClient}
+              >
+                {isUpdatingClient ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Save Changes</Text>
                 )}
               </TouchableOpacity>
             </View>

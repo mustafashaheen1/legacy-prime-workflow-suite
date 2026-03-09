@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
-import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, AlertTriangle, Camera } from 'lucide-react-native';
+import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, AlertTriangle, Camera, MoreHorizontal, Pencil, PauseCircle, PlayCircle } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -16,7 +16,7 @@ import { compressImage } from '@/lib/upload-utils';
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
-  const { projects, expenses, clockEntries, addProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate, dailyTasks = [], loadDailyTasks, addDailyTask, updateDailyTask, deleteDailyTask, user, refreshReports, isLoading, isCompanyReloading } = useApp();
+  const { projects, expenses, clockEntries, addProject, updateProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate, dailyTasks = [], loadDailyTasks, addDailyTask, updateDailyTask, deleteDailyTask, user, refreshReports, isLoading, isCompanyReloading } = useApp();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -53,6 +53,21 @@ export default function DashboardScreen() {
   const [showClientPickerModal, setShowClientPickerModal] = useState<boolean>(false);
   const [showEstimatePickerModal, setShowEstimatePickerModal] = useState<boolean>(false);
   const [selectedClientForConversion, setSelectedClientForConversion] = useState<string | null>(null);
+
+  // ===== PROJECT ACTIONS STATE =====
+  const [showProjectActionsModal, setShowProjectActionsModal] = useState<boolean>(false);
+  const [selectedProjectForActions, setSelectedProjectForActions] = useState<Project | null>(null);
+
+  // ===== EDIT CLIENT STATE (Dashboard) =====
+  const [showDashEditClientModal, setShowDashEditClientModal] = useState<boolean>(false);
+  const [dashEditClientId, setDashEditClientId] = useState<string | null>(null);
+  const [dashEditClientName, setDashEditClientName] = useState<string>('');
+  const [dashEditClientEmail, setDashEditClientEmail] = useState<string>('');
+  const [dashEditClientPhone, setDashEditClientPhone] = useState<string>('');
+  const [dashEditClientAddress, setDashEditClientAddress] = useState<string>('');
+  const [dashEditClientSource, setDashEditClientSource] = useState<string>('');
+  const [dashEditClientErrors, setDashEditClientErrors] = useState<{ name?: string; email?: string; phone?: string; source?: string }>({});
+  const [isUpdatingDashClient, setIsUpdatingDashClient] = useState<boolean>(false);
 
   // ===== DAILY TASKS STATE =====
   const [showDailyTasksMenu, setShowDailyTasksMenu] = useState<boolean>(false);
@@ -923,6 +938,65 @@ export default function DashboardScreen() {
     });
   };
 
+  const openDashEditClientModal = (project: Project) => {
+    const client = clients.find(c => c.id === project.clientId);
+    if (!client) { Alert.alert('No Client', 'No client linked to this project.'); return; }
+    setDashEditClientId(client.id);
+    setDashEditClientName(client.name);
+    setDashEditClientEmail(client.email);
+    setDashEditClientPhone(client.phone.replace(/\D/g, '').slice(-10));
+    setDashEditClientAddress(client.address || '');
+    setDashEditClientSource(client.source);
+    setDashEditClientErrors({});
+    setShowProjectActionsModal(false);
+    setShowDashEditClientModal(true);
+  };
+
+  const handleDashUpdateClient = async () => {
+    const errors: typeof dashEditClientErrors = {};
+    if (!dashEditClientName.trim()) errors.name = 'Name is required';
+    if (!dashEditClientEmail.trim()) errors.email = 'Email is required';
+    else if (!isValidEmail(dashEditClientEmail)) errors.email = 'Enter a valid email address';
+    if (!dashEditClientPhone) errors.phone = 'Phone is required';
+    else if (!isValidUSPhone(dashEditClientPhone)) errors.phone = 'Enter a valid 10-digit US phone number';
+    if (!dashEditClientSource) errors.source = 'Select how they found you';
+    if (Object.keys(errors).length > 0) { setDashEditClientErrors(errors); return; }
+    if (!dashEditClientId) return;
+    setIsUpdatingDashClient(true);
+    try {
+      await updateClient(dashEditClientId, {
+        name: dashEditClientName.trim(),
+        email: dashEditClientEmail.trim().toLowerCase(),
+        phone: formatUSPhone(dashEditClientPhone),
+        address: dashEditClientAddress.trim() || undefined,
+        source: dashEditClientSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call',
+      });
+      setShowDashEditClientModal(false);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update client.');
+    } finally {
+      setIsUpdatingDashClient(false);
+    }
+  };
+
+  const handleDelayProject = (project: Project) => {
+    const isOnHold = project.status === 'on-hold';
+    setShowProjectActionsModal(false);
+    Alert.alert(
+      isOnHold ? 'Resume Project' : 'Delay Project',
+      isOnHold
+        ? `Resume "${project.name}"? It will be set back to active.`
+        : `Put "${project.name}" on hold? You can resume it any time.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: isOnHold ? 'Resume' : 'Delay',
+          onPress: () => updateProject(project.id, { status: isOnHold ? 'active' : 'on-hold' }),
+        },
+      ]
+    );
+  };
+
   const pieChartData = useMemo(() => {
     const total = projectExpenses.reduce((sum, p) => sum + p.amount, 0);
     if (total === 0) return [];
@@ -1286,11 +1360,29 @@ export default function DashboardScreen() {
                   </View>
                 )}
                 <Text style={styles.projectBudget}>Budget: ${project.budget.toLocaleString()}</Text>
+                {project.status === 'on-hold' && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, marginBottom: 5, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#FCD34D' }}>
+                    <PauseCircle size={9} color="#D97706" />
+                    <Text style={{ fontSize: 9, fontWeight: '700', color: '#D97706' }}>On Hold</Text>
+                  </View>
+                )}
                 <Image
                   source={{ uri: project.image }}
                   style={styles.projectImage}
                   contentFit="cover"
                 />
+                {!isSelectMode && (
+                  <TouchableOpacity
+                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 16, padding: 5 }}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setSelectedProjectForActions(project);
+                      setShowProjectActionsModal(true);
+                    }}
+                  >
+                    <MoreHorizontal size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                )}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -2002,6 +2094,161 @@ export default function DashboardScreen() {
         onClose={() => setShowAddTaskModal(false)}
         onSubmit={handleAddTaskSubmit}
       />
+
+      {/* ===== PROJECT ACTIONS MODAL ===== */}
+      <Modal
+        visible={showProjectActionsModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowProjectActionsModal(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+          activeOpacity={1}
+          onPress={() => setShowProjectActionsModal(false)}
+        >
+          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40, paddingHorizontal: 20, paddingTop: 12 }}>
+            <View style={{ width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 16 }} />
+            {selectedProjectForActions && (
+              <>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 4 }}>
+                  {selectedProjectForActions.name}
+                </Text>
+                <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>
+                  Status: {selectedProjectForActions.status === 'on-hold' ? 'On Hold' : selectedProjectForActions.status.charAt(0).toUpperCase() + selectedProjectForActions.status.slice(1)}
+                </Text>
+
+                {selectedProjectForActions.clientId && (
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}
+                    onPress={() => openDashEditClientModal(selectedProjectForActions)}
+                  >
+                    <Pencil size={20} color="#2563EB" />
+                    <Text style={{ fontSize: 16, color: '#1F2937', fontWeight: '500' }}>Edit Client Info</Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}
+                  onPress={() => handleDelayProject(selectedProjectForActions)}
+                >
+                  {selectedProjectForActions.status === 'on-hold' ? (
+                    <PlayCircle size={20} color="#10B981" />
+                  ) : (
+                    <PauseCircle size={20} color="#F59E0B" />
+                  )}
+                  <Text style={{ fontSize: 16, color: '#1F2937', fontWeight: '500' }}>
+                    {selectedProjectForActions.status === 'on-hold' ? 'Resume Project' : 'Delay Project'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}
+                  onPress={() => { setShowProjectActionsModal(false); router.push(`/project/${selectedProjectForActions.id}` as any); }}
+                >
+                  <FolderOpen size={20} color="#6B7280" />
+                  <Text style={{ fontSize: 16, color: '#1F2937', fontWeight: '500' }}>View Project</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ===== EDIT CLIENT MODAL (Dashboard) ===== */}
+      <Modal
+        visible={showDashEditClientModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowDashEditClientModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Client Info</Text>
+              <TouchableOpacity onPress={() => setShowDashEditClientModal(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Full Name *</Text>
+              <TextInput
+                style={[styles.modalInput, dashEditClientErrors.name ? styles.modalInputError : undefined]}
+                placeholder="e.g. John Smith"
+                placeholderTextColor="#9CA3AF"
+                value={dashEditClientName}
+                onChangeText={(text) => { setDashEditClientName(text); if (dashEditClientErrors.name) setDashEditClientErrors(e => ({ ...e, name: undefined })); }}
+              />
+              {dashEditClientErrors.name && <Text style={styles.fieldErrorText}>{dashEditClientErrors.name}</Text>}
+
+              <Text style={styles.inputLabel}>Email Address *</Text>
+              <TextInput
+                style={[styles.modalInput, dashEditClientErrors.email ? styles.modalInputError : undefined]}
+                placeholder="e.g. john@example.com"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={dashEditClientEmail}
+                onChangeText={(text) => { setDashEditClientEmail(text); if (dashEditClientErrors.email) setDashEditClientErrors(e => ({ ...e, email: undefined })); }}
+              />
+              {dashEditClientErrors.email && <Text style={styles.fieldErrorText}>{dashEditClientErrors.email}</Text>}
+
+              <Text style={styles.inputLabel}>Phone Number *</Text>
+              <TextInput
+                style={[styles.modalInput, dashEditClientErrors.phone ? styles.modalInputError : undefined]}
+                placeholder="e.g. 5551234567"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="number-pad"
+                maxLength={10}
+                value={dashEditClientPhone}
+                onChangeText={(text) => { setDashEditClientPhone(text.replace(/\D/g, '')); if (dashEditClientErrors.phone) setDashEditClientErrors(e => ({ ...e, phone: undefined })); }}
+              />
+              {dashEditClientErrors.phone && <Text style={styles.fieldErrorText}>{dashEditClientErrors.phone}</Text>}
+
+              <Text style={styles.inputLabel}>Address (optional)</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. 123 Main St, Dallas, TX"
+                placeholderTextColor="#9CA3AF"
+                value={dashEditClientAddress}
+                onChangeText={setDashEditClientAddress}
+              />
+
+              <Text style={styles.inputLabel}>How did they find you? *</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {['Google', 'Referral', 'Ad', 'Phone Call'].map((source) => (
+                  <TouchableOpacity
+                    key={source}
+                    style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: dashEditClientSource === source ? '#2563EB' : '#E5E7EB', backgroundColor: dashEditClientSource === source ? '#EFF6FF' : '#FFFFFF' }}
+                    onPress={() => { setDashEditClientSource(source); if (dashEditClientErrors.source) setDashEditClientErrors(e => ({ ...e, source: undefined })); }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '500', color: dashEditClientSource === source ? '#2563EB' : '#6B7280' }}>{source}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {dashEditClientErrors.source && <Text style={styles.fieldErrorText}>{dashEditClientErrors.source}</Text>}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setShowDashEditClientModal(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitButton, isUpdatingDashClient ? { opacity: 0.6 } : undefined]}
+                onPress={handleDashUpdateClient}
+                disabled={isUpdatingDashClient}
+              >
+                {isUpdatingDashClient ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   );
@@ -3237,5 +3484,52 @@ const styles = StyleSheet.create({
   coverPhotoPlaceholderText: {
     fontSize: 13,
     color: '#9CA3AF',
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#374151',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  modalInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  modalInputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  fieldErrorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginBottom: 4,
+  },
+  modalFooter: {
+    flexDirection: 'row' as const,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
   },
 });
