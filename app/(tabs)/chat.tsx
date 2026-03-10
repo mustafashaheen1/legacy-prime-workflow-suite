@@ -37,7 +37,7 @@ import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+// FileSystem removed — uploadToS3 now uses fetch() directly on file:// URIs
 import { useApp } from '@/contexts/AppContext';
 import { ChatMessage } from '@/types';
 import GlobalAIChat from '@/components/GlobalAIChatSimple';
@@ -72,7 +72,7 @@ export default function ChatScreen() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [newChatSearch, setNewChatSearch] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [previewVideo, setPreviewVideo] = useState<string | null>(null);
+  const [previewVideo, setPreviewVideo] = useState<{ uri: string; mimeType: string } | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
   const [isUploadingVideo, setIsUploadingVideo] = useState<boolean>(false);
   const [dailyTipSent, setDailyTipSent] = useState<boolean>(false);
@@ -657,20 +657,23 @@ export default function ChatScreen() {
     localUri: string,
     mimeType: string
   ): Promise<{ publicUrl: string }> => {
-    let blob: Blob;
-    if (Platform.OS === 'web') {
-      const response = await fetch(localUri);
-      blob = await response.blob();
-    } else {
-      const base64 = await FileSystem.readAsStringAsync(localUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      const dataUri = `data:${mimeType};base64,${base64}`;
-      const fetchResponse = await fetch(dataUri);
-      blob = await fetchResponse.blob();
-    }
+    // Use fetch() on both web and native — on native RN supports file:// URIs directly.
+    // Never read large files (e.g. video) as base64; that triples memory and crashes iOS.
+    const response = await fetch(localUri);
+    const blob = await response.blob();
 
-    const ext = mimeType.split('/')[1] || 'bin';
+    // Map MIME types to proper file extensions
+    const mimeToExt: Record<string, string> = {
+      'video/quicktime': 'mov',
+      'video/mp4': 'mp4',
+      'video/mpeg': 'mp4',
+      'audio/mp4': 'mp4',
+      'audio/wav': 'wav',
+      'audio/webm': 'webm',
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+    };
+    const ext = mimeToExt[mimeType] ?? mimeType.split('/')[1] ?? 'bin';
     const urlResp = await fetch(`${rorkApi}/api/get-upload-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -763,7 +766,14 @@ export default function ChatScreen() {
         allowsEditing: true,
         videoMaxDuration: 60,
       });
-      if (!result.canceled && result.assets[0]) setPreviewVideo(result.assets[0].uri);
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        // Use mimeType from picker; fall back to extension-based detection
+        const rawMime = asset.mimeType || `video/${asset.uri.split('.').pop()?.toLowerCase() || 'mp4'}`;
+        // iOS returns .mov files — ensure correct MIME type
+        const mime = rawMime === 'video/mov' ? 'video/quicktime' : rawMime;
+        setPreviewVideo({ uri: asset.uri, mimeType: mime });
+      }
     } catch {
       Alert.alert('Error', 'Failed to pick video');
     }
@@ -780,16 +790,14 @@ export default function ChatScreen() {
         (conversation.type === 'individual' || conversation.type === 'group');
 
       if (isTeam) {
-        const ext = previewVideo.split('.').pop()?.toLowerCase() || 'mp4';
-        const mime = `video/${ext}`;
-        const { publicUrl } = await uploadToS3(previewVideo, mime);
+        const { publicUrl } = await uploadToS3(previewVideo.uri, previewVideo.mimeType);
         await sendMediaMessage('video', publicUrl);
       } else {
         addMessageToConversation(selectedChat, {
           id: Date.now().toString(),
           senderId: user?.id || '',
           type: 'video',
-          content: previewVideo,
+          content: previewVideo.uri,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         });
       }
@@ -1444,7 +1452,7 @@ export default function ChatScreen() {
 
       {/* ─── Send Video Preview Modal ─────────────────────────────────────────── */}
       <Modal
-        visible={previewVideo !== null}
+        visible={previewVideo != null}
         transparent
         animationType="fade"
         onRequestClose={() => setPreviewVideo(null)}
