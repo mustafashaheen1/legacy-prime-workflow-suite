@@ -27,6 +27,7 @@ export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const webMimeTypeRef = useRef<string>('audio/webm');
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -76,7 +77,10 @@ export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
         streamRef.current = stream;
         audioChunksRef.current = [];
 
-        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        // Prefer mp4 (playable on iOS native), fallback to webm (Chrome support)
+        const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm';
+        webMimeTypeRef.current = mimeType;
+        const mediaRecorder = new MediaRecorder(stream, { mimeType });
         mediaRecorder.ondataavailable = (e) => {
           if (e.data.size > 0) audioChunksRef.current.push(e.data);
         };
@@ -143,11 +147,12 @@ export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
       const mr = mediaRecorderRef.current;
       return new Promise((resolve) => {
         mr.onstop = () => {
-          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const usedMime = webMimeTypeRef.current;
+          const blob = new Blob(audioChunksRef.current, { type: usedMime });
           streamRef.current?.getTracks().forEach((t) => t.stop());
           streamRef.current = null;
           mediaRecorderRef.current = null;
-          resolve({ uri: null, blob, durationSec, mimeType: 'audio/webm' });
+          resolve({ uri: null, blob, durationSec, mimeType: usedMime });
         };
         mr.stop();
       });

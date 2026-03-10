@@ -349,7 +349,7 @@ export default function ChatScreen() {
               text: msg.text,
               fileName: msg.fileName,
               duration: msg.duration,
-              timestamp: msg.timestamp,
+              timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               replyTo: msg.replyTo,
               isDeleted: msg.isDeleted,
             });

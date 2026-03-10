@@ -96,10 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         fileName: msg.file_name,
         fileUrl: msg.file_url,
         duration: msg.duration,
-        timestamp: new Date(msg.created_at).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
+        timestamp: msg.created_at,
         createdAt: msg.created_at,
         sender: msg.users || { id: msg.sender_id, name: 'Unknown', avatar: null },
         replyTo: replyMsg ? {

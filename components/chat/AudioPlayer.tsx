@@ -7,9 +7,10 @@ import {
   PanResponder,
   LayoutChangeEvent,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, AlertCircle } from 'lucide-react-native';
+import { Play, Pause, AlertCircle, ExternalLink } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 
 interface Props {
@@ -293,8 +294,17 @@ export default function AudioPlayer({
       <View style={styles.errorContainer}>
         <AlertCircle size={14} color={errColor} />
         <Text style={[styles.errorText, { color: errColor }]}>
-          {formatError ? 'Audio not supported on this device' : 'Failed to load audio'}
+          {formatError ? 'Tap to listen in browser' : 'Failed to load audio'}
         </Text>
+        {formatError && (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(uri).catch(() => {})}
+            style={styles.retryBtn}
+            activeOpacity={0.7}
+          >
+            <ExternalLink size={14} color={errColor} />
+          </TouchableOpacity>
+        )}
         {loadState === 'error' && !formatError && (
           <TouchableOpacity
             onPress={() => {
