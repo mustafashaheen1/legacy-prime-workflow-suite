@@ -37,7 +37,7 @@ import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-// FileSystem removed — uploadToS3 now uses fetch() directly on file:// URIs
+import * as FileSystem from 'expo-file-system';
 import { useApp } from '@/contexts/AppContext';
 import { ChatMessage } from '@/types';
 import GlobalAIChat from '@/components/GlobalAIChatSimple';
@@ -688,27 +688,20 @@ export default function ChatScreen() {
         body: blob,
         headers: { 'Content-Type': mimeType },
       });
-      if (!uploadResp.ok) throw new Error('Failed to upload to S3');
+      if (!uploadResp.ok) throw new Error(`S3 upload failed: ${uploadResp.status}`);
     } else {
-      // Native: use XHR with RN's native file object { uri, type, name }.
-      // This streams the file directly without loading it into JS memory —
-      // critical for large files (video). fetch() body does not properly
-      // stream file:// URIs on iOS/Android.
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('PUT', urlResult.uploadUrl);
-        xhr.setRequestHeader('Content-Type', mimeType);
-        xhr.onreadystatechange = () => {
-          if (xhr.readyState === 4) {
-            if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(`S3 upload failed: ${xhr.status}`));
-          }
-        };
-        xhr.onerror = () => reject(new Error('Network error during upload'));
-        // React Native XHR accepts { uri, type, name } as the body and
-        // handles the native file read + stream internally
-        (xhr as any).send({ uri: localUri, type: mimeType, name: `file.${ext}` });
+      // Native: FileSystem.uploadAsync streams the file at the OS level —
+      // no base64, no JS heap pressure. Correct for all file sizes.
+      console.log('[uploadToS3] uploading', localUri, mimeType);
+      const uploadResult = await FileSystem.uploadAsync(urlResult.uploadUrl, localUri, {
+        httpMethod: 'PUT',
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: { 'Content-Type': mimeType },
       });
+      console.log('[uploadToS3] result status:', uploadResult.status);
+      if (uploadResult.status < 200 || uploadResult.status >= 300) {
+        throw new Error(`S3 upload failed: ${uploadResult.status} — ${uploadResult.body}`);
+      }
     }
 
     return { publicUrl: urlResult.publicUrl };
@@ -812,7 +805,9 @@ export default function ChatScreen() {
         (conversation.type === 'individual' || conversation.type === 'group');
 
       if (isTeam) {
+        console.log('[Video] uploading', previewVideo.uri, previewVideo.mimeType);
         const { publicUrl } = await uploadToS3(previewVideo.uri, previewVideo.mimeType);
+        console.log('[Video] uploaded, publicUrl:', publicUrl);
         await sendMediaMessage('video', publicUrl);
       } else {
         addMessageToConversation(selectedChat, {
