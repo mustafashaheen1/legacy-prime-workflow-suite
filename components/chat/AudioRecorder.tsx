@@ -19,17 +19,56 @@ interface Props {
   autoStart?: boolean;
 }
 
+// ─── WAV encoder (pure JS, no dependencies) ──────────────────────────────────
+// Encodes mono Float32 PCM samples → 16-bit PCM WAV ArrayBuffer.
+// WAV is universally supported: iOS AVFoundation, Android, and all browsers.
+function encodeWAV(samples: Float32Array, sampleRate: number): ArrayBuffer {
+  const numSamples = samples.length;
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+  const write4 = (o: number, s: string) =>
+    [...s].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+
+  write4(0, 'RIFF');
+  view.setUint32(4, 36 + numSamples * 2, true);
+  write4(8, 'WAVE');
+  write4(12, 'fmt ');
+  view.setUint32(16, 16, true);       // PCM chunk size
+  view.setUint16(20, 1, true);        // PCM format
+  view.setUint16(22, 1, true);        // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // byte rate
+  view.setUint16(32, 2, true);        // block align
+  view.setUint16(34, 16, true);       // bits per sample
+  write4(36, 'data');
+  view.setUint32(40, numSamples * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 32768 : s * 32767, true);
+  }
+  return buffer;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
   const [state, setState] = useState<RecorderState>('idle');
   const [elapsedSec, setElapsedSec] = useState(0);
   const [amplitudes, setAmplitudes] = useState<number[]>(Array(20).fill(6));
   const [previewResult, setPreviewResult] = useState<RecordingResult | null>(null);
 
+  // Native (expo-av)
   const recordingRef = useRef<Audio.Recording | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const webMimeTypeRef = useRef<string>('audio/webm');
-  const audioChunksRef = useRef<Blob[]>([]);
+
+  // Web (Web Audio API)
   const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const pcmSamplesRef = useRef<Float32Array[]>([]);
+  const isRecordingRef = useRef(false);
+
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dotOpacity = useRef(new Animated.Value(1)).current;
@@ -73,36 +112,40 @@ export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
   const startRecording = async () => {
     try {
       if (Platform.OS === 'web') {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
         streamRef.current = stream;
-        audioChunksRef.current = [];
+        pcmSamplesRef.current = [];
+        isRecordingRef.current = true;
 
-        // Prefer mp4 (playable on iOS native), fallback to webm (Chrome support)
-        const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm';
-        webMimeTypeRef.current = mimeType;
-        const mediaRecorder = new MediaRecorder(stream, { mimeType });
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) audioChunksRef.current.push(e.data);
-        };
-        mediaRecorder.start(100);
-        mediaRecorderRef.current = mediaRecorder;
-
-        // Animate amplitude from stream
+        // AudioContext for both amplitude visualisation and PCM capture
         const ctx = new AudioContext();
+        audioContextRef.current = ctx;
         const source = ctx.createMediaStreamSource(stream);
+
+        // Analyser — drives the live waveform bars
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
         source.connect(analyser);
-        const data = new Uint8Array(analyser.frequencyBinCount);
+        const freqData = new Uint8Array(analyser.frequencyBinCount);
         const tick = () => {
-          if (mediaRecorderRef.current?.state === 'recording') {
-            analyser.getByteFrequencyData(data);
-            const avg = data.slice(0, 20).map((v) => Math.max(4, (v / 255) * 28));
-            setAmplitudes([...avg]);
-            requestAnimationFrame(tick);
-          }
+          if (!isRecordingRef.current) return;
+          analyser.getByteFrequencyData(freqData);
+          const avg = Array.from(freqData.slice(0, 20)).map((v) => Math.max(4, (v / 255) * 28));
+          setAmplitudes(avg);
+          requestAnimationFrame(tick);
         };
         tick();
+
+        // ScriptProcessorNode — accumulates raw PCM samples for WAV encoding
+        // (deprecated but universally supported; AudioWorklet needs a separate file)
+        const processor = ctx.createScriptProcessor(4096, 1, 1);
+        processor.onaudioprocess = (e) => {
+          if (!isRecordingRef.current) return;
+          pcmSamplesRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        };
+        source.connect(processor);
+        processor.connect(ctx.destination);
+        scriptProcessorRef.current = processor;
       } else {
         const { status } = await Audio.requestPermissionsAsync();
         if (status !== 'granted') return;
@@ -113,22 +156,16 @@ export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
           staysActiveInBackground: false,
         });
 
-        // Use HIGH_QUALITY preset directly (MPEG4AAC → .m4a, fully supported on iOS/Android).
-        // isMeteringEnabled causes AVAudioSession contention on some iOS versions (-12785 errors),
-        // so we animate the waveform with a simple timer-driven sine instead.
+        // HIGH_QUALITY → MPEG4AAC → .m4a — natively supported on iOS & Android
         const { recording } = await Audio.Recording.createAsync(
           Audio.RecordingOptionsPresets.HIGH_QUALITY
         );
         recordingRef.current = recording;
 
-        // Animate waveform with pseudo-random heights instead of real metering
-        // to avoid the iOS audio session errors caused by isMeteringEnabled
+        // Pseudo-random waveform (avoids isMeteringEnabled iOS audio-session errors)
         const animInterval = setInterval(() => {
-          setAmplitudes(() =>
-            Array.from({ length: 20 }, () => Math.random() * 22 + 4)
-          );
+          setAmplitudes(() => Array.from({ length: 20 }, () => Math.random() * 22 + 4));
         }, 150);
-        // Store interval on ref so we can clear it in stopRecording
         (recordingRef as any)._animInterval = animInterval;
       }
 
@@ -143,21 +180,37 @@ export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
     stopTimer();
     const durationSec = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
-    if (Platform.OS === 'web' && mediaRecorderRef.current) {
-      const mr = mediaRecorderRef.current;
-      return new Promise((resolve) => {
-        mr.onstop = () => {
-          const usedMime = webMimeTypeRef.current;
-          const blob = new Blob(audioChunksRef.current, { type: usedMime });
-          streamRef.current?.getTracks().forEach((t) => t.stop());
-          streamRef.current = null;
-          mediaRecorderRef.current = null;
-          resolve({ uri: null, blob, durationSec, mimeType: usedMime });
-        };
-        mr.stop();
-      });
+    if (Platform.OS === 'web') {
+      isRecordingRef.current = false;
+
+      // Disconnect Web Audio nodes
+      scriptProcessorRef.current?.disconnect();
+      scriptProcessorRef.current = null;
+
+      // Combine all PCM chunks
+      const chunks = pcmSamplesRef.current;
+      pcmSamplesRef.current = [];
+      const totalSamples = chunks.reduce((sum, a) => sum + a.length, 0);
+      const combined = new Float32Array(totalSamples);
+      let offset = 0;
+      for (const chunk of chunks) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      const sampleRate = audioContextRef.current?.sampleRate || 44100;
+      await audioContextRef.current?.close().catch(() => {});
+      audioContextRef.current = null;
+
+      // Stop mic
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+
+      // Encode to WAV — plays natively on iOS, Android, and all browsers
+      const wavBuffer = encodeWAV(combined, sampleRate);
+      const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+      return { uri: null, blob, durationSec, mimeType: 'audio/wav' };
     } else if (recordingRef.current) {
-      // Clear the waveform animation interval if running
       if ((recordingRef as any)._animInterval) {
         clearInterval((recordingRef as any)._animInterval);
         (recordingRef as any)._animInterval = null;
@@ -166,7 +219,7 @@ export default function AudioRecorder({ onSend, onCancel, autoStart }: Props) {
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
-      // 'audio/mp4' is the correct IANA MIME type for .m4a files (AAC in MPEG-4 container)
+      // audio/mp4 is the correct IANA MIME type for .m4a (AAC in MPEG-4 container)
       return { uri: uri ?? null, durationSec, mimeType: 'audio/mp4' };
     }
 

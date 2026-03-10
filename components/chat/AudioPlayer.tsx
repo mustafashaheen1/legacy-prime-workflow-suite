@@ -7,10 +7,9 @@ import {
   PanResponder,
   LayoutChangeEvent,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, AlertCircle, ExternalLink } from 'lucide-react-native';
+import { Play, Pause, AlertCircle } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 
 interface Props {
@@ -24,7 +23,6 @@ interface Props {
 
 // ─── Module-level persistent cache ───────────────────────────────────────────
 // Sounds survive component unmount/remount (navigation away and back).
-// First open: loads from network. Every subsequent open: instant cache hit.
 const MAX_CACHE = 30;
 const soundCache = new Map<string, Audio.Sound>();
 
@@ -49,9 +47,6 @@ async function ensureAudioMode() {
     audioModeConfigured = true;
   } catch { /* non-fatal */ }
 }
-
-const isUnsupportedOnIOS = (url: string) =>
-  Platform.OS !== 'web' && /\.webm($|\?)/i.test(url);
 
 // ─── Waveform shape ───────────────────────────────────────────────────────────
 const BAR_COUNT = 30;
@@ -79,7 +74,6 @@ export default function AudioPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [positionSec, setPositionSec] = useState(0);
   const [totalSec, setTotalSec] = useState(duration || 0);
-  const [formatError, setFormatError] = useState(false);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -91,7 +85,6 @@ export default function AudioPlayer({
   const progress = totalSec > 0 ? Math.min(positionSec / totalSec, 1) : 0;
 
   // ─── Build status callback ────────────────────────────────────────────────
-  // Extracted so we can re-attach it when a cached sound is reused.
   const makeStatusHandler = (sound: Audio.Sound) => (status: any) => {
     if (!mountedRef.current || !status.isLoaded) return;
     if (!isSeeking.current) {
@@ -103,15 +96,13 @@ export default function AudioPlayer({
     if (status.didJustFinish) {
       setIsPlaying(false);
       setPositionSec(0);
-      // Stay loaded — seek to start so next play is instant
       sound.setPositionAsync(0).catch(() => {});
     }
   };
 
-  // ─── Load / cache sound (also used by retry) ─────────────────────────────
+  // ─── Load / cache sound ───────────────────────────────────────────────────
   const loadSound = useCallback(async () => {
-    if (Platform.OS === 'web' || isUnsupportedOnIOS(uri)) {
-      if (isUnsupportedOnIOS(uri)) setFormatError(true);
+    if (Platform.OS === 'web') {
       setLoadState('ready');
       return;
     }
@@ -156,9 +147,6 @@ export default function AudioPlayer({
     } catch (e: any) {
       if (!mountedRef.current) return;
       console.warn('[AudioPlayer] load error:', e?.message || e);
-      if (String(e?.message).includes('format') || String(e?.message).includes('supported')) {
-        setFormatError(true);
-      }
       setLoadState('error');
     }
   }, [uri]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -168,12 +156,10 @@ export default function AudioPlayer({
     loadSound();
     return () => {
       mountedRef.current = false;
-      // ⚠️ Do NOT unload — sound stays in soundCache across navigation.
       soundRef.current = null;
     };
   }, [uri]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Cleanup web audio on unmount
   useEffect(() => {
     return () => {
       if (webAudioRef.current) {
@@ -183,7 +169,6 @@ export default function AudioPlayer({
     };
   }, []);
 
-  // Stop when parent signals (another player started)
   useEffect(() => {
     if (shouldStop && isPlaying) handlePauseStop(false);
   }, [shouldStop]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -208,7 +193,7 @@ export default function AudioPlayer({
   };
 
   const handlePlay = async () => {
-    if (formatError || loadState !== 'ready') return;
+    if (loadState !== 'ready') return;
     onPlay?.(messageId);
 
     if (Platform.OS === 'web') {
@@ -285,38 +270,22 @@ export default function AudioPlayer({
   const playedColor = isOwn ? '#1F2937' : '#FFFFFF';
   const unplayedColor = isOwn ? 'rgba(31,41,55,0.3)' : 'rgba(255,255,255,0.35)';
   const timeColor = isOwn ? 'rgba(31,41,55,0.7)' : 'rgba(255,255,255,0.8)';
+  const errColor = isOwn ? '#6B7280' : 'rgba(255,255,255,0.7)';
 
   const effectiveTotal = totalSec > 0 ? totalSec : duration || 1;
 
-  if (formatError || loadState === 'error') {
-    const errColor = isOwn ? '#6B7280' : 'rgba(255,255,255,0.7)';
+  if (loadState === 'error') {
     return (
       <View style={styles.errorContainer}>
         <AlertCircle size={14} color={errColor} />
-        <Text style={[styles.errorText, { color: errColor }]}>
-          {formatError ? 'Tap to listen in browser' : 'Failed to load audio'}
-        </Text>
-        {formatError && (
-          <TouchableOpacity
-            onPress={() => Linking.openURL(uri).catch(() => {})}
-            style={styles.retryBtn}
-            activeOpacity={0.7}
-          >
-            <ExternalLink size={14} color={errColor} />
-          </TouchableOpacity>
-        )}
-        {loadState === 'error' && !formatError && (
-          <TouchableOpacity
-            onPress={() => {
-              setPositionSec(0);
-              loadSound();
-            }}
-            style={styles.retryBtn}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.retryText, { color: errColor }]}>Retry</Text>
-          </TouchableOpacity>
-        )}
+        <Text style={[styles.errorText, { color: errColor }]}>Audio unavailable</Text>
+        <TouchableOpacity
+          onPress={() => { setLoadState('loading'); loadSound(); }}
+          style={styles.retryBtn}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.retryText, { color: errColor }]}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -407,7 +376,6 @@ const styles = StyleSheet.create({
     gap: 6,
     minWidth: 180,
     paddingVertical: 4,
-    flexWrap: 'wrap',
   },
   errorText: {
     fontSize: 12,
