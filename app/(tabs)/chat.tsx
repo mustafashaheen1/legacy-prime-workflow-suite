@@ -657,11 +657,6 @@ export default function ChatScreen() {
     localUri: string,
     mimeType: string
   ): Promise<{ publicUrl: string }> => {
-    // Use fetch() on both web and native — on native RN supports file:// URIs directly.
-    // Never read large files (e.g. video) as base64; that triples memory and crashes iOS.
-    const response = await fetch(localUri);
-    const blob = await response.blob();
-
     // Map MIME types to proper file extensions
     const mimeToExt: Record<string, string> = {
       'video/quicktime': 'mov',
@@ -674,6 +669,8 @@ export default function ChatScreen() {
       'image/png': 'png',
     };
     const ext = mimeToExt[mimeType] ?? mimeType.split('/')[1] ?? 'bin';
+
+    // Get presigned S3 URL
     const urlResp = await fetch(`${rorkApi}/api/get-upload-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -682,12 +679,37 @@ export default function ChatScreen() {
     const urlResult = await urlResp.json();
     if (!urlResult.success) throw new Error(urlResult.error || 'Failed to get upload URL');
 
-    const uploadResp = await fetch(urlResult.uploadUrl, {
-      method: 'PUT',
-      body: blob,
-      headers: { 'Content-Type': mimeType },
-    });
-    if (!uploadResp.ok) throw new Error('Failed to upload to S3');
+    if (Platform.OS === 'web') {
+      // Web: fetch the blob URL / object URL and PUT it
+      const response = await fetch(localUri);
+      const blob = await response.blob();
+      const uploadResp = await fetch(urlResult.uploadUrl, {
+        method: 'PUT',
+        body: blob,
+        headers: { 'Content-Type': mimeType },
+      });
+      if (!uploadResp.ok) throw new Error('Failed to upload to S3');
+    } else {
+      // Native: use XHR with RN's native file object { uri, type, name }.
+      // This streams the file directly without loading it into JS memory —
+      // critical for large files (video). fetch() body does not properly
+      // stream file:// URIs on iOS/Android.
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', urlResult.uploadUrl);
+        xhr.setRequestHeader('Content-Type', mimeType);
+        xhr.onreadystatechange = () => {
+          if (xhr.readyState === 4) {
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(`S3 upload failed: ${xhr.status}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        // React Native XHR accepts { uri, type, name } as the body and
+        // handles the native file read + stream internally
+        (xhr as any).send({ uri: localUri, type: mimeType, name: `file.${ext}` });
+      });
+    }
 
     return { publicUrl: urlResult.publicUrl };
   };
