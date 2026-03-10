@@ -1,0 +1,431 @@
+diff --git a/node_modules/expo-av/CHANGELOG.md b/node_modules/expo-av/CHANGELOG.md
+index 4bb2a1c..4460c7a 100644
+--- a/node_modules/expo-av/CHANGELOG.md
++++ b/node_modules/expo-av/CHANGELOG.md
+@@ -10,10 +10,6 @@
+ 
+ ### 💡 Others
+ 
+-## 16.0.8 — 2025-12-05
+-
+-_This version does not introduce any user-facing changes._
+-
+ ## 16.0.7 — 2025-09-11
+ 
+ _This version does not introduce any user-facing changes._
+diff --git a/node_modules/expo-av/android/build.gradle b/node_modules/expo-av/android/build.gradle
+index a2ded34..29a595d 100644
+--- a/node_modules/expo-av/android/build.gradle
++++ b/node_modules/expo-av/android/build.gradle
+@@ -17,7 +17,7 @@ def reactNativeArchitectures() {
+ }
+ 
+ group = 'host.exp.exponent'
+-version = '16.0.8'
++version = '16.0.7'
+ 
+ android {
+   if (rootProject.hasProperty("ndkPath")) {
+@@ -30,7 +30,7 @@ android {
+   namespace "expo.modules.av"
+   defaultConfig {
+     versionCode 24
+-    versionName "16.0.8"
++    versionName "16.0.7"
+ 
+     externalNativeBuild {
+       cmake {
+diff --git a/node_modules/expo-av/expo-module.config.json b/node_modules/expo-av/expo-module.config.json
+index 6313da6..e5f1b43 100644
+--- a/node_modules/expo-av/expo-module.config.json
++++ b/node_modules/expo-av/expo-module.config.json
+@@ -8,7 +8,7 @@
+     "publication": {
+       "groupId": "host.exp.exponent",
+       "artifactId": "expo.modules.av",
+-      "version": "16.0.8",
++      "version": "16.0.7",
+       "repository": "local-maven-repo"
+     }
+   }
+diff --git a/node_modules/expo-av/ios/EXAV/EXAV.m b/node_modules/expo-av/ios/EXAV/EXAV.m
+index 7153d28..5597a4c 100644
+--- a/node_modules/expo-av/ios/EXAV/EXAV.m
++++ b/node_modules/expo-av/ios/EXAV/EXAV.m
+@@ -135,13 +135,10 @@ - (NSDictionary *)constantsToExport
+   // install JSI bindings here because `constantsToExport` is called when the JS runtime has been created
+   [self installJsiBindings];
+ 
+-  return @{
+-    @"Qualities": @{
+-        @"Low": AVAudioTimePitchAlgorithmLowQualityZeroLatency,
+-        @"Medium": AVAudioTimePitchAlgorithmTimeDomain,
+-        @"High": AVAudioTimePitchAlgorithmSpectral
+-    }
+-  };
++  // AVAudioTimePitchAlgorithm* constants were removed from AVFAudio in iOS 26.
++  // Returning them caused NSInvalidArgumentException (nil objects[1]) on iOS 26+.
++  // These constants are unused by the modern expo-av JS API.
++  return @{};
+ }
+ 
+ #pragma mark - Expo experience lifecycle
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar
+similarity index 100%
+rename from node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar
+rename to node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar.md5 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar.md5
+similarity index 100%
+rename from node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar.md5
+rename to node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar.md5
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar.sha1 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar.sha1
+similarity index 100%
+rename from node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar.sha1
+rename to node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar.sha1
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar.sha256 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar.sha256
+similarity index 100%
+rename from node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar.sha256
+rename to node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar.sha256
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar.sha512 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar.sha512
+similarity index 100%
+rename from node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8-sources.jar.sha512
+rename to node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7-sources.jar.sha512
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar
+similarity index 65%
+rename from node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar
+rename to node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar
+index 9c8cd78..3d8cf48 100644
+Binary files a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar and b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar differ
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.md5 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.md5
+new file mode 100644
+index 0000000..f1478e8
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.md5
+@@ -0,0 +1 @@
++68f4ac88b2a7097f0f6f593d74f3b15b
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.sha1 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.sha1
+new file mode 100644
+index 0000000..19c1d27
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.sha1
+@@ -0,0 +1 @@
++f8690fefd2b990fc49b815040de4befa4783a327
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.sha256 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.sha256
+new file mode 100644
+index 0000000..2ebfb02
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.sha256
+@@ -0,0 +1 @@
++5f972012ad33619fc02b134aa707c316f21080a8c9c366a5f76a50a2c282a60c
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.sha512 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.sha512
+new file mode 100644
+index 0000000..8df06db
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.aar.sha512
+@@ -0,0 +1 @@
++05df90e3b3c6dfa4c23d53322fef67de0022be80badf70df08b340d125033e582054df643d34b458453bb6d1102924de7e29d650128a1cbefcb23f73049fe570
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module
+similarity index 75%
+rename from node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module
+rename to node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module
+index bb88397..1630e00 100644
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module
+@@ -3,7 +3,7 @@
+   "component": {
+     "group": "host.exp.exponent",
+     "module": "expo.modules.av",
+-    "version": "16.0.8",
++    "version": "16.0.7",
+     "attributes": {
+       "org.gradle.status": "release"
+     }
+@@ -54,13 +54,13 @@
+       ],
+       "files": [
+         {
+-          "name": "expo.modules.av-16.0.8.aar",
+-          "url": "expo.modules.av-16.0.8.aar",
+-          "size": 326999,
+-          "sha512": "817968623b9f93b53408fb0f7fe6509939f9ae00eb14300609facd7214151fc87845d8df8a30b6ff471ca4a386440305db4afac88cd0cd1122beb1a9923c3910",
+-          "sha256": "9caceffd8abd26c7f2cb95b8fb20b274e4c6d1d6ab39c0ae6b2b6a76f40426e9",
+-          "sha1": "654072666e8db9ca2e58861a99b9be7dee44f26e",
+-          "md5": "fb5571aca4e8f8f1e17da922461fe54c"
++          "name": "expo.modules.av-16.0.7.aar",
++          "url": "expo.modules.av-16.0.7.aar",
++          "size": 326994,
++          "sha512": "05df90e3b3c6dfa4c23d53322fef67de0022be80badf70df08b340d125033e582054df643d34b458453bb6d1102924de7e29d650128a1cbefcb23f73049fe570",
++          "sha256": "5f972012ad33619fc02b134aa707c316f21080a8c9c366a5f76a50a2c282a60c",
++          "sha1": "f8690fefd2b990fc49b815040de4befa4783a327",
++          "md5": "68f4ac88b2a7097f0f6f593d74f3b15b"
+         }
+       ]
+     },
+@@ -115,13 +115,13 @@
+       ],
+       "files": [
+         {
+-          "name": "expo.modules.av-16.0.8.aar",
+-          "url": "expo.modules.av-16.0.8.aar",
+-          "size": 326999,
+-          "sha512": "817968623b9f93b53408fb0f7fe6509939f9ae00eb14300609facd7214151fc87845d8df8a30b6ff471ca4a386440305db4afac88cd0cd1122beb1a9923c3910",
+-          "sha256": "9caceffd8abd26c7f2cb95b8fb20b274e4c6d1d6ab39c0ae6b2b6a76f40426e9",
+-          "sha1": "654072666e8db9ca2e58861a99b9be7dee44f26e",
+-          "md5": "fb5571aca4e8f8f1e17da922461fe54c"
++          "name": "expo.modules.av-16.0.7.aar",
++          "url": "expo.modules.av-16.0.7.aar",
++          "size": 326994,
++          "sha512": "05df90e3b3c6dfa4c23d53322fef67de0022be80badf70df08b340d125033e582054df643d34b458453bb6d1102924de7e29d650128a1cbefcb23f73049fe570",
++          "sha256": "5f972012ad33619fc02b134aa707c316f21080a8c9c366a5f76a50a2c282a60c",
++          "sha1": "f8690fefd2b990fc49b815040de4befa4783a327",
++          "md5": "68f4ac88b2a7097f0f6f593d74f3b15b"
+         }
+       ]
+     },
+@@ -135,8 +135,8 @@
+       },
+       "files": [
+         {
+-          "name": "expo.modules.av-16.0.8-sources.jar",
+-          "url": "expo.modules.av-16.0.8-sources.jar",
++          "name": "expo.modules.av-16.0.7-sources.jar",
++          "url": "expo.modules.av-16.0.7-sources.jar",
+           "size": 48640,
+           "sha512": "5a9efd16a2765beb449746e0db391431d85acb119fad8713ace9076c79159a36e989ad8de0642c907c906c01fa4ee204b5cd03b1f4bbec5e8e080960c0988f8b",
+           "sha256": "91e24c69bd7e044eaf3ebee51c58f543b5f7f3340b01c387b73f31aab1841616",
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.md5 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.md5
+new file mode 100644
+index 0000000..2fce9bb
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.md5
+@@ -0,0 +1 @@
++3dd5ba5d20b13a0b06b0a7a95c3559c4
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.sha1 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.sha1
+new file mode 100644
+index 0000000..e711f32
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.sha1
+@@ -0,0 +1 @@
++d38f4cc13146a6a05bc64603b0cbf5828916063e
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.sha256 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.sha256
+new file mode 100644
+index 0000000..d6042a4
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.sha256
+@@ -0,0 +1 @@
++c416018feab850e4a91c16b66572c067495d3ad29333680a2d36b882e37d30b3
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.sha512 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.sha512
+new file mode 100644
+index 0000000..f996de6
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.module.sha512
+@@ -0,0 +1 @@
++4d831b209df5fbedcbc440178bb1bc230d812cb2a870c362e6cfbd7e5d7867c0ba22a0ef68ad8c9d3030eb5ba5b33119294d566a3b778553886498a93704bc47
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom
+similarity index 98%
+rename from node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom
+rename to node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom
+index d01544e..d86e179 100644
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom
+@@ -9,7 +9,7 @@
+   <modelVersion>4.0.0</modelVersion>
+   <groupId>host.exp.exponent</groupId>
+   <artifactId>expo.modules.av</artifactId>
+-  <version>16.0.8</version>
++  <version>16.0.7</version>
+   <packaging>aar</packaging>
+   <name>expo.modules.av</name>
+   <url>https://github.com/expo/expo</url>
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.md5 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.md5
+new file mode 100644
+index 0000000..5d0811b
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.md5
+@@ -0,0 +1 @@
++c2dba6b037aabd3010ad5e63360db509
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.sha1 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.sha1
+new file mode 100644
+index 0000000..1e0fdb0
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.sha1
+@@ -0,0 +1 @@
++8820c1acd853738d36e56e47da7f7bcc7d0d65a6
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.sha256 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.sha256
+new file mode 100644
+index 0000000..cbae562
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.sha256
+@@ -0,0 +1 @@
++c0d88c8895bd203fe257c8d7f465ebf55784dfa827d318827b896903cdd0f4fb
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.sha512 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.sha512
+new file mode 100644
+index 0000000..2fec030
+--- /dev/null
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.7/expo.modules.av-16.0.7.pom.sha512
+@@ -0,0 +1 @@
++de18c88a3a5641e38f473349bc9e4c797307f6306a39f36242925e214c7c6016eb4fc5287f703e603d74726ed7f9bf6bfa38b19beaafba0ff2b5c92bc4d8c200
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.md5 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.md5
+deleted file mode 100644
+index 9e6c4b6..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.md5
++++ /dev/null
+@@ -1 +0,0 @@
+-fb5571aca4e8f8f1e17da922461fe54c
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.sha1 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.sha1
+deleted file mode 100644
+index d6bc936..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.sha1
++++ /dev/null
+@@ -1 +0,0 @@
+-654072666e8db9ca2e58861a99b9be7dee44f26e
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.sha256 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.sha256
+deleted file mode 100644
+index a61f585..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.sha256
++++ /dev/null
+@@ -1 +0,0 @@
+-9caceffd8abd26c7f2cb95b8fb20b274e4c6d1d6ab39c0ae6b2b6a76f40426e9
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.sha512 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.sha512
+deleted file mode 100644
+index 74b8063..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.aar.sha512
++++ /dev/null
+@@ -1 +0,0 @@
+-817968623b9f93b53408fb0f7fe6509939f9ae00eb14300609facd7214151fc87845d8df8a30b6ff471ca4a386440305db4afac88cd0cd1122beb1a9923c3910
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.md5 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.md5
+deleted file mode 100644
+index 48f2e08..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.md5
++++ /dev/null
+@@ -1 +0,0 @@
+-fb2ae22dcd1102c63509c9718272596c
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.sha1 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.sha1
+deleted file mode 100644
+index b8bfa8b..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.sha1
++++ /dev/null
+@@ -1 +0,0 @@
+-bf2c3ba9fc054995fe9a6c9c638dc2521c02f283
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.sha256 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.sha256
+deleted file mode 100644
+index de0d2ab..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.sha256
++++ /dev/null
+@@ -1 +0,0 @@
+-bec800f1d5fd4db2c3db426a9b6772bc95c7966ee1b9a6f026514e7cccae5a25
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.sha512 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.sha512
+deleted file mode 100644
+index 900e87b..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.module.sha512
++++ /dev/null
+@@ -1 +0,0 @@
+-27faa89306449598a172336bb12d39fa9a0ec530a02a535acf018a4120795e0d1cbe8aaaa5e13386450e0d87c9e3527e07d7186dbb7f683ad86b8f24dd901b3d
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.md5 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.md5
+deleted file mode 100644
+index 1b4ac36..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.md5
++++ /dev/null
+@@ -1 +0,0 @@
+-0862a61e26acfc923224175f7dd99861
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.sha1 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.sha1
+deleted file mode 100644
+index 979a971..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.sha1
++++ /dev/null
+@@ -1 +0,0 @@
+-317c101774f208d05524993c4b59dc87bd81d38c
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.sha256 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.sha256
+deleted file mode 100644
+index 7ffb1c7..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.sha256
++++ /dev/null
+@@ -1 +0,0 @@
+-da51cf6b73e8792ccccce379dcdef4a0ada99addfa8f1279b2e4212b57de143e
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.sha512 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.sha512
+deleted file mode 100644
+index 7e52298..0000000
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/16.0.8/expo.modules.av-16.0.8.pom.sha512
++++ /dev/null
+@@ -1 +0,0 @@
+-965682fd78cd5d38846fe7171c32e8a026421d976251b95836bb2e9a0d5dfdaf97aee8b02886f502bfe980839012e0bcf45ca819b26e7eb722e8513aa72549dd
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml
+index 1575a0c..32e11d5 100644
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml
+@@ -3,11 +3,11 @@
+   <groupId>host.exp.exponent</groupId>
+   <artifactId>expo.modules.av</artifactId>
+   <versioning>
+-    <latest>16.0.8</latest>
+-    <release>16.0.8</release>
++    <latest>16.0.7</latest>
++    <release>16.0.7</release>
+     <versions>
+-      <version>16.0.8</version>
++      <version>16.0.7</version>
+     </versions>
+-    <lastUpdated>20251205064611</lastUpdated>
++    <lastUpdated>20250911202152</lastUpdated>
+   </versioning>
+ </metadata>
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.md5 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.md5
+index d11dc90..5fbe6ad 100644
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.md5
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.md5
+@@ -1 +1 @@
+-871c027483516e0a481b686441794ea7
+\ No newline at end of file
++1730d3c99432850e217c185aa80d5a35
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha1 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha1
+index 4922f59..d873122 100644
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha1
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha1
+@@ -1 +1 @@
+-f5ec5431cc7a5848ef223c9ab60c78670f62198d
+\ No newline at end of file
++8797625b901e6e5d8481cf8f84a53a08af96e737
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha256 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha256
+index 94ee7b7..e28a59b 100644
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha256
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha256
+@@ -1 +1 @@
+-9240a6c826fc99f02238154f7b59f29633eefb0573ec66f2eb77414c30c36da2
+\ No newline at end of file
++bcd8db2a5a2a53aac0147a96ea46228d1ebfceb85c979ee4c2b8023a6063a609
+\ No newline at end of file
+diff --git a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha512 b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha512
+index a377bd4..3059f50 100644
+--- a/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha512
++++ b/node_modules/expo-av/local-maven-repo/host/exp/exponent/expo.modules.av/maven-metadata.xml.sha512
+@@ -1 +1 @@
+-bc1ac8defeb2b22c181b923f3606a2e5da1a59f8f2901bda28d81aec3b96f4613f5e0c2c9800c4b4820336b3c710a93168f89bfe20e34bf619c5d440e4ad9b5b
+\ No newline at end of file
++a3c0626c3451212eff4d877ffc5f6dacea34b0321e1787323a9913286076582bb125237a97d5253a2d916c0a3fc2b9295244ce4cc3b5dba93ca035697f1b49f1
+\ No newline at end of file
