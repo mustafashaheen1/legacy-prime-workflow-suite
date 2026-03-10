@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
   sender_id UUID REFERENCES users(id),
-  type TEXT NOT NULL CHECK (type IN ('text', 'image', 'file', 'voice')),
+  type TEXT NOT NULL CHECK (type IN ('text', 'image', 'file', 'voice', 'video')),
   content TEXT,
   file_name TEXT,
   file_url TEXT,
