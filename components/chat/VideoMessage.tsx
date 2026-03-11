@@ -1,23 +1,21 @@
-import { View, StyleSheet, TouchableOpacity, Platform, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Platform, Text, Modal, StatusBar } from 'react-native';
 import { useState } from 'react';
-import { Play } from 'lucide-react-native';
+import { Play, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Props {
   uri: string;
-  isOwn: boolean;
   duration?: number; // seconds
 }
 
-// Import expo-video lazily to avoid module-level side effects
+// Lazy-load expo-video to avoid module-level side effects
 let VideoView: any = null;
 let useVideoPlayer: any = null;
 try {
-  const expoVideo = require('expo-video');
-  VideoView = expoVideo.VideoView;
-  useVideoPlayer = expoVideo.useVideoPlayer;
-} catch {
-  // expo-video not installed
-}
+  const ev = require('expo-video');
+  VideoView = ev.VideoView;
+  useVideoPlayer = ev.useVideoPlayer;
+} catch { /* expo-video not installed */ }
 
 function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -25,38 +23,59 @@ function formatDuration(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-function VideoPlayerContent({ uri }: { uri: string }) {
+// ─── Full-screen video player modal ──────────────────────────────────────────
+function FullscreenPlayer({ uri, onClose }: { uri: string; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+
+  if (!VideoView || !useVideoPlayer) return null;
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const player = useVideoPlayer(uri, (p: any) => {
     p.loop = false;
     p.play();
   });
 
-  const handleTap = () => {
-    try {
-      if (player.playing) player.pause();
-      else player.play();
-    } catch { /* ignore */ }
-  };
-
   return (
-    <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={handleTap} activeOpacity={1}>
-      <VideoView
-        player={player}
-        style={styles.video}
-        allowsFullscreen
-        allowsPictureInPicture
-        contentFit="contain"
-      />
-    </TouchableOpacity>
+    <Modal
+      visible
+      transparent={false}
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <View style={styles.fullscreenContainer}>
+        <VideoView
+          player={player}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="contain"
+          nativeControls
+          allowsFullscreen={false}
+        />
+        {/* Close button */}
+        <TouchableOpacity
+          style={[styles.closeBtn, { top: insets.top + 8 }]}
+          onPress={onClose}
+          activeOpacity={0.8}
+        >
+          <X size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+    </Modal>
   );
 }
 
-function NativeVideoPlayer({ uri, duration }: { uri: string; duration?: number }) {
-  const [tapped, setTapped] = useState(false);
+// ─── Web player ──────────────────────────────────────────────────────────────
+function WebVideoPlayer({ uri, duration }: { uri: string; duration?: number }) {
+  const [fullscreen, setFullscreen] = useState(false);
 
-  if (!VideoView || !useVideoPlayer) {
-    return (
-      <View style={styles.videoContainer}>
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.thumbnail}
+        onPress={() => setFullscreen(true)}
+        activeOpacity={0.9}
+      >
         <View style={styles.playOverlay}>
           <View style={styles.playButton}>
             <Play size={28} color="#FFFFFF" fill="#FFFFFF" />
@@ -67,76 +86,65 @@ function NativeVideoPlayer({ uri, duration }: { uri: string; duration?: number }
             <Text style={styles.durationText}>{formatDuration(duration)}</Text>
           </View>
         )}
-      </View>
-    );
-  }
+      </TouchableOpacity>
 
-  return (
-    <View style={styles.videoContainer}>
-      {tapped ? (
-        <VideoPlayerContent uri={uri} />
-      ) : (
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          onPress={() => setTapped(true)}
-          activeOpacity={1}
-        >
-          <View style={styles.playOverlay}>
-            <View style={styles.playButton}>
-              <Play size={28} color="#FFFFFF" fill="#FFFFFF" />
-            </View>
+      {fullscreen && (
+        <Modal visible transparent={false} animationType="fade" onRequestClose={() => setFullscreen(false)}>
+          <View style={styles.fullscreenContainer}>
+            {/* @ts-ignore web element */}
+            <video
+              src={uri}
+              controls
+              autoPlay
+              style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#000' }}
+            />
+            <TouchableOpacity
+              style={[styles.closeBtn, { top: 40 }]}
+              onPress={() => setFullscreen(false)}
+              activeOpacity={0.8}
+            >
+              <X size={22} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
-          {duration != null && (
-            <View style={styles.durationBadge}>
-              <Text style={styles.durationText}>{formatDuration(duration)}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        </Modal>
       )}
-    </View>
+    </>
   );
 }
 
-function WebVideoPlayer({ uri, duration }: { uri: string; duration?: number }) {
-  const [tapped, setTapped] = useState(false);
-
-  if (!tapped) {
-    return (
-      <View style={styles.videoContainer}>
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          onPress={() => setTapped(true)}
-          activeOpacity={1}
-        >
-          <View style={styles.playOverlay}>
-            <View style={styles.playButton}>
-              <Play size={28} color="#FFFFFF" fill="#FFFFFF" />
-            </View>
-          </View>
-          {duration != null && (
-            <View style={styles.durationBadge}>
-              <Text style={styles.durationText}>{formatDuration(duration)}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  }
+// ─── Native player ────────────────────────────────────────────────────────────
+function NativeVideoPlayer({ uri, duration }: { uri: string; duration?: number }) {
+  const [fullscreen, setFullscreen] = useState(false);
 
   return (
-    <View style={styles.webContainer}>
-      {/* @ts-ignore — web-only element */}
-      <video
-        src={uri}
-        controls
-        autoPlay
-        preload="metadata"
-        style={{ width: '100%', maxHeight: 180, borderRadius: 8, objectFit: 'contain' }}
-      />
-    </View>
+    <>
+      {/* Chat bubble thumbnail — tap to open fullscreen */}
+      <TouchableOpacity
+        style={styles.thumbnail}
+        onPress={() => setFullscreen(true)}
+        activeOpacity={0.9}
+      >
+        <View style={styles.playOverlay}>
+          <View style={styles.playButton}>
+            <Play size={28} color="#FFFFFF" fill="#FFFFFF" />
+          </View>
+        </View>
+        {duration != null && (
+          <View style={styles.durationBadge}>
+            <Text style={styles.durationText}>{formatDuration(duration)}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      {/* Full-screen player */}
+      {fullscreen && (
+        <FullscreenPlayer uri={uri} onClose={() => setFullscreen(false)} />
+      )}
+    </>
   );
 }
 
+// ─── Public export ────────────────────────────────────────────────────────────
 export default function VideoMessage({ uri, duration }: Props) {
   if (Platform.OS === 'web') {
     return <WebVideoPlayer uri={uri} duration={duration} />;
@@ -145,22 +153,12 @@ export default function VideoMessage({ uri, duration }: Props) {
 }
 
 const styles = StyleSheet.create({
-  videoContainer: {
+  thumbnail: {
     width: 240,
     height: 160,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',
-  },
-  webContainer: {
-    width: 240,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#1a1a1a',
-  },
-  video: {
-    width: '100%',
-    height: '100%',
   },
   playOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -191,5 +189,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '600' as const,
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+  },
+  closeBtn: {
+    position: 'absolute',
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
 });
