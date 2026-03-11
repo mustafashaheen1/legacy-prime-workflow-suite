@@ -11,6 +11,71 @@ export const config = {
   },
 };
 
+// Convert a UTC ISO timestamp to a human-readable local time string.
+// e.g. "2026-03-11T10:24:00Z" + "Asia/Karachi" → "3:24 PM"
+function formatLocalTime(isoStr: string | null | undefined, timezone?: string): string {
+  if (!isoStr) return 'Unknown';
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: timezone || 'UTC',
+    });
+  } catch {
+    return isoStr;
+  }
+}
+
+// Convert a UTC ISO timestamp to a full date+time local string.
+function formatLocalDateTime(isoStr: string | null | undefined, timezone?: string): string {
+  if (!isoStr) return 'Unknown';
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: timezone || 'UTC',
+    });
+  } catch {
+    return isoStr;
+  }
+}
+
+// Get UTC offset in milliseconds for a given timezone at the current moment.
+// Works reliably because Vercel runs in UTC — parsing locale strings gives clock readings in UTC context.
+function getUTCOffsetMs(timezone: string): number {
+  try {
+    const now = new Date();
+    const utcReading = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const tzReading = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+    return tzReading.getTime() - utcReading.getTime();
+  } catch {
+    return 0;
+  }
+}
+
+// Convert a local date string "YYYY-MM-DD" to UTC start/end boundaries.
+// e.g. "2026-03-11" in "Asia/Karachi" (UTC+5) → gte: "2026-03-10T19:00:00.000Z" lte: "2026-03-11T18:59:59.999Z"
+function localDateToUTCBounds(localDateStr: string, timezone: string): { gte: string; lte: string } {
+  const offsetMs = getUTCOffsetMs(timezone);
+  const [y, m, d] = localDateStr.split('-').map(Number);
+  return {
+    gte: new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - offsetMs).toISOString(),
+    lte: new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999) - offsetMs).toISOString(),
+  };
+}
+
+// Get "today's date" string in the user's timezone (YYYY-MM-DD).
+function todayInTimezone(timezone: string): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+}
+
 // Helper function to parse natural language dates
 function parseNaturalDate(dateStr: string): string {
   const today = new Date();
@@ -192,34 +257,57 @@ function parseNaturalTime(timeStr: string): string {
 function buildDateRange(
   range?: string,
   customStart?: string,
-  customEnd?: string
+  customEnd?: string,
+  timezone: string = 'UTC'
 ): { gte: string; lte: string } | null {
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  if (!range) return null;
+  const tz = timezone || 'UTC';
+  const todayStr = todayInTimezone(tz);
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const offsetMs = getUTCOffsetMs(tz);
+
   switch (range) {
     case 'today':
-      return { gte: `${todayStr}T00:00:00.000Z`, lte: `${todayStr}T23:59:59.999Z` };
+      return localDateToUTCBounds(todayStr, tz);
+
     case 'this_week': {
-      const day = now.getDay();
-      const diff = day === 0 ? -6 : 1 - day; // back to Monday
-      const monday = new Date(now);
-      monday.setDate(now.getDate() + diff);
-      monday.setHours(0, 0, 0, 0);
-      return { gte: monday.toISOString(), lte: now.toISOString() };
-    }
-    case 'this_month': {
-      const first = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { gte: first.toISOString(), lte: now.toISOString() };
-    }
-    case 'this_year': {
-      const first = new Date(now.getFullYear(), 0, 1);
-      return { gte: first.toISOString(), lte: now.toISOString() };
-    }
-    case 'custom':
+      // Find Monday of the current week in the user's timezone
+      const todayDate = new Date(`${todayStr}T12:00:00Z`);
+      const dow = todayDate.getUTCDay(); // 0=Sun
+      const daysFromMonday = dow === 0 ? 6 : dow - 1;
+      const monday = new Date(todayDate);
+      monday.setUTCDate(monday.getUTCDate() - daysFromMonday);
+      const mondayStr = monday.toISOString().split('T')[0];
       return {
-        gte: customStart ? `${customStart}T00:00:00.000Z` : `${todayStr}T00:00:00.000Z`,
-        lte: customEnd ? `${customEnd}T23:59:59.999Z` : now.toISOString(),
+        gte: localDateToUTCBounds(mondayStr, tz).gte,
+        lte: new Date(Date.UTC(ty, tm - 1, td, 23, 59, 59, 999) - offsetMs).toISOString(),
       };
+    }
+
+    case 'this_month': {
+      const firstStr = `${ty}-${String(tm).padStart(2, '0')}-01`;
+      return {
+        gte: localDateToUTCBounds(firstStr, tz).gte,
+        lte: new Date(Date.UTC(ty, tm - 1, td, 23, 59, 59, 999) - offsetMs).toISOString(),
+      };
+    }
+
+    case 'this_year': {
+      const firstStr = `${ty}-01-01`;
+      return {
+        gte: localDateToUTCBounds(firstStr, tz).gte,
+        lte: new Date(Date.UTC(ty, tm - 1, td, 23, 59, 59, 999) - offsetMs).toISOString(),
+      };
+    }
+
+    case 'custom': {
+      if (!customStart && !customEnd) return null;
+      return {
+        gte: customStart ? localDateToUTCBounds(customStart, tz).gte : '2000-01-01T00:00:00.000Z',
+        lte: customEnd ? localDateToUTCBounds(customEnd, tz).lte : new Date().toISOString(),
+      };
+    }
+
     default:
       return null;
   }
@@ -2222,6 +2310,9 @@ You have **direct, real-time access** to the company database through your query
 - **"this_year"** → January 1st through today
 - **"custom"** → specify startDate + endDate in YYYY-MM-DD format
 
+### Timezone-aware results:
+- All timestamps in query results are already formatted in the user's local timezone. Always display them as given — never convert them.
+
 ### Required query behavior — Examples:
 - "Who clocked in today?" → call query_clock_entries with dateRange: "today"
 - "What expenses were added this week?" → call query_expenses with dateRange: "this_week"
@@ -2479,7 +2570,8 @@ async function executeToolCall(
   messages?: any[],
   attachedFiles?: any[],
   supabase?: any,
-  companyId?: string
+  companyId?: string,
+  timezone?: string
 ): Promise<{ result: any; actionRequired?: string; actionData?: any }> {
   const { projects = [], clients = [], expenses = [], estimates = [], payments = [], clockEntries = [], company } = appData;
 
@@ -2631,7 +2723,7 @@ async function executeToolCall(
             .limit(1000);
 
           // Date range filtering
-          const range = buildDateRange(args.dateRange, args.startDate, args.endDate);
+          const range = buildDateRange(args.dateRange, args.startDate, args.endDate, timezone);
           if (range) {
             q = q.gte('date', range.gte.split('T')[0]).lte('date', range.lte.split('T')[0]);
           }
@@ -4023,12 +4115,13 @@ Based on the store and items, intelligently categorize this expense:
 
           // Prefer dateRange param, fall back to legacy date param
           const rangeKey = args.dateRange || (args.date === 'today' ? 'today' : undefined);
-          const range = buildDateRange(rangeKey, args.startDate, args.endDate);
+          const range = buildDateRange(rangeKey, args.startDate, args.endDate, timezone);
           if (range) {
             q = q.gte('clock_in', range.gte).lte('clock_in', range.lte);
           } else if (args.date && args.date !== 'today') {
             const parsedDate = parseNaturalDate(args.date);
-            q = q.gte('clock_in', `${parsedDate}T00:00:00`).lte('clock_in', `${parsedDate}T23:59:59.999`);
+            const { gte: dateGte, lte: dateLte } = localDateToUTCBounds(parsedDate, timezone || 'UTC');
+            q = q.gte('clock_in', dateGte).lte('clock_in', dateLte);
           }
 
           const { data, error } = await q;
@@ -4113,7 +4206,7 @@ Based on the store and items, intelligently categorize this expense:
                 currentlyClockedIn: currentlyClockedIn.map((e: any) => ({
                   employee: usersMap[e.employee_id] || e.employee_id || 'Unknown',
                   project: projectsMap[e.project_id] || e.project_id || 'No Project',
-                  clockedInAt: e.clock_in,
+                  clockedInAt: formatLocalTime(e.clock_in, timezone),
                   status: 'Working',
                 })),
                 currentlyOnLunch: currentlyOnLunch.map((e: any) => {
@@ -4122,8 +4215,8 @@ Based on the store and items, intelligently categorize this expense:
                   return {
                     employee: usersMap[e.employee_id] || e.employee_id || 'Unknown',
                     project: projectsMap[e.project_id] || e.project_id || 'No Project',
-                    clockedInAt: e.clock_in,
-                    lunchStartedAt: activeLunch?.startTime || null,
+                    clockedInAt: formatLocalTime(e.clock_in, timezone),
+                    lunchStartedAt: activeLunch?.startTime ? formatLocalTime(activeLunch.startTime, timezone) : null,
                     status: 'On Lunch Break',
                   };
                 }),
@@ -4131,8 +4224,8 @@ Based on the store and items, intelligently categorize this expense:
                   id: e.id,
                   employeeName: usersMap[e.employee_id] || e.employee_id || 'Unknown',
                   project: projectsMap[e.project_id] || e.project_id || 'No Project',
-                  clockIn: e.clock_in,
-                  clockOut: e.clock_out || null,
+                  clockIn: formatLocalTime(e.clock_in, timezone),
+                  clockOut: e.clock_out ? formatLocalTime(e.clock_out, timezone) : null,
                   workPerformed: e.work_performed,
                   status: !e.clock_out
                     ? (isOnActiveLunch(e) ? 'On Lunch Break' : 'Currently Working')
@@ -4141,8 +4234,8 @@ Based on the store and items, intelligently categorize this expense:
                     ? ((new Date(e.clock_out).getTime() - new Date(e.clock_in).getTime()) / 3600000).toFixed(2)
                     : 'Still clocked in',
                   lunchBreaks: (Array.isArray(e.lunch_breaks) ? e.lunch_breaks : []).map((lb: any) => ({
-                    startTime: lb.startTime,
-                    endTime: lb.endTime || null,
+                    startTime: formatLocalTime(lb.startTime, timezone),
+                    endTime: lb.endTime ? formatLocalTime(lb.endTime, timezone) : null,
                     active: !lb.endTime,
                   })),
                 })),
@@ -4240,7 +4333,7 @@ Based on the store and items, intelligently categorize this expense:
             .limit(500);
 
           const rangeKey = args.dateRange || (args.date === 'today' ? 'today' : undefined);
-          const range = buildDateRange(rangeKey, args.startDate, args.endDate);
+          const range = buildDateRange(rangeKey, args.startDate, args.endDate, timezone);
           if (range) {
             q = q.gte('date', range.gte.split('T')[0]).lte('date', range.lte.split('T')[0]);
           } else if (args.date && args.date !== 'today') {
@@ -4353,7 +4446,7 @@ Based on the store and items, intelligently categorize this expense:
             .limit(200);
 
           const rangeKey = args.dateRange || (args.date === 'today' ? 'today' : undefined);
-          const range = buildDateRange(rangeKey, args.startDate, args.endDate);
+          const range = buildDateRange(rangeKey, args.startDate, args.endDate, timezone);
           if (range) {
             q = q.gte('log_date', range.gte.split('T')[0]).lte('log_date', range.lte.split('T')[0]);
           } else if (args.date && args.date !== 'today') {
@@ -5017,7 +5110,7 @@ Based on the store and items, intelligently categorize this expense:
             .limit(200);
 
           const rangeKey = args.dateRange || (args.date === 'today' ? 'today' : undefined);
-          const range = buildDateRange(rangeKey, args.startDate, args.endDate);
+          const range = buildDateRange(rangeKey, args.startDate, args.endDate, timezone);
           if (range) {
             q = q.gte('call_date', range.gte).lte('call_date', range.lte);
           } else if (args.date && args.date !== 'today') {
@@ -5214,7 +5307,7 @@ Based on the store and items, intelligently categorize this expense:
             tasks = tasks.filter((t: any) => (schedProjectsMap[t.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase()));
           }
 
-          const range = buildDateRange(args.dateRange, args.startDate, args.endDate);
+          const range = buildDateRange(args.dateRange, args.startDate, args.endDate, timezone);
           if (range) {
             const startStr = range.gte.split('T')[0];
             const endStr = range.lte.split('T')[0];
@@ -7007,7 +7100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { messages, appData, pageContext, companyId, userId } = req.body;
+    const { messages, appData, pageContext, companyId, userId, timezone } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
@@ -7177,7 +7270,7 @@ When the user says "this project", "this client", "this estimate", etc., they ar
       for (const toolCall of response.tool_calls) {
         const tc = toolCall as any;
         const args = JSON.parse(tc.function.arguments);
-        const toolResult = await executeToolCall(tc.function.name, args, appData || {}, openai, messages, attachedFiles, supabase, effectiveCompanyId);
+        const toolResult = await executeToolCall(tc.function.name, args, appData || {}, openai, messages, attachedFiles, supabase, effectiveCompanyId, timezone || 'UTC');
 
         console.log('[AI Assistant] Tool result for', tc.function.name, ':', toolResult.result);
 
