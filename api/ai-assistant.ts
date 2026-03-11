@@ -2640,10 +2640,27 @@ async function executeToolCall(
 
           const { data, error } = await q;
           if (!error && data) {
+            // Resolve names from DB — not stale appData
             const expProjectsMap: Record<string, string> = {};
-            (appData.projects || []).forEach((p: any) => { expProjectsMap[p.id] = p.name; });
             const expUsersMap: Record<string, string> = {};
-            (appData.users || []).forEach((u: any) => { expUsersMap[u.id] = u.name; });
+
+            const expProjIds = [...new Set(data.map((e: any) => e.project_id).filter(Boolean))];
+            const expUploaderIds = [...new Set(data.map((e: any) => e.uploaded_by).filter(Boolean))];
+
+            if (expProjIds.length > 0) {
+              const { data: projData } = await supabase
+                .from('projects')
+                .select('id, name')
+                .in('id', expProjIds);
+              (projData || []).forEach((p: any) => { expProjectsMap[p.id] = p.name; });
+            }
+            if (expUploaderIds.length > 0) {
+              const { data: usersData } = await supabase
+                .from('users')
+                .select('id, name')
+                .in('id', expUploaderIds);
+              (usersData || []).forEach((u: any) => { expUsersMap[u.id] = u.name; });
+            }
 
             let result: any[] = data;
 
@@ -4014,10 +4031,27 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            // Resolve names from DB — never trust stale appData maps for identity
             const usersMap: Record<string, string> = {};
-            (appData.users || []).forEach((u: any) => { usersMap[u.id] = u.name; });
             const projectsMap: Record<string, string> = {};
-            (appData.projects || []).forEach((p: any) => { projectsMap[p.id] = p.name; });
+
+            const empIds = [...new Set(data.map((e: any) => e.employee_id).filter(Boolean))];
+            const projIds = [...new Set(data.map((e: any) => e.project_id).filter(Boolean))];
+
+            if (empIds.length > 0) {
+              const { data: usersData } = await supabase
+                .from('users')
+                .select('id, name')
+                .in('id', empIds);
+              (usersData || []).forEach((u: any) => { usersMap[u.id] = u.name; });
+            }
+            if (projIds.length > 0) {
+              const { data: projData } = await supabase
+                .from('projects')
+                .select('id, name')
+                .in('id', projIds);
+              (projData || []).forEach((p: any) => { projectsMap[p.id] = p.name; });
+            }
 
             let filtered: any[] = data;
             if (args.employeeName) {
@@ -4157,10 +4191,27 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            // Resolve names from DB — never trust stale appData maps
             const clientsMap: Record<string, string> = {};
-            (appData.clients || []).forEach((c: any) => { clientsMap[c.id] = c.name; });
             const projectsMap: Record<string, string> = {};
-            (appData.projects || []).forEach((p: any) => { projectsMap[p.id] = p.name; });
+
+            const clientIds = [...new Set(data.map((p: any) => p.client_id).filter(Boolean))];
+            const projIds = [...new Set(data.map((p: any) => p.project_id).filter(Boolean))];
+
+            if (clientIds.length > 0) {
+              const { data: clientsData } = await supabase
+                .from('clients')
+                .select('id, name')
+                .in('id', clientIds);
+              (clientsData || []).forEach((c: any) => { clientsMap[c.id] = c.name; });
+            }
+            if (projIds.length > 0) {
+              const { data: projData } = await supabase
+                .from('projects')
+                .select('id, name')
+                .in('id', projIds);
+              (projData || []).forEach((p: any) => { projectsMap[p.id] = p.name; });
+            }
 
             let filtered: any[] = data;
             if (args.clientName) {
@@ -4251,18 +4302,35 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            // Resolve project names + company filter from DB — not stale appData
             const projectsMap: Record<string, string> = {};
-            const projectCompanyMap: Record<string, string> = {};
-            (appData.projects || []).forEach((p: any) => {
-              projectsMap[p.id] = p.name;
-              projectCompanyMap[p.id] = p.companyId || p.company_id;
-            });
+            const companyProjectIds = new Set<string>();
+
+            const allProjIds = [...new Set(data.map((log: any) => log.project_id).filter(Boolean))];
+            if (allProjIds.length > 0) {
+              const { data: projData } = await supabase
+                .from('projects')
+                .select('id, name, company_id')
+                .in('id', allProjIds);
+              (projData || []).forEach((p: any) => {
+                projectsMap[p.id] = p.name;
+                if (p.company_id === companyId) companyProjectIds.add(p.id);
+              });
+            }
+
             const usersMap: Record<string, string> = {};
-            (appData.users || []).forEach((u: any) => { usersMap[u.id] = u.name; });
+            const creatorIds = [...new Set(data.map((log: any) => log.created_by).filter(Boolean))];
+            if (creatorIds.length > 0) {
+              const { data: usersData } = await supabase
+                .from('users')
+                .select('id, name')
+                .in('id', creatorIds);
+              (usersData || []).forEach((u: any) => { usersMap[u.id] = u.name; });
+            }
 
             let filtered: any[] = data;
-            // Filter to this company's projects
-            filtered = filtered.filter((log: any) => projectCompanyMap[log.project_id] === companyId);
+            // Filter to this company's projects using live DB company_id
+            filtered = filtered.filter((log: any) => companyProjectIds.has(log.project_id));
             if (args.projectName) {
               filtered = filtered.filter((log: any) =>
                 (projectsMap[log.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
@@ -4330,16 +4398,24 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            // Resolve project names + company filter from DB
             const projectsMap: Record<string, string> = {};
-            const projectCompanyMap: Record<string, string> = {};
-            (appData.projects || []).forEach((p: any) => {
-              projectsMap[p.id] = p.name;
-              projectCompanyMap[p.id] = p.companyId || p.company_id;
-            });
+            const companyProjectIds = new Set<string>();
+
+            const taskProjIds = [...new Set(data.map((t: any) => t.project_id).filter(Boolean))];
+            if (taskProjIds.length > 0) {
+              const { data: projData } = await supabase
+                .from('projects')
+                .select('id, name, company_id')
+                .in('id', taskProjIds);
+              (projData || []).forEach((p: any) => {
+                projectsMap[p.id] = p.name;
+                if (p.company_id === companyId) companyProjectIds.add(p.id);
+              });
+            }
 
             let filtered: any[] = data;
-            // Filter to this company's projects
-            filtered = filtered.filter((t: any) => projectCompanyMap[t.project_id] === companyId);
+            filtered = filtered.filter((t: any) => companyProjectIds.has(t.project_id));
             if (args.projectName) {
               filtered = filtered.filter((t: any) =>
                 (projectsMap[t.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
@@ -4406,10 +4482,27 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            // Resolve names from DB — not stale appData
             const projectsMap: Record<string, string> = {};
-            (appData.projects || []).forEach((p: any) => { projectsMap[p.id] = p.name; });
             const usersMap: Record<string, string> = {};
-            (appData.users || []).forEach((u: any) => { usersMap[u.id] = u.name; });
+
+            const projIds = [...new Set(data.map((p: any) => p.project_id).filter(Boolean))];
+            const uploaderIds = [...new Set(data.map((p: any) => p.uploaded_by).filter(Boolean))];
+
+            if (projIds.length > 0) {
+              const { data: projData } = await supabase
+                .from('projects')
+                .select('id, name')
+                .in('id', projIds);
+              (projData || []).forEach((p: any) => { projectsMap[p.id] = p.name; });
+            }
+            if (uploaderIds.length > 0) {
+              const { data: usersData } = await supabase
+                .from('users')
+                .select('id, name')
+                .in('id', uploaderIds);
+              (usersData || []).forEach((u: any) => { usersMap[u.id] = u.name; });
+            }
 
             let filtered: any[] = data;
             if (args.projectName) {
@@ -4481,15 +4574,24 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            // Resolve project names + company filter from DB
             const projectsMap: Record<string, string> = {};
-            const projectCompanyMap: Record<string, string> = {};
-            (appData.projects || []).forEach((p: any) => {
-              projectsMap[p.id] = p.name;
-              projectCompanyMap[p.id] = p.companyId || p.company_id;
-            });
+            const companyProjectIds = new Set<string>();
+
+            const coProjIds = [...new Set(data.map((co: any) => co.project_id).filter(Boolean))];
+            if (coProjIds.length > 0) {
+              const { data: projData } = await supabase
+                .from('projects')
+                .select('id, name, company_id')
+                .in('id', coProjIds);
+              (projData || []).forEach((p: any) => {
+                projectsMap[p.id] = p.name;
+                if (p.company_id === companyId) companyProjectIds.add(p.id);
+              });
+            }
 
             let filtered: any[] = data;
-            filtered = filtered.filter((co: any) => projectCompanyMap[co.project_id] === companyId);
+            filtered = filtered.filter((co: any) => companyProjectIds.has(co.project_id));
             if (args.projectName) {
               filtered = filtered.filter((co: any) =>
                 (projectsMap[co.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
@@ -5028,8 +5130,19 @@ Based on the store and items, intelligently categorize this expense:
               .limit(300),
           ]);
 
+          // Resolve project names from DB — not stale appData
           const schedProjectsMap: Record<string, string> = {};
-          (appData.projects || []).forEach((p: any) => { schedProjectsMap[p.id] = p.name; });
+          const allSchedProjIds = [...new Set([
+            ...(phasesRes.data || []).map((p: any) => p.project_id),
+            ...(tasksRes.data || []).map((t: any) => t.project_id),
+          ].filter(Boolean))];
+          if (allSchedProjIds.length > 0) {
+            const { data: projData } = await supabase
+              .from('projects')
+              .select('id, name')
+              .in('id', allSchedProjIds);
+            (projData || []).forEach((p: any) => { schedProjectsMap[p.id] = p.name; });
+          }
 
           let phases: any[] = phasesRes.data || [];
           let tasks: any[] = tasksRes.data || [];
