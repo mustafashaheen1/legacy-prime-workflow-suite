@@ -1601,6 +1601,22 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     // Optimistically update UI
     setClockEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
 
+    // Persist lunch break changes immediately so the DB is always up-to-date
+    // (the AI and any live queries read directly from the DB)
+    if (updates.lunchBreaks && !updates.clockOut) {
+      try {
+        const apiUrl = getApiBaseUrl();
+        await fetch(`${apiUrl}/api/update-lunch-break`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entryId: id, lunchBreaks: updates.lunchBreaks }),
+        });
+        console.log('[App] Lunch break saved to DB for entry:', id);
+      } catch (err) {
+        console.warn('[App] Failed to persist lunch break to DB (non-fatal):', err);
+      }
+    }
+
     // If clocking out (clockOut is being set), call backend
     if (updates.clockOut) {
       try {
