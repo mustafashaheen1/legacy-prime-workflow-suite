@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
 
 export const config = {
   maxDuration: 60,
@@ -166,6 +167,43 @@ function parseNaturalTime(timeStr: string): string {
   return '09:00';
 }
 
+// Helper to build a UTC date range for Supabase queries from natural language presets
+function buildDateRange(
+  range?: string,
+  customStart?: string,
+  customEnd?: string
+): { gte: string; lte: string } | null {
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  switch (range) {
+    case 'today':
+      return { gte: `${todayStr}T00:00:00.000Z`, lte: `${todayStr}T23:59:59.999Z` };
+    case 'this_week': {
+      const day = now.getDay();
+      const diff = day === 0 ? -6 : 1 - day; // back to Monday
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diff);
+      monday.setHours(0, 0, 0, 0);
+      return { gte: monday.toISOString(), lte: now.toISOString() };
+    }
+    case 'this_month': {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { gte: first.toISOString(), lte: now.toISOString() };
+    }
+    case 'this_year': {
+      const first = new Date(now.getFullYear(), 0, 1);
+      return { gte: first.toISOString(), lte: now.toISOString() };
+    }
+    case 'custom':
+      return {
+        gte: customStart ? `${customStart}T00:00:00.000Z` : `${todayStr}T00:00:00.000Z`,
+        lte: customEnd ? `${customEnd}T23:59:59.999Z` : now.toISOString(),
+      };
+    default:
+      return null;
+  }
+}
+
 // Define the function calling tools for the AI assistant
 const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -220,17 +258,34 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'query_expenses',
-      description: 'Query expenses, optionally filter by project or those with receipts/attachments.',
+      description: 'Query expenses from LIVE database. Use for "what expenses were added this week", "total expenses on project X", "expenses by category". ALWAYS use dateRange for time-based questions.',
       parameters: {
         type: 'object',
         properties: {
+          dateRange: {
+            type: 'string',
+            enum: ['today', 'this_week', 'this_month', 'this_year', 'custom'],
+            description: 'Date range preset. "today" = today, "this_week" = Mon–today, "this_month" = 1st–today, "this_year" = Jan 1–today.',
+          },
+          startDate: {
+            type: 'string',
+            description: 'Start date for custom range (YYYY-MM-DD)',
+          },
+          endDate: {
+            type: 'string',
+            description: 'End date for custom range (YYYY-MM-DD)',
+          },
           projectId: {
             type: 'string',
             description: 'Filter by project ID',
           },
           projectName: {
             type: 'string',
-            description: 'Filter by project name',
+            description: 'Filter by project name (partial match, or use client name to find linked project)',
+          },
+          category: {
+            type: 'string',
+            description: 'Filter by expense category/type (Material, Labor, Subcontractor, Office, Others)',
           },
           withReceipts: {
             type: 'boolean',
@@ -521,13 +576,26 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'query_clock_entries',
-      description: 'Query clock/time entries. Use for "who clocked today", "total hours worked", "hours by employee".',
+      description: 'Query clock/time entries from LIVE database. Use for "who clocked in today", "total hours worked this week", "hours by employee". ALWAYS use dateRange for time-based questions.',
       parameters: {
         type: 'object',
         properties: {
+          dateRange: {
+            type: 'string',
+            enum: ['today', 'this_week', 'this_month', 'this_year', 'custom'],
+            description: 'Date range preset. "today" = today only, "this_week" = Mon–today, "this_month" = 1st–today, "this_year" = Jan 1–today. Use "custom" with startDate/endDate for specific range.',
+          },
+          startDate: {
+            type: 'string',
+            description: 'Start date for custom range (YYYY-MM-DD)',
+          },
+          endDate: {
+            type: 'string',
+            description: 'End date for custom range (YYYY-MM-DD)',
+          },
           date: {
             type: 'string',
-            description: 'Filter by date (YYYY-MM-DD). Use "today" for current date.',
+            description: 'Legacy: filter by specific date (YYYY-MM-DD). Prefer dateRange instead.',
           },
           employeeId: {
             type: 'string',
@@ -535,7 +603,11 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           },
           employeeName: {
             type: 'string',
-            description: 'Filter by employee name',
+            description: 'Filter by employee name (partial match)',
+          },
+          projectName: {
+            type: 'string',
+            description: 'Filter by project name (partial match)',
           },
           projectId: {
             type: 'string',
@@ -550,25 +622,34 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'query_payments',
-      description: 'Query payments/sales received. Use for "sales today", "payments this week", "revenue".',
+      description: 'Query payments/sales received from LIVE database. Use for "sales today", "payments this week", "revenue". ALWAYS use dateRange for time-based questions.',
       parameters: {
         type: 'object',
         properties: {
+          dateRange: {
+            type: 'string',
+            enum: ['today', 'this_week', 'this_month', 'this_year', 'custom'],
+            description: 'Date range preset for filtering payments.',
+          },
           date: {
             type: 'string',
-            description: 'Filter by specific date (YYYY-MM-DD)',
+            description: 'Legacy: filter by specific date (YYYY-MM-DD). Prefer dateRange.',
           },
           startDate: {
             type: 'string',
-            description: 'Start of date range',
+            description: 'Start date for custom range (YYYY-MM-DD)',
           },
           endDate: {
             type: 'string',
-            description: 'End of date range',
+            description: 'End date for custom range (YYYY-MM-DD)',
           },
           projectId: {
             type: 'string',
             description: 'Filter by project ID',
+          },
+          projectName: {
+            type: 'string',
+            description: 'Filter by project name (partial match)',
           },
           clientName: {
             type: 'string',
@@ -583,13 +664,26 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'query_daily_logs',
-      description: 'Query daily work logs for projects. Use for "what work was done today", "daily report".',
+      description: 'Query daily work logs for projects from LIVE database. Use for "what work was done today", "daily report", "what happened on project X".',
       parameters: {
         type: 'object',
         properties: {
+          dateRange: {
+            type: 'string',
+            enum: ['today', 'this_week', 'this_month', 'this_year', 'custom'],
+            description: 'Date range preset for filtering logs.',
+          },
           date: {
             type: 'string',
-            description: 'Filter by date (YYYY-MM-DD)',
+            description: 'Legacy: filter by specific date (YYYY-MM-DD). Prefer dateRange.',
+          },
+          startDate: {
+            type: 'string',
+            description: 'Start date for custom range (YYYY-MM-DD)',
+          },
+          endDate: {
+            type: 'string',
+            description: 'End date for custom range (YYYY-MM-DD)',
           },
           projectId: {
             type: 'string',
@@ -903,6 +997,40 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           subcontractorId: {
             type: 'string',
             description: 'Filter by subcontractor ID',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_schedule',
+      description: 'Query project schedule — phases and scheduled tasks from LIVE database. Use when user asks about schedule, timeline, upcoming work, project phases, or what work is planned.',
+      parameters: {
+        type: 'object',
+        properties: {
+          projectName: {
+            type: 'string',
+            description: 'Filter by project name (partial match)',
+          },
+          dateRange: {
+            type: 'string',
+            enum: ['today', 'this_week', 'this_month', 'this_year', 'custom'],
+            description: 'Filter scheduled tasks by date range',
+          },
+          startDate: {
+            type: 'string',
+            description: 'Start date for custom range (YYYY-MM-DD)',
+          },
+          endDate: {
+            type: 'string',
+            description: 'End date for custom range (YYYY-MM-DD)',
+          },
+          completed: {
+            type: 'boolean',
+            description: 'Filter by completion status (false = pending, true = completed)',
           },
         },
         required: [],
@@ -2057,6 +2185,53 @@ AI: [Calls add_expense with projectName: "Claudia"]
 → Tool finds client "Claudia", gets her estimates, finds project linked to those estimates
 AI: "✓ Expense added to home office (Claudia's project)"
 
+## LIVE DATABASE ACCESS — CRITICAL BEHAVIOR
+
+You have **direct, real-time access** to the company database through your query tools. This is not a cached snapshot — every query tool fetches live records from the database at the moment you call it.
+
+### When to ALWAYS call a query tool first (NEVER answer from memory):
+- Any question about current state: who is clocked in, what happened today, this week's expenses, pending tasks
+- Any factual question about records: total hours, expense amounts, project status, who uploaded photos
+- Any time-based question: "today", "this week", "this month", "this year", or a specific date
+
+### Date range values for query tools:
+- **"today"** → today's records only
+- **"this_week"** → Monday through today
+- **"this_month"** → 1st of the month through today
+- **"this_year"** → January 1st through today
+- **"custom"** → specify startDate + endDate in YYYY-MM-DD format
+
+### Required query behavior — Examples:
+- "Who clocked in today?" → call query_clock_entries with dateRange: "today"
+- "What expenses were added this week?" → call query_expenses with dateRange: "this_week"
+- "How many hours has [employee] worked this month?" → call query_clock_entries with dateRange: "this_month" and employeeName
+- "What tasks are still pending?" → call query_tasks with completed: false
+- "What is the status of Project X?" → call query_projects with projectName: "X"
+- "What is the total labor cost on this project?" → call query_clock_entries + query_expenses with projectName
+- "Which employee uploaded these photos?" → call query_photos with projectName
+- "What happened today on Project X?" → call query_daily_logs with dateRange: "today" + projectName: "X"
+- "What is happening on this project?" → call query_tasks, query_daily_logs, query_clock_entries, query_expenses all with the project name
+- "What project has the most expenses?" → call query_expenses to get all expenses, then analyze by project
+- "What is the latest update on this customer?" → call query_clients for client info, then query_projects and query_daily_logs for activity
+- "Who is currently clocked in?" → call query_clock_entries with dateRange: "today", check currentlyClockedIn in result
+- "What is scheduled this week?" → call query_schedule with dateRange: "this_week"
+
+### Data sources you can query:
+- query_clock_entries — time tracking, who clocked in, hours worked
+- query_expenses — expenses by project, date, category
+- query_projects — project list, status, budgets
+- query_clients — CRM, customer information
+- query_tasks — project tasks, pending items
+- query_photos — photos by project, category, uploader
+- query_daily_logs — daily work logs, notes, issues
+- query_change_orders — change orders by status, project
+- query_subcontractors — subcontractor list, availability
+- query_team_members — employees, roles, rates
+- query_payments — payments received, revenue
+- query_call_logs — incoming call logs from AI receptionist
+- query_schedule — scheduled tasks and project phases
+- query_proposals — subcontractor proposals and bids
+
 ## CLIENT MANAGEMENT
 
 **Required Fields:**
@@ -2279,7 +2454,9 @@ async function executeToolCall(
   appData: any,
   openai?: OpenAI,
   messages?: any[],
-  attachedFiles?: any[]
+  attachedFiles?: any[],
+  supabase?: any,
+  companyId?: string
 ): Promise<{ result: any; actionRequired?: string; actionData?: any }> {
   const { projects = [], clients = [], expenses = [], estimates = [], payments = [], clockEntries = [], company } = appData;
 
@@ -2290,7 +2467,49 @@ async function executeToolCall(
 
   switch (toolName) {
     case 'query_projects': {
-      // First, enrich ALL projects with client information via estimate linkage
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('projects')
+            .select('*, estimate:estimate_id(id, client_id, clients(id, name))')
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: false });
+
+          if (args.status) q = q.eq('status', args.status);
+          if (args.projectName) q = q.ilike('name', `%${args.projectName}%`);
+
+          const { data, error } = await q;
+          if (!error && data) {
+            let result: any[] = data.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              status: p.status,
+              budget: Number(p.budget || 0),
+              expenses: Number(p.expenses || 0),
+              progress: p.progress,
+              startDate: p.start_date,
+              endDate: p.end_date,
+              address: p.address,
+              estimateId: p.estimate_id,
+              clientId: p.estimate?.clients?.id || null,
+              clientName: p.estimate?.clients?.name || null,
+            }));
+
+            if (args.clientName) {
+              result = result.filter((p: any) =>
+                p.clientName?.toLowerCase().includes(args.clientName.toLowerCase())
+              );
+            }
+
+            return { result: { count: result.length, projects: result } };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_projects, falling back to appData:', dbErr);
+        }
+      }
+
+      // FALLBACK: in-memory enrichment
       const allEnrichedProjects = projects.map((p: any) => {
         let clientName = null;
         let clientId = null;
@@ -2298,155 +2517,171 @@ async function executeToolCall(
           const linkedEstimate = estimates.find((e: any) => e.id === p.estimateId);
           if (linkedEstimate?.clientId) {
             const linkedClient = clients.find((c: any) => c.id === linkedEstimate.clientId);
-            if (linkedClient) {
-              clientName = linkedClient.name;
-              clientId = linkedClient.id;
-            }
+            if (linkedClient) { clientName = linkedClient.name; clientId = linkedClient.id; }
           }
         }
-        return {
-          id: p.id,
-          name: p.name,
-          status: p.status,
-          budget: p.budget,
-          expenses: p.expenses,
-          progress: p.progress,
-          estimateId: p.estimateId,
-          clientName,
-          clientId,
-        };
+        return { id: p.id, name: p.name, status: p.status, budget: p.budget, expenses: p.expenses, progress: p.progress, estimateId: p.estimateId, clientName, clientId };
       });
-
       let filtered = allEnrichedProjects;
-
-      // Filter by project name
-      if (args.projectName) {
-        filtered = filtered.filter((p: any) =>
-          p.name?.toLowerCase().includes(args.projectName.toLowerCase())
-        );
-      }
-
-      // Filter by client name (finds projects linked to matching clients)
-      if (args.clientName) {
-        const searchName = args.clientName.toLowerCase();
-        filtered = filtered.filter((p: any) =>
-          p.clientName?.toLowerCase().includes(searchName)
-        );
-      }
-
-      // Filter by status
-      if (args.status) {
-        filtered = filtered.filter((p: any) => p.status === args.status);
-      }
-
-      return {
-        result: {
-          count: filtered.length,
-          projects: filtered,
-        },
-      };
+      if (args.projectName) filtered = filtered.filter((p: any) => p.name?.toLowerCase().includes(args.projectName.toLowerCase()));
+      if (args.clientName) filtered = filtered.filter((p: any) => p.clientName?.toLowerCase().includes(args.clientName.toLowerCase()));
+      if (args.status) filtered = filtered.filter((p: any) => p.status === args.status);
+      return { result: { count: filtered.length, projects: filtered } };
     }
 
     case 'query_clients': {
-      let filtered = clients;
-      if (args.clientName) {
-        filtered = filtered.filter((c: any) =>
-          c.name?.toLowerCase().includes(args.clientName.toLowerCase())
-        );
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('clients')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('name', { ascending: true });
+
+          if (args.status) q = q.eq('status', args.status);
+          if (args.clientName) q = q.ilike('name', `%${args.clientName}%`);
+
+          const { data, error } = await q;
+          if (!error && data) {
+            return {
+              result: {
+                count: data.length,
+                clients: data.map((c: any) => ({
+                  id: c.id,
+                  name: c.name,
+                  email: c.email,
+                  phone: c.phone,
+                  address: c.address,
+                  source: c.source,
+                  status: c.status,
+                  lastContacted: c.last_contacted,
+                  lastContactDate: c.last_contact_date,
+                  nextFollowUpDate: c.next_follow_up_date,
+                  createdAt: c.created_at,
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_clients, falling back to appData:', dbErr);
+        }
       }
-      if (args.status) {
-        filtered = filtered.filter((c: any) => c.status === args.status);
-      }
+
+      // FALLBACK
+      let filteredClients = clients;
+      if (args.clientName) filteredClients = filteredClients.filter((c: any) => c.name?.toLowerCase().includes(args.clientName.toLowerCase()));
+      if (args.status) filteredClients = filteredClients.filter((c: any) => c.status === args.status);
       return {
         result: {
-          count: filtered.length,
-          clients: filtered.map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            email: c.email,
-            phone: c.phone,
-            status: c.status,
-            lastContacted: c.lastContacted,
-            nextFollowUpDate: c.nextFollowUpDate,
+          count: filteredClients.length,
+          clients: filteredClients.map((c: any) => ({
+            id: c.id, name: c.name, email: c.email, phone: c.phone,
+            status: c.status, lastContacted: c.lastContacted, nextFollowUpDate: c.nextFollowUpDate,
           })),
         },
       };
     }
 
     case 'query_expenses': {
-      console.log(`[AI Assistant] query_expenses called with args:`, JSON.stringify(args));
-      console.log(`[AI Assistant] Total expenses in appData: ${expenses.length}`);
-      console.log(`[AI Assistant] Total projects in appData: ${projects.length}`);
-      console.log(`[AI Assistant] Sample expense projectIds:`, expenses.slice(0, 5).map((e: any) => ({ id: e.id?.substring(0, 8), projectId: e.projectId })));
+      // LIVE DB PATH — always accurate, bypasses stale appData
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('expenses')
+            .select('*, project:project_id(id, name, company_id), uploader:uploaded_by(id, name)')
+            .eq('company_id', companyId)
+            .order('date', { ascending: false })
+            .limit(1000);
 
-      let filtered = expenses;
-      let projectFound = null;
+          // Date range filtering
+          const range = buildDateRange(args.dateRange, args.startDate, args.endDate);
+          if (range) {
+            q = q.gte('date', range.gte.split('T')[0]).lte('date', range.lte.split('T')[0]);
+          }
 
-      if (args.projectId) {
-        filtered = filtered.filter((e: any) => e.projectId === args.projectId);
-        console.log(`[AI Assistant] After projectId filter: ${filtered.length} expenses`);
-      }
-      if (args.projectName) {
-        console.log(`[AI Assistant] Searching for project by name: "${args.projectName}"`);
+          if (args.projectId) q = q.eq('project_id', args.projectId);
+          if (args.category) q = q.or(`type.ilike.%${args.category}%,subcategory.ilike.%${args.category}%`);
+          if (args.withReceipts) q = q.not('receipt_url', 'is', null);
 
-        // First try to find by project name
-        projectFound = projects.find((p: any) =>
-          p.name?.toLowerCase().includes(args.projectName.toLowerCase())
-        );
-        console.log(`[AI Assistant] Direct project name match: ${projectFound ? projectFound.name : 'none'}`);
+          const { data, error } = await q;
+          if (!error && data) {
+            let result: any[] = data;
 
-        // If not found by project name, try to find by client name via estimate linkage
-        if (!projectFound) {
-          const matchingClient = clients.find((c: any) =>
-            c.name?.toLowerCase().includes(args.projectName.toLowerCase())
-          );
-          console.log(`[AI Assistant] Client name match: ${matchingClient ? matchingClient.name : 'none'}`);
-
-          if (matchingClient) {
-            const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
-            console.log(`[AI Assistant] Found ${clientEstimates.length} estimates for client ${matchingClient.name}`);
-            const clientEstimateIds = clientEstimates.map((e: any) => e.id);
-            console.log(`[AI Assistant] Client estimate IDs:`, clientEstimateIds);
-
-            projectFound = projects.find((p: any) =>
-              p.estimateId && clientEstimateIds.includes(p.estimateId)
-            );
-            if (projectFound) {
-              console.log(`[AI Assistant] Found project "${projectFound.name}" (ID: ${projectFound.id}) for client "${matchingClient.name}" via estimate linkage`);
-            } else {
-              console.log(`[AI Assistant] No project found via estimate linkage. Projects with estimateIds:`, projects.filter((p: any) => p.estimateId).map((p: any) => ({ name: p.name, estimateId: p.estimateId })));
+            // Project name / client name filter (post-fetch)
+            if (args.projectName) {
+              result = result.filter((e: any) =>
+                e.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+              );
+              // If no direct project match, try matching by client name via project client linkage
+              if (result.length === 0) {
+                // Re-filter from full data using client name search
+                const lowerSearch = args.projectName.toLowerCase();
+                result = data.filter((e: any) =>
+                  e.project?.name?.toLowerCase().includes(lowerSearch)
+                );
+              }
             }
-          }
-        }
 
-        if (projectFound) {
-          console.log(`[AI Assistant] Filtering expenses for projectId: ${projectFound.id}`);
-          const beforeFilter = filtered.length;
-          filtered = filtered.filter((e: any) => e.projectId === projectFound.id);
-          console.log(`[AI Assistant] Filtered from ${beforeFilter} to ${filtered.length} expenses`);
-          if (filtered.length === 0) {
-            console.log(`[AI Assistant] All expense projectIds:`, expenses.map((e: any) => e.projectId));
+            // Group by category for summary
+            const byCategory: Record<string, number> = {};
+            result.forEach((e: any) => {
+              const cat = e.type || 'Other';
+              byCategory[cat] = (byCategory[cat] || 0) + Number(e.amount || 0);
+            });
+
+            const total = result.reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
+            return {
+              result: {
+                count: result.length,
+                total: total.toFixed(2),
+                byCategory,
+                expenses: result.map((e: any) => ({
+                  id: e.id,
+                  project: e.project?.name || 'No Project',
+                  type: e.type,
+                  subcategory: e.subcategory,
+                  amount: Number(e.amount),
+                  store: e.store,
+                  date: e.date,
+                  notes: e.notes,
+                  hasReceipt: !!e.receipt_url,
+                  uploadedBy: e.uploader?.name || 'Unknown',
+                })),
+              },
+            };
           }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_expenses, falling back to appData:', dbErr);
         }
       }
-      if (args.withReceipts) {
-        filtered = filtered.filter((e: any) => e.receiptUrl);
+
+      // FALLBACK: appData in-memory filtering
+      console.log(`[AI Assistant] query_expenses FALLBACK - appData has ${expenses.length} expenses`);
+      let filteredExp = expenses;
+      let projectFoundFallback: any = null;
+      if (args.projectId) filteredExp = filteredExp.filter((e: any) => e.projectId === args.projectId);
+      if (args.projectName) {
+        projectFoundFallback = projects.find((p: any) => p.name?.toLowerCase().includes(args.projectName.toLowerCase()));
+        if (!projectFoundFallback) {
+          const matchingClient = clients.find((c: any) => c.name?.toLowerCase().includes(args.projectName.toLowerCase()));
+          if (matchingClient) {
+            const clientEstimateIds = estimates.filter((e: any) => e.clientId === matchingClient.id).map((e: any) => e.id);
+            projectFoundFallback = projects.find((p: any) => p.estimateId && clientEstimateIds.includes(p.estimateId));
+          }
+        }
+        if (projectFoundFallback) filteredExp = filteredExp.filter((e: any) => e.projectId === projectFoundFallback.id);
       }
-      const total = filtered.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+      if (args.withReceipts) filteredExp = filteredExp.filter((e: any) => e.receiptUrl);
+      const totalFallback = filteredExp.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
       return {
         result: {
-          count: filtered.length,
-          total,
-          projectName: projectFound?.name,
-          expenses: filtered.map((e: any) => ({
-            id: e.id,
-            type: e.type,
-            subcategory: e.subcategory,
-            amount: e.amount,
-            store: e.store,
-            date: e.date,
-            hasReceipt: !!e.receiptUrl,
-            projectId: e.projectId,
+          count: filteredExp.length,
+          total: totalFallback,
+          projectName: projectFoundFallback?.name,
+          expenses: filteredExp.map((e: any) => ({
+            id: e.id, type: e.type, subcategory: e.subcategory, amount: e.amount,
+            store: e.store, date: e.date, hasReceipt: !!e.receiptUrl, projectId: e.projectId,
           })),
         },
       };
@@ -3726,13 +3961,89 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'query_clock_entries': {
+      // LIVE DB PATH — always fresh, bypasses stale appData
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('clock_entries')
+            .select('*, employee:employee_id(id, name, avatar), project:project_id(id, name)')
+            .eq('company_id', companyId)
+            .order('clock_in', { ascending: false })
+            .limit(500);
+
+          // Prefer dateRange param, fall back to legacy date param
+          const rangeKey = args.dateRange || (args.date === 'today' ? 'today' : undefined);
+          const range = buildDateRange(rangeKey, args.startDate, args.endDate);
+          if (range) {
+            q = q.gte('clock_in', range.gte).lte('clock_in', range.lte);
+          } else if (args.date && args.date !== 'today') {
+            q = q.gte('clock_in', `${args.date}T00:00:00.000Z`).lte('clock_in', `${args.date}T23:59:59.999Z`);
+          }
+
+          const { data, error } = await q;
+          if (!error && data) {
+            let filtered: any[] = data;
+            if (args.employeeName) {
+              filtered = filtered.filter((e: any) =>
+                e.employee?.name?.toLowerCase().includes(args.employeeName.toLowerCase())
+              );
+            }
+            if (args.projectName) {
+              filtered = filtered.filter((e: any) =>
+                e.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+              );
+            }
+            if (args.employeeId) {
+              filtered = filtered.filter((e: any) => e.employee_id === args.employeeId);
+            }
+            if (args.projectId) {
+              filtered = filtered.filter((e: any) => e.project_id === args.projectId);
+            }
+
+            const totalHours = filtered.reduce((sum: number, e: any) => {
+              if (e.clock_in && e.clock_out) {
+                return sum + (new Date(e.clock_out).getTime() - new Date(e.clock_in).getTime()) / 3600000;
+              }
+              return sum;
+            }, 0);
+
+            const currentlyClockedIn = filtered.filter((e: any) => e.clock_in && !e.clock_out);
+            const uniqueEmployees = [...new Set(filtered.map((e: any) => e.employee?.name).filter(Boolean))];
+
+            return {
+              result: {
+                count: filtered.length,
+                totalHours: Math.round(totalHours * 100) / 100,
+                employeesWhoClocked: uniqueEmployees,
+                currentlyClockedIn: currentlyClockedIn.map((e: any) => ({
+                  employee: e.employee?.name || 'Unknown',
+                  project: e.project?.name || 'No Project',
+                  clockedInAt: e.clock_in,
+                })),
+                entries: filtered.map((e: any) => ({
+                  id: e.id,
+                  employeeName: e.employee?.name || 'Unknown',
+                  project: e.project?.name || 'No Project',
+                  clockIn: e.clock_in,
+                  clockOut: e.clock_out || null,
+                  workPerformed: e.work_performed,
+                  hoursWorked: e.clock_out
+                    ? ((new Date(e.clock_out).getTime() - new Date(e.clock_in).getTime()) / 3600000).toFixed(2)
+                    : 'Still clocked in',
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_clock_entries, falling back to appData:', dbErr);
+        }
+      }
+
+      // FALLBACK: in-memory appData filtering (for when DB is unavailable)
       const { clockEntries = [], users = [] } = appData;
       let filtered = clockEntries;
       const today = new Date().toISOString().split('T')[0];
-
-      // Handle "today" filter
       const filterDate = args.date === 'today' ? today : args.date;
-
       if (filterDate) {
         filtered = filtered.filter((entry: any) => {
           const entryDate = entry.clockIn?.split('T')[0];
@@ -3753,23 +4064,17 @@ Based on the store and items, intelligently categorize this expense:
       if (args.projectId) {
         filtered = filtered.filter((entry: any) => entry.projectId === args.projectId);
       }
-
-      // Calculate total hours
       const totalHours = filtered.reduce((sum: number, entry: any) => {
         if (entry.clockIn && entry.clockOut) {
-          const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 3600000;
-          return sum + hours;
+          return sum + (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / 3600000;
         }
         return sum;
       }, 0);
-
-      // Get unique employees who clocked in
       const employeeIds = [...new Set(filtered.map((e: any) => e.employeeId))];
       const employeesWhoClocked = employeeIds.map(id => {
         const user = users.find((u: any) => u.id === id);
         return user?.name || id;
       });
-
       return {
         result: {
           count: filtered.length,
@@ -3791,32 +4096,80 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'query_payments': {
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('payments')
+            .select('*, client:client_id(id, name), project:project_id(id, name)')
+            .eq('company_id', companyId)
+            .order('date', { ascending: false })
+            .limit(500);
+
+          const rangeKey = args.dateRange || (args.date === 'today' ? 'today' : undefined);
+          const range = buildDateRange(rangeKey, args.startDate, args.endDate);
+          if (range) {
+            q = q.gte('date', range.gte.split('T')[0]).lte('date', range.lte.split('T')[0]);
+          } else if (args.date && args.date !== 'today') {
+            q = q.eq('date', args.date);
+          } else if (args.startDate && args.endDate) {
+            q = q.gte('date', args.startDate).lte('date', args.endDate);
+          }
+          if (args.projectId) q = q.eq('project_id', args.projectId);
+
+          const { data, error } = await q;
+          if (!error && data) {
+            let filtered: any[] = data;
+            if (args.clientName) {
+              filtered = filtered.filter((p: any) =>
+                p.client?.name?.toLowerCase().includes(args.clientName.toLowerCase())
+              );
+            }
+            if (args.projectName) {
+              filtered = filtered.filter((p: any) =>
+                p.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+              );
+            }
+            const totalAmount = filtered.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+            return {
+              result: {
+                count: filtered.length,
+                totalAmount: totalAmount.toFixed(2),
+                payments: filtered.map((p: any) => ({
+                  id: p.id,
+                  amount: Number(p.amount),
+                  date: p.date,
+                  clientName: p.client?.name || 'Unknown',
+                  project: p.project?.name || 'No Project',
+                  method: p.method,
+                  notes: p.notes,
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_payments, falling back to appData:', dbErr);
+        }
+      }
+
+      // FALLBACK
       let filtered = payments;
       const today = new Date().toISOString().split('T')[0];
-
-      // Handle "today" filter
       const filterDate = args.date === 'today' ? today : args.date;
-
-      if (filterDate) {
-        filtered = filtered.filter((p: any) => p.date?.startsWith(filterDate));
-      }
+      if (filterDate) filtered = filtered.filter((p: any) => p.date?.startsWith(filterDate));
       if (args.startDate && args.endDate) {
         filtered = filtered.filter((p: any) => {
           const date = p.date?.split('T')[0];
           return date >= args.startDate && date <= args.endDate;
         });
       }
-      if (args.projectId) {
-        filtered = filtered.filter((p: any) => p.projectId === args.projectId);
-      }
+      if (args.projectId) filtered = filtered.filter((p: any) => p.projectId === args.projectId);
       if (args.clientName) {
         filtered = filtered.filter((p: any) =>
           p.clientName?.toLowerCase().includes(args.clientName.toLowerCase())
         );
       }
-
       const totalAmount = filtered.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-
       return {
         result: {
           count: filtered.length,
@@ -3834,31 +4187,69 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'query_daily_logs': {
-      const { dailyLogs = [] } = appData;
-      let filtered = dailyLogs;
-      const today = new Date().toISOString().split('T')[0];
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('daily_logs')
+            .select('*, project:project_id(id, name, company_id), creator:created_by(id, name)')
+            .order('log_date', { ascending: false })
+            .limit(200);
 
-      const filterDate = args.date === 'today' ? today : args.date;
+          const rangeKey = args.dateRange || (args.date === 'today' ? 'today' : undefined);
+          const range = buildDateRange(rangeKey, args.startDate, args.endDate);
+          if (range) {
+            q = q.gte('log_date', range.gte.split('T')[0]).lte('log_date', range.lte.split('T')[0]);
+          } else if (args.date && args.date !== 'today') {
+            q = q.eq('log_date', args.date);
+          }
+          if (args.projectId) q = q.eq('project_id', args.projectId);
 
-      if (filterDate) {
-        filtered = filtered.filter((log: any) => log.logDate?.startsWith(filterDate));
-      }
-      if (args.projectId) {
-        filtered = filtered.filter((log: any) => log.projectId === args.projectId);
-      }
-      if (args.projectName) {
-        const project = projects.find((p: any) =>
-          p.name?.toLowerCase().includes(args.projectName.toLowerCase())
-        );
-        if (project) {
-          filtered = filtered.filter((log: any) => log.projectId === project.id);
+          const { data, error } = await q;
+          if (!error && data) {
+            let filtered: any[] = data;
+            // Filter to this company's projects
+            filtered = filtered.filter((log: any) => log.project?.company_id === companyId);
+            if (args.projectName) {
+              filtered = filtered.filter((log: any) =>
+                log.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+              );
+            }
+            return {
+              result: {
+                count: filtered.length,
+                logs: filtered.map((log: any) => ({
+                  id: log.id,
+                  project: log.project?.name || 'Unknown Project',
+                  logDate: log.log_date,
+                  workPerformed: log.work_performed,
+                  issues: log.issues,
+                  generalNotes: log.general_notes,
+                  createdBy: log.creator?.name || log.created_by,
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_daily_logs, falling back to appData:', dbErr);
         }
       }
 
+      // FALLBACK
+      const { dailyLogs = [] } = appData;
+      let filteredLogs = dailyLogs;
+      const today = new Date().toISOString().split('T')[0];
+      const filterDate = args.date === 'today' ? today : args.date;
+      if (filterDate) filteredLogs = filteredLogs.filter((log: any) => log.logDate?.startsWith(filterDate));
+      if (args.projectId) filteredLogs = filteredLogs.filter((log: any) => log.projectId === args.projectId);
+      if (args.projectName) {
+        const project = projects.find((p: any) => p.name?.toLowerCase().includes(args.projectName.toLowerCase()));
+        if (project) filteredLogs = filteredLogs.filter((log: any) => log.projectId === project.id);
+      }
       return {
         result: {
-          count: filtered.length,
-          logs: filtered.map((log: any) => ({
+          count: filteredLogs.length,
+          logs: filteredLogs.map((log: any) => ({
             id: log.id,
             projectId: log.projectId,
             logDate: log.logDate,
@@ -3872,30 +4263,63 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'query_tasks': {
-      const { tasks = [] } = appData;
-      let filtered = tasks;
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('tasks')
+            .select('*, project:project_id(id, name, company_id)')
+            .order('date', { ascending: true })
+            .limit(500);
 
-      if (args.completed !== undefined) {
-        filtered = filtered.filter((t: any) => t.completed === args.completed);
-      }
-      if (args.projectId) {
-        filtered = filtered.filter((t: any) => t.projectId === args.projectId);
-      }
-      if (args.projectName) {
-        const project = projects.find((p: any) =>
-          p.name?.toLowerCase().includes(args.projectName.toLowerCase())
-        );
-        if (project) {
-          filtered = filtered.filter((t: any) => t.projectId === project.id);
+          if (args.projectId) q = q.eq('project_id', args.projectId);
+          if (args.completed !== undefined) q = q.eq('completed', args.completed);
+
+          const { data, error } = await q;
+          if (!error && data) {
+            let filtered: any[] = data;
+            // Filter to this company's projects
+            filtered = filtered.filter((t: any) => t.project?.company_id === companyId);
+            if (args.projectName) {
+              filtered = filtered.filter((t: any) =>
+                t.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+              );
+            }
+            return {
+              result: {
+                count: filtered.length,
+                pending: filtered.filter((t: any) => !t.completed).length,
+                completed: filtered.filter((t: any) => t.completed).length,
+                tasks: filtered.map((t: any) => ({
+                  id: t.id,
+                  name: t.name,
+                  project: t.project?.name || 'No Project',
+                  date: t.date,
+                  completed: t.completed,
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_tasks, falling back to appData:', dbErr);
         }
       }
 
+      // FALLBACK
+      const { tasks = [] } = appData;
+      let filteredTasks = tasks;
+      if (args.completed !== undefined) filteredTasks = filteredTasks.filter((t: any) => t.completed === args.completed);
+      if (args.projectId) filteredTasks = filteredTasks.filter((t: any) => t.projectId === args.projectId);
+      if (args.projectName) {
+        const project = projects.find((p: any) => p.name?.toLowerCase().includes(args.projectName.toLowerCase()));
+        if (project) filteredTasks = filteredTasks.filter((t: any) => t.projectId === project.id);
+      }
       return {
         result: {
-          count: filtered.length,
-          pending: filtered.filter((t: any) => !t.completed).length,
-          completed: filtered.filter((t: any) => t.completed).length,
-          tasks: filtered.map((t: any) => ({
+          count: filteredTasks.length,
+          pending: filteredTasks.filter((t: any) => !t.completed).length,
+          completed: filteredTasks.filter((t: any) => t.completed).length,
+          tasks: filteredTasks.map((t: any) => ({
             id: t.id,
             name: t.name,
             projectId: t.projectId,
@@ -3907,74 +4331,135 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'query_photos': {
-      const { photos = [] } = appData;
-      let filtered = photos;
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('photos')
+            .select('*, project:project_id(id, name), uploader:uploaded_by(id, name)')
+            .eq('company_id', companyId)
+            .order('date', { ascending: false })
+            .limit(500);
 
-      if (args.projectId) {
-        filtered = filtered.filter((p: any) => p.projectId === args.projectId);
-      }
-      if (args.projectName) {
-        const project = projects.find((p: any) =>
-          p.name?.toLowerCase().includes(args.projectName.toLowerCase())
-        );
-        if (project) {
-          filtered = filtered.filter((p: any) => p.projectId === project.id);
+          if (args.projectId) q = q.eq('project_id', args.projectId);
+          if (args.category) q = q.ilike('category', `%${args.category}%`);
+
+          const { data, error } = await q;
+          if (!error && data) {
+            let filtered: any[] = data;
+            if (args.projectName) {
+              filtered = filtered.filter((p: any) =>
+                p.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+              );
+            }
+            const byCategory: Record<string, number> = {};
+            filtered.forEach((p: any) => {
+              const cat = p.category || 'Other';
+              byCategory[cat] = (byCategory[cat] || 0) + 1;
+            });
+            return {
+              result: {
+                count: filtered.length,
+                byCategory,
+                photos: filtered.slice(0, 20).map((p: any) => ({
+                  id: p.id,
+                  project: p.project?.name || 'Unknown',
+                  category: p.category,
+                  notes: p.notes,
+                  date: p.date,
+                  uploadedBy: p.uploader?.name || 'Unknown',
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_photos, falling back to appData:', dbErr);
         }
       }
-      if (args.category) {
-        filtered = filtered.filter((p: any) =>
-          p.category?.toLowerCase().includes(args.category.toLowerCase())
-        );
+
+      // FALLBACK
+      const { photos = [] } = appData;
+      let filteredPhotos = photos;
+      if (args.projectId) filteredPhotos = filteredPhotos.filter((p: any) => p.projectId === args.projectId);
+      if (args.projectName) {
+        const project = projects.find((p: any) => p.name?.toLowerCase().includes(args.projectName.toLowerCase()));
+        if (project) filteredPhotos = filteredPhotos.filter((p: any) => p.projectId === project.id);
       }
-
-      // Group by category
+      if (args.category) {
+        filteredPhotos = filteredPhotos.filter((p: any) => p.category?.toLowerCase().includes(args.category.toLowerCase()));
+      }
       const byCategory: Record<string, number> = {};
-      filtered.forEach((p: any) => {
-        const cat = p.category || 'Other';
-        byCategory[cat] = (byCategory[cat] || 0) + 1;
-      });
-
+      filteredPhotos.forEach((p: any) => { const cat = p.category || 'Other'; byCategory[cat] = (byCategory[cat] || 0) + 1; });
       return {
         result: {
-          count: filtered.length,
+          count: filteredPhotos.length,
           byCategory,
-          photos: filtered.slice(0, 10).map((p: any) => ({
-            id: p.id,
-            projectId: p.projectId,
-            category: p.category,
-            notes: p.notes,
-            date: p.date,
+          photos: filteredPhotos.slice(0, 10).map((p: any) => ({
+            id: p.id, projectId: p.projectId, category: p.category, notes: p.notes, date: p.date,
           })),
         },
       };
     }
 
     case 'query_change_orders': {
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('change_orders')
+            .select('*, project:project_id(id, name, company_id)')
+            .order('created_at', { ascending: false })
+            .limit(200);
+
+          if (args.status) q = q.eq('status', args.status);
+          if (args.projectId) q = q.eq('project_id', args.projectId);
+
+          const { data, error } = await q;
+          if (!error && data) {
+            let filtered: any[] = data;
+            filtered = filtered.filter((co: any) => co.project?.company_id === companyId);
+            if (args.projectName) {
+              filtered = filtered.filter((co: any) =>
+                co.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+              );
+            }
+            const totalAmount = filtered.reduce((sum: number, co: any) => sum + Number(co.amount || 0), 0);
+            return {
+              result: {
+                count: filtered.length,
+                totalAmount: totalAmount.toFixed(2),
+                pending: filtered.filter((co: any) => co.status === 'pending').length,
+                approved: filtered.filter((co: any) => co.status === 'approved').length,
+                changeOrders: filtered.map((co: any) => ({
+                  id: co.id,
+                  project: co.project?.name || 'Unknown',
+                  description: co.description,
+                  amount: Number(co.amount),
+                  status: co.status,
+                  createdAt: co.created_at,
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_change_orders, falling back to appData:', dbErr);
+        }
+      }
+
+      // FALLBACK
       const { changeOrders = [] } = appData;
-      let filtered = changeOrders;
-
-      if (args.status) {
-        filtered = filtered.filter((co: any) => co.status === args.status);
-      }
-      if (args.projectId) {
-        filtered = filtered.filter((co: any) => co.projectId === args.projectId);
-      }
-
-      const totalAmount = filtered.reduce((sum: number, co: any) => sum + (co.amount || 0), 0);
-
+      let filteredCOs = changeOrders;
+      if (args.status) filteredCOs = filteredCOs.filter((co: any) => co.status === args.status);
+      if (args.projectId) filteredCOs = filteredCOs.filter((co: any) => co.projectId === args.projectId);
+      const totalAmount = filteredCOs.reduce((sum: number, co: any) => sum + (co.amount || 0), 0);
       return {
         result: {
-          count: filtered.length,
+          count: filteredCOs.length,
           totalAmount,
           pending: changeOrders.filter((co: any) => co.status === 'pending').length,
           approved: changeOrders.filter((co: any) => co.status === 'approved').length,
-          changeOrders: filtered.map((co: any) => ({
-            id: co.id,
-            description: co.description,
-            amount: co.amount,
-            status: co.status,
-            projectId: co.projectId,
-            date: co.date,
+          changeOrders: filteredCOs.map((co: any) => ({
+            id: co.id, description: co.description, amount: co.amount, status: co.status, projectId: co.projectId, date: co.date,
           })),
         },
       };
@@ -4094,36 +4579,57 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'query_subcontractors': {
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('subcontractors')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('name', { ascending: true });
+
+          if (args.trade) q = q.ilike('trade', `%${args.trade}%`);
+          if (args.availability) q = q.eq('availability', args.availability);
+          if (args.approved !== undefined) q = q.eq('approved', args.approved);
+
+          const { data, error } = await q;
+          if (!error && data) {
+            return {
+              result: {
+                count: data.length,
+                available: data.filter((s: any) => s.availability === 'available').length,
+                subcontractors: data.map((s: any) => ({
+                  id: s.id,
+                  name: s.name,
+                  companyName: s.company_name,
+                  trade: s.trade,
+                  phone: s.phone,
+                  email: s.email,
+                  hourlyRate: s.hourly_rate || s.rate,
+                  availability: s.availability,
+                  approved: s.approved,
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_subcontractors, falling back to appData:', dbErr);
+        }
+      }
+
+      // FALLBACK
       const { subcontractors = [] } = appData;
-      let filtered = subcontractors;
-
-      if (args.trade) {
-        filtered = filtered.filter((s: any) =>
-          s.trade?.toLowerCase().includes(args.trade.toLowerCase())
-        );
-      }
-      if (args.availability) {
-        filtered = filtered.filter((s: any) => s.availability === args.availability);
-      }
-      if (args.approved !== undefined) {
-        filtered = filtered.filter((s: any) => s.approved === args.approved);
-      }
-
+      let filteredSubs = subcontractors;
+      if (args.trade) filteredSubs = filteredSubs.filter((s: any) => s.trade?.toLowerCase().includes(args.trade.toLowerCase()));
+      if (args.availability) filteredSubs = filteredSubs.filter((s: any) => s.availability === args.availability);
+      if (args.approved !== undefined) filteredSubs = filteredSubs.filter((s: any) => s.approved === args.approved);
       return {
         result: {
-          count: filtered.length,
+          count: filteredSubs.length,
           available: subcontractors.filter((s: any) => s.availability === 'available').length,
-          subcontractors: filtered.map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            companyName: s.companyName,
-            trade: s.trade,
-            phone: s.phone,
-            email: s.email,
-            hourlyRate: s.hourlyRate,
-            rating: s.rating,
-            availability: s.availability,
-            approved: s.approved,
+          subcontractors: filteredSubs.map((s: any) => ({
+            id: s.id, name: s.name, companyName: s.companyName, trade: s.trade,
+            phone: s.phone, email: s.email, hourlyRate: s.hourlyRate, availability: s.availability, approved: s.approved,
           })),
         },
       };
@@ -4264,70 +4770,132 @@ Based on the store and items, intelligently categorize this expense:
     }
 
     case 'query_call_logs': {
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('call_logs')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('call_date', { ascending: false })
+            .limit(200);
+
+          const rangeKey = args.dateRange || (args.date === 'today' ? 'today' : undefined);
+          const range = buildDateRange(rangeKey, args.startDate, args.endDate);
+          if (range) {
+            q = q.gte('call_date', range.gte).lte('call_date', range.lte);
+          } else if (args.date && args.date !== 'today') {
+            q = q.gte('call_date', `${args.date}T00:00:00.000Z`).lte('call_date', `${args.date}T23:59:59.999Z`);
+          }
+          if (args.isQualified !== undefined) q = q.eq('is_qualified', args.isQualified);
+          if (args.status) q = q.eq('status', args.status);
+
+          const { data, error } = await q;
+          if (!error && data) {
+            return {
+              result: {
+                count: data.length,
+                qualified: data.filter((l: any) => l.is_qualified).length,
+                answered: data.filter((l: any) => l.status === 'answered').length,
+                missed: data.filter((l: any) => l.status === 'missed').length,
+                callLogs: data.map((log: any) => ({
+                  id: log.id,
+                  callerName: log.caller_name,
+                  callerPhone: log.caller_phone,
+                  callDate: log.call_date,
+                  status: log.status,
+                  isQualified: log.is_qualified,
+                  notes: log.notes,
+                  addedToCRM: log.added_to_crm,
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_call_logs, falling back to appData:', dbErr);
+        }
+      }
+
+      // FALLBACK
       const { callLogs = [] } = appData;
-      let filtered = callLogs;
+      let filteredLogs = callLogs;
       const today = new Date().toISOString().split('T')[0];
-
       const filterDate = args.date === 'today' ? today : args.date;
-
-      if (filterDate) {
-        filtered = filtered.filter((log: any) => log.callDate?.startsWith(filterDate));
-      }
-      if (args.isQualified !== undefined) {
-        filtered = filtered.filter((log: any) => log.isQualified === args.isQualified);
-      }
-      if (args.status) {
-        filtered = filtered.filter((log: any) => log.status === args.status);
-      }
-
+      if (filterDate) filteredLogs = filteredLogs.filter((log: any) => log.callDate?.startsWith(filterDate));
+      if (args.isQualified !== undefined) filteredLogs = filteredLogs.filter((log: any) => log.isQualified === args.isQualified);
+      if (args.status) filteredLogs = filteredLogs.filter((log: any) => log.status === args.status);
       return {
         result: {
-          count: filtered.length,
+          count: filteredLogs.length,
           qualified: callLogs.filter((l: any) => l.isQualified).length,
           answered: callLogs.filter((l: any) => l.status === 'answered').length,
           missed: callLogs.filter((l: any) => l.status === 'missed').length,
-          callLogs: filtered.map((log: any) => ({
-            id: log.id,
-            callerName: log.callerName,
-            callerPhone: log.callerPhone,
-            callDate: log.callDate,
-            status: log.status,
-            isQualified: log.isQualified,
-            notes: log.notes,
-            addedToCRM: log.addedToCRM,
+          callLogs: filteredLogs.map((log: any) => ({
+            id: log.id, callerName: log.callerName, callerPhone: log.callerPhone, callDate: log.callDate,
+            status: log.status, isQualified: log.isQualified, notes: log.notes, addedToCRM: log.addedToCRM,
           })),
         },
       };
     }
 
     case 'query_team_members': {
+      // LIVE DB PATH
+      if (supabase && companyId) {
+        try {
+          let q = supabase
+            .from('users')
+            .select('id, name, email, role, phone, hourly_rate, is_active, avatar')
+            .eq('company_id', companyId);
+
+          if (args.role) q = q.eq('role', args.role);
+          if (args.isActive !== undefined) q = q.eq('is_active', args.isActive);
+          else q = q.eq('is_active', true); // default to active only
+
+          const { data, error } = await q;
+          if (!error && data) {
+            return {
+              result: {
+                count: data.length,
+                byRole: {
+                  admins: data.filter((u: any) => u.role === 'admin' || u.role === 'super-admin').length,
+                  salespersons: data.filter((u: any) => u.role === 'salesperson').length,
+                  fieldEmployees: data.filter((u: any) => u.role === 'field-employee').length,
+                  employees: data.filter((u: any) => u.role === 'employee').length,
+                },
+                teamMembers: data.map((u: any) => ({
+                  id: u.id,
+                  name: u.name,
+                  email: u.email,
+                  role: u.role,
+                  phone: u.phone,
+                  hourlyRate: u.hourly_rate,
+                  isActive: u.is_active,
+                })),
+              },
+            };
+          }
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_team_members, falling back to appData:', dbErr);
+        }
+      }
+
+      // FALLBACK
       const { users = [] } = appData;
-      let filtered = users;
-
-      if (args.role) {
-        filtered = filtered.filter((u: any) => u.role === args.role);
-      }
-      if (args.isActive !== undefined) {
-        filtered = filtered.filter((u: any) => u.isActive === args.isActive);
-      }
-
+      let filteredUsers = users;
+      if (args.role) filteredUsers = filteredUsers.filter((u: any) => u.role === args.role);
+      if (args.isActive !== undefined) filteredUsers = filteredUsers.filter((u: any) => u.isActive === args.isActive);
       return {
         result: {
-          count: filtered.length,
+          count: filteredUsers.length,
           byRole: {
             admins: users.filter((u: any) => u.role === 'admin' || u.role === 'super-admin').length,
             salespersons: users.filter((u: any) => u.role === 'salesperson').length,
             fieldEmployees: users.filter((u: any) => u.role === 'field-employee').length,
             employees: users.filter((u: any) => u.role === 'employee').length,
           },
-          teamMembers: filtered.map((u: any) => ({
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            role: u.role,
-            phone: u.phone,
-            hourlyRate: u.hourlyRate,
-            isActive: u.isActive,
+          teamMembers: filteredUsers.map((u: any) => ({
+            id: u.id, name: u.name, email: u.email, role: u.role,
+            phone: u.phone, hourlyRate: u.hourlyRate, isActive: u.isActive,
           })),
         },
       };
@@ -4369,6 +4937,69 @@ Based on the store and items, intelligently categorize this expense:
           }),
         },
       };
+    }
+
+    case 'query_schedule': {
+      // LIVE DB PATH — queries scheduled_tasks + schedule_phases directly
+      if (supabase && companyId) {
+        try {
+          const [phasesRes, tasksRes] = await Promise.all([
+            supabase
+              .from('schedule_phases')
+              .select('*, project:project_id(id, name, company_id)')
+              .eq('company_id', companyId),
+            supabase
+              .from('scheduled_tasks')
+              .select('*, project:project_id(id, name, company_id)')
+              .eq('company_id', companyId)
+              .order('start_date', { ascending: true })
+              .limit(300),
+          ]);
+
+          let phases: any[] = phasesRes.data || [];
+          let tasks: any[] = tasksRes.data || [];
+
+          if (args.projectName) {
+            phases = phases.filter((p: any) => p.project?.name?.toLowerCase().includes(args.projectName.toLowerCase()));
+            tasks = tasks.filter((t: any) => t.project?.name?.toLowerCase().includes(args.projectName.toLowerCase()));
+          }
+
+          const range = buildDateRange(args.dateRange, args.startDate, args.endDate);
+          if (range) {
+            const startStr = range.gte.split('T')[0];
+            const endStr = range.lte.split('T')[0];
+            tasks = tasks.filter((t: any) => {
+              if (!t.start_date) return false;
+              return t.start_date >= startStr && t.start_date <= endStr;
+            });
+          }
+
+          if (args.completed !== undefined) {
+            tasks = tasks.filter((t: any) => Boolean(t.completed) === args.completed);
+          }
+
+          return {
+            result: {
+              phasesCount: phases.length,
+              tasksCount: tasks.length,
+              phases: phases.map((p: any) => ({ id: p.id, project: p.project?.name, name: p.name })),
+              tasks: tasks.map((t: any) => ({
+                id: t.id,
+                project: t.project?.name || 'Unknown',
+                category: t.category,
+                workType: t.work_type,
+                startDate: t.start_date,
+                endDate: t.end_date,
+                completed: t.completed,
+                notes: t.notes,
+              })),
+            },
+          };
+        } catch (dbErr) {
+          console.error('[AI Assistant] DB error in query_schedule:', dbErr);
+        }
+      }
+      return { result: { error: 'Schedule data unavailable — DB not connected.' } };
     }
 
     // ============================================
@@ -6126,7 +6757,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { messages, appData, pageContext } = req.body;
+    const { messages, appData, pageContext, companyId, userId } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
@@ -6136,14 +6767,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
+    // Create live Supabase client for real-time data queries
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabase = (supabaseUrl && supabaseServiceKey)
+      ? createClient(supabaseUrl, supabaseServiceKey)
+      : null;
+
+    // Resolve effective companyId — prefer explicit param, fall back to appData
+    const effectiveCompanyId: string | undefined = companyId || appData?.company?.id;
+    const effectiveUserId: string | undefined = userId || appData?.user?.id;
+
     console.log('[AI Assistant] Processing request with', messages.length, 'messages');
     console.log('[AI Assistant] Page context:', pageContext || 'none');
-    console.log('[AI Assistant] App data:', {
+    console.log('[AI Assistant] Company ID:', effectiveCompanyId || 'none', '| User ID:', effectiveUserId || 'none');
+    console.log('[AI Assistant] App data (cache):', {
       projects: appData?.projects?.length || 0,
       clients: appData?.clients?.length || 0,
       expenses: appData?.expenses?.length || 0,
       estimates: appData?.estimates?.length || 0,
     });
+    console.log('[AI Assistant] Live DB mode:', supabase ? 'ENABLED' : 'DISABLED (missing env vars)');
 
     // Extract attached files from messages
     const attachedFiles: any[] = [];
@@ -6283,7 +6927,7 @@ When the user says "this project", "this client", "this estimate", etc., they ar
       for (const toolCall of response.tool_calls) {
         const tc = toolCall as any;
         const args = JSON.parse(tc.function.arguments);
-        const toolResult = await executeToolCall(tc.function.name, args, appData || {}, openai, messages, attachedFiles);
+        const toolResult = await executeToolCall(tc.function.name, args, appData || {}, openai, messages, attachedFiles, supabase, effectiveCompanyId);
 
         console.log('[AI Assistant] Tool result for', tc.function.name, ':', toolResult.result);
 

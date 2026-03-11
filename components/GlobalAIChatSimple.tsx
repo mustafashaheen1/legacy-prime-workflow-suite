@@ -260,6 +260,8 @@ function useOpenAIChat(appData: {
         body: JSON.stringify({
           messages: apiMessages,
           pageContext: appData.currentPageContext || null,
+          companyId: appData.company?.id,
+          userId: appData.userId,
           appData: {
             projects: appData.projects,
             clients: appData.clients,
@@ -368,6 +370,8 @@ function useOpenAIChat(appData: {
         body: JSON.stringify({
           messages: apiMessages,
           pageContext: appData.currentPageContext || null, // Current page context for "this project" etc.
+          companyId: appData.company?.id,
+          userId: appData.userId,
           appData: {
             projects: appData.projects,
             clients: appData.clients,
