@@ -69,6 +69,27 @@ function parseNaturalDate(dateStr: string): string {
     return result.toISOString().split('T')[0];
   }
 
+  // Handle "10 march", "march 10", "10 march 2026", "march 10 2026", etc.
+  const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const monthPattern = /(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+(\d{4}))?/i;
+  const monthPattern2 = /(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:\s+(\d{4}))?/i;
+  const monthMatch = lowerDate.match(monthPattern);
+  const monthMatch2 = !monthMatch ? lowerDate.match(monthPattern2) : null;
+  if (monthMatch) {
+    const day = parseInt(monthMatch[1]);
+    const month = monthNames.indexOf(monthMatch[2].toLowerCase());
+    const year = monthMatch[3] ? parseInt(monthMatch[3]) : today.getFullYear();
+    const result = new Date(year, month, day);
+    return result.toISOString().split('T')[0];
+  }
+  if (monthMatch2) {
+    const month = monthNames.indexOf(monthMatch2[1].toLowerCase());
+    const day = parseInt(monthMatch2[2]);
+    const year = monthMatch2[3] ? parseInt(monthMatch2[3]) : today.getFullYear();
+    const result = new Date(year, month, day);
+    return result.toISOString().split('T')[0];
+  }
+
   // If it's already in YYYY-MM-DD format, return as-is
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return dateStr;
@@ -2472,7 +2493,7 @@ async function executeToolCall(
         try {
           let q = supabase
             .from('projects')
-            .select('*, estimate:estimate_id(id, client_id, clients(id, name))')
+            .select('*')
             .eq('company_id', companyId)
             .order('created_at', { ascending: false });
 
@@ -2481,20 +2502,33 @@ async function executeToolCall(
 
           const { data, error } = await q;
           if (!error && data) {
-            let result: any[] = data.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              status: p.status,
-              budget: Number(p.budget || 0),
-              expenses: Number(p.expenses || 0),
-              progress: p.progress,
-              startDate: p.start_date,
-              endDate: p.end_date,
-              address: p.address,
-              estimateId: p.estimate_id,
-              clientId: p.estimate?.clients?.id || null,
-              clientName: p.estimate?.clients?.name || null,
-            }));
+            // Build client lookup from appData estimates
+            const estimatesMap: Record<string, string> = {};
+            const estimateClientIdMap: Record<string, string> = {};
+            (appData.estimates || []).forEach((est: any) => {
+              estimatesMap[est.id] = est.clientId || est.client_id;
+              estimateClientIdMap[est.id] = est.clientId || est.client_id;
+            });
+            const clientsNameMap: Record<string, string> = {};
+            (appData.clients || []).forEach((c: any) => { clientsNameMap[c.id] = c.name; });
+
+            let result: any[] = data.map((p: any) => {
+              const clientId = estimateClientIdMap[p.estimate_id] || null;
+              return {
+                id: p.id,
+                name: p.name,
+                status: p.status,
+                budget: Number(p.budget || 0),
+                expenses: Number(p.expenses || 0),
+                progress: p.progress,
+                startDate: p.start_date,
+                endDate: p.end_date,
+                address: p.address,
+                estimateId: p.estimate_id,
+                clientId,
+                clientName: clientId ? (clientsNameMap[clientId] || null) : null,
+              };
+            });
 
             if (args.clientName) {
               result = result.filter((p: any) =>
@@ -2589,7 +2623,7 @@ async function executeToolCall(
         try {
           let q = supabase
             .from('expenses')
-            .select('*, project:project_id(id, name, company_id), uploader:uploaded_by(id, name)')
+            .select('*')
             .eq('company_id', companyId)
             .order('date', { ascending: false })
             .limit(1000);
@@ -2606,21 +2640,18 @@ async function executeToolCall(
 
           const { data, error } = await q;
           if (!error && data) {
+            const expProjectsMap: Record<string, string> = {};
+            (appData.projects || []).forEach((p: any) => { expProjectsMap[p.id] = p.name; });
+            const expUsersMap: Record<string, string> = {};
+            (appData.users || []).forEach((u: any) => { expUsersMap[u.id] = u.name; });
+
             let result: any[] = data;
 
-            // Project name / client name filter (post-fetch)
+            // Project name filter (post-fetch)
             if (args.projectName) {
               result = result.filter((e: any) =>
-                e.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+                (expProjectsMap[e.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
               );
-              // If no direct project match, try matching by client name via project client linkage
-              if (result.length === 0) {
-                // Re-filter from full data using client name search
-                const lowerSearch = args.projectName.toLowerCase();
-                result = data.filter((e: any) =>
-                  e.project?.name?.toLowerCase().includes(lowerSearch)
-                );
-              }
             }
 
             // Group by category for summary
@@ -2638,7 +2669,7 @@ async function executeToolCall(
                 byCategory,
                 expenses: result.map((e: any) => ({
                   id: e.id,
-                  project: e.project?.name || 'No Project',
+                  project: expProjectsMap[e.project_id] || 'No Project',
                   type: e.type,
                   subcategory: e.subcategory,
                   amount: Number(e.amount),
@@ -2646,7 +2677,7 @@ async function executeToolCall(
                   date: e.date,
                   notes: e.notes,
                   hasReceipt: !!e.receipt_url,
-                  uploadedBy: e.uploader?.name || 'Unknown',
+                  uploadedBy: expUsersMap[e.uploaded_by] || 'Unknown',
                 })),
               },
             };
@@ -3966,7 +3997,7 @@ Based on the store and items, intelligently categorize this expense:
         try {
           let q = supabase
             .from('clock_entries')
-            .select('*, employee:employee_id(id, name, avatar), project:project_id(id, name)')
+            .select('*')
             .eq('company_id', companyId)
             .order('clock_in', { ascending: false })
             .limit(500);
@@ -3977,20 +4008,26 @@ Based on the store and items, intelligently categorize this expense:
           if (range) {
             q = q.gte('clock_in', range.gte).lte('clock_in', range.lte);
           } else if (args.date && args.date !== 'today') {
-            q = q.gte('clock_in', `${args.date}T00:00:00.000Z`).lte('clock_in', `${args.date}T23:59:59.999Z`);
+            const parsedDate = parseNaturalDate(args.date);
+            q = q.gte('clock_in', `${parsedDate}T00:00:00`).lte('clock_in', `${parsedDate}T23:59:59.999`);
           }
 
           const { data, error } = await q;
           if (!error && data) {
+            const usersMap: Record<string, string> = {};
+            (appData.users || []).forEach((u: any) => { usersMap[u.id] = u.name; });
+            const projectsMap: Record<string, string> = {};
+            (appData.projects || []).forEach((p: any) => { projectsMap[p.id] = p.name; });
+
             let filtered: any[] = data;
             if (args.employeeName) {
               filtered = filtered.filter((e: any) =>
-                e.employee?.name?.toLowerCase().includes(args.employeeName.toLowerCase())
+                (usersMap[e.employee_id] || '').toLowerCase().includes(args.employeeName.toLowerCase())
               );
             }
             if (args.projectName) {
               filtered = filtered.filter((e: any) =>
-                e.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+                (projectsMap[e.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
               );
             }
             if (args.employeeId) {
@@ -4008,7 +4045,7 @@ Based on the store and items, intelligently categorize this expense:
             }, 0);
 
             const currentlyClockedIn = filtered.filter((e: any) => e.clock_in && !e.clock_out);
-            const uniqueEmployees = [...new Set(filtered.map((e: any) => e.employee?.name).filter(Boolean))];
+            const uniqueEmployees = [...new Set(filtered.map((e: any) => usersMap[e.employee_id]).filter(Boolean))];
 
             return {
               result: {
@@ -4016,14 +4053,14 @@ Based on the store and items, intelligently categorize this expense:
                 totalHours: Math.round(totalHours * 100) / 100,
                 employeesWhoClocked: uniqueEmployees,
                 currentlyClockedIn: currentlyClockedIn.map((e: any) => ({
-                  employee: e.employee?.name || 'Unknown',
-                  project: e.project?.name || 'No Project',
+                  employee: usersMap[e.employee_id] || e.employee_id || 'Unknown',
+                  project: projectsMap[e.project_id] || e.project_id || 'No Project',
                   clockedInAt: e.clock_in,
                 })),
                 entries: filtered.map((e: any) => ({
                   id: e.id,
-                  employeeName: e.employee?.name || 'Unknown',
-                  project: e.project?.name || 'No Project',
+                  employeeName: usersMap[e.employee_id] || e.employee_id || 'Unknown',
+                  project: projectsMap[e.project_id] || e.project_id || 'No Project',
                   clockIn: e.clock_in,
                   clockOut: e.clock_out || null,
                   workPerformed: e.work_performed,
@@ -4101,7 +4138,7 @@ Based on the store and items, intelligently categorize this expense:
         try {
           let q = supabase
             .from('payments')
-            .select('*, client:client_id(id, name), project:project_id(id, name)')
+            .select('*')
             .eq('company_id', companyId)
             .order('date', { ascending: false })
             .limit(500);
@@ -4111,7 +4148,8 @@ Based on the store and items, intelligently categorize this expense:
           if (range) {
             q = q.gte('date', range.gte.split('T')[0]).lte('date', range.lte.split('T')[0]);
           } else if (args.date && args.date !== 'today') {
-            q = q.eq('date', args.date);
+            const parsedDate = parseNaturalDate(args.date);
+            q = q.eq('date', parsedDate);
           } else if (args.startDate && args.endDate) {
             q = q.gte('date', args.startDate).lte('date', args.endDate);
           }
@@ -4119,15 +4157,20 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            const clientsMap: Record<string, string> = {};
+            (appData.clients || []).forEach((c: any) => { clientsMap[c.id] = c.name; });
+            const projectsMap: Record<string, string> = {};
+            (appData.projects || []).forEach((p: any) => { projectsMap[p.id] = p.name; });
+
             let filtered: any[] = data;
             if (args.clientName) {
               filtered = filtered.filter((p: any) =>
-                p.client?.name?.toLowerCase().includes(args.clientName.toLowerCase())
+                (clientsMap[p.client_id] || '').toLowerCase().includes(args.clientName.toLowerCase())
               );
             }
             if (args.projectName) {
               filtered = filtered.filter((p: any) =>
-                p.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+                (projectsMap[p.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
               );
             }
             const totalAmount = filtered.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
@@ -4139,8 +4182,8 @@ Based on the store and items, intelligently categorize this expense:
                   id: p.id,
                   amount: Number(p.amount),
                   date: p.date,
-                  clientName: p.client?.name || 'Unknown',
-                  project: p.project?.name || 'No Project',
+                  clientName: clientsMap[p.client_id] || 'Unknown',
+                  project: projectsMap[p.project_id] || 'No Project',
                   method: p.method,
                   notes: p.notes,
                 })),
@@ -4192,7 +4235,7 @@ Based on the store and items, intelligently categorize this expense:
         try {
           let q = supabase
             .from('daily_logs')
-            .select('*, project:project_id(id, name, company_id), creator:created_by(id, name)')
+            .select('*')
             .order('log_date', { ascending: false })
             .limit(200);
 
@@ -4201,18 +4244,28 @@ Based on the store and items, intelligently categorize this expense:
           if (range) {
             q = q.gte('log_date', range.gte.split('T')[0]).lte('log_date', range.lte.split('T')[0]);
           } else if (args.date && args.date !== 'today') {
-            q = q.eq('log_date', args.date);
+            const parsedDate = parseNaturalDate(args.date);
+            q = q.eq('log_date', parsedDate);
           }
           if (args.projectId) q = q.eq('project_id', args.projectId);
 
           const { data, error } = await q;
           if (!error && data) {
+            const projectsMap: Record<string, string> = {};
+            const projectCompanyMap: Record<string, string> = {};
+            (appData.projects || []).forEach((p: any) => {
+              projectsMap[p.id] = p.name;
+              projectCompanyMap[p.id] = p.companyId || p.company_id;
+            });
+            const usersMap: Record<string, string> = {};
+            (appData.users || []).forEach((u: any) => { usersMap[u.id] = u.name; });
+
             let filtered: any[] = data;
             // Filter to this company's projects
-            filtered = filtered.filter((log: any) => log.project?.company_id === companyId);
+            filtered = filtered.filter((log: any) => projectCompanyMap[log.project_id] === companyId);
             if (args.projectName) {
               filtered = filtered.filter((log: any) =>
-                log.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+                (projectsMap[log.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
               );
             }
             return {
@@ -4220,12 +4273,12 @@ Based on the store and items, intelligently categorize this expense:
                 count: filtered.length,
                 logs: filtered.map((log: any) => ({
                   id: log.id,
-                  project: log.project?.name || 'Unknown Project',
+                  project: projectsMap[log.project_id] || 'Unknown Project',
                   logDate: log.log_date,
                   workPerformed: log.work_performed,
                   issues: log.issues,
                   generalNotes: log.general_notes,
-                  createdBy: log.creator?.name || log.created_by,
+                  createdBy: usersMap[log.created_by] || log.created_by,
                 })),
               },
             };
@@ -4268,7 +4321,7 @@ Based on the store and items, intelligently categorize this expense:
         try {
           let q = supabase
             .from('tasks')
-            .select('*, project:project_id(id, name, company_id)')
+            .select('*')
             .order('date', { ascending: true })
             .limit(500);
 
@@ -4277,12 +4330,19 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            const projectsMap: Record<string, string> = {};
+            const projectCompanyMap: Record<string, string> = {};
+            (appData.projects || []).forEach((p: any) => {
+              projectsMap[p.id] = p.name;
+              projectCompanyMap[p.id] = p.companyId || p.company_id;
+            });
+
             let filtered: any[] = data;
             // Filter to this company's projects
-            filtered = filtered.filter((t: any) => t.project?.company_id === companyId);
+            filtered = filtered.filter((t: any) => projectCompanyMap[t.project_id] === companyId);
             if (args.projectName) {
               filtered = filtered.filter((t: any) =>
-                t.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+                (projectsMap[t.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
               );
             }
             return {
@@ -4293,7 +4353,7 @@ Based on the store and items, intelligently categorize this expense:
                 tasks: filtered.map((t: any) => ({
                   id: t.id,
                   name: t.name,
-                  project: t.project?.name || 'No Project',
+                  project: projectsMap[t.project_id] || 'No Project',
                   date: t.date,
                   completed: t.completed,
                 })),
@@ -4336,7 +4396,7 @@ Based on the store and items, intelligently categorize this expense:
         try {
           let q = supabase
             .from('photos')
-            .select('*, project:project_id(id, name), uploader:uploaded_by(id, name)')
+            .select('*')
             .eq('company_id', companyId)
             .order('date', { ascending: false })
             .limit(500);
@@ -4346,10 +4406,15 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            const projectsMap: Record<string, string> = {};
+            (appData.projects || []).forEach((p: any) => { projectsMap[p.id] = p.name; });
+            const usersMap: Record<string, string> = {};
+            (appData.users || []).forEach((u: any) => { usersMap[u.id] = u.name; });
+
             let filtered: any[] = data;
             if (args.projectName) {
               filtered = filtered.filter((p: any) =>
-                p.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+                (projectsMap[p.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
               );
             }
             const byCategory: Record<string, number> = {};
@@ -4363,11 +4428,11 @@ Based on the store and items, intelligently categorize this expense:
                 byCategory,
                 photos: filtered.slice(0, 20).map((p: any) => ({
                   id: p.id,
-                  project: p.project?.name || 'Unknown',
+                  project: projectsMap[p.project_id] || 'Unknown',
                   category: p.category,
                   notes: p.notes,
                   date: p.date,
-                  uploadedBy: p.uploader?.name || 'Unknown',
+                  uploadedBy: usersMap[p.uploaded_by] || 'Unknown',
                 })),
               },
             };
@@ -4407,7 +4472,7 @@ Based on the store and items, intelligently categorize this expense:
         try {
           let q = supabase
             .from('change_orders')
-            .select('*, project:project_id(id, name, company_id)')
+            .select('*')
             .order('created_at', { ascending: false })
             .limit(200);
 
@@ -4416,11 +4481,18 @@ Based on the store and items, intelligently categorize this expense:
 
           const { data, error } = await q;
           if (!error && data) {
+            const projectsMap: Record<string, string> = {};
+            const projectCompanyMap: Record<string, string> = {};
+            (appData.projects || []).forEach((p: any) => {
+              projectsMap[p.id] = p.name;
+              projectCompanyMap[p.id] = p.companyId || p.company_id;
+            });
+
             let filtered: any[] = data;
-            filtered = filtered.filter((co: any) => co.project?.company_id === companyId);
+            filtered = filtered.filter((co: any) => projectCompanyMap[co.project_id] === companyId);
             if (args.projectName) {
               filtered = filtered.filter((co: any) =>
-                co.project?.name?.toLowerCase().includes(args.projectName.toLowerCase())
+                (projectsMap[co.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase())
               );
             }
             const totalAmount = filtered.reduce((sum: number, co: any) => sum + Number(co.amount || 0), 0);
@@ -4432,7 +4504,7 @@ Based on the store and items, intelligently categorize this expense:
                 approved: filtered.filter((co: any) => co.status === 'approved').length,
                 changeOrders: filtered.map((co: any) => ({
                   id: co.id,
-                  project: co.project?.name || 'Unknown',
+                  project: projectsMap[co.project_id] || 'Unknown',
                   description: co.description,
                   amount: Number(co.amount),
                   status: co.status,
@@ -4946,22 +5018,25 @@ Based on the store and items, intelligently categorize this expense:
           const [phasesRes, tasksRes] = await Promise.all([
             supabase
               .from('schedule_phases')
-              .select('*, project:project_id(id, name, company_id)')
+              .select('*')
               .eq('company_id', companyId),
             supabase
               .from('scheduled_tasks')
-              .select('*, project:project_id(id, name, company_id)')
+              .select('*')
               .eq('company_id', companyId)
               .order('start_date', { ascending: true })
               .limit(300),
           ]);
 
+          const schedProjectsMap: Record<string, string> = {};
+          (appData.projects || []).forEach((p: any) => { schedProjectsMap[p.id] = p.name; });
+
           let phases: any[] = phasesRes.data || [];
           let tasks: any[] = tasksRes.data || [];
 
           if (args.projectName) {
-            phases = phases.filter((p: any) => p.project?.name?.toLowerCase().includes(args.projectName.toLowerCase()));
-            tasks = tasks.filter((t: any) => t.project?.name?.toLowerCase().includes(args.projectName.toLowerCase()));
+            phases = phases.filter((p: any) => (schedProjectsMap[p.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase()));
+            tasks = tasks.filter((t: any) => (schedProjectsMap[t.project_id] || '').toLowerCase().includes(args.projectName.toLowerCase()));
           }
 
           const range = buildDateRange(args.dateRange, args.startDate, args.endDate);
@@ -4982,10 +5057,10 @@ Based on the store and items, intelligently categorize this expense:
             result: {
               phasesCount: phases.length,
               tasksCount: tasks.length,
-              phases: phases.map((p: any) => ({ id: p.id, project: p.project?.name, name: p.name })),
+              phases: phases.map((p: any) => ({ id: p.id, project: schedProjectsMap[p.project_id] || 'Unknown', name: p.name })),
               tasks: tasks.map((t: any) => ({
                 id: t.id,
-                project: t.project?.name || 'Unknown',
+                project: schedProjectsMap[t.project_id] || 'Unknown',
                 category: t.category,
                 workType: t.work_type,
                 startDate: t.start_date,
