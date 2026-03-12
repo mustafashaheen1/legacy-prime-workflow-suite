@@ -7408,11 +7408,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       estimates: ['query_estimates', 'create_estimate', 'send_estimate'],
     };
     const FINANCIAL_TOOLS = ['query_estimates', 'query_payments', 'generate_report', 'create_estimate', 'send_estimate', 'query_change_orders'];
-    const BASIC_ONLY_ALLOWED_TOOLS = [
+    const BASIC_ONLY_BASE_TOOLS = [
       'query_clock_entries', 'query_photos', 'query_tasks', 'query_schedule',
       'query_daily_tasks', 'add_daily_task', 'update_daily_task', 'delete_daily_tasks',
       'bulk_update_daily_task_reminders', 'add_expense', 'query_expenses',
     ];
+    // Tools unlocked per feature when a basic-only user has explicit access granted
+    const FEATURE_UNLOCKED_TOOLS: Record<string, string[]> = {
+      projects: ['query_projects', 'query_tasks', 'create_project', 'update_project'],
+      crm:      ['query_clients', 'add_client', 'update_client'],
+      reports:  ['generate_report'],
+      subs:     ['query_subcontractors', 'query_proposals'],
+      expenses: ['query_expenses', 'add_expense'],
+    };
+    // Build the final allowed-tools set for this specific user
+    const basicOnlyAllowedTools = new Set<string>(BASIC_ONLY_BASE_TOOLS);
+    // (serverFeatures is populated after the DB fetch below — applied at gate time)
 
     let serverChatbotLevel: 'unrestricted' | 'no-financials' | 'basic-only' = 'basic-only';
     let serverChatbotEnabled = true;
@@ -7467,6 +7478,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: "You don't have access to the AI assistant. Contact your admin to enable it.",
         blocked: true,
       });
+    }
+
+    // Expand allowed tool set based on explicit feature grants for basic-only users
+    if (serverChatbotLevel === 'basic-only') {
+      for (const [featureKey, tools] of Object.entries(FEATURE_UNLOCKED_TOOLS)) {
+        if (serverFeatures[featureKey] === true) {
+          tools.forEach(t => basicOnlyAllowedTools.add(t));
+        }
+      }
     }
 
     console.log('[AI Assistant] Permission level:', serverUserRole, '| Chatbot:', serverChatbotLevel, '| Features:', JSON.stringify(serverFeatures));
@@ -7723,7 +7743,7 @@ When the user says "this project", "this client", "this estimate", etc., they ar
             blockedByPermission = true;
             openaiMessages.push({ role: 'tool', tool_call_id: toolCall.id,
               content: JSON.stringify({ error: "Access denied: financial data queries are not available for your account." }) });
-          } else if (serverChatbotLevel === 'basic-only' && !BASIC_ONLY_ALLOWED_TOOLS.includes(toolName)) {
+          } else if (serverChatbotLevel === 'basic-only' && !basicOnlyAllowedTools.has(toolName)) {
             blockedByPermission = true;
             openaiMessages.push({ role: 'tool', tool_call_id: toolCall.id,
               content: JSON.stringify({ error: "Access denied: this query is not available for your account level." }) });
