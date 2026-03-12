@@ -2331,7 +2331,7 @@ You have **direct, real-time access** to the company database through your query
 - "What is scheduled this week?" → call query_schedule with dateRange: "this_week"
 
 ### Data sources you can query:
-- query_clock_entries — time tracking, who clocked in/out, hours worked, lunch breaks. Result includes: currentlyClockedIn (working now), currentlyOnLunch (on active lunch break), entries[].status ("Currently Working" | "On Lunch Break" | "Completed"), entries[].lunchBreaks[].active
+- query_clock_entries — time tracking, who clocked in/out, hours worked, lunch breaks. Result includes: currentlyClockedIn (working now), currentlyOnLunch (on active lunch break), entries[].status ("Currently Working" | "On Lunch Break" | "Completed"), entries[].lunchBreaks[].startTime (local time), entries[].lunchBreaks[].endTime (local time or null if still on lunch), entries[].lunchBreaks[].durationMinutes (null if still on lunch), entries[].lunchBreaks[].active. ALWAYS show startTime and endTime from lunchBreaks — never say times are "unknown" if the data is present.
 - query_expenses — expenses by project, date, category
 - query_projects — project list, status, budgets
 - query_clients — CRM, customer information
@@ -4198,7 +4198,7 @@ Based on the store and items, intelligently categorize this expense:
             // Helper: does this entry have an active (open) lunch break?
             const isOnActiveLunch = (e: any): boolean => {
               const breaks: any[] = Array.isArray(e.lunch_breaks) ? e.lunch_breaks : [];
-              return breaks.some((lb: any) => lb.startTime && !lb.endTime);
+              return breaks.some((lb: any) => lb && lb.startTime && !lb.endTime);
             };
 
             const activeEntries = filtered.filter((e: any) => e.clock_in && !e.clock_out);
@@ -4219,7 +4219,7 @@ Based on the store and items, intelligently categorize this expense:
                 })),
                 currentlyOnLunch: currentlyOnLunch.map((e: any) => {
                   const breaks: any[] = Array.isArray(e.lunch_breaks) ? e.lunch_breaks : [];
-                  const activeLunch = breaks.find((lb: any) => lb.startTime && !lb.endTime);
+                  const activeLunch = breaks.find((lb: any) => lb && lb.startTime && !lb.endTime);
                   return {
                     employee: usersMap[e.employee_id] || e.employee_id || 'Unknown',
                     project: projectsMap[e.project_id] || e.project_id || 'No Project',
@@ -4241,11 +4241,16 @@ Based on the store and items, intelligently categorize this expense:
                   hoursWorked: e.clock_out
                     ? ((new Date(e.clock_out).getTime() - new Date(e.clock_in).getTime()) / 3600000).toFixed(2)
                     : 'Still clocked in',
-                  lunchBreaks: (Array.isArray(e.lunch_breaks) ? e.lunch_breaks : []).map((lb: any) => ({
-                    startTime: formatLocalTime(lb.startTime, timezone),
-                    endTime: lb.endTime ? formatLocalTime(lb.endTime, timezone) : null,
-                    active: !lb.endTime,
-                  })),
+                  lunchBreaks: (Array.isArray(e.lunch_breaks) ? e.lunch_breaks : [])
+                    .filter((lb: any) => lb && lb.startTime) // skip null/malformed entries
+                    .map((lb: any) => ({
+                      startTime: formatLocalTime(lb.startTime, timezone),
+                      endTime: lb.endTime ? formatLocalTime(lb.endTime, timezone) : null,
+                      durationMinutes: lb.endTime
+                        ? Math.round((new Date(lb.endTime).getTime() - new Date(lb.startTime).getTime()) / 60000)
+                        : null,
+                      active: !lb.endTime,
+                    })),
                 })),
               },
             };
