@@ -7560,9 +7560,14 @@ ${serverChatbotLevel === 'unrestricted' ? `- No restrictions. You may answer all
 ${serverChatbotLevel === 'no-financials' ? `- BLOCKED topics (do NOT answer or reveal): budget amounts, hourly rates, total labor costs, estimate totals, payment amounts, revenue, profit, payroll, salary, wages, expense totals, financial reports, contract values, change order amounts.
 - If user asks about a blocked topic, reply: "I'm sorry, I'm not able to share financial details with your account. Please contact your admin."
 - Allowed: project status, task progress, schedules, team info (names/roles only, no rates), photos, client names.` : ''}
-${serverChatbotLevel === 'basic-only' ? `- BLOCKED topics (do NOT answer or reveal): ANY financial data (budgets, costs, rates, payments, estimates, expenses of others), CRM client details, subcontractor info, reports, other employees' work hours.
-- Only allowed: your own clock entries, tasks assigned to you, site photos, project names/status (no financials), your own expenses, daily tasks.
-- If user asks about anything outside this scope, reply: "I'm sorry, I don't have access to that information. Contact your admin if you need more access."` : ''}
+${serverChatbotLevel === 'basic-only' ? `- Default BLOCKED topics (do NOT answer or reveal unless a feature override below explicitly grants access): ANY financial data (budgets, costs, rates, payments, estimates), CRM client details, subcontractor info, reports, other employees' work hours.
+- Base allowed: your own clock entries, tasks assigned to you, site photos, project names/status (no financials), your own expenses, daily tasks.
+- If user asks about anything outside this scope (and not granted below), reply: "I'm sorry, I don't have access to that information. Contact your admin if you need more access."` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.expenses ? `- EXPENSES OVERRIDE: This user has been granted Expenses access by their admin. You MAY answer questions about expense data, expense totals per project, cost breakdowns, and payment amounts. This overrides the default financial block for expense-related queries.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.reports ? `- REPORTS OVERRIDE: This user has been granted Reports access. You MAY generate and share financial summaries, analytics, and report data.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.projects ? `- PROJECTS OVERRIDE: This user has been granted Project Overview access. You MAY share project budget and financial details.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.crm ? `- CRM OVERRIDE: This user has been granted CRM access. You MAY answer questions about clients and CRM records.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.subs ? `- SUBCONTRACTORS OVERRIDE: This user has been granted Subcontractor access. You MAY share estimate, proposal, and subcontractor data.` : ''}
 ${!serverFeatures.crm ? `- CRM access is disabled for this user. Do NOT answer questions about clients or add/edit client records.` : ''}
 ${!serverFeatures.expenses ? `- Expenses access is disabled. Do NOT answer questions about expense data or help add expenses.` : ''}
 ${!serverFeatures.projects ? `- Project access is disabled. Do NOT show project details or task information.` : ''}

@@ -131,7 +131,24 @@ const estimateKeywords = [
   'estimate', 'estimates', 'pricing', 'cost breakdown', 'quote', 'bid', 'proposal'
 ];
 
-export const shouldBlockChatbotQuery = (userRole: UserRole, query: string): { shouldBlock: boolean; reason?: string } => {
+/**
+ * Maps feature keys to the financial/estimate keywords they "unlock".
+ * If a user has explicit access to a feature, its associated keywords are
+ * removed from the blocking list before evaluation.
+ */
+const FEATURE_KEYWORD_UNLOCKS: Record<string, string[]> = {
+  expenses:  ['expense', 'cost', 'costs', 'how much', 'paid', 'charge', 'fee', 'dollar', '$', 'money', 'payment'],
+  reports:   ['analytics', 'report', 'breakdown', 'balance', 'income', 'revenue', 'profit'],
+  projects:  ['budget', 'markup'],
+  crm:       ['contract', 'legal', 'terms'],
+  subs:      ['estimate', 'estimates', 'pricing', 'cost breakdown', 'quote', 'bid', 'proposal', 'price', 'pricing'],
+};
+
+export const shouldBlockChatbotQuery = (
+  userRole: UserRole,
+  query: string,
+  customPermissions?: Record<string, boolean>
+): { shouldBlock: boolean; reason?: string } => {
   const restrictionLevel = getChatbotRestrictionLevel(userRole);
   const lowerQuery = query.toLowerCase();
 
@@ -139,7 +156,20 @@ export const shouldBlockChatbotQuery = (userRole: UserRole, query: string): { sh
     return { shouldBlock: false };
   }
 
-  const hasFinancialKeyword = financialKeywords.some(keyword => lowerQuery.includes(keyword));
+  // Build the set of keywords that are unlocked by the user's explicit feature access.
+  const unlockedKeywords = new Set<string>();
+  if (customPermissions) {
+    for (const [featureKey, keywords] of Object.entries(FEATURE_KEYWORD_UNLOCKS)) {
+      if (customPermissions[featureKey] === true) {
+        keywords.forEach(k => unlockedKeywords.add(k));
+      }
+    }
+  }
+
+  const effectiveFinancialKeywords = financialKeywords.filter(k => !unlockedKeywords.has(k));
+  const effectiveEstimateKeywords  = estimateKeywords.filter(k => !unlockedKeywords.has(k));
+
+  const hasFinancialKeyword = effectiveFinancialKeywords.some(keyword => lowerQuery.includes(keyword));
 
   if (restrictionLevel === 'no-financials' && hasFinancialKeyword) {
     return {
@@ -149,7 +179,7 @@ export const shouldBlockChatbotQuery = (userRole: UserRole, query: string): { sh
   }
 
   if (restrictionLevel === 'basic-only') {
-    const hasEstimateKeyword = estimateKeywords.some(keyword => lowerQuery.includes(keyword));
+    const hasEstimateKeyword = effectiveEstimateKeywords.some(keyword => lowerQuery.includes(keyword));
     if (hasFinancialKeyword || hasEstimateKeyword) {
       return {
         shouldBlock: true,

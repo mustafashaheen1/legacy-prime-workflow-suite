@@ -27,7 +27,7 @@ export const usePermissions = () => {
 
   const checkChatbotQuery = (query: string) => {
     if (!user) return { shouldBlock: true, reason: 'User not authenticated' };
-    return shouldBlockChatbotQuery(user.role, query);
+    return shouldBlockChatbotQuery(user.role, query, user.customPermissions);
   };
 
   /** Returns true if the user has access to the given feature key,
