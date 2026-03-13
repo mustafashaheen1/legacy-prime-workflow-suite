@@ -5400,14 +5400,18 @@ Based on the store and items, intelligently categorize this expense:
         try {
           // Resolve company's projects first — filter by project_id IN (company projects)
           // so results are correct even for rows where company_id was not stored (legacy data).
+          // Include active + on-hold + completed; exclude only archived so schedule history is visible.
           const { data: compProjects } = await supabase
             .from('projects')
-            .select('id, name')
-            .eq('company_id', companyId);
+            .select('id, name, status')
+            .eq('company_id', companyId)
+            .neq('status', 'archived');
           const schedProjectsMap: Record<string, string> = {};
+          const schedProjectStatusMap: Record<string, string> = {};
           const companyProjectIds: string[] = [];
           (compProjects || []).forEach((p: any) => {
             schedProjectsMap[p.id] = p.name;
+            schedProjectStatusMap[p.id] = p.status;
             companyProjectIds.push(p.id);
           });
 
@@ -5458,6 +5462,7 @@ Based on the store and items, intelligently categorize this expense:
               tasks: tasks.map((t: any) => ({
                 id: t.id,
                 project: schedProjectsMap[t.project_id] || 'Unknown',
+                projectStatus: schedProjectStatusMap[t.project_id] || 'active',
                 category: t.category,
                 workType: t.work_type,
                 startDate: t.start_date,
