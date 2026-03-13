@@ -396,14 +396,19 @@ export default function ChatScreen() {
   useEffect(() => {
     if (!selectedConversation || Platform.OS === 'web') return;
 
+    // Only preload the 5 most recent voice messages.
+    // Preloading too many simultaneously triggers AVAudioSession "isPlayable
+    // accessed synchronously" warnings and saturates the audio session on iOS.
     const voiceUris = selectedConversation.messages
       .filter((m) => m.type === 'voice' && !m.isDeleted && m.content)
+      .slice(-5)
       .map((m) => m.content as string);
 
     if (voiceUris.length === 0) return;
 
+    // 500 ms stagger — gives AVAudioSession time to settle between loads
     const timers = voiceUris.map((uri, i) =>
-      setTimeout(() => { preloadAudio(uri); }, i * 300)
+      setTimeout(() => { preloadAudio(uri); }, i * 500)
     );
 
     return () => timers.forEach(clearTimeout);

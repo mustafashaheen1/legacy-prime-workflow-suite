@@ -102,30 +102,58 @@ export function createAudioPlayer(source: any): CompatAudioPlayer {
   }
 
   if (_av) {
-    // expo-av Sound fallback: create async, surface events via the status callback
+    // expo-av Sound fallback
+    // Key design:
+    //   - play() before sound loads queues via _pendingPlay flag
+    //   - isLoaded surfaces in every status event so AudioPlayer can gate the
+    //     loading→ready transition on actual load completion
+    //   - createAsync failures emit { error: true } so AudioPlayer shows error state
     const statusListeners: Array<(s: any) => void> = [];
     let _sound: any = null;
+    let _isLoaded = false;
+    let _pendingPlay = false;
 
     (_av.Audio as any).Sound.createAsync(
       source,
-      {},
+      { shouldPlay: false },
       (avStatus: any) => {
+        const nowLoaded = avStatus.isLoaded ?? false;
+        // Fire any queued play() once the sound is ready
+        if (nowLoaded && !_isLoaded) {
+          _isLoaded = true;
+          if (_pendingPlay) {
+            _pendingPlay = false;
+            _sound?.playAsync().catch(() => {});
+          }
+        }
         const mapped = {
           currentTime: (avStatus.positionMillis ?? 0) / 1000,
           duration: (avStatus.durationMillis ?? 0) / 1000,
+          isLoaded: nowLoaded,
           didJustFinish: avStatus.didJustFinish ?? false,
         };
         statusListeners.forEach((cb) => cb(mapped));
       }
     )
       .then(({ sound }: any) => { _sound = sound; })
-      .catch((e: any) => console.warn('[expo-audio-compat] expo-av Sound create failed:', e));
+      .catch((e: any) => {
+        console.warn('[expo-audio-compat] expo-av Sound create failed:', e?.message || e);
+        // Propagate the error to AudioPlayer via the status channel
+        statusListeners.forEach((cb) => cb({ error: true, isLoaded: false }));
+      });
 
     return {
-      play: () => _sound?.playAsync().catch(() => {}),
-      pause: () => _sound?.pauseAsync().catch(() => {}),
+      play: () => {
+        if (_sound && _isLoaded) {
+          _sound.playAsync().catch(() => {});
+        } else {
+          // Sound not ready yet — queue the play for when it loads
+          _pendingPlay = true;
+        }
+      },
+      pause: () => { _pendingPlay = false; _sound?.pauseAsync().catch(() => {}); },
       seekTo: (sec: number) => _sound?.setPositionAsync(sec * 1000).catch(() => {}),
-      remove: () => _sound?.unloadAsync().catch(() => {}),
+      remove: () => { _pendingPlay = false; _sound?.unloadAsync().catch(() => {}); },
       addListener: (event: string, cb: (s: any) => void) => {
         if (event === 'playbackStatusUpdate') {
           statusListeners.push(cb);

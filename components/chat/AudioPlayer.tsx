@@ -196,15 +196,43 @@ export default function AudioPlayer({
         return;
       }
 
-      player.addListener('playbackStatusUpdate', makeStatusHandler(player));
+      // Keep the spinner until the sound actually reports ready.
+      //   expo-audio: no `isLoaded` field → `status.isLoaded !== false` fires on
+      //               the first status tick, transitioning quickly.
+      //   expo-av fallback: `isLoaded=false` until asset is buffered, then
+      //               `isLoaded=true` fires the transition.
+      //   expo-av error: `status.error=true` shows error state immediately.
+      let hasTransitioned = false;
+      player.addListener('playbackStatusUpdate', (status: any) => {
+        if (!mountedRef.current) return;
+
+        if (status.error) {
+          setLoadState('error');
+          return;
+        }
+
+        if (!hasTransitioned && status.isLoaded !== false) {
+          hasTransitioned = true;
+          setLoadState('ready');
+          setIsPlaying(true);
+        }
+
+        if (!isSeeking.current) setPositionSec(status.currentTime || 0);
+        if (status.duration) setTotalSec(status.duration);
+        if (status.didJustFinish) {
+          setIsPlaying(false);
+          setPositionSec(0);
+          try { player.seekTo(0); } catch { /* non-fatal */ }
+        }
+      });
+
+      // play() is safe to call before load — expo-av fallback queues it via
+      // _pendingPlay and fires as soon as createAsync resolves.
       player.play();
 
       soundCache.set(uri, player);
       soundRef.current = player;
-
       onPlay?.(messageId);
-      setLoadState('ready');
-      setIsPlaying(true);
     } catch (e: any) {
       if (!mountedRef.current) return;
       console.warn('[AudioPlayer] load error:', e?.message || e);
