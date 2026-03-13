@@ -48,6 +48,7 @@ import ChatTabs, { ChatTab } from '@/components/chat/ChatTabs';
 import MessageBubble from '@/components/chat/MessageBubble';
 import ReplyPreview from '@/components/chat/ReplyPreview';
 import AudioRecorder from '@/components/chat/AudioRecorder';
+import { preloadAudio } from '@/components/chat/AudioPlayer';
 
 type PreviewEntry = { text: string; timestamp: string; senderId: string; type?: string };
 
@@ -180,6 +181,27 @@ export default function ChatScreen() {
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [messages, selectedChat]);
+
+  // ─── Preload voice messages (newest-first, sequential) ───────────────────────
+  // Load all voice messages in the current chat into the audio cache so tapping
+  // play is instant (no createAsync delay). One Sound.createAsync at a time to
+  // avoid spawning too many AVAudioSession handles simultaneously.
+  useEffect(() => {
+    if (!selectedChat || Platform.OS === 'web') return;
+    const voiceUris = messages
+      .filter((m) => m.type === 'voice' && !m.isDeleted && m.content)
+      .map((m) => m.content as string)
+      .reverse(); // newest first — most likely to be played
+    if (voiceUris.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (const uri of voiceUris) {
+        if (cancelled) break;
+        await preloadAudio(uri);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedChat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Clear AI chat ───────────────────────────────────────────────────────────
   const handleClearAIChat = async () => {
