@@ -1,7 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Mic, X, Send, Square } from 'lucide-react-native';
-import { AudioModule, useAudioRecorder, RecordingPresets } from 'expo-audio';
+import { AudioModule, useAudioRecorder, RecordingPresets } from '@/lib/expo-audio-compat';
 
 type RecorderState = 'idle' | 'recording' | 'preview';
 

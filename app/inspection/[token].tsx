@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { createRorkTool, useRorkAgent } from '@rork-ai/toolkit-sdk';
 import { z } from 'zod';
-import { AudioModule, useAudioRecorder, RecordingPresets } from 'expo-audio';
+import { AudioModule, useAudioRecorder, RecordingPresets } from '@/lib/expo-audio-compat';
 
 type UploadedFile = {
   id: string;

@@ -7,7 +7,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useState, useRef, useEffect, useCallback } from 'react';
 // Removed Rork AI dependency - using OpenAI directly
-import { AudioModule, useAudioRecorder, createAudioPlayer, AudioPlayer, RecordingPresets } from 'expo-audio';
+import { AudioModule, useAudioRecorder, createAudioPlayer, RecordingPresets, CompatAudioPlayer as AudioPlayer } from '@/lib/expo-audio-compat';
 import { usePathname, useRouter } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';

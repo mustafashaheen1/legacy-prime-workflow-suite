@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Play, Pause, AlertCircle } from 'lucide-react-native';
-import { AudioModule, createAudioPlayer, AudioPlayer as ExpoAudioPlayer } from 'expo-audio';
+import { AudioModule, createAudioPlayer, CompatAudioPlayer as ExpoAudioPlayer } from '@/lib/expo-audio-compat';
 
 interface Props {
   uri: string;
