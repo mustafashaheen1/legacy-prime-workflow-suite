@@ -6,7 +6,7 @@ import {
   Platform,
   PanResponder,
   LayoutChangeEvent,
-  ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Play, Pause, AlertCircle } from 'lucide-react-native';
@@ -46,6 +46,19 @@ async function ensureAudioMode() {
   } catch { /* non-fatal */ }
 }
 
+// ─── Background preload (called from parent when chat opens) ──────────────────
+export async function preloadAudio(uri: string): Promise<void> {
+  if (Platform.OS === 'web' || !uri || soundCache.has(uri)) return;
+  try {
+    await ensureAudioMode();
+    evictIfNeeded();
+    const player = createAudioPlayer({ uri });
+    soundCache.set(uri, player);
+  } catch (e: any) {
+    console.warn('[AudioPlayer] preloadAudio error:', e?.message || e);
+  }
+}
+
 // ─── Waveform shape ───────────────────────────────────────────────────────────
 const BAR_COUNT = 30;
 const WAVEFORM = Array.from({ length: BAR_COUNT }, (_, i) => {
@@ -62,7 +75,7 @@ const WAVEFORM = Array.from({ length: BAR_COUNT }, (_, i) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // 'idle'    → play button visible, duration shown, nothing loaded yet
-// 'loading' → spinner, user just tapped play
+// 'loading' → spinner ring shown, user just tapped play (or preload in progress)
 // 'ready'   → sound loaded & playing/paused
 // 'error'   → load failed
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -86,6 +99,29 @@ export default function AudioPlayer({
   const waveWidthRef = useRef(0);
   const mountedRef = useRef(true);
 
+  // ─── Spinner ring animation ───────────────────────────────────────────────
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const spinLoop = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (loadState === 'loading') {
+      spinAnim.setValue(0);
+      spinLoop.current = Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: Platform.OS !== 'web',
+        })
+      );
+      spinLoop.current.start();
+    } else {
+      spinLoop.current?.stop();
+      spinAnim.setValue(0);
+    }
+  }, [loadState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
   const progress = totalSec > 0 ? Math.min(positionSec / totalSec, 1) : 0;
 
   // ─── Status callback ──────────────────────────────────────────────────────
@@ -105,9 +141,6 @@ export default function AudioPlayer({
   };
 
   // ─── Mount / URI change ───────────────────────────────────────────────────
-  // Only check the cache — never eagerly load from network on mount.
-  // This prevents simultaneous AVURLAsset loads across all visible messages
-  // which causes the "isPlayable accessed synchronously" warning.
   useEffect(() => {
     mountedRef.current = true;
 
@@ -115,7 +148,7 @@ export default function AudioPlayer({
       const cached = soundCache.get(uri);
       if (cached) {
         if (mountedRef.current) {
-          cached.addListener('playbackStatusUpdate',makeStatusHandler(cached));
+          cached.addListener('playbackStatusUpdate', makeStatusHandler(cached));
           soundRef.current = cached;
           if (cached.duration) setTotalSec(cached.duration);
           setLoadState('ready');
@@ -163,7 +196,7 @@ export default function AudioPlayer({
         return;
       }
 
-      player.addListener('playbackStatusUpdate',makeStatusHandler(player));
+      player.addListener('playbackStatusUpdate', makeStatusHandler(player));
       player.play();
 
       soundCache.set(uri, player);
@@ -230,7 +263,6 @@ export default function AudioPlayer({
   const togglePlayback = () => {
     if (loadState === 'loading') return;
     if (loadState === 'idle') {
-      // First tap: load from network and auto-play
       loadAndPlay();
       return;
     }
@@ -279,6 +311,7 @@ export default function AudioPlayer({
   const unplayedColor = isOwn ? 'rgba(31,41,55,0.3)' : 'rgba(255,255,255,0.35)';
   const timeColor = isOwn ? 'rgba(31,41,55,0.7)' : 'rgba(255,255,255,0.8)';
   const errColor = isOwn ? '#6B7280' : 'rgba(255,255,255,0.7)';
+  const ringColor = isOwn ? 'rgba(31,41,55,0.7)' : 'rgba(255,255,255,0.85)';
 
   const effectiveTotal = totalSec > 0 ? totalSec : duration || 1;
 
@@ -300,21 +333,39 @@ export default function AudioPlayer({
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.playBtn}
-        onPress={togglePlayback}
-        activeOpacity={loadState === 'loading' ? 1 : 0.7}
-        disabled={loadState === 'loading'}
-      >
-        {loadState === 'loading' ? (
-          <ActivityIndicator size="small" color={isOwn ? '#1F2937' : '#FFFFFF'} />
-        ) : isPlaying ? (
-          <Pause size={18} color={iconColor} fill={iconColor} />
-        ) : (
-          <Play size={18} color={iconColor} fill={iconColor} />
-        )}
-      </TouchableOpacity>
+      {/* ── Play / Pause button with loading ring ── */}
+      <View style={styles.playBtnWrapper}>
+        <TouchableOpacity
+          style={styles.playBtn}
+          onPress={togglePlayback}
+          activeOpacity={loadState === 'loading' ? 1 : 0.7}
+          disabled={loadState === 'loading'}
+        >
+          {loadState !== 'loading' && (
+            isPlaying
+              ? <Pause size={18} color={iconColor} fill={iconColor} />
+              : <Play size={18} color={iconColor} fill={iconColor} />
+          )}
+        </TouchableOpacity>
 
+        {/* Spinning ring shown while loading — rendered around the button */}
+        {loadState === 'loading' && (
+          <>
+            {/* Faint full-circle track */}
+            <View style={[styles.ringTrack, { borderColor: ringColor + '33' }]} pointerEvents="none" />
+            {/* Animated arc */}
+            <Animated.View
+              style={[
+                styles.ringArc,
+                { borderTopColor: ringColor, transform: [{ rotate: spin }] },
+              ]}
+              pointerEvents="none"
+            />
+          </>
+        )}
+      </View>
+
+      {/* ── Waveform ── */}
       <View
         style={styles.waveformContainer}
         onLayout={(e: LayoutChangeEvent) => {
@@ -329,13 +380,19 @@ export default function AudioPlayer({
               styles.bar,
               {
                 height: Math.max(3, amp * 28),
-                backgroundColor: i / BAR_COUNT < progress ? playedColor : unplayedColor,
+                backgroundColor:
+                  loadState === 'loading'
+                    ? (isOwn ? 'rgba(31,41,55,0.15)' : 'rgba(255,255,255,0.2)')
+                    : i / BAR_COUNT < progress
+                    ? playedColor
+                    : unplayedColor,
               },
             ]}
           />
         ))}
       </View>
 
+      {/* ── Time ── */}
       <Text style={[styles.time, { color: timeColor }]}>
         {isPlaying || positionSec > 0
           ? formatTime(positionSec)
@@ -345,12 +402,20 @@ export default function AudioPlayer({
   );
 }
 
+const RING_SIZE = 40;
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     minWidth: 180,
+  },
+  playBtnWrapper: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   playBtn: {
     width: 32,
@@ -359,6 +424,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Faint full-circle track behind the spinning arc
+  ringTrack: {
+    position: 'absolute',
+    width: RING_SIZE,
+    height: RING_SIZE,
+    borderRadius: RING_SIZE / 2,
+    borderWidth: 2.5,
+  },
+  // Single-arc spinner — only borderTopColor is set; others stay transparent
+  ringArc: {
+    position: 'absolute',
+    width: RING_SIZE,
+    height: RING_SIZE,
+    borderRadius: RING_SIZE / 2,
+    borderWidth: 2.5,
+    borderColor: 'transparent',
   },
   waveformContainer: {
     flex: 1,

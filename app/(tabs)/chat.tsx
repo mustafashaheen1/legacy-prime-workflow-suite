@@ -48,6 +48,7 @@ import ChatTabs, { ChatTab } from '@/components/chat/ChatTabs';
 import MessageBubble from '@/components/chat/MessageBubble';
 import ReplyPreview from '@/components/chat/ReplyPreview';
 import AudioRecorder from '@/components/chat/AudioRecorder';
+import { preloadAudio } from '@/components/chat/AudioPlayer';
 
 type PreviewEntry = { text: string; timestamp: string; senderId: string; type?: string };
 
@@ -388,6 +389,25 @@ export default function ChatScreen() {
     const interval = setInterval(fetchMessages, 5000);
     return () => clearInterval(interval);
   }, [selectedChat, user?.id]);
+
+  // ─── Preload voice messages when a conversation is opened ────────────────────
+  // Stagger by 300 ms per track so we don't slam AVAudioSession with simultaneous
+  // createAsync calls, which causes "isPlayable accessed synchronously" warnings.
+  useEffect(() => {
+    if (!selectedConversation || Platform.OS === 'web') return;
+
+    const voiceUris = selectedConversation.messages
+      .filter((m) => m.type === 'voice' && !m.isDeleted && m.content)
+      .map((m) => m.content as string);
+
+    if (voiceUris.length === 0) return;
+
+    const timers = voiceUris.map((uri, i) =>
+      setTimeout(() => { preloadAudio(uri); }, i * 300)
+    );
+
+    return () => timers.forEach(clearTimeout);
+  }, [selectedConversation?.id, selectedConversation?.messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Daily tip ────────────────────────────────────────────────────────────────
   useEffect(() => {
