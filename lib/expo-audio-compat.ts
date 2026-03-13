@@ -1,36 +1,47 @@
 /**
  * expo-audio-compat.ts
  *
- * Safe lazy-loading wrapper for expo-audio.
+ * Safe lazy-loading wrapper for expo-audio with expo-av as fallback.
  *
  * WHY THIS EXISTS:
  * expo-audio is a native module that must be compiled into the iOS/Android binary.
- * If the app JS bundle is updated before a native rebuild happens, the module
- * will be missing from the binary, causing an immediate startup crash:
- *   "Cannot find native module 'ExpoAudio'"
+ * If the app JS bundle is updated before a native rebuild, the module will be
+ * missing, causing an immediate startup crash: "Cannot find native module 'ExpoAudio'"
  *
- * This shim defers the require() to runtime (lazy) inside a try-catch so a stale
- * binary doesn't crash. Audio features simply become no-ops until the next rebuild.
+ * Priority order:
+ *   1. expo-audio  — preferred (new API, no deprecation warnings)
+ *   2. expo-av     — fallback when expo-audio binary hasn't been rebuilt yet
+ *   3. no-ops      — last resort (neither module available, e.g. web with bad config)
  *
- * Once the app is rebuilt with expo-audio in the plugins, the real module is used.
+ * Once the app is rebuilt with expo-audio in the plugins, the real module is used
+ * and expo-av is not touched.
  */
 
-// ── Attempt lazy load at module init (once, never changes) ────────────────────
-let _ea: typeof import('expo-audio') | null = null;
-let _available = false;
+import { useRef, useMemo } from 'react';
 
+// ── Lazy-load expo-audio (requires native binary) ─────────────────────────────
+let _ea: typeof import('expo-audio') | null = null;
+let _audioAvailable = false;
 try {
-  // Dynamic require so Metro doesn't hoist it to module scope as a static import
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   _ea = require('expo-audio') as typeof import('expo-audio');
-  _available = true;
+  _audioAvailable = true;
 } catch {
   if (__DEV__) {
     console.warn(
-      '[expo-audio-compat] ExpoAudio native module not found in current binary.\n' +
-        'Audio features are disabled. Run `npx expo run:ios` or `eas build` to rebuild.'
+      '[expo-audio-compat] ExpoAudio not in binary — falling back to expo-av.\n' +
+        'Run `npx expo run:ios` or `eas build` to use expo-audio natively.'
     );
   }
+}
+
+// ── Lazy-load expo-av (fallback — already in the binary) ─────────────────────
+let _av: typeof import('expo-av') | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  _av = require('expo-av') as typeof import('expo-av');
+} catch {
+  /* expo-av not available either */
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -39,10 +50,7 @@ export type CompatAudioPlayer = {
   pause: () => void;
   seekTo: (sec: number) => void;
   remove: () => void;
-  addListener: (
-    event: string,
-    cb: (status: any) => void
-  ) => { remove: () => void };
+  addListener: (event: string, cb: (status: any) => void) => { remove: () => void };
   duration: number | null;
 };
 
@@ -55,23 +63,86 @@ export type CompatRecorder = {
 };
 
 // ── AudioModule ───────────────────────────────────────────────────────────────
-export const AudioModule = _available
-  ? _ea!.AudioModule
+export const AudioModule: {
+  setAudioModeAsync: (opts: any) => Promise<void>;
+  requestRecordingPermissionsAsync: () => Promise<{ granted: boolean }>;
+} = _audioAvailable
+  ? (_ea!.AudioModule as any)
+  : _av
+  ? {
+      // Map expo-audio API shape → expo-av equivalents
+      setAudioModeAsync: async (opts: any) => {
+        await (_av!.Audio as any).setAudioModeAsync({
+          allowsRecordingIOS: opts.allowsRecording ?? false,
+          playsInSilentModeIOS: opts.playsInSilentMode ?? true,
+          staysActiveInBackground: false,
+        });
+      },
+      requestRecordingPermissionsAsync: async () => {
+        const result = await (_av!.Audio as any).requestPermissionsAsync();
+        return { granted: result.granted };
+      },
+    }
   : {
-      setAudioModeAsync: async (_opts: any) => {},
+      setAudioModeAsync: async () => {},
       requestRecordingPermissionsAsync: async () => ({ granted: false }),
     };
 
 // ── RecordingPresets ──────────────────────────────────────────────────────────
-export const RecordingPresets = _available
-  ? _ea!.RecordingPresets
-  : { HIGH_QUALITY: {} as any };
+export const RecordingPresets: { HIGH_QUALITY: any } = _audioAvailable
+  ? (_ea!.RecordingPresets as any)
+  : _av
+  ? { HIGH_QUALITY: (_av.Audio as any).RecordingOptionsPresets?.HIGH_QUALITY ?? {} }
+  : { HIGH_QUALITY: {} };
 
 // ── createAudioPlayer ─────────────────────────────────────────────────────────
 export function createAudioPlayer(source: any): CompatAudioPlayer {
-  if (_available) {
+  if (_audioAvailable) {
     return _ea!.createAudioPlayer(source) as any;
   }
+
+  if (_av) {
+    // expo-av Sound fallback: create async, surface events via the status callback
+    const statusListeners: Array<(s: any) => void> = [];
+    let _sound: any = null;
+
+    (_av.Audio as any).Sound.createAsync(
+      source,
+      {},
+      (avStatus: any) => {
+        const mapped = {
+          currentTime: (avStatus.positionMillis ?? 0) / 1000,
+          duration: (avStatus.durationMillis ?? 0) / 1000,
+          didJustFinish: avStatus.didJustFinish ?? false,
+        };
+        statusListeners.forEach((cb) => cb(mapped));
+      }
+    )
+      .then(({ sound }: any) => { _sound = sound; })
+      .catch((e: any) => console.warn('[expo-audio-compat] expo-av Sound create failed:', e));
+
+    return {
+      play: () => _sound?.playAsync().catch(() => {}),
+      pause: () => _sound?.pauseAsync().catch(() => {}),
+      seekTo: (sec: number) => _sound?.setPositionAsync(sec * 1000).catch(() => {}),
+      remove: () => _sound?.unloadAsync().catch(() => {}),
+      addListener: (event: string, cb: (s: any) => void) => {
+        if (event === 'playbackStatusUpdate') {
+          statusListeners.push(cb);
+          return {
+            remove: () => {
+              const i = statusListeners.indexOf(cb);
+              if (i >= 0) statusListeners.splice(i, 1);
+            },
+          };
+        }
+        return { remove: () => {} };
+      },
+      duration: null,
+    };
+  }
+
+  // Last-resort no-op
   return {
     play: () => {},
     pause: () => {},
@@ -83,13 +154,61 @@ export function createAudioPlayer(source: any): CompatAudioPlayer {
 }
 
 // ── useAudioRecorder ──────────────────────────────────────────────────────────
-// `_available` is a module-level constant — same branch is always taken for the
-// lifetime of this JS bundle, so React's rules-of-hooks are satisfied.
-function _noOpRecorder(_options?: any): CompatRecorder {
-  return { record: () => {}, stop: async () => {}, uri: null, isRecording: false, duration: 0 };
+// `_audioAvailable` is a module-level constant — the same branch is always taken
+// for the lifetime of this JS bundle, satisfying React's rules-of-hooks.
+
+function useAvRecorderFallback(_options: any): CompatRecorder {
+  const recRef = useRef<any>(null);
+  const uriRef = useRef<string | null>(null);
+  // Tracks the in-flight createAsync promise so stop() can await it
+  const pendingStartRef = useRef<Promise<void> | null>(null);
+
+  return useMemo<CompatRecorder>(() => ({
+    record() {
+      pendingStartRef.current = (async () => {
+        try {
+          if (!_av) return;
+          const { recording } = await (_av.Audio as any).Recording.createAsync(
+            (_av.Audio as any).RecordingOptionsPresets?.HIGH_QUALITY ?? {}
+          );
+          recRef.current = recording;
+        } catch (e) {
+          console.warn('[expo-audio-compat] expo-av Recording.createAsync failed:', e);
+        }
+      })();
+    },
+    async stop() {
+      // Wait for the async start to finish before attempting to stop
+      if (pendingStartRef.current) {
+        await pendingStartRef.current;
+        pendingStartRef.current = null;
+      }
+      if (recRef.current) {
+        try {
+          await recRef.current.stopAndUnloadAsync();
+          uriRef.current = recRef.current.getURI() ?? null;
+        } catch (e) {
+          console.warn('[expo-audio-compat] expo-av Recording stop failed:', e);
+        }
+        recRef.current = null;
+      }
+    },
+    get uri() { return uriRef.current; },
+    get isRecording() { return recRef.current !== null || pendingStartRef.current !== null; },
+    duration: 0,
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-// eslint-disable-next-line react-hooks/rules-of-hooks
-export const useAudioRecorder: (options: any) => CompatRecorder = _available
+function useNoOpRecorder(_options?: any): CompatRecorder {
+  return useMemo<CompatRecorder>(
+    () => ({ record: () => {}, stop: async () => {}, uri: null, isRecording: false, duration: 0 }),
+    []
+  );
+}
+
+// Assigned once at module load — never changes between renders, so hook rules hold
+export const useAudioRecorder: (options: any) => CompatRecorder = _audioAvailable
   ? (_ea!.useAudioRecorder as any)
-  : _noOpRecorder;
+  : _av
+  ? useAvRecorderFallback
+  : useNoOpRecorder;
