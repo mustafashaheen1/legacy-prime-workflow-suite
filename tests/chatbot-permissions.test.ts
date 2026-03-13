@@ -85,20 +85,26 @@ function shouldBlockChatbotQuery(
 }
 
 // ---------------------------------------------------------------------------
-// Test runner
+// Test runner with table output
 // ---------------------------------------------------------------------------
 
+type Row = { section: string; scenario: string; result: string; ok: boolean };
+const rows: Row[] = [];
+let currentSection = '';
 let passed = 0;
 let failed = 0;
+
+function section(name: string) {
+  currentSection = name;
+}
 
 function test(name: string, fn: () => void) {
   try {
     fn();
-    console.log(`  ✓ ${name}`);
+    rows.push({ section: currentSection, scenario: name, result: '✓ Pass', ok: true });
     passed++;
   } catch (e: any) {
-    console.error(`  ✗ ${name}`);
-    console.error(`    → ${e.message}`);
+    rows.push({ section: currentSection, scenario: name, result: `✗ FAIL: ${e.message}`, ok: false });
     failed++;
   }
 }
@@ -112,108 +118,118 @@ function expect(actual: any) {
   };
 }
 
+function printTable() {
+  const COL1 = 72;
+  const COL2 = 17;
+  const hr    = `├${'─'.repeat(COL1 + 2)}┼${'─'.repeat(COL2 + 2)}┤`;
+  const hrTop = `┌${'─'.repeat(COL1 + 2)}┬${'─'.repeat(COL2 + 2)}┐`;
+  const hrBot = `└${'─'.repeat(COL1 + 2)}┴${'─'.repeat(COL2 + 2)}┘`;
+  const hrSec = `├${'═'.repeat(COL1 + 2)}╪${'═'.repeat(COL2 + 2)}┤`;
+
+  const pad = (s: string, w: number) => s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length);
+  const row = (a: string, b: string) => `│ ${pad(a, COL1)} │ ${pad(b, COL2)} │`;
+
+  console.log('\n' + hrTop);
+  console.log(row('Scenario', 'Result'));
+
+  let lastSection = '';
+  for (const r of rows) {
+    if (r.section !== lastSection) {
+      console.log(hrSec);
+      console.log(row(`[ ${r.section} ]`, ''));
+      console.log(hr);
+      lastSection = r.section;
+    } else {
+      console.log(hr);
+    }
+    console.log(row(r.scenario, r.result));
+  }
+  console.log(hrBot);
+  console.log(`\n  ${passed} passed, ${failed} failed`);
+}
+
 // ---------------------------------------------------------------------------
 
-console.log('\n=== Chatbot Permission Tests — All 10 Features ===\n');
+section('ADMIN — always unrestricted');
+test('Admin asking about expenses',                                     () => expect(shouldBlockChatbotQuery('admin', 'What are the total expenses?').shouldBlock).toBe(false));
+test('Admin asking about wages',                                        () => expect(shouldBlockChatbotQuery('admin', "What is Henry's hourly wage?").shouldBlock).toBe(false));
+test('Admin asking about reports',                                      () => expect(shouldBlockChatbotQuery('admin', 'Show me the financial report').shouldBlock).toBe(false));
 
-// ─────────────────────────────────────────────────────────────────
-console.log('[ ADMIN ] — always unrestricted, never blocked');
-test('admin asking about expenses', () => expect(shouldBlockChatbotQuery('admin', 'What are the total expenses?').shouldBlock).toBe(false));
-test('admin asking about wages',    () => expect(shouldBlockChatbotQuery('admin', "What is Henry's hourly wage?").shouldBlock).toBe(false));
-test('admin asking about reports',  () => expect(shouldBlockChatbotQuery('admin', 'Show me the financial report').shouldBlock).toBe(false));
+section('EMPLOYEE (no overrides) — financial queries blocked');
+test('Expense query → BLOCKED',                                         () => expect(shouldBlockChatbotQuery('employee', 'What project has the most expense?').shouldBlock).toBe(true));
+test('Budget query → BLOCKED',                                          () => expect(shouldBlockChatbotQuery('employee', "What's the project budget?").shouldBlock).toBe(true));
+test('Financial report query → BLOCKED',                                () => expect(shouldBlockChatbotQuery('employee', 'Give me the monthly financial report').shouldBlock).toBe(true));
+test('Invoice query → BLOCKED',                                         () => expect(shouldBlockChatbotQuery('employee', 'Show me the invoices').shouldBlock).toBe(true));
+test('Estimate query → BLOCKED',                                        () => expect(shouldBlockChatbotQuery('employee', 'What is the estimate for this project?').shouldBlock).toBe(true));
+test('Wage query → BLOCKED',                                            () => expect(shouldBlockChatbotQuery('employee', "What is the team's wage breakdown?").shouldBlock).toBe(true));
+test('Task query (non-financial) → ALLOWED',                            () => expect(shouldBlockChatbotQuery('employee', 'What tasks are due today?').shouldBlock).toBe(false));
+test('Clock-in query → ALLOWED',                                        () => expect(shouldBlockChatbotQuery('employee', 'What time did I clock in today?').shouldBlock).toBe(false));
+test('Schedule query → ALLOWED',                                        () => expect(shouldBlockChatbotQuery('employee', "What's on the schedule this week?").shouldBlock).toBe(false));
+test('Photos query → ALLOWED',                                          () => expect(shouldBlockChatbotQuery('employee', 'Show me the photos for this project').shouldBlock).toBe(false));
 
-// ─────────────────────────────────────────────────────────────────
-console.log('\n[ EMPLOYEE — no overrides ] — financial queries blocked');
-test('no overrides — expense query BLOCKED',    () => expect(shouldBlockChatbotQuery('employee', 'What project has the most expense?').shouldBlock).toBe(true));
-test('no overrides — budget query BLOCKED',     () => expect(shouldBlockChatbotQuery('employee', "What's the project budget?").shouldBlock).toBe(true));
-test('no overrides — report query BLOCKED',     () => expect(shouldBlockChatbotQuery('employee', 'Give me the monthly financial report').shouldBlock).toBe(true));
-test('no overrides — invoice query BLOCKED',    () => expect(shouldBlockChatbotQuery('employee', 'Show me the invoices').shouldBlock).toBe(true));
-test('no overrides — estimate query BLOCKED',   () => expect(shouldBlockChatbotQuery('employee', 'What is the estimate for this project?').shouldBlock).toBe(true));
-test('no overrides — wage query BLOCKED',       () => expect(shouldBlockChatbotQuery('employee', "What is the team's wage breakdown?").shouldBlock).toBe(true));
-test('no overrides — non-financial ALLOWED',    () => expect(shouldBlockChatbotQuery('employee', 'What tasks are due today?').shouldBlock).toBe(false));
-test('no overrides — clock query ALLOWED',      () => expect(shouldBlockChatbotQuery('employee', 'What time did I clock in today?').shouldBlock).toBe(false));
-test('no overrides — schedule query ALLOWED',   () => expect(shouldBlockChatbotQuery('employee', "What's on the schedule this week?").shouldBlock).toBe(false));
-test('no overrides — photos query ALLOWED',     () => expect(shouldBlockChatbotQuery('employee', 'Show me the photos for this project').shouldBlock).toBe(false));
-
-// ─────────────────────────────────────────────────────────────────
-console.log('\n[ EXPENSES: true ]');
+section('EXPENSES: true — expense keywords unlocked');
 const ePerms = { expenses: true };
-test('expenses:true — "most expense" ALLOWED',          () => expect(shouldBlockChatbotQuery('employee', 'What project has the most expense so far?', ePerms).shouldBlock).toBe(false));
-test('expenses:true — "total cost" ALLOWED',            () => expect(shouldBlockChatbotQuery('employee', 'What is the total cost for project Alpha?', ePerms).shouldBlock).toBe(false));
-test('expenses:true — "how much spent" ALLOWED',        () => expect(shouldBlockChatbotQuery('employee', 'How much have we spent this month?', ePerms).shouldBlock).toBe(false));
-test('expenses:true — "show invoices" ALLOWED',         () => expect(shouldBlockChatbotQuery('employee', 'Show me the invoices for this project', ePerms).shouldBlock).toBe(false));
-test('expenses:true — wage query still BLOCKED',        () => expect(shouldBlockChatbotQuery('employee', "What is John's wage?", ePerms).shouldBlock).toBe(true));
-test('expenses:true — revenue query still BLOCKED',     () => expect(shouldBlockChatbotQuery('employee', 'What is our revenue this quarter?', ePerms).shouldBlock).toBe(true));
+test('"What project has the most expense?" → ALLOWED',                  () => expect(shouldBlockChatbotQuery('employee', 'What project has the most expense so far?', ePerms).shouldBlock).toBe(false));
+test('"Total cost for project Alpha" → ALLOWED',                        () => expect(shouldBlockChatbotQuery('employee', 'What is the total cost for project Alpha?', ePerms).shouldBlock).toBe(false));
+test('"How much have we spent" → ALLOWED',                              () => expect(shouldBlockChatbotQuery('employee', 'How much have we spent this month?', ePerms).shouldBlock).toBe(false));
+test('"Show me the invoices" → ALLOWED',                                () => expect(shouldBlockChatbotQuery('employee', 'Show me the invoices for this project', ePerms).shouldBlock).toBe(false));
+test('Wage query (not in expenses) → still BLOCKED',                    () => expect(shouldBlockChatbotQuery('employee', "What is John's wage?", ePerms).shouldBlock).toBe(true));
+test('Revenue query (not in expenses) → still BLOCKED',                 () => expect(shouldBlockChatbotQuery('employee', 'What is our revenue this quarter?', ePerms).shouldBlock).toBe(true));
 
-// ─────────────────────────────────────────────────────────────────
-console.log('\n[ REPORTS: true ]');
+section('REPORTS: true — analytics/revenue/wage keywords unlocked');
 const rPerms = { reports: true };
-test('reports:true — "financial report" ALLOWED',       () => expect(shouldBlockChatbotQuery('employee', 'Give me the monthly financial report', rPerms).shouldBlock).toBe(false));
-test('reports:true — "analytics" ALLOWED',              () => expect(shouldBlockChatbotQuery('employee', 'Show me the analytics for this month', rPerms).shouldBlock).toBe(false));
-test('reports:true — "revenue" ALLOWED',                () => expect(shouldBlockChatbotQuery('employee', 'What is our revenue this quarter?', rPerms).shouldBlock).toBe(false));
-test('reports:true — "wage" ALLOWED',                   () => expect(shouldBlockChatbotQuery('employee', "What is the team's wage breakdown?", rPerms).shouldBlock).toBe(false));
-test('reports:true — "salary" ALLOWED',                 () => expect(shouldBlockChatbotQuery('employee', "What is the average salary?", rPerms).shouldBlock).toBe(false));
-test('reports:true — expense query still BLOCKED',      () => expect(shouldBlockChatbotQuery('employee', 'What is the total expense?', rPerms).shouldBlock).toBe(true));
+test('"Monthly financial report" → ALLOWED',                            () => expect(shouldBlockChatbotQuery('employee', 'Give me the monthly financial report', rPerms).shouldBlock).toBe(false));
+test('"Analytics for this month" → ALLOWED',                            () => expect(shouldBlockChatbotQuery('employee', 'Show me the analytics for this month', rPerms).shouldBlock).toBe(false));
+test('"Revenue this quarter" → ALLOWED',                                () => expect(shouldBlockChatbotQuery('employee', 'What is our revenue this quarter?', rPerms).shouldBlock).toBe(false));
+test('"Team wage breakdown" → ALLOWED',                                 () => expect(shouldBlockChatbotQuery('employee', "What is the team's wage breakdown?", rPerms).shouldBlock).toBe(false));
+test('"Average salary" → ALLOWED',                                      () => expect(shouldBlockChatbotQuery('employee', "What is the average salary?", rPerms).shouldBlock).toBe(false));
+test('Expense query (not in reports) → still BLOCKED',                  () => expect(shouldBlockChatbotQuery('employee', 'What is the total expense?', rPerms).shouldBlock).toBe(true));
 
-// ─────────────────────────────────────────────────────────────────
-console.log('\n[ PROJECTS: true ]');
+section('PROJECTS: true — budget/markup keywords unlocked');
 const pPerms = { projects: true };
-test('projects:true — "project overview" ALLOWED',      () => expect(shouldBlockChatbotQuery('employee', 'Give me an overview of the downtown project', pPerms).shouldBlock).toBe(false));
-test('projects:true — "project budget" ALLOWED',        () => expect(shouldBlockChatbotQuery('employee', "What's the budget for the downtown project?", pPerms).shouldBlock).toBe(false));
-test('projects:true — "markup" ALLOWED',                () => expect(shouldBlockChatbotQuery('employee', 'What is the markup on this project?', pPerms).shouldBlock).toBe(false));
-test('projects:true — expense query still BLOCKED',     () => expect(shouldBlockChatbotQuery('employee', 'Show me all expenses for this project', pPerms).shouldBlock).toBe(true));
+test('"Overview of downtown project" → ALLOWED',                        () => expect(shouldBlockChatbotQuery('employee', 'Give me an overview of the downtown project', pPerms).shouldBlock).toBe(false));
+test('"Budget for the downtown project" → ALLOWED',                     () => expect(shouldBlockChatbotQuery('employee', "What's the budget for the downtown project?", pPerms).shouldBlock).toBe(false));
+test('"Markup on this project" → ALLOWED',                              () => expect(shouldBlockChatbotQuery('employee', 'What is the markup on this project?', pPerms).shouldBlock).toBe(false));
+test('Expense query (not in projects) → still BLOCKED',                 () => expect(shouldBlockChatbotQuery('employee', 'Show me all expenses for this project', pPerms).shouldBlock).toBe(true));
 
-// ─────────────────────────────────────────────────────────────────
-console.log('\n[ CRM: true ]');
+section('CRM: true — contract/legal/invoice keywords unlocked');
 const cPerms = { crm: true };
-test('crm:true — "client details" ALLOWED',             () => expect(shouldBlockChatbotQuery('employee', 'Show me the client details for Smith Corp', cPerms).shouldBlock).toBe(false));
-test('crm:true — "contract terms" ALLOWED',             () => expect(shouldBlockChatbotQuery('employee', 'What are the contract terms for this client?', cPerms).shouldBlock).toBe(false));
-test('crm:true — "legal requirements" ALLOWED',         () => expect(shouldBlockChatbotQuery('employee', 'What legal requirements does this contract have?', cPerms).shouldBlock).toBe(false));
-test('crm:true — "client invoices" ALLOWED',            () => expect(shouldBlockChatbotQuery('employee', 'Show me the invoices for this client', cPerms).shouldBlock).toBe(false));
-test('crm:true — financial report still BLOCKED',       () => expect(shouldBlockChatbotQuery('employee', 'Show me the revenue breakdown', cPerms).shouldBlock).toBe(true));
+test('"Client details for Smith Corp" → ALLOWED',                       () => expect(shouldBlockChatbotQuery('employee', 'Show me the client details for Smith Corp', cPerms).shouldBlock).toBe(false));
+test('"Contract terms for this client" → ALLOWED',                      () => expect(shouldBlockChatbotQuery('employee', 'What are the contract terms for this client?', cPerms).shouldBlock).toBe(false));
+test('"Legal requirements" → ALLOWED',                                  () => expect(shouldBlockChatbotQuery('employee', 'What legal requirements does this contract have?', cPerms).shouldBlock).toBe(false));
+test('"Invoices for this client" → ALLOWED',                            () => expect(shouldBlockChatbotQuery('employee', 'Show me the invoices for this client', cPerms).shouldBlock).toBe(false));
+test('Revenue query (not in CRM) → still BLOCKED',                      () => expect(shouldBlockChatbotQuery('employee', 'Show me the revenue breakdown', cPerms).shouldBlock).toBe(true));
 
-// ─────────────────────────────────────────────────────────────────
-console.log('\n[ SUBCONTRACTORS: true ]');
+section('SUBCONTRACTORS: true — estimate/bid/proposal/quote unlocked');
 const sPerms = { subs: true };
-test('subs:true — "subcontractor quote" ALLOWED',       () => expect(shouldBlockChatbotQuery('employee', 'Show me the quote from the plumber', sPerms).shouldBlock).toBe(false));
-test('subs:true — "estimate" ALLOWED',                  () => expect(shouldBlockChatbotQuery('employee', 'What is the estimate for the electrical work?', sPerms).shouldBlock).toBe(false));
-test('subs:true — "bid" ALLOWED',                       () => expect(shouldBlockChatbotQuery('employee', 'Show me all bids for this project', sPerms).shouldBlock).toBe(false));
-test('subs:true — "proposal" ALLOWED',                  () => expect(shouldBlockChatbotQuery('employee', 'Show me the subcontractor proposals', sPerms).shouldBlock).toBe(false));
-test('subs:true — wage query still BLOCKED',            () => expect(shouldBlockChatbotQuery('employee', "What is the team's salary?", sPerms).shouldBlock).toBe(true));
+test('"Quote from the plumber" → ALLOWED',                              () => expect(shouldBlockChatbotQuery('employee', 'Show me the quote from the plumber', sPerms).shouldBlock).toBe(false));
+test('"Estimate for electrical work" → ALLOWED',                        () => expect(shouldBlockChatbotQuery('employee', 'What is the estimate for the electrical work?', sPerms).shouldBlock).toBe(false));
+test('"All bids for this project" → ALLOWED',                           () => expect(shouldBlockChatbotQuery('employee', 'Show me all bids for this project', sPerms).shouldBlock).toBe(false));
+test('"Subcontractor proposals" (no false "contract" match) → ALLOWED', () => expect(shouldBlockChatbotQuery('employee', 'Show me the subcontractor proposals', sPerms).shouldBlock).toBe(false));
+test('Salary query (not in subs) → still BLOCKED',                      () => expect(shouldBlockChatbotQuery('employee', "What is the team's salary?", sPerms).shouldBlock).toBe(true));
 
-// ─────────────────────────────────────────────────────────────────
-console.log('\n[ DASHBOARD, CLOCK, PHOTOS, CHAT, SCHEDULE ] — non-financial, not blocked by keywords');
-// These features do NOT involve financial keywords — their queries are never keyword-blocked
-// Their access is controlled purely by the system prompt and tool gate (tested in backend)
-test('dashboard query — never keyword-blocked',         () => expect(shouldBlockChatbotQuery('employee', "What's the company activity summary today?").shouldBlock).toBe(false));
-test('clock query — never keyword-blocked',             () => expect(shouldBlockChatbotQuery('employee', 'Who is clocked in right now?').shouldBlock).toBe(false));
-test('photos query — never keyword-blocked',            () => expect(shouldBlockChatbotQuery('employee', 'Show me the latest site photos').shouldBlock).toBe(false));
-test('chat query — never keyword-blocked',              () => expect(shouldBlockChatbotQuery('employee', 'What are the recent team messages?').shouldBlock).toBe(false));
-test('schedule query — never keyword-blocked',          () => expect(shouldBlockChatbotQuery('employee', "What's scheduled for next week?").shouldBlock).toBe(false));
+section('DASHBOARD / CLOCK / PHOTOS / CHAT / SCHEDULE — non-financial');
+test('Dashboard activity summary → ALLOWED (no financial keywords)',    () => expect(shouldBlockChatbotQuery('employee', "What's the company activity summary today?").shouldBlock).toBe(false));
+test('Clock — "Who is clocked in?" → ALLOWED',                         () => expect(shouldBlockChatbotQuery('employee', 'Who is clocked in right now?').shouldBlock).toBe(false));
+test('Photos — "Latest site photos" → ALLOWED',                        () => expect(shouldBlockChatbotQuery('employee', 'Show me the latest site photos').shouldBlock).toBe(false));
+test('Chat — "Recent team messages" → ALLOWED',                        () => expect(shouldBlockChatbotQuery('employee', 'What are the recent team messages?').shouldBlock).toBe(false));
+test('Schedule — "What is scheduled next week?" → ALLOWED',            () => expect(shouldBlockChatbotQuery('employee', "What's scheduled for next week?").shouldBlock).toBe(false));
 
-// ─────────────────────────────────────────────────────────────────
-console.log('\n[ SALESPERSON (no-financials) ]');
-test('salesperson — expense BLOCKED',                   () => expect(shouldBlockChatbotQuery('salesperson', 'What are the total expenses?').shouldBlock).toBe(true));
-test('salesperson — project status ALLOWED',            () => expect(shouldBlockChatbotQuery('salesperson', 'What is the status of the Smith project?').shouldBlock).toBe(false));
-test('salesperson — client name ALLOWED',               () => expect(shouldBlockChatbotQuery('salesperson', 'Show me the client list').shouldBlock).toBe(false));
-test('salesperson — schedule ALLOWED',                  () => expect(shouldBlockChatbotQuery('salesperson', "What's on the schedule this week?").shouldBlock).toBe(false));
+section('SALESPERSON (no-financials role)');
+test('Expense query → BLOCKED',                                         () => expect(shouldBlockChatbotQuery('salesperson', 'What are the total expenses?').shouldBlock).toBe(true));
+test('Project status (non-financial) → ALLOWED',                       () => expect(shouldBlockChatbotQuery('salesperson', 'What is the status of the Smith project?').shouldBlock).toBe(false));
+test('Client name query → ALLOWED',                                     () => expect(shouldBlockChatbotQuery('salesperson', 'Show me the client list').shouldBlock).toBe(false));
+test('Schedule query → ALLOWED',                                        () => expect(shouldBlockChatbotQuery('salesperson', "What's on the schedule this week?").shouldBlock).toBe(false));
 
-// ─────────────────────────────────────────────────────────────────
-console.log('\n[ ALL FEATURES ENABLED — employee with full admin grant ]');
+section('ALL FEATURES ENABLED — employee with full admin grant');
 const allPerms = { dashboard: true, clock: true, photos: true, chat: true, schedule: true, expenses: true, projects: true, crm: true, subs: true, reports: true };
-test('all features — expense query ALLOWED',            () => expect(shouldBlockChatbotQuery('employee', 'What project has the most expense?', allPerms).shouldBlock).toBe(false));
-test('all features — budget query ALLOWED',             () => expect(shouldBlockChatbotQuery('employee', "What's the total budget?", allPerms).shouldBlock).toBe(false));
-test('all features — report query ALLOWED',             () => expect(shouldBlockChatbotQuery('employee', 'Show me the financial report', allPerms).shouldBlock).toBe(false));
-test('all features — wage query ALLOWED',               () => expect(shouldBlockChatbotQuery('employee', "What is the team's wage?", allPerms).shouldBlock).toBe(false));
-test('all features — estimate query ALLOWED',           () => expect(shouldBlockChatbotQuery('employee', 'What is the estimate for the roof?', allPerms).shouldBlock).toBe(false));
-test('all features — contract terms ALLOWED',           () => expect(shouldBlockChatbotQuery('employee', 'What are the contract terms?', allPerms).shouldBlock).toBe(false));
+test('"Most expense" → ALLOWED',                                        () => expect(shouldBlockChatbotQuery('employee', 'What project has the most expense?', allPerms).shouldBlock).toBe(false));
+test('"Total budget" → ALLOWED',                                        () => expect(shouldBlockChatbotQuery('employee', "What's the total budget?", allPerms).shouldBlock).toBe(false));
+test('"Financial report" → ALLOWED',                                    () => expect(shouldBlockChatbotQuery('employee', 'Show me the financial report', allPerms).shouldBlock).toBe(false));
+test('"Team wage" → ALLOWED',                                           () => expect(shouldBlockChatbotQuery('employee', "What is the team's wage?", allPerms).shouldBlock).toBe(false));
+test('"Estimate for the roof" → ALLOWED',                               () => expect(shouldBlockChatbotQuery('employee', 'What is the estimate for the roof?', allPerms).shouldBlock).toBe(false));
+test('"Contract terms" → ALLOWED',                                      () => expect(shouldBlockChatbotQuery('employee', 'What are the contract terms?', allPerms).shouldBlock).toBe(false));
 
 // ─────────────────────────────────────────────────────────────────
-console.log(`\n${'─'.repeat(55)}`);
-console.log(`Results: ${passed} passed, ${failed} failed`);
-if (failed > 0) {
-  console.error('\nFix required — see failures above.');
-  process.exit(1);
-} else {
-  console.log('\nAll tests passed ✓');
-}
+printTable();
+if (failed > 0) process.exit(1);
