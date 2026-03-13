@@ -7427,7 +7427,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       projects:  ['query_projects', 'query_tasks', 'create_project', 'update_project'],
       crm:       ['query_clients', 'add_client', 'update_client'],
       subs:      ['query_subcontractors', 'query_proposals'],
-      reports:   ['generate_report'],
+      // reports needs cross-feature data to generate meaningful summaries
+      reports:   ['generate_report', 'query_expenses', 'query_projects', 'query_clock_entries'],
     };
     // Build the final allowed-tools set for this specific user (expanded after features resolve)
     const basicOnlyAllowedTools = new Set<string>(BASIC_ONLY_BASE_TOOLS);
@@ -7600,14 +7601,14 @@ ${serverChatbotLevel === 'basic-only' && serverFeatures.expenses ? `- EXPENSES O
 ${serverChatbotLevel === 'basic-only' && serverFeatures.projects ? `- PROJECTS OVERRIDE: This user has Project Overview access. You MAY share project details, budgets, task breakdowns, and project financials.` : ''}
 ${serverChatbotLevel === 'basic-only' && serverFeatures.crm ? `- CRM OVERRIDE: This user has CRM access. You MAY answer questions about clients, leads, contacts, and CRM records.` : ''}
 ${serverChatbotLevel === 'basic-only' && serverFeatures.subs ? `- SUBCONTRACTORS OVERRIDE: This user has Subcontractor access. You MAY share estimate, proposal, bid, and subcontractor data.` : ''}
-${serverChatbotLevel === 'basic-only' && serverFeatures.reports ? `- REPORTS OVERRIDE: This user has Reports access. You MAY generate and share financial summaries, analytics, wages, salary data, and full report data.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.reports ? `- REPORTS OVERRIDE: This user has Reports access. You MAY generate and share financial summaries, analytics, wages, salary data, and full report data. To build reports you may query expenses, project data, and clock entries as needed even if those individual feature toggles are off.` : ''}
 ${!serverFeatures.dashboard ? `- Dashboard access is disabled. Do NOT share company-wide activity summaries or business overview metrics.` : ''}
 ${!serverFeatures.clock && !serverFeatures.dashboard ? `- Clock/time tracking access is disabled. Do NOT answer questions about time entries, hours worked, or attendance beyond the user's own current session.` : ''}
 ${!serverFeatures.photos ? `- Photos access is disabled. Do NOT answer questions about site photos or photo history.` : ''}
 ${!serverFeatures.chat ? `- Chat access is disabled. Do NOT reference team messages or chat history.` : ''}
 ${!serverFeatures.crm ? `- CRM access is disabled. Do NOT answer questions about clients, leads, or CRM records.` : ''}
 ${!serverFeatures.expenses ? `- Expenses access is disabled. Do NOT answer questions about expense data or help add expenses.` : ''}
-${!serverFeatures.projects && !serverFeatures.dashboard ? `- Project Overview access is disabled. Do NOT show project details or task information.` : ''}
+${!serverFeatures.projects && !serverFeatures.dashboard ? `- Project Overview access is disabled. Do NOT show project details, project financials, or project-wide task breakdowns. (Personal tasks assigned directly to the user are still OK.)` : ''}
 ${!serverFeatures.reports ? `- Reports access is disabled. Do NOT generate reports or show financial summaries.` : ''}
 ${!serverFeatures.subs ? `- Subcontractor access is disabled. Do NOT show subcontractor or proposal data.` : ''}
 ${!serverFeatures.schedule && !serverFeatures.dashboard ? `- Schedule access is disabled. Do NOT show schedule or calendar data.` : ''}`;
@@ -7744,9 +7745,16 @@ When the user says "this project", "this client", "this estimate", etc., they ar
         // --- Server-side tool permission gate ---
         let blockedByPermission = false;
 
-        // Check feature-level blocks (admin disabled a specific feature for this user)
+        // Check feature-level blocks (admin disabled a specific feature for this user).
+        // Exception: if another ENABLED feature explicitly lists this tool in its FEATURE_UNLOCKED_TOOLS,
+        // the unlock takes precedence over the block (e.g. dashboard unlocks query_schedule even when
+        // schedule is off; reports unlocks query_expenses even when expenses is off).
         for (const [feature, blockedTools] of Object.entries(FEATURE_BLOCKED_TOOLS)) {
           if (serverFeatures[feature] === false && blockedTools.includes(toolName)) {
+            const unlockedByOtherFeature = Object.entries(FEATURE_UNLOCKED_TOOLS).some(
+              ([f, tools]) => serverFeatures[f] === true && tools.includes(toolName)
+            );
+            if (unlockedByOtherFeature) break; // another active feature grants this tool
             blockedByPermission = true;
             openaiMessages.push({ role: 'tool', tool_call_id: toolCall.id,
               content: JSON.stringify({ error: `Access denied: the "${feature}" feature is disabled for your account.` }) });
