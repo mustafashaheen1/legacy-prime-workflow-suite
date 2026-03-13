@@ -137,11 +137,19 @@ const estimateKeywords = [
  * removed from the blocking list before evaluation.
  */
 const FEATURE_KEYWORD_UNLOCKS: Record<string, string[]> = {
-  expenses:  ['expense', 'cost', 'costs', 'how much', 'paid', 'charge', 'fee', 'dollar', '$', 'money', 'payment'],
-  reports:   ['analytics', 'report', 'breakdown', 'balance', 'income', 'revenue', 'profit'],
+  // Financial features — unlock the specific financial keywords they own
+  expenses:  ['expense', 'cost', 'costs', 'how much', 'paid', 'charge', 'fee', 'dollar', '$', 'money', 'payment', 'invoice'],
+  reports:   ['analytics', 'report', 'breakdown', 'balance', 'income', 'revenue', 'profit', 'wage', 'salary', 'financial'],
   projects:  ['budget', 'markup'],
-  crm:       ['contract', 'legal', 'terms'],
+  crm:       ['contract', 'legal', 'terms', 'invoice'],
   subs:      ['estimate', 'estimates', 'pricing', 'cost breakdown', 'quote', 'bid', 'proposal', 'price', 'pricing'],
+  // Non-financial features — their keywords don't appear in financialKeywords so no unlocks needed,
+  // but listed here for documentation / future extension
+  dashboard: [],
+  clock:     [],
+  photos:    [],
+  chat:      [],
+  schedule:  [],
 };
 
 export const shouldBlockChatbotQuery = (
@@ -169,7 +177,17 @@ export const shouldBlockChatbotQuery = (
   const effectiveFinancialKeywords = financialKeywords.filter(k => !unlockedKeywords.has(k));
   const effectiveEstimateKeywords  = estimateKeywords.filter(k => !unlockedKeywords.has(k));
 
-  const hasFinancialKeyword = effectiveFinancialKeywords.some(keyword => lowerQuery.includes(keyword));
+  // Use word-boundary matching so "subcontractor" doesn't trigger "contract",
+  // "paid" doesn't trigger inside "unpaid" compounds, etc.
+  // Left-boundary guard prevents "subcontractor" from matching "contract",
+  // "unpaid" from matching "paid", etc. Right side intentionally unconstrained
+  // so plurals/suffixes like "expenses", "invoices", "proposals" still match.
+  const matchesKeyword = (kw: string) => {
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?<![a-z])${escaped}`, 'i').test(lowerQuery);
+  };
+
+  const hasFinancialKeyword = effectiveFinancialKeywords.some(matchesKeyword);
 
   if (restrictionLevel === 'no-financials' && hasFinancialKeyword) {
     return {
@@ -179,7 +197,7 @@ export const shouldBlockChatbotQuery = (
   }
 
   if (restrictionLevel === 'basic-only') {
-    const hasEstimateKeyword = effectiveEstimateKeywords.some(keyword => lowerQuery.includes(keyword));
+    const hasEstimateKeyword = effectiveEstimateKeywords.some(matchesKeyword);
     if (hasFinancialKeyword || hasEstimateKeyword) {
       return {
         shouldBlock: true,

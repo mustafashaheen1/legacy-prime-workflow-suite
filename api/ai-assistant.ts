@@ -7397,7 +7397,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       'salesperson': 'no-financials',
       'field-employee': 'basic-only', 'employee': 'basic-only',
     };
-    // Feature → tools that are blocked when that feature is disabled for a user
+    // Feature → tools that are blocked when that feature is explicitly disabled for a user
     const FEATURE_BLOCKED_TOOLS: Record<string, string[]> = {
       crm:       ['query_clients', 'add_client', 'update_client'],
       expenses:  ['query_expenses', 'add_expense'],
@@ -7405,23 +7405,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       reports:   ['generate_report'],
       subs:      ['query_subcontractors', 'query_proposals'],
       schedule:  ['query_schedule'],
+      clock:     ['query_clock_entries'],
+      photos:    ['query_photos'],
       estimates: ['query_estimates', 'create_estimate', 'send_estimate'],
     };
     const FINANCIAL_TOOLS = ['query_estimates', 'query_payments', 'generate_report', 'create_estimate', 'send_estimate', 'query_change_orders'];
+    // Minimum tools always available to basic-only users regardless of feature flags
     const BASIC_ONLY_BASE_TOOLS = [
       'query_clock_entries', 'query_photos', 'query_tasks', 'query_schedule',
       'query_daily_tasks', 'add_daily_task', 'update_daily_task', 'delete_daily_tasks',
       'bulk_update_daily_task_reminders', 'add_expense', 'query_expenses',
     ];
-    // Tools unlocked per feature when a basic-only user has explicit access granted
+    // Tools unlocked per feature when a basic-only user has explicit access granted by admin
     const FEATURE_UNLOCKED_TOOLS: Record<string, string[]> = {
-      projects: ['query_projects', 'query_tasks', 'create_project', 'update_project'],
-      crm:      ['query_clients', 'add_client', 'update_client'],
-      reports:  ['generate_report'],
-      subs:     ['query_subcontractors', 'query_proposals'],
-      expenses: ['query_expenses', 'add_expense'],
+      dashboard: [],                                                            // no dedicated AI tool
+      clock:     ['query_clock_entries'],                                       // all team clock data
+      photos:    ['query_photos'],                                              // all project photos
+      chat:      [],                                                            // no AI chat-query tool
+      schedule:  ['query_schedule'],                                            // full schedule
+      expenses:  ['query_expenses', 'add_expense'],                            // expense data & entry
+      projects:  ['query_projects', 'query_tasks', 'create_project', 'update_project'],
+      crm:       ['query_clients', 'add_client', 'update_client'],
+      subs:      ['query_subcontractors', 'query_proposals'],
+      reports:   ['generate_report'],
     };
-    // Build the final allowed-tools set for this specific user
+    // Build the final allowed-tools set for this specific user (expanded after features resolve)
     const basicOnlyAllowedTools = new Set<string>(BASIC_ONLY_BASE_TOOLS);
     // (serverFeatures is populated after the DB fetch below — applied at gate time)
 
@@ -7583,17 +7591,26 @@ ${serverChatbotLevel === 'no-financials' ? `- BLOCKED topics (do NOT answer or r
 ${serverChatbotLevel === 'basic-only' ? `- Default BLOCKED topics (do NOT answer or reveal unless a feature override below explicitly grants access): ANY financial data (budgets, costs, rates, payments, estimates), CRM client details, subcontractor info, reports, other employees' work hours.
 - Base allowed: your own clock entries, tasks assigned to you, site photos, project names/status (no financials), your own expenses, daily tasks.
 - If user asks about anything outside this scope (and not granted below), reply: "I'm sorry, I don't have access to that information. Contact your admin if you need more access."` : ''}
-${serverChatbotLevel === 'basic-only' && serverFeatures.expenses ? `- EXPENSES OVERRIDE: This user has been granted Expenses access by their admin. You MAY answer questions about expense data, expense totals per project, cost breakdowns, and payment amounts. This overrides the default financial block for expense-related queries.` : ''}
-${serverChatbotLevel === 'basic-only' && serverFeatures.reports ? `- REPORTS OVERRIDE: This user has been granted Reports access. You MAY generate and share financial summaries, analytics, and report data.` : ''}
-${serverChatbotLevel === 'basic-only' && serverFeatures.projects ? `- PROJECTS OVERRIDE: This user has been granted Project Overview access. You MAY share project budget and financial details.` : ''}
-${serverChatbotLevel === 'basic-only' && serverFeatures.crm ? `- CRM OVERRIDE: This user has been granted CRM access. You MAY answer questions about clients and CRM records.` : ''}
-${serverChatbotLevel === 'basic-only' && serverFeatures.subs ? `- SUBCONTRACTORS OVERRIDE: This user has been granted Subcontractor access. You MAY share estimate, proposal, and subcontractor data.` : ''}
-${!serverFeatures.crm ? `- CRM access is disabled for this user. Do NOT answer questions about clients or add/edit client records.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.dashboard ? `- DASHBOARD OVERRIDE: This user has Dashboard access. You MAY share company activity summaries, project counts, upcoming task overviews, and high-level business metrics.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.clock ? `- CLOCK OVERRIDE: This user has Clock/Time Tracking access. You MAY share all team clock entries, time logs, hours worked, and attendance data — not just their own.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.photos ? `- PHOTOS OVERRIDE: This user has Photos access. You MAY answer questions about all site photos, photo counts per project, and photo history.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.chat ? `- CHAT OVERRIDE: This user has Chat access. You MAY reference team messaging context when relevant to answering questions.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.schedule ? `- SCHEDULE OVERRIDE: This user has Schedule access. You MAY share the full project calendar, all scheduled events, and team availability.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.expenses ? `- EXPENSES OVERRIDE: This user has Expenses access. You MAY answer questions about expense data, expense totals per project, cost breakdowns, and payment amounts.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.projects ? `- PROJECTS OVERRIDE: This user has Project Overview access. You MAY share project details, budgets, task breakdowns, and project financials.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.crm ? `- CRM OVERRIDE: This user has CRM access. You MAY answer questions about clients, leads, contacts, and CRM records.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.subs ? `- SUBCONTRACTORS OVERRIDE: This user has Subcontractor access. You MAY share estimate, proposal, bid, and subcontractor data.` : ''}
+${serverChatbotLevel === 'basic-only' && serverFeatures.reports ? `- REPORTS OVERRIDE: This user has Reports access. You MAY generate and share financial summaries, analytics, wages, salary data, and full report data.` : ''}
+${!serverFeatures.dashboard ? `- Dashboard access is disabled. Do NOT share company-wide activity summaries or business overview metrics.` : ''}
+${!serverFeatures.clock ? `- Clock/time tracking access is disabled. Do NOT answer questions about time entries, hours worked, or attendance beyond the user's own current session.` : ''}
+${!serverFeatures.photos ? `- Photos access is disabled. Do NOT answer questions about site photos or photo history.` : ''}
+${!serverFeatures.chat ? `- Chat access is disabled. Do NOT reference team messages or chat history.` : ''}
+${!serverFeatures.crm ? `- CRM access is disabled. Do NOT answer questions about clients, leads, or CRM records.` : ''}
 ${!serverFeatures.expenses ? `- Expenses access is disabled. Do NOT answer questions about expense data or help add expenses.` : ''}
-${!serverFeatures.projects ? `- Project access is disabled. Do NOT show project details or task information.` : ''}
-${!serverFeatures.reports ? `- Reports access is disabled. Do NOT generate reports or show summary financials.` : ''}
+${!serverFeatures.projects ? `- Project Overview access is disabled. Do NOT show project details or task information.` : ''}
+${!serverFeatures.reports ? `- Reports access is disabled. Do NOT generate reports or show financial summaries.` : ''}
 ${!serverFeatures.subs ? `- Subcontractor access is disabled. Do NOT show subcontractor or proposal data.` : ''}
-${!serverFeatures.schedule ? `- Schedule access is disabled. Do NOT show schedule data.` : ''}`;
+${!serverFeatures.schedule ? `- Schedule access is disabled. Do NOT show schedule or calendar data.` : ''}`;
     }
 
     // Add file attachment context if files are present
