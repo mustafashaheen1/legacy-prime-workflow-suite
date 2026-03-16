@@ -38,8 +38,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       AWS_SECRET_ACCESS_KEY,
       AWS_REGION,
       AWS_S3_BUCKET,
-      SUPABASE_URL,
-      SUPABASE_SERVICE_KEY,
+      EXPO_PUBLIC_SUPABASE_URL: SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY: SUPABASE_SERVICE_KEY,
     } = process.env;
 
     if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY || !AWS_REGION || !AWS_S3_BUCKET) {
