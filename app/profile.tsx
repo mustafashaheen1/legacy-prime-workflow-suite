@@ -28,6 +28,8 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  // Local URI for instant preview — shown immediately after pick, before S3 URL resolves
+  const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [isSendingReset, setIsSendingReset] = useState<boolean>(false);
   const [resetCooldown, setResetCooldown] = useState<number>(0);
@@ -90,6 +92,8 @@ export default function ProfileScreen() {
 
   const doUpload = async (imageUri: string, errorKey: string = 'profile.photoUploadError') => {
     setIsUploadingPhoto(true);
+    // Show local image instantly — don't wait for S3 round-trip
+    setLocalAvatarUri(imageUri);
     try {
       console.log('[Profile] Uploading profile picture to S3...');
 
@@ -130,10 +134,14 @@ export default function ProfileScreen() {
       }
 
       console.log('[Profile] Profile picture uploaded successfully:', uploadResult.url);
+      // Replace local preview with the permanent S3 URL
+      setLocalAvatarUri(uploadResult.url);
       setUser({ ...user, avatar: uploadResult.url });
       Alert.alert(t('common.success'), t('profile.photoUpdated'));
     } catch (error: any) {
       console.error('[Profile] Error uploading profile picture:', error);
+      // Revert local preview on failure
+      setLocalAvatarUri(null);
       Alert.alert(t('common.error'), error.message || t(errorKey));
     } finally {
       setIsUploadingPhoto(false);
@@ -591,11 +599,13 @@ export default function ProfileScreen() {
       <ScrollView style={styles.scrollView}>
         <View style={styles.headerSection}>
           <View style={styles.avatarContainer}>
-            {user.avatar ? (
+            {(localAvatarUri || user.avatar) ? (
               <Image
-                source={{ uri: user.avatar }}
+                key={localAvatarUri || user.avatar}
+                source={{ uri: localAvatarUri || user.avatar }}
                 style={styles.avatar}
                 contentFit="cover"
+                cachePolicy="none"
               />
             ) : (
               <View style={styles.avatarPlaceholder}>
