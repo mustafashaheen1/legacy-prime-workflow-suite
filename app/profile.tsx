@@ -95,15 +95,22 @@ export default function ProfileScreen() {
 
       let imageData: string;
       if (Platform.OS === 'web') {
-        // Web: blob/object URL → data URL via FileReader
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
-        imageData = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
+        if (imageUri.startsWith('data:')) {
+          // expo-image-picker with allowsEditing on web returns a data URL directly
+          // (canvas cropper output) — use as-is, no fetch needed
+          imageData = imageUri;
+        } else {
+          // blob: URL — fetch and convert to data URL
+          // Note: fetch(data:) fails on Safari, so we only use this path for blob URLs
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
+          imageData = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
       } else {
         // Native: compress to JPEG, get raw base64, wrap in data URL
         const { base64 } = await compressImage(imageUri, { maxWidth: 400, maxHeight: 400, quality: 0.85 });
@@ -185,17 +192,22 @@ export default function ProfileScreen() {
   };
 
   const handleChangePhoto = () => {
-    const options: any[] = [];
-
-    // Camera not available on web desktop — only show on native or mobile web
-    if (Platform.OS !== 'web') {
-      options.push({ text: t('profile.takePhoto'), onPress: handleTakePhoto });
+    if (Platform.OS === 'web') {
+      // Alert.alert with multiple buttons is a no-op on web (falls back to window.alert).
+      // Only gallery is available on web anyway — go straight to the picker.
+      handlePickImage();
+      return;
     }
 
-    options.push({ text: t('profile.selectFromGallery'), onPress: handlePickImage });
-    options.push({ text: t('common.cancel'), style: 'cancel' });
-
-    Alert.alert(t('profile.changePhotoTitle'), t('profile.selectOption'), options);
+    Alert.alert(
+      t('profile.changePhotoTitle'),
+      t('profile.selectOption'),
+      [
+        { text: t('profile.takePhoto'), onPress: handleTakePhoto },
+        { text: t('profile.selectFromGallery'), onPress: handlePickImage },
+        { text: t('common.cancel'), style: 'cancel' },
+      ]
+    );
   };
 
   const startResetCooldown = (seconds: number) => {
