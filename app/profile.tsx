@@ -99,22 +99,41 @@ export default function ProfileScreen() {
 
       let imageData: string;
       if (Platform.OS === 'web') {
+        // Resolve to a raw data URL first (handles both data: and blob: inputs)
+        let rawDataUrl: string;
         if (imageUri.startsWith('data:')) {
-          // expo-image-picker with allowsEditing on web returns a data URL directly
-          // (canvas cropper output) — use as-is, no fetch needed
-          imageData = imageUri;
+          rawDataUrl = imageUri;
         } else {
-          // blob: URL — fetch and convert to data URL
-          // Note: fetch(data:) fails on Safari, so we only use this path for blob URLs
+          // blob: URL — fetch and convert (only used when allowsEditing is off)
           const response = await fetch(imageUri);
           const blob = await response.blob();
-          imageData = await new Promise<string>((resolve, reject) => {
+          rawDataUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result as string);
             reader.onerror = reject;
             reader.readAsDataURL(blob);
           });
         }
+
+        // Compress via canvas to JPEG 400×400 @ 0.85 quality
+        // Raw data URLs from the browser picker can be 5–20 MB — must reduce
+        // before hitting the API's 10 MB body limit
+        imageData = await new Promise<string>((resolve, reject) => {
+          const img = new (window as any).Image();
+          img.onload = () => {
+            const MAX = 400;
+            const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { reject(new Error('Canvas unavailable')); return; }
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          };
+          img.onerror = () => reject(new Error('Failed to load image for compression'));
+          img.src = rawDataUrl;
+        });
       } else {
         // Native: compress to JPEG, get raw base64, wrap in data URL
         const { base64 } = await compressImage(imageUri, { maxWidth: 400, maxHeight: 400, quality: 0.85 });
@@ -126,6 +145,12 @@ export default function ProfileScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageData, userId: user.id }),
       });
+
+      // Guard against non-JSON error responses (e.g. 413 "Request Entity Too Large")
+      if (!uploadResponse.ok) {
+        const errText = await uploadResponse.text();
+        throw new Error(`Upload failed (${uploadResponse.status}): ${errText}`);
+      }
 
       const uploadResult = await uploadResponse.json();
 
