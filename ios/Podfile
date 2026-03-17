@@ -23,6 +23,11 @@ prepare_react_native_project!
 target 'LegacyPrimeWorkflowSuite' do
   use_expo_modules!
 
+  # Required for @react-native-firebase — FirebaseCoreInternal (Swift) depends on
+  # GoogleUtilities which needs modular headers to be importable from Swift
+  # when building as static libraries.
+  pod 'GoogleUtilities', :modular_headers => true
+
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
   else
