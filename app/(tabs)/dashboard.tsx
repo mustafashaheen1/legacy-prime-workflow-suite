@@ -1036,7 +1036,8 @@ export default function DashboardScreen() {
         });
 
         if (!response.ok) {
-          console.error('[dashboard] Failed to check reminders:', response.status);
+          const errBody = await response.text().catch(() => '');
+          console.error('[dashboard] Failed to check reminders:', response.status, errBody.slice(0, 300));
           return;
         }
 
