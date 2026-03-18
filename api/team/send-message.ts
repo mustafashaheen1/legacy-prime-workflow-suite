@@ -149,7 +149,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     token: row.token,
                     notification: { title: senderName, body: msgPreview },
                     data: { type: 'chat', conversationId },
-                    apns: { payload: { aps: { badge: 1, sound: 'default' } } },
+                    apns: {
+                      headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
+                      payload: { aps: { badge: 1, sound: 'default' } },
+                    },
                     android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
                   });
                   console.log('[Send Message] FCM sent to token ending:', row.token.slice(-8));

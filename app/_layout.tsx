@@ -66,13 +66,17 @@ function RootLayoutNav() {
         const resp = await fetch(`${API_BASE}/api/team/get-conversations?userId=${user.id}`);
         const result = await resp.json();
         if (!result.success) return;
-        const count = result.conversations.filter((conv: any) =>
+        const unread = result.conversations.filter((conv: any) =>
           conv.lastMessageAt &&
           conv.lastMessage?.sender_id !== user.id &&
           (!conv.lastReadAt || conv.lastMessageAt > conv.lastReadAt)
-        ).length;
-        setUnreadChatCount(count);
-      } catch {}
+        );
+        console.log('[ChatBadge] total:', result.conversations.length, 'unread:', unread.length,
+          unread.map((c: any) => ({ name: c.name, lastMsg: c.lastMessageAt, lastRead: c.lastReadAt })));
+        setUnreadChatCount(unread.length);
+      } catch (err) {
+        console.warn('[ChatBadge] fetch failed:', err);
+      }
     };
     refresh();
     const interval = setInterval(refresh, 30_000);
