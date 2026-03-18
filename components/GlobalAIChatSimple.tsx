@@ -764,6 +764,9 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const nativeRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [soundInstance, setSoundInstance] = useState<AudioPlayer | null>(null);
   const playerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
+  // Synchronous guard — set true immediately when remove() is called so stopSound/cleanup
+  // doesn't try to access a dead native SharedObject before the async setSoundInstance(null) settles.
+  const playerRemovedRef = useRef(false);
   const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
   const isProcessingActionRef = useRef<boolean>(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -2574,18 +2577,15 @@ Generate appropriate line items from the price list that fit this scope of work$
     }
 
     // Stop mobile audio
-    if (soundInstance) {
+    if (soundInstance && !playerRemovedRef.current) {
       try {
         playerSubscriptionRef.current?.remove();
         playerSubscriptionRef.current = null;
-        soundInstance.pause();
+        playerRemovedRef.current = true;
         soundInstance.remove();
-      } catch (error) {
-        console.error('Error stopping sound:', error);
-      } finally {
-        setSoundInstance(null);
-      }
+      } catch { /* non-fatal — player may already be deallocated */ }
     }
+    setSoundInstance(null);
 
     setIsSpeaking(false);
   }, [soundInstance]);
@@ -2662,6 +2662,7 @@ Generate appropriate line items from the price list that fit this scope of work$
         console.log('[TTS] Audio generated, playing...');
 
         const player = createAudioPlayer({ uri: `data:audio/mpeg;base64,${audioBase64}` });
+        playerRemovedRef.current = false;
         setSoundInstance(player);
 
         playerSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
@@ -2671,6 +2672,7 @@ Generate appropriate line items from the price list that fit this scope of work$
             try {
               playerSubscriptionRef.current?.remove();
               playerSubscriptionRef.current = null;
+              playerRemovedRef.current = true;
               player.remove();
             } catch { /* player already removed */ }
             setSoundInstance(null);
@@ -2811,10 +2813,11 @@ Generate appropriate line items from the price list that fit this scope of work$
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
-      if (soundInstance) {
+      if (soundInstance && !playerRemovedRef.current) {
         try {
           playerSubscriptionRef.current?.remove();
           playerSubscriptionRef.current = null;
+          playerRemovedRef.current = true;
           soundInstance.remove();
         } catch { /* non-fatal */ }
       }
