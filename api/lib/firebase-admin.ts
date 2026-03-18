@@ -15,6 +15,7 @@ export interface FcmMessage {
   notification?: { title?: string; body?: string };
   data?: Record<string, string>;
   apns?: {
+    headers?: Record<string, string>;
     payload?: { aps?: { badge?: number; sound?: string } };
   };
   android?: {
