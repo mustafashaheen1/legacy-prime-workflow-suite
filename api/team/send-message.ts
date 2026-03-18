@@ -83,6 +83,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[Send Message] Message sent successfully:', message.id);
 
+    // Keep conversations.last_message_at current so every client's poll and the
+    // Realtime channel on conversations UPDATE instantly detects the new message.
+    await supabase
+      .from('conversations')
+      .update({ last_message_at: message.created_at })
+      .eq('id', conversationId);
+
     // Fetch sender info for response
     const { data: sender } = await supabase
       .from('users')

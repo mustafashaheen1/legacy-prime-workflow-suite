@@ -109,7 +109,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           avatar: conversationAvatar,
           participants: participants?.map((p: any) => p.users).filter(Boolean) || [],
           lastMessage: lastMessage || null,
-          lastMessageAt: conv.last_message_at,
+          // Prefer DB column; fall back to the actual latest message timestamp so
+          // the client always gets an accurate value even if last_message_at is stale.
+          lastMessageAt: conv.last_message_at || lastMessage?.created_at || null,
           lastReadAt: p.last_read_at,
           createdAt: conv.created_at,
           updatedAt: conv.updated_at,
