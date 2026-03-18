@@ -83,140 +83,148 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[Send Message] Message sent successfully:', message.id);
 
-    // Keep conversations.last_message_at current so every client's poll and the
-    // Realtime channel on conversations UPDATE instantly detects the new message.
-    await supabase
-      .from('conversations')
-      .update({ last_message_at: message.created_at })
-      .eq('id', conversationId);
+    // Run all post-insert work in parallel:
+    //   • stamp conversations.last_message_at (keeps polls + Realtime accurate)
+    //   • fetch sender info for the response payload
+    //   • fetch other participants for push targeting
+    const [senderResult, participantsResult] = await Promise.all([
+      supabase.from('users').select('name, avatar').eq('id', senderId).single(),
+      supabase.from('conversation_participants')
+        .select('user_id')
+        .eq('conversation_id', conversationId)
+        .neq('user_id', senderId),
+      supabase.from('conversations')
+        .update({ last_message_at: message.created_at })
+        .eq('id', conversationId),
+    ]);
 
-    // Fetch sender info for response
-    const { data: sender } = await supabase
-      .from('users')
-      .select('name, avatar')
-      .eq('id', senderId)
-      .single();
+    const sender         = senderResult.data;
+    const otherParticipants = participantsResult.data ?? [];
 
-    // ── Return response to client immediately ────────────────────────────────
-    // Push notifications are sent AFTER the response so the client is never
-    // blocked by FCM latency (OAuth2 exchange + HTTP v1 send can take 2-4s).
-    // Vercel keeps the function alive after res.end() for in-flight work.
-    res.status(200).json({
+    // ── Push notifications ────────────────────────────────────────────────────
+    // NOTE: Push is sent BEFORE the HTTP response. Vercel Lambda freezes the
+    // process the moment res.end() is called — any async work queued after that
+    // is silently dropped. A 4 s timeout caps worst-case latency (OAuth2 cold
+    // start + FCM HTTP v1); warm instances typically complete in < 300 ms because
+    // the OAuth2 token is cached in firebase-admin.ts.
+    const pushWork = async () => {
+      try {
+        if (!otherParticipants.length) return;
+
+        const otherUserIds = otherParticipants.map((p: any) => p.user_id);
+        const { data: tokenRows } = await supabase
+          .from('push_tokens')
+          .select('token, token_source')
+          .in('user_id', otherUserIds)
+          .eq('is_active', true);
+
+        if (!tokenRows?.length) {
+          console.log('[Send Message] No active push tokens for recipients');
+          return;
+        }
+
+        const senderName = sender?.name || 'Someone';
+        const msgPreview =
+          type === 'text'  ? (content || '')
+          : type === 'image' ? '📷 Photo'
+          : type === 'voice' ? '🎤 Voice message'
+          : type === 'video' ? '🎬 Video'
+          : '📎 File';
+
+        const expoTokens = tokenRows.filter((r: any) =>  r.token.startsWith('ExponentPushToken['));
+        const fcmTokens  = tokenRows.filter((r: any) => !r.token.startsWith('ExponentPushToken['));
+
+        console.log(`[Send Message] Pushing to ${fcmTokens.length} FCM + ${expoTokens.length} Expo token(s)`);
+
+        // ── FCM tokens (iOS, Android, Web) ────────────────────────────────────
+        if (fcmTokens.length > 0) {
+          try {
+            const messaging = await getFirebaseMessaging();
+            const deadFcmTokens: string[] = [];
+
+            await Promise.allSettled(
+              fcmTokens.map(async (row: any) => {
+                try {
+                  await messaging.send({
+                    token: row.token,
+                    notification: { title: senderName, body: msgPreview },
+                    data: { type: 'chat', conversationId },
+                    apns: { payload: { aps: { badge: 1, sound: 'default' } } },
+                    android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
+                  });
+                  console.log('[Send Message] FCM sent to token ending:', row.token.slice(-8));
+                } catch (err: any) {
+                  const code = err?.errorInfo?.code || err?.code || '';
+                  console.warn('[Send Message] FCM error:', code, 'token ending:', row.token.slice(-8));
+                  if (
+                    code === 'UNREGISTERED' ||
+                    code === 'INVALID_ARGUMENT' ||
+                    code.includes('registration-token-not-registered') ||
+                    code.includes('invalid-registration-token')
+                  ) {
+                    deadFcmTokens.push(row.token);
+                  }
+                }
+              })
+            );
+
+            if (deadFcmTokens.length > 0) {
+              await supabase.from('push_tokens').update({ is_active: false }).in('token', deadFcmTokens);
+              console.log('[Send Message] Deactivated', deadFcmTokens.length, 'dead FCM token(s)');
+            }
+          } catch (fcmErr: any) {
+            console.warn('[Send Message] FCM init failed:', fcmErr?.message);
+          }
+        }
+
+        // ── Legacy Expo tokens ─────────────────────────────────────────────────
+        if (expoTokens.length > 0) {
+          try {
+            const pushMessages = expoTokens.map((row: any) => ({
+              to: row.token,
+              title: senderName,
+              body: msgPreview,
+              data: { type: 'chat', conversationId },
+              sound: 'default',
+              badge: 1,
+            }));
+            const expRes = await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify(pushMessages),
+            });
+            if (expRes.ok) {
+              const expResult = await expRes.json() as { data?: Array<{ details?: { error?: string } }> };
+              const deadExpoTokens = expoTokens
+                .filter((_: any, i: number) => expResult.data?.[i]?.details?.error === 'DeviceNotRegistered')
+                .map((r: any) => r.token);
+              if (deadExpoTokens.length > 0) {
+                await supabase.from('push_tokens').update({ is_active: false }).in('token', deadExpoTokens);
+              }
+            }
+          } catch (expoErr: any) {
+            console.warn('[Send Message] Expo push error:', expoErr?.message);
+          }
+        }
+      } catch (pushErr: any) {
+        console.warn('[Send Message] Push failed (non-fatal):', pushErr?.message);
+      }
+    };
+
+    // Race push work against a 4 s timeout so a slow FCM cold start never
+    // blocks the HTTP response beyond an acceptable threshold.
+    await Promise.race([
+      pushWork(),
+      new Promise<void>(resolve => setTimeout(resolve, 4000)),
+    ]);
+
+    return res.status(200).json({
       success: true,
       message: {
         ...message,
         sender: sender || { name: 'Unknown', avatar: null },
       },
     });
-
-    // ── Push notification (runs after response, both FCM + Expo) ─────────────
-    try {
-      const { data: otherParticipants } = await supabase
-        .from('conversation_participants')
-        .select('user_id')
-        .eq('conversation_id', conversationId)
-        .neq('user_id', senderId);
-
-      if (!otherParticipants?.length) return;
-
-      const otherUserIds = otherParticipants.map((p: any) => p.user_id);
-      const { data: tokenRows } = await supabase
-        .from('push_tokens')
-        .select('token, token_source')
-        .in('user_id', otherUserIds)
-        .eq('is_active', true);
-
-      if (!tokenRows?.length) {
-        console.log('[Send Message] No active push tokens for recipients');
-        return;
-      }
-
-      const senderName = sender?.name || 'Someone';
-      const msgPreview =
-        type === 'text'  ? (content || '')
-        : type === 'image' ? '📷 Photo'
-        : type === 'voice' ? '🎤 Voice message'
-        : type === 'video' ? '🎬 Video'
-        : '📎 File';
-
-      const expoTokens = tokenRows.filter((r: any) =>  r.token.startsWith('ExponentPushToken['));
-      const fcmTokens  = tokenRows.filter((r: any) => !r.token.startsWith('ExponentPushToken['));
-
-      console.log(`[Send Message] Pushing to ${fcmTokens.length} FCM + ${expoTokens.length} Expo token(s)`);
-
-      // ── FCM tokens (iOS, Android, Web) ──────────────────────────────────────
-      if (fcmTokens.length > 0) {
-        try {
-          const messaging = await getFirebaseMessaging();
-          const deadFcmTokens: string[] = [];
-
-          await Promise.allSettled(
-            fcmTokens.map(async (row: any) => {
-              try {
-                await messaging.send({
-                  token: row.token,
-                  notification: { title: senderName, body: msgPreview },
-                  data: { type: 'chat', conversationId },
-                  apns: { payload: { aps: { badge: 1, sound: 'default' } } },
-                  android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
-                });
-                console.log('[Send Message] FCM sent to token ending:', row.token.slice(-8));
-              } catch (err: any) {
-                const code = err?.errorInfo?.code || err?.code || '';
-                console.warn('[Send Message] FCM error:', code, 'token ending:', row.token.slice(-8));
-                if (
-                  code === 'UNREGISTERED' ||
-                  code === 'INVALID_ARGUMENT' ||
-                  code.includes('registration-token-not-registered') ||
-                  code.includes('invalid-registration-token')
-                ) {
-                  deadFcmTokens.push(row.token);
-                }
-              }
-            })
-          );
-
-          if (deadFcmTokens.length > 0) {
-            await supabase.from('push_tokens').update({ is_active: false }).in('token', deadFcmTokens);
-            console.log('[Send Message] Deactivated', deadFcmTokens.length, 'dead FCM token(s)');
-          }
-        } catch (fcmErr: any) {
-          console.warn('[Send Message] FCM init failed:', fcmErr?.message);
-        }
-      }
-
-      // ── Legacy Expo tokens ───────────────────────────────────────────────────
-      if (expoTokens.length > 0) {
-        try {
-          const pushMessages = expoTokens.map((row: any) => ({
-            to: row.token,
-            title: senderName,
-            body: msgPreview,
-            data: { type: 'chat', conversationId },
-            sound: 'default',
-            badge: 1,
-          }));
-          const expRes = await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(pushMessages),
-          });
-          if (expRes.ok) {
-            const expResult = await expRes.json() as { data?: Array<{ details?: { error?: string } }> };
-            const deadExpoTokens = expoTokens
-              .filter((_: any, i: number) => expResult.data?.[i]?.details?.error === 'DeviceNotRegistered')
-              .map((r: any) => r.token);
-            if (deadExpoTokens.length > 0) {
-              await supabase.from('push_tokens').update({ is_active: false }).in('token', deadExpoTokens);
-            }
-          }
-        } catch (expoErr: any) {
-          console.warn('[Send Message] Expo push error:', expoErr?.message);
-        }
-      }
-    } catch (pushErr: any) {
-      console.warn('[Send Message] Push failed (non-fatal):', pushErr?.message);
-    }
   } catch (error: any) {
     console.error('[Send Message] Error:', error);
     return res.status(500).json({
