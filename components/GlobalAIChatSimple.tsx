@@ -763,6 +763,7 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
   const conversationModeInitialized = useRef<boolean>(false);
   const nativeRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [soundInstance, setSoundInstance] = useState<AudioPlayer | null>(null);
+  const playerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
   const isProcessingActionRef = useRef<boolean>(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -2575,6 +2576,8 @@ Generate appropriate line items from the price list that fit this scope of work$
     // Stop mobile audio
     if (soundInstance) {
       try {
+        playerSubscriptionRef.current?.remove();
+        playerSubscriptionRef.current = null;
         soundInstance.pause();
         soundInstance.remove();
       } catch (error) {
@@ -2661,11 +2664,15 @@ Generate appropriate line items from the price list that fit this scope of work$
         const player = createAudioPlayer({ uri: `data:audio/mpeg;base64,${audioBase64}` });
         setSoundInstance(player);
 
-        player.addListener('playbackStatusUpdate',(status) => {
+        playerSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
           if (status.didJustFinish) {
             console.log('[TTS] Finished speaking');
             setIsSpeaking(false);
-            player.remove();
+            try {
+              playerSubscriptionRef.current?.remove();
+              playerSubscriptionRef.current = null;
+              player.remove();
+            } catch { /* player already removed */ }
             setSoundInstance(null);
 
             if (autoStartRecording && isConversationMode && conversationModeInitialized.current) {
@@ -2805,7 +2812,11 @@ Generate appropriate line items from the price list that fit this scope of work$
         streamRef.current.getTracks().forEach(track => track.stop());
       }
       if (soundInstance) {
-        try { soundInstance.remove(); } catch { /* non-fatal */ }
+        try {
+          playerSubscriptionRef.current?.remove();
+          playerSubscriptionRef.current = null;
+          soundInstance.remove();
+        } catch { /* non-fatal */ }
       }
       if (nativeRecorder.isRecording) {
         nativeRecorder.stop().catch(console.error);
