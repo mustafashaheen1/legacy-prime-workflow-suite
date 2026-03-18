@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Platform, NativeModules } from 'react-native';
+import { Platform, NativeModules, AppState, AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import type { Notification } from '@/types';
@@ -214,6 +214,15 @@ export function useNotificationSetup(
 
     setup();
 
+    // Re-register FCM token whenever the app returns to the foreground.
+    // This catches token rotations that happened while the app was backgrounded
+    // or killed — critical for devices (e.g. iPad) that were logged in before
+    // the FCM migration or haven't re-launched since token rotation.
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'active') setup();
+    };
+    const appStateSub = AppState.addEventListener('change', handleAppStateChange);
+
     // Foreground notification display (expo-notifications handles the UI layer)
     notificationListener.current = Notifications.addNotificationReceivedListener((incoming) => {
       console.log('[Notifications] Foreground notification:', incoming.request.identifier);
@@ -273,6 +282,7 @@ export function useNotificationSetup(
 
     return () => {
       mounted = false;
+      appStateSub.remove();
       notificationListener.current?.remove();
       responseListener.current?.remove();
       (setup as any)._unsubscribeTokenRefresh?.();

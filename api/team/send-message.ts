@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { getFirebaseMessaging } from '../lib/firebase-admin.js';
 
 export const config = {
-  maxDuration: 10,
+  maxDuration: 30,
 };
 
 /**
@@ -89,7 +90,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('id', senderId)
       .single();
 
-    // Push notification to all other participants (fire-and-forget, both FCM and Expo tokens)
+    // ── Return response to client immediately ────────────────────────────────
+    // Push notifications are sent AFTER the response so the client is never
+    // blocked by FCM latency (OAuth2 exchange + HTTP v1 send can take 2-4s).
+    // Vercel keeps the function alive after res.end() for in-flight work.
+    res.status(200).json({
+      success: true,
+      message: {
+        ...message,
+        sender: sender || { name: 'Unknown', avatar: null },
+      },
+    });
+
+    // ── Push notification (runs after response, both FCM + Expo) ─────────────
     try {
       const { data: otherParticipants } = await supabase
         .from('conversation_participants')
@@ -97,111 +110,106 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('conversation_id', conversationId)
         .neq('user_id', senderId);
 
-      if (otherParticipants?.length) {
-        const otherUserIds = otherParticipants.map((p: any) => p.user_id);
-        const { data: tokenRows } = await supabase
-          .from('push_tokens')
-          .select('token, token_source')
-          .in('user_id', otherUserIds)
-          .eq('is_active', true);
+      if (!otherParticipants?.length) return;
 
-        if (tokenRows?.length) {
-          const senderName = sender?.name || 'Someone';
-          const msgPreview =
-            type === 'text'  ? (content || '')
-            : type === 'image' ? '📷 Photo'
-            : type === 'voice' ? '🎤 Voice message'
-            : type === 'video' ? '🎬 Video'
-            : '📎 File';
+      const otherUserIds = otherParticipants.map((p: any) => p.user_id);
+      const { data: tokenRows } = await supabase
+        .from('push_tokens')
+        .select('token, token_source')
+        .in('user_id', otherUserIds)
+        .eq('is_active', true);
 
-          const expoTokens = tokenRows.filter((r: any) => r.token.startsWith('ExponentPushToken['));
-          const fcmTokens  = tokenRows.filter((r: any) => !r.token.startsWith('ExponentPushToken['));
-          const pushData   = { type: 'chat', conversationId };
+      if (!tokenRows?.length) {
+        console.log('[Send Message] No active push tokens for recipients');
+        return;
+      }
 
-          // ── FCM tokens (modern iOS, Android, Web) ────────────────────────────
-          if (fcmTokens.length > 0) {
-            try {
-              const { getFirebaseMessaging } = await import('../lib/firebase-admin.js');
-              const messaging = await getFirebaseMessaging();
-              const deadFcmTokens: string[] = [];
+      const senderName = sender?.name || 'Someone';
+      const msgPreview =
+        type === 'text'  ? (content || '')
+        : type === 'image' ? '📷 Photo'
+        : type === 'voice' ? '🎤 Voice message'
+        : type === 'video' ? '🎬 Video'
+        : '📎 File';
 
-              await Promise.allSettled(
-                fcmTokens.map(async (row: any) => {
-                  try {
-                    await messaging.send({
-                      token: row.token,
-                      notification: { title: senderName, body: msgPreview },
-                      data: { type: 'chat', conversationId },
-                      apns: { payload: { aps: { badge: 1, sound: 'default' } } },
-                      android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
-                    });
-                  } catch (err: any) {
-                    const code = err?.errorInfo?.code || err?.code || '';
-                    if (
-                      code === 'UNREGISTERED' ||
-                      code === 'INVALID_ARGUMENT' ||
-                      code.includes('registration-token-not-registered') ||
-                      code.includes('invalid-registration-token')
-                    ) {
-                      deadFcmTokens.push(row.token);
-                    } else {
-                      console.warn('[Send Message] FCM send error:', code);
-                    }
-                  }
-                })
-              );
+      const expoTokens = tokenRows.filter((r: any) =>  r.token.startsWith('ExponentPushToken['));
+      const fcmTokens  = tokenRows.filter((r: any) => !r.token.startsWith('ExponentPushToken['));
 
-              if (deadFcmTokens.length > 0) {
-                await supabase
-                  .from('push_tokens')
-                  .update({ is_active: false })
-                  .in('token', deadFcmTokens);
-              }
-              console.log('[Send Message] FCM dispatched to', fcmTokens.length, 'device(s)');
-            } catch (fcmErr: any) {
-              console.warn('[Send Message] FCM dispatch failed (non-fatal):', fcmErr?.message);
-            }
-          }
+      console.log(`[Send Message] Pushing to ${fcmTokens.length} FCM + ${expoTokens.length} Expo token(s)`);
 
-          // ── Legacy Expo tokens (backward compat) ────────────────────────────
-          if (expoTokens.length > 0) {
-            const pushMessages = expoTokens.map((row: any) => ({
-              to: row.token,
-              title: senderName,
-              body: msgPreview,
-              data: pushData,
-              sound: 'default',
-              badge: 1,
-            }));
-            fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-              body: JSON.stringify(pushMessages),
-            }).then(async (expRes) => {
-              if (expRes.ok) {
-                const expResult = await expRes.json() as { data?: Array<{ details?: { error?: string } }> };
-                const deadExpoTokens = expoTokens
-                  .filter((_: any, i: number) => expResult.data?.[i]?.details?.error === 'DeviceNotRegistered')
-                  .map((r: any) => r.token);
-                if (deadExpoTokens.length > 0) {
-                  await supabase.from('push_tokens').update({ is_active: false }).in('token', deadExpoTokens);
+      // ── FCM tokens (iOS, Android, Web) ──────────────────────────────────────
+      if (fcmTokens.length > 0) {
+        try {
+          const messaging = await getFirebaseMessaging();
+          const deadFcmTokens: string[] = [];
+
+          await Promise.allSettled(
+            fcmTokens.map(async (row: any) => {
+              try {
+                await messaging.send({
+                  token: row.token,
+                  notification: { title: senderName, body: msgPreview },
+                  data: { type: 'chat', conversationId },
+                  apns: { payload: { aps: { badge: 1, sound: 'default' } } },
+                  android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
+                });
+                console.log('[Send Message] FCM sent to token ending:', row.token.slice(-8));
+              } catch (err: any) {
+                const code = err?.errorInfo?.code || err?.code || '';
+                console.warn('[Send Message] FCM error:', code, 'token ending:', row.token.slice(-8));
+                if (
+                  code === 'UNREGISTERED' ||
+                  code === 'INVALID_ARGUMENT' ||
+                  code.includes('registration-token-not-registered') ||
+                  code.includes('invalid-registration-token')
+                ) {
+                  deadFcmTokens.push(row.token);
                 }
               }
-            }).catch((err: any) => console.warn('[Send Message] Expo push error:', err));
+            })
+          );
+
+          if (deadFcmTokens.length > 0) {
+            await supabase.from('push_tokens').update({ is_active: false }).in('token', deadFcmTokens);
+            console.log('[Send Message] Deactivated', deadFcmTokens.length, 'dead FCM token(s)');
           }
+        } catch (fcmErr: any) {
+          console.warn('[Send Message] FCM init failed:', fcmErr?.message);
+        }
+      }
+
+      // ── Legacy Expo tokens ───────────────────────────────────────────────────
+      if (expoTokens.length > 0) {
+        try {
+          const pushMessages = expoTokens.map((row: any) => ({
+            to: row.token,
+            title: senderName,
+            body: msgPreview,
+            data: { type: 'chat', conversationId },
+            sound: 'default',
+            badge: 1,
+          }));
+          const expRes = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(pushMessages),
+          });
+          if (expRes.ok) {
+            const expResult = await expRes.json() as { data?: Array<{ details?: { error?: string } }> };
+            const deadExpoTokens = expoTokens
+              .filter((_: any, i: number) => expResult.data?.[i]?.details?.error === 'DeviceNotRegistered')
+              .map((r: any) => r.token);
+            if (deadExpoTokens.length > 0) {
+              await supabase.from('push_tokens').update({ is_active: false }).in('token', deadExpoTokens);
+            }
+          }
+        } catch (expoErr: any) {
+          console.warn('[Send Message] Expo push error:', expoErr?.message);
         }
       }
     } catch (pushErr: any) {
-      console.warn('[Send Message] Push notification failed (non-fatal):', pushErr);
+      console.warn('[Send Message] Push failed (non-fatal):', pushErr?.message);
     }
-
-    return res.status(200).json({
-      success: true,
-      message: {
-        ...message,
-        sender: sender || { name: 'Unknown', avatar: null },
-      },
-    });
   } catch (error: any) {
     console.error('[Send Message] Error:', error);
     return res.status(500).json({
