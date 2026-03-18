@@ -62,21 +62,26 @@ function RootLayoutNav() {
   useEffect(() => {
     if (!user?.id) return;
     const refresh = async () => {
+      let _step = 'fetch';
       try {
         const resp = await fetch(`${API_BASE}/api/team/get-conversations?userId=${user.id}`);
+        _step = 'json';
         const result = await resp.json();
-        if (!result.success) return;
-        const convs: any[] = Array.isArray(result.conversations) ? result.conversations : [];
+        _step = 'parse';
+        if (!result?.success) return;
+        const convs: any[] = Array.isArray(result?.conversations) ? result.conversations : [];
+        _step = 'filter';
         const unread = convs.filter((conv: any) =>
-          conv.lastMessageAt &&
-          conv.lastMessage?.sender_id !== user.id &&
-          (!conv.lastReadAt || conv.lastMessageAt > conv.lastReadAt)
+          conv?.lastMessageAt &&
+          conv?.lastMessage?.sender_id !== user?.id &&
+          (!conv?.lastReadAt || conv.lastMessageAt > conv.lastReadAt)
         );
-        console.log('[ChatBadge] total:', convs.length, 'unread:', unread.length,
-          unread.map((c: any) => ({ name: c.name, lastMsg: c.lastMessageAt, lastRead: c.lastReadAt })));
+        _step = 'log';
+        console.log('[ChatBadge] total:', convs.length, 'unread:', unread.length);
+        _step = 'setCount';
         setUnreadChatCount(unread.length);
-      } catch (err) {
-        console.warn('[ChatBadge] fetch failed:', err);
+      } catch (err: any) {
+        console.warn('[ChatBadge] failed at step:', _step, '—', err?.message ?? err);
       }
     };
     refresh();
