@@ -2818,9 +2818,11 @@ Generate appropriate line items from the price list that fit this scope of work$
           soundInstance.remove();
         } catch { /* non-fatal */ }
       }
-      if (nativeRecorder.isRecording) {
-        nativeRecorder.stop().catch(console.error);
-      }
+      try {
+        if (nativeRecorder.isRecording) {
+          nativeRecorder.stop().catch(() => {});
+        }
+      } catch { /* non-fatal — native SharedObject may already be deallocated on unmount */ }
     };
   }, [soundInstance, nativeRecorder]);
 
