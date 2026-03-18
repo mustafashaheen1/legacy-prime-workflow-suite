@@ -74,7 +74,7 @@ export async function sendNotification(
   // 3a. Send to FCM tokens via Firebase Admin SDK
   if (fcmTokens.length > 0) {
     try {
-      const messaging = getFirebaseMessaging();
+      const messaging = await getFirebaseMessaging();
       const deadFcmTokens: string[] = [];
 
       await Promise.all(
