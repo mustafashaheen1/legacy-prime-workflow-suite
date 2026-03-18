@@ -62,26 +62,19 @@ function RootLayoutNav() {
   useEffect(() => {
     if (!user?.id) return;
     const refresh = async () => {
-      let _step = 'fetch';
       try {
         const resp = await fetch(`${API_BASE}/api/team/get-conversations?userId=${user.id}`);
-        _step = 'json';
         const result = await resp.json();
-        _step = 'parse';
         if (!result?.success) return;
         const convs: any[] = Array.isArray(result?.conversations) ? result.conversations : [];
-        _step = 'filter';
         const unread = convs.filter((conv: any) =>
           conv?.lastMessageAt &&
           conv?.lastMessage?.sender_id !== user?.id &&
           (!conv?.lastReadAt || conv.lastMessageAt > conv.lastReadAt)
         );
-        _step = 'log';
-        console.log('[ChatBadge] total:', convs.length, 'unread:', unread.length);
-        _step = 'setCount';
         setUnreadChatCount(unread.length);
       } catch (err: any) {
-        console.warn('[ChatBadge] failed at step:', _step, '—', err?.message ?? err);
+        console.warn('[ChatBadge] fetch failed:', err?.message ?? err);
       }
     };
     refresh();
