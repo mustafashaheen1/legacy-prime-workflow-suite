@@ -106,6 +106,10 @@ export async function sendNotification(
           } catch (err: any) {
             const code = err?.errorInfo?.code || err?.code || '';
             if (
+              // FCM HTTP v1 error codes
+              code === 'UNREGISTERED' ||
+              code === 'INVALID_ARGUMENT' ||
+              // Legacy firebase-admin SDK error codes (kept for safety)
               code.includes('registration-token-not-registered') ||
               code.includes('invalid-registration-token')
             ) {
