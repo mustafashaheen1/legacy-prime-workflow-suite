@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { sendNotification } from '../backend/lib/sendNotification.js';
-import { notifyCompanyAdmins } from '../backend/lib/notifyAdmins.js';
+import { sendNotification } from './lib/sendNotification.js';
+import { notifyCompanyAdmins } from './lib/notifyAdmins.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow POST
