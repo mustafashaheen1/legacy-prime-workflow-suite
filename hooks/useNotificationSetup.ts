@@ -15,6 +15,28 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Register FCM background message handler (native only).
+// Required for React Native Firebase to process FCM messages when the app
+// is killed or in the background. Must be called at module level (outside
+// any component) so it's registered before the JS engine sleeps.
+// For alert pushes (notification + data), the system displays the banner
+// automatically; this handler ensures any custom logic still runs.
+if (Platform.OS !== 'web') {
+  (async () => {
+    try {
+      const { getApp }        = await import('@react-native-firebase/app');
+      const { getMessaging, setBackgroundMessageHandler } = await import('@react-native-firebase/messaging');
+      setBackgroundMessageHandler(getMessaging(getApp()), async (_message) => {
+        // Background / killed-state handler.
+        // The system already shows the notification banner for alert pushes.
+        // Custom badge or data processing can be added here if needed.
+      });
+    } catch {
+      // No-op on web or if Firebase is unavailable
+    }
+  })();
+}
+
 interface NotificationSetupUser    { id: string; }
 interface NotificationSetupCompany { id: string; }
 

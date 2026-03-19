@@ -14,6 +14,7 @@ public class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    // Configure Firebase before React Native starts so FCM is ready when JS loads
     FirebaseApp.configure()
 
     let delegate = ReactNativeDelegate()

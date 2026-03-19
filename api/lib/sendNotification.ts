@@ -88,6 +88,7 @@ export async function sendNotification(
               },
               data: dataPayload,
               apns: {
+                headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
                 payload: {
                   aps: {
                     badge: 1,
