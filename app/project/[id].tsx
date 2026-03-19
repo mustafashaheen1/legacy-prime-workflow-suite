@@ -30,6 +30,7 @@ export default function ProjectDetailScreen() {
 
   const [changeOrdersData, setChangeOrdersData] = useState<ChangeOrder[]>([]);
   const [paymentsData, setPaymentsData] = useState<Payment[]>([]);
+  const [userRatesMap, setUserRatesMap] = useState<Map<string, number>>(new Map());
   const [inspectionVideosData, setInspectionVideosData] = useState<any[]>([]);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -44,6 +45,14 @@ export default function ProjectDetailScreen() {
         createdAt: r.created_at,
       }))));
   }, [id]);
+
+  useEffect(() => {
+    supabase.from('users').select('id, hourly_rate').then(({ data }) => {
+      const map = new Map<string, number>();
+      (data || []).forEach((u: any) => { if (u.hourly_rate) map.set(u.id, Number(u.hourly_rate)); });
+      setUserRatesMap(map);
+    });
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -414,9 +423,28 @@ export default function ProjectDetailScreen() {
     return payments.reduce((sum, payment) => sum + payment.amount, 0);
   }, [payments]);
 
+  const projectClockEntries = useMemo(() => {
+    return clockEntries.filter(entry => entry.projectId === id);
+  }, [clockEntries, id]);
+
   const totalLaborCost = useMemo(() => {
-    return expensesByType['Labor'] || 0;
-  }, [expensesByType]);
+    return projectClockEntries.reduce((sum, entry) => {
+      if (!entry.clockOut || !entry.clockIn) return sum;
+      const rate = userRatesMap.get(entry.employeeId) ?? 0;
+      if (!rate) return sum;
+      const clockInMs = new Date(entry.clockIn).getTime();
+      const clockOutMs = new Date(entry.clockOut).getTime();
+      let totalMs = clockOutMs - clockInMs;
+      if (entry.lunchBreaks) {
+        entry.lunchBreaks.forEach(lunch => {
+          const ls = new Date(lunch.startTime).getTime();
+          const le = lunch.endTime ? new Date(lunch.endTime).getTime() : clockOutMs;
+          if (!isNaN(ls) && !isNaN(le)) totalMs -= (le - ls);
+        });
+      }
+      return sum + Math.max(0, (totalMs / 3_600_000) * rate);
+    }, 0);
+  }, [projectClockEntries, userRatesMap]);
 
   const totalSubcontractorCost = useMemo(() => {
     return expensesByType['Subcontractor'] || 0;
@@ -425,10 +453,6 @@ export default function ProjectDetailScreen() {
   const totalMaterialCost = useMemo(() => {
     return expensesByType['Material'] || 0;
   }, [expensesByType]);
-
-  const projectClockEntries = useMemo(() => {
-    return clockEntries.filter(entry => entry.projectId === id);
-  }, [clockEntries, id]);
 
   const totalLaborHours = useMemo(() => {
     return projectClockEntries.reduce((sum, entry) => {

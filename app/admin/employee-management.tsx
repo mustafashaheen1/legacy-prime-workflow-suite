@@ -6,6 +6,8 @@ import { User, ClockEntry } from '@/types';
 import { Clock, DollarSign, CheckCircle, XCircle, FileText, Edit2 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
 export default function EmployeeManagementScreen() {
   const { user: currentUser, clockEntries } = useApp();
   const [selectedEmployee, setSelectedEmployee] = useState<User | null>(null);
@@ -86,15 +88,13 @@ export default function EmployeeManagementScreen() {
   const handleApproveRateChange = async (employee: User, approve: boolean) => {
     if (!currentUser) return;
     try {
-      const updates: Record<string, any> = { rate_change_request: null };
-      if (approve && employee.rateChangeRequest) {
-        updates.hourly_rate = (employee.rateChangeRequest as any).newRate;
-      }
-      const { error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', employee.id);
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/api/approve-rate-change`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId: employee.id, approve }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to process rate change');
       Alert.alert('Success', approve ? 'Rate change approved successfully' : 'Rate change rejected');
       setSelectedEmployee(null);
       await fetchUsers();
@@ -121,11 +121,13 @@ export default function EmployeeManagementScreen() {
 
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ hourly_rate: rate, rate_change_request: null })
-        .eq('id', selectedEmployee.id);
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/api/update-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: selectedEmployee.id, updates: { hourlyRate: rate, rateChangeRequest: null } }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to update hourly rate');
       Alert.alert('Success', 'Hourly rate updated successfully');
       setShowEditRateModal(false);
       setSelectedEmployee(null);
