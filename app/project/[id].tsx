@@ -31,6 +31,7 @@ export default function ProjectDetailScreen() {
   const [changeOrdersData, setChangeOrdersData] = useState<ChangeOrder[]>([]);
   const [paymentsData, setPaymentsData] = useState<Payment[]>([]);
   const [userRatesMap, setUserRatesMap] = useState<Map<string, number>>(new Map());
+  const [userNamesMap, setUserNamesMap] = useState<Map<string, string>>(new Map());
   const [inspectionVideosData, setInspectionVideosData] = useState<any[]>([]);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -47,10 +48,15 @@ export default function ProjectDetailScreen() {
   }, [id]);
 
   useEffect(() => {
-    supabase.from('users').select('id, hourly_rate').then(({ data }) => {
-      const map = new Map<string, number>();
-      (data || []).forEach((u: any) => { if (u.hourly_rate) map.set(u.id, Number(u.hourly_rate)); });
-      setUserRatesMap(map);
+    supabase.from('users').select('id, name, hourly_rate').then(({ data }) => {
+      const rates = new Map<string, number>();
+      const names = new Map<string, string>();
+      (data || []).forEach((u: any) => {
+        if (u.hourly_rate) rates.set(u.id, Number(u.hourly_rate));
+        if (u.name) names.set(u.id, u.name);
+      });
+      setUserRatesMap(rates);
+      setUserNamesMap(names);
     });
   }, []);
 
@@ -480,6 +486,50 @@ export default function ProjectDetailScreen() {
     return totalLaborCost / totalLaborHours;
   }, [totalLaborCost, totalLaborHours]);
 
+  // Per-employee labor breakdown — hours worked, rate, cost, and active status.
+  // Aggregates all clock entries (including open/live ones) per employee.
+  const laborBreakdown = useMemo(() => {
+    const map = new Map<string, {
+      name: string;
+      hours: number;
+      rate: number | null;
+      cost: number;
+      isActive: boolean;
+    }>();
+    const now = Date.now();
+    projectClockEntries.forEach(entry => {
+      if (!entry.clockIn) return;
+      const clockInMs = new Date(entry.clockIn).getTime();
+      const clockOutMs = entry.clockOut ? new Date(entry.clockOut).getTime() : now;
+      let ms = clockOutMs - clockInMs;
+      if (entry.lunchBreaks) {
+        entry.lunchBreaks.forEach(lunch => {
+          const ls = new Date(lunch.startTime).getTime();
+          const le = lunch.endTime ? new Date(lunch.endTime).getTime() : clockOutMs;
+          if (!isNaN(ls) && !isNaN(le)) ms -= (le - ls);
+        });
+      }
+      const hours = Math.max(0, ms / 3_600_000);
+      const rate = userRatesMap.get(entry.employeeId) ?? null;
+      const cost = rate ? hours * rate : 0;
+      const name = userNamesMap.get(entry.employeeId)
+        || entry.employeeName
+        || `Employee ${entry.employeeId.slice(0, 4)}`;
+      const isActive = !entry.clockOut;
+      const existing = map.get(entry.employeeId);
+      if (existing) {
+        existing.hours += hours;
+        existing.cost += cost;
+        existing.isActive = existing.isActive || isActive;
+      } else {
+        map.set(entry.employeeId, { name, hours, rate, cost, isActive });
+      }
+    });
+    return Array.from(map.entries())
+      .map(([employeeId, d]) => ({ employeeId, ...d }))
+      .sort((a, b) => b.cost - a.cost || b.hours - a.hours);
+  }, [projectClockEntries, userRatesMap, userNamesMap]);
+
   // Payment baseline: what the client agreed to pay (contract amount).
   // Falls back to budget if no contract has been set yet.
   const paymentBaseline = useMemo(() => {
@@ -796,8 +846,9 @@ export default function ProjectDetailScreen() {
                     </View>
                     <Text style={styles.balanceLabel}>Labor</Text>
                     <Text style={[styles.balanceValue, { color: '#2563EB', fontSize: 16 }]}>
-                      ${totalLaborCost.toLocaleString()}
+                      ${totalLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </Text>
+                    <Text style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>See breakdown ↓</Text>
                   </View>
 
                   <View style={styles.balanceItem}>
@@ -1078,6 +1129,90 @@ export default function ProjectDetailScreen() {
                 </View>
               </View>
             )}
+
+            {/* ── Labor Costs Breakdown ── */}
+            <View style={styles.laborCard}>
+              <View style={styles.laborCardHeader}>
+                <UserCheck size={20} color="#2563EB" />
+                <Text style={styles.laborCardTitle}>Labor Costs</Text>
+                <View style={styles.laborTotalBadge}>
+                  <Text style={styles.laborTotalBadgeText}>
+                    ${totalLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} total
+                  </Text>
+                </View>
+              </View>
+
+              {laborBreakdown.length === 0 ? (
+                <View style={styles.laborEmptyState}>
+                  <Clock size={32} color="#D1D5DB" />
+                  <Text style={styles.laborEmptyText}>No clock entries yet</Text>
+                  <Text style={styles.laborEmptySubtext}>Labor costs appear once employees clock in to this project</Text>
+                </View>
+              ) : (
+                <>
+                  {/* Column headers */}
+                  <View style={styles.laborTableHeader}>
+                    <Text style={[styles.laborTableHeaderText, { flex: 1 }]}>Employee</Text>
+                    <Text style={[styles.laborTableHeaderText, styles.laborColHours]}>Hours</Text>
+                    <Text style={[styles.laborTableHeaderText, styles.laborColRate]}>Rate</Text>
+                    <Text style={[styles.laborTableHeaderText, styles.laborColCost]}>Cost</Text>
+                  </View>
+
+                  {laborBreakdown.map((row) => (
+                    <View key={row.employeeId} style={[styles.laborRow, row.isActive && styles.laborRowActive]}>
+                      {/* Avatar */}
+                      <View style={[styles.laborAvatar, row.isActive && styles.laborAvatarActive]}>
+                        <Text style={styles.laborAvatarText}>
+                          {row.name.charAt(0).toUpperCase()}
+                        </Text>
+                        {row.isActive && <View style={styles.laborActiveDot} />}
+                      </View>
+
+                      {/* Name */}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.laborEmployeeName} numberOfLines={1}>{row.name}</Text>
+                        {row.isActive && (
+                          <Text style={styles.laborLiveLabel}>● Live</Text>
+                        )}
+                      </View>
+
+                      {/* Hours */}
+                      <Text style={[styles.laborColHours, styles.laborCellValue]}>
+                        {row.hours.toFixed(1)}h
+                      </Text>
+
+                      {/* Rate */}
+                      <Text style={[styles.laborColRate, styles.laborCellValue, !row.rate && styles.laborCellMuted]}>
+                        {row.rate ? `$${row.rate.toFixed(0)}/h` : '—'}
+                      </Text>
+
+                      {/* Cost */}
+                      <Text style={[styles.laborColCost, styles.laborCellValue, row.rate ? styles.laborCostValue : styles.laborCellMuted]}>
+                        {row.rate ? `$${row.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : 'No rate'}
+                      </Text>
+                    </View>
+                  ))}
+
+                  {/* Totals row */}
+                  <View style={styles.laborTotalsRow}>
+                    <Text style={[{ flex: 1 }, styles.laborTotalLabel]}>Total</Text>
+                    <Text style={[styles.laborColHours, styles.laborTotalLabel]}>
+                      {totalLaborHours.toFixed(1)}h
+                    </Text>
+                    <Text style={styles.laborColRate} />
+                    <Text style={[styles.laborColCost, styles.laborTotalCost]}>
+                      ${totalLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </Text>
+                  </View>
+
+                  {laborBreakdown.some(r => !r.rate) && (
+                    <Text style={styles.laborRateWarning}>
+                      * Employees without a rate set are not included in the cost total. Set their rate in Employee Management.
+                    </Text>
+                  )}
+                </>
+              )}
+            </View>
 
             <View style={[styles.contentRow, dimensions.width < 600 && styles.contentRowVertical]}>
               <View style={styles.mainContent}>
@@ -3631,6 +3766,182 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
   },
+  // ── Labor Cost Card ────────────────────────────────────────────────────────
+  laborCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  laborCardHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: 16,
+  },
+  laborCardTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+    flex: 1,
+  },
+  laborTotalBadge: {
+    backgroundColor: '#DBEAFE',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  laborTotalBadgeText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: '#2563EB',
+  },
+  laborEmptyState: {
+    alignItems: 'center' as const,
+    paddingVertical: 32,
+    gap: 8,
+  },
+  laborEmptyText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  laborEmptySubtext: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center' as const,
+    paddingHorizontal: 16,
+  },
+  laborTableHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: 4,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    marginBottom: 4,
+  },
+  laborTableHeaderText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: '#9CA3AF',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+    textAlign: 'right' as const,
+  },
+  laborColHours: {
+    width: 52,
+    textAlign: 'right' as const,
+  },
+  laborColRate: {
+    width: 52,
+    textAlign: 'right' as const,
+  },
+  laborColCost: {
+    width: 68,
+    textAlign: 'right' as const,
+  },
+  laborRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F9FAFB',
+  },
+  laborRowActive: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 10,
+    borderBottomWidth: 0,
+    marginBottom: 2,
+    paddingHorizontal: 8,
+  },
+  laborAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  laborAvatarActive: {
+    backgroundColor: '#D1FAE5',
+  },
+  laborAvatarText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: '#374151',
+  },
+  laborActiveDot: {
+    position: 'absolute' as const,
+    bottom: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  laborEmployeeName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  laborLiveLabel: {
+    fontSize: 11,
+    color: '#10B981',
+    fontWeight: '600' as const,
+    marginTop: 1,
+  },
+  laborCellValue: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500' as const,
+  },
+  laborCellMuted: {
+    color: '#9CA3AF',
+  },
+  laborCostValue: {
+    color: '#2563EB',
+    fontWeight: '700' as const,
+  },
+  laborTotalsRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingTop: 10,
+    paddingHorizontal: 4,
+    marginTop: 4,
+    borderTopWidth: 2,
+    borderTopColor: '#E5E7EB',
+    gap: 10,
+  },
+  laborTotalLabel: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  laborTotalCost: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#2563EB',
+    textAlign: 'right' as const,
+    width: 68,
+  },
+  laborRateWarning: {
+    fontSize: 11,
+    color: '#F59E0B',
+    marginTop: 10,
+    paddingHorizontal: 4,
+    lineHeight: 16,
+  },
+  // ── End Labor Cost Card ────────────────────────────────────────────────────
   clockedInCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
