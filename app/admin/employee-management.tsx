@@ -247,9 +247,28 @@ export default function EmployeeManagementScreen() {
     const totalHours = employeeEntries.reduce((sum, entry) => sum + calculateHours(entry), 0);
     const regularHours = Math.min(totalHours, 40);
     const overtimeHours = Math.max(0, totalHours - 40);
-    const totalEarnings = selectedEmployee.hourlyRate 
-      ? (regularHours * selectedEmployee.hourlyRate) + (overtimeHours * selectedEmployee.hourlyRate * 1.5)
-      : 0;
+
+    // Compute earnings per-entry using each entry's snapshotted rate so that a
+    // rate change mid-week is reflected accurately. Falls back to the employee's
+    // current rate for legacy entries that predate the snapshot column.
+    // Overtime (>40h/week) is applied at 1.5× the rate of the specific entries
+    // that push past the 40h threshold, tracked via cumulative hours.
+    const sortedEntries = [...employeeEntries].sort(
+      (a, b) => new Date(a.clockIn).getTime() - new Date(b.clockIn).getTime()
+    );
+    let cumulativeHours = 0;
+    let totalEarnings = 0;
+    const ratesUsed = new Set<number>();
+    for (const entry of sortedEntries) {
+      const hours = calculateHours(entry);
+      const rate = entry.hourlyRate ?? selectedEmployee.hourlyRate ?? 0;
+      if (!rate) { cumulativeHours += hours; continue; }
+      ratesUsed.add(rate);
+      const regularInEntry = Math.max(0, Math.min(hours, 40 - cumulativeHours));
+      const overtimeInEntry = Math.max(0, hours - regularInEntry);
+      totalEarnings += (regularInEntry * rate) + (overtimeInEntry * rate * 1.5);
+      cumulativeHours += hours;
+    }
 
     const uniqueDays = new Set(
       employeeEntries.map(entry => new Date(entry.clockIn).toDateString())
@@ -264,9 +283,15 @@ export default function EmployeeManagementScreen() {
     console.log(`  Total Earnings: $${totalEarnings.toFixed(2)}`);
     console.log(`  Days Worked: ${uniqueDays}`);
 
+    const rateLabel = ratesUsed.size === 0
+      ? 'No rate set'
+      : ratesUsed.size === 1
+        ? `$${[...ratesUsed][0].toFixed(2)}/hr`
+        : `Multiple rates (${[...ratesUsed].map(r => `$${r.toFixed(2)}`).join(', ')})`;
+
     Alert.alert(
       'Timecard Generated',
-      `Employee: ${selectedEmployee.name}\n\nTotal Hours: ${totalHours.toFixed(2)}h\nRegular: ${regularHours.toFixed(2)}h\nOvertime: ${overtimeHours.toFixed(2)}h\n\nTotal Earnings: $${totalEarnings.toFixed(2)}`,
+      `Employee: ${selectedEmployee.name}\nRate: ${rateLabel}\n\nTotal Hours: ${totalHours.toFixed(2)}h\nRegular: ${regularHours.toFixed(2)}h\nOvertime: ${overtimeHours.toFixed(2)}h\n\nTotal Earnings: $${totalEarnings.toFixed(2)}`,
       [{ text: 'OK', onPress: () => setShowTimecardModal(false) }]
     );
   };
