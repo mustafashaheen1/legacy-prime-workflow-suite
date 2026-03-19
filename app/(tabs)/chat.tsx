@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { Tabs } from 'expo-router';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useTranslation } from 'react-i18next';
 import {
@@ -108,7 +108,6 @@ export default function ChatScreen() {
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 768;
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const rorkApi =
     process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
     process.env.EXPO_PUBLIC_API_URL ||
@@ -162,25 +161,6 @@ export default function ChatScreen() {
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
   const selectedChatRef = useRef<string | null>(null);
   useEffect(() => { selectedChatRef.current = selectedChat; }, [selectedChat]);
-
-  // ── Hide tab bar when conversation open on mobile ─────────────────────────
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    const parent = (navigation as any).getParent?.();
-    if (!parent) return;
-    if (selectedChat && isSmallScreen) {
-      parent.setOptions({ tabBarStyle: { display: 'none' } });
-    } else {
-      parent.setOptions({
-        tabBarStyle: { backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB' },
-      });
-    }
-    return () => {
-      parent.setOptions({
-        tabBarStyle: { backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB' },
-      });
-    };
-  }, [selectedChat, isSmallScreen, navigation]);
 
   // ── iOS keyboard padding ──────────────────────────────────────────────────
   const [iosKbPadding, setIosKbPadding] = useState(0);
@@ -1178,8 +1158,18 @@ export default function ChatScreen() {
   }, [userMap, user, selectedConversation, playingAudioId, otherLastReadAt, locallyDeletedIds]);
 
   // ── Render ────────────────────────────────────────────────────────────────
+  const hideTabBar = !!(selectedChat && isSmallScreen && Platform.OS !== 'web');
+
   return (
     <View style={styles.container}>
+      {/* Hide the tab bar when a conversation is open on mobile (Expo Router declarative) */}
+      <Tabs.Screen
+        options={{
+          tabBarStyle: hideTabBar
+            ? { display: 'none' }
+            : { backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+        }}
+      />
       {/* Desktop header */}
       {!isSmallScreen && (
         <View style={styles.header}>
@@ -1421,11 +1411,11 @@ export default function ChatScreen() {
 
                   {/* Input area */}
                   {isAudioMode ? (
-                    <View style={[styles.recorderContainer, { paddingBottom: iosKbPadding > 0 ? 10 : Math.max(insets.bottom, 10) }]}>
+                    <View style={[styles.recorderContainer, { paddingBottom: iosKbPadding > 0 ? 10 : (hideTabBar ? Math.max(insets.bottom, 10) : 10) }]}>
                       <AudioRecorder autoStart onSend={handleAudioSend} onCancel={() => setIsAudioMode(false)} />
                     </View>
                   ) : (
-                    <View style={[styles.inputContainer, { paddingBottom: iosKbPadding > 0 ? 12 : Math.max(insets.bottom, 12) }]}>
+                    <View style={[styles.inputContainer, { paddingBottom: iosKbPadding > 0 ? 12 : (hideTabBar ? Math.max(insets.bottom, 12) : 12) }]}>
                       <TouchableOpacity style={styles.attachButton} onPress={() => setShowAttachMenu(true)}>
                         <Paperclip size={20} color="#6B7280" />
                       </TouchableOpacity>
