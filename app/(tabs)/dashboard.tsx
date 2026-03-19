@@ -99,56 +99,71 @@ export default function DashboardScreen() {
     filteredArchivedProjects;
 
 
-  const totalBudget = activeProjects.reduce((sum, p) => sum + p.budget, 0);
-  const totalSold = activeProjects.reduce((sum, p) => sum + (p.contractAmount ?? 0), 0);
-  const totalExpenses = useMemo(() =>
-    expenses.filter(e => activeProjects.some(p => p.id === e.projectId))
+  // Non-archived projects are the source of truth for all financial stats —
+  // mirrors the monthly revenue chart scope so totals are consistent.
+  const nonArchivedProjects = useMemo(
+    () => projects.filter(p => p.status !== 'archived'),
+    [projects]
+  );
+
+  const totalBudget = useMemo(
+    () => nonArchivedProjects.reduce((sum, p) => sum + (p.budget ?? 0), 0),
+    [nonArchivedProjects]
+  );
+  const totalSold = useMemo(
+    () => nonArchivedProjects.reduce((sum, p) => sum + (p.contractAmount ?? 0), 0),
+    [nonArchivedProjects]
+  );
+  const totalExpenses = useMemo(
+    () => expenses
+      .filter(e => nonArchivedProjects.some(p => p.id === e.projectId))
       .reduce((sum, e) => sum + e.amount, 0),
-    [expenses, activeProjects]
+    [expenses, nonArchivedProjects]
   );
 
   // Monthly revenue for the last 8 months — grouped by project startDate.
-  // Each bar = sum of contractAmount for all projects that started in that month.
+  // Single-pass reduce to avoid iterating the same filtered set twice.
   const monthlyRevenue = useMemo(() => {
     const now = new Date();
-    const allNonArchived = projects.filter(p => p.status !== 'archived');
     return Array.from({ length: 8 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - (7 - i), 1);
       const monthNum = d.getMonth();
       const year = d.getFullYear();
-      const revenue = allNonArchived
-        .filter(p => {
-          if (!p.startDate || !(p.contractAmount ?? 0)) return false;
+      const { revenue, count } = nonArchivedProjects.reduce(
+        (acc, p) => {
+          if (!p.startDate || !(p.contractAmount ?? 0)) return acc;
           const sd = new Date(p.startDate);
-          return sd.getMonth() === monthNum && sd.getFullYear() === year;
-        })
-        .reduce((sum, p) => sum + (p.contractAmount ?? 0), 0);
-      const count = allNonArchived.filter(p => {
-        if (!p.startDate || !(p.contractAmount ?? 0)) return false;
-        const sd = new Date(p.startDate);
-        return sd.getMonth() === monthNum && sd.getFullYear() === year;
-      }).length;
-      return {
-        month: d.toLocaleString('default', { month: 'short' }),
-        revenue,
-        count,
-      };
+          if (sd.getMonth() === monthNum && sd.getFullYear() === year) {
+            acc.revenue += p.contractAmount ?? 0;
+            acc.count += 1;
+          }
+          return acc;
+        },
+        { revenue: 0, count: 0 }
+      );
+      return { month: d.toLocaleString('default', { month: 'short' }), revenue, count };
     });
-  }, [projects]);
+  }, [nonArchivedProjects]);
 
   const maxRevenue = Math.max(...monthlyRevenue.map(m => m.revenue), 1);
 
-  const totalProjectsWithContract = useMemo(() =>
-    activeProjects.filter(p => (p.contractAmount ?? 0) > 0).length,
-    [activeProjects]
+  const totalProjectsWithContract = useMemo(
+    () => nonArchivedProjects.filter(p => (p.contractAmount ?? 0) > 0).length,
+    [nonArchivedProjects]
   );
 
+  // Pie chart: active projects only (shows where money is currently being spent).
+  // Filter out zero-expense projects so they don't pollute the legend with 0.0% entries.
   const projectExpenses = useMemo(() => {
-    return activeProjects.map(project => ({
-      id: project.id,
-      name: project.name,
-      amount: expenses.filter((e) => e.projectId === project.id).reduce((sum: number, e) => sum + e.amount, 0),
-    }));
+    return activeProjects
+      .map(project => ({
+        id: project.id,
+        name: project.name,
+        amount: expenses
+          .filter(e => e.projectId === project.id)
+          .reduce((sum: number, e) => sum + e.amount, 0),
+      }))
+      .filter(p => p.amount > 0);
   }, [activeProjects, expenses]);
 
   // Helper for cross-platform alerts
