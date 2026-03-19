@@ -1,9 +1,9 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Modal, RefreshControl } from 'react-native';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { User, ClockEntry } from '@/types';
-import { Clock, DollarSign, CheckCircle, XCircle, FileText, Edit2 } from 'lucide-react-native';
+import { Clock, DollarSign, CheckCircle, XCircle, FileText, Edit2, TrendingUp } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
@@ -21,6 +21,12 @@ export default function EmployeeManagementScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [usersData, setUsersData] = useState<{ users: User[] } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Tick every 60s so live hours for clocked-in employees update automatically
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const fetchUsers = useCallback(async () => {
     if (!currentUser?.companyId) return;
@@ -143,37 +149,47 @@ export default function EmployeeManagementScreen() {
 
   const getEmployeeStats = (employeeId: string) => {
     const employeeEntries = clockEntries.filter(e => e.employeeId === employeeId);
+    const now = Date.now();
     const today = new Date().toDateString();
-    const todayEntries = employeeEntries.filter(e => 
-      new Date(e.clockIn).toDateString() === today
-    );
-    
-    const calculateHours = (entries: ClockEntry[]) => {
-      return entries.reduce((sum, entry) => {
-        if (!entry.clockOut) return sum;
-        const start = new Date(entry.clockIn).getTime();
-        const end = new Date(entry.clockOut).getTime();
-        let totalMs = end - start;
-        
-        if (entry.lunchBreaks) {
-          entry.lunchBreaks.forEach(lunch => {
-            if (lunch.endTime) {
-              const lunchStart = new Date(lunch.startTime).getTime();
-              const lunchEnd = new Date(lunch.endTime).getTime();
-              totalMs -= (lunchEnd - lunchStart);
-            }
-          });
-        }
-        
-        return sum + totalMs / (1000 * 60 * 60);
-      }, 0);
+
+    // Monday of current week at midnight
+    const weekStart = (() => {
+      const d = new Date();
+      const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })();
+
+    // Calculate net ms for one entry; uses now as end if still clocked in
+    const entryMs = (entry: ClockEntry): number => {
+      const start = new Date(entry.clockIn).getTime();
+      const end = entry.clockOut ? new Date(entry.clockOut).getTime() : now;
+      let ms = end - start;
+      if (entry.lunchBreaks) {
+        entry.lunchBreaks.forEach(lunch => {
+          const ls = new Date(lunch.startTime).getTime();
+          const le = lunch.endTime
+            ? new Date(lunch.endTime).getTime()
+            : (entry.clockOut ? new Date(entry.clockOut).getTime() : now);
+          if (!isNaN(ls) && !isNaN(le)) ms -= (le - ls);
+        });
+      }
+      return Math.max(0, ms);
     };
 
-    const todayHours = calculateHours(todayEntries);
-    const totalHours = calculateHours(employeeEntries);
-    const isClockedIn = employeeEntries.some(e => e.employeeId === employeeId && !e.clockOut);
+    const todayEntries = employeeEntries.filter(e => new Date(e.clockIn).toDateString() === today);
+    const weekEntries  = employeeEntries.filter(e => new Date(e.clockIn).getTime() >= weekStart);
 
-    return { todayHours, totalHours, isClockedIn };
+    const todayHours = todayEntries.reduce((sum, e) => sum + entryMs(e), 0) / 3_600_000;
+    const weekHours  = weekEntries.reduce((sum, e)  => sum + entryMs(e), 0) / 3_600_000;
+    const totalHours = employeeEntries.reduce((sum, e) => sum + entryMs(e), 0) / 3_600_000;
+
+    const activeEntry = employeeEntries.find(e => !e.clockOut);
+    const isClockedIn = !!activeEntry;
+    const clockInTime = activeEntry ? new Date(activeEntry.clockIn) : null;
+
+    return { todayHours, weekHours, totalHours, isClockedIn, clockInTime };
   };
 
   const generateTimecard = async (employee: User) => {
@@ -342,9 +358,15 @@ export default function EmployeeManagementScreen() {
           
           {filteredEmployees.map((employee: User) => {
             const stats = getEmployeeStats(employee.id);
-            
+            const todayEarnings = employee.hourlyRate ? stats.todayHours * employee.hourlyRate : null;
+            const weekEarnings  = employee.hourlyRate ? stats.weekHours  * employee.hourlyRate : null;
+            const clockInLabel  = stats.clockInTime
+              ? stats.clockInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : null;
+
             return (
-              <View key={employee.id} style={styles.employeeCard}>
+              <View key={employee.id} style={[styles.employeeCard, stats.isClockedIn && styles.employeeCardActive]}>
+                {/* Header row */}
                 <View style={styles.employeeHeader}>
                   <View style={styles.employeeInfo}>
                     <Text style={styles.employeeName}>{employee.name}</Text>
@@ -353,27 +375,58 @@ export default function EmployeeManagementScreen() {
                       <Text style={styles.employeePhone}>{employee.phone}</Text>
                     )}
                   </View>
-                  {stats.isClockedIn && (
+                  {stats.isClockedIn ? (
                     <View style={styles.clockedInBadge}>
                       <View style={styles.pulseDot} />
                       <Text style={styles.clockedInText}>Active</Text>
                     </View>
+                  ) : (
+                    <View style={styles.offBadge}>
+                      <Text style={styles.offBadgeText}>Off</Text>
+                    </View>
                   )}
                 </View>
 
-                <View style={styles.employeeStats}>
-                  <View style={styles.statItem}>
-                    <Clock size={16} color="#6B7280" />
-                    <Text style={styles.statText}>Today: {stats.todayHours.toFixed(1)}h</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <DollarSign size={16} color="#6B7280" />
-                    <Text style={styles.statText}>
-                      {employee.hourlyRate ? `$${employee.hourlyRate.toFixed(2)}/hr` : 'Rate not set'}
+                {/* Live session banner when clocked in */}
+                {stats.isClockedIn && clockInLabel && (
+                  <View style={styles.sessionBanner}>
+                    <Clock size={13} color="#059669" />
+                    <Text style={styles.sessionText}>
+                      Clocked in at {clockInLabel} · {stats.todayHours.toFixed(1)}h today (live)
                     </Text>
+                  </View>
+                )}
+
+                {/* Stats grid */}
+                <View style={styles.statsGrid}>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statBoxLabel}>Today</Text>
+                    <Text style={[styles.statBoxValue, stats.isClockedIn && styles.statBoxValueLive]}>
+                      {stats.todayHours.toFixed(1)}h
+                    </Text>
+                    {todayEarnings !== null && (
+                      <Text style={styles.statBoxSub}>${todayEarnings.toFixed(2)}</Text>
+                    )}
+                  </View>
+                  <View style={styles.statBoxDivider} />
+                  <View style={styles.statBox}>
+                    <Text style={styles.statBoxLabel}>This Week</Text>
+                    <Text style={styles.statBoxValue}>{stats.weekHours.toFixed(1)}h</Text>
+                    {weekEarnings !== null && (
+                      <Text style={styles.statBoxSub}>${weekEarnings.toFixed(2)}</Text>
+                    )}
+                  </View>
+                  <View style={styles.statBoxDivider} />
+                  <View style={styles.statBox}>
+                    <Text style={styles.statBoxLabel}>Rate</Text>
+                    <Text style={[styles.statBoxValue, !employee.hourlyRate && styles.statBoxValueMuted]}>
+                      {employee.hourlyRate ? `$${employee.hourlyRate.toFixed(2)}` : '—'}
+                    </Text>
+                    {employee.hourlyRate && <Text style={styles.statBoxSub}>/hr</Text>}
                   </View>
                 </View>
 
+                {/* Actions */}
                 <View style={styles.employeeActions}>
                   <TouchableOpacity
                     style={styles.actionButton}
@@ -387,7 +440,7 @@ export default function EmployeeManagementScreen() {
                     onPress={() => generateTimecard(employee)}
                   >
                     <FileText size={16} color="#2563EB" />
-                    <Text style={styles.actionButtonText}>Generate Timecard</Text>
+                    <Text style={styles.actionButtonText}>Timecard</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -705,6 +758,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  employeeCardActive: {
+    borderColor: '#6EE7B7',
+    borderWidth: 1.5,
   },
   employeeHeader: {
     flexDirection: 'row',
@@ -744,6 +803,76 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#10B981',
+  },
+  offBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  offBadgeText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#9CA3AF',
+  },
+  sessionBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 12,
+  },
+  sessionText: {
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '500' as const,
+  },
+  statsGrid: {
+    flexDirection: 'row' as const,
+    alignItems: 'stretch' as const,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    marginBottom: 12,
+    overflow: 'hidden' as const,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center' as const,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  statBoxDivider: {
+    width: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 8,
+  },
+  statBoxLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500' as const,
+    marginBottom: 3,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.3,
+  },
+  statBoxValue: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  statBoxValueLive: {
+    color: '#059669',
+  },
+  statBoxValueMuted: {
+    color: '#9CA3AF',
+    fontSize: 20,
+  },
+  statBoxSub: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 1,
   },
   clockedInText: {
     fontSize: 12,
