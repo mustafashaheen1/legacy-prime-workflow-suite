@@ -127,10 +127,11 @@ export default function EmployeeManagementScreen() {
 
     setIsSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/api/update-user`, {
+      const res = await fetch(`${API_BASE}/api/approve-rate-change`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selectedEmployee.id, updates: { hourlyRate: rate, rateChangeRequest: null } }),
+        // approve=true + newRate = direct admin override (bypasses pending request)
+        body: JSON.stringify({ employeeId: selectedEmployee.id, approve: true, newRate: rate }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to update hourly rate');

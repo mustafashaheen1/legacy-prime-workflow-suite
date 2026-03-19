@@ -15,7 +15,10 @@ export default async function handler(req: any, res: any) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const { employeeId, approve } = req.body ?? {};
+  // approve=true + newRate → admin direct override (no pending request required)
+  // approve=true             → approve a pending rate_change_request from DB
+  // approve=false            → reject a pending rate_change_request
+  const { employeeId, approve, newRate: directRate } = req.body ?? {};
 
   if (!employeeId || typeof approve !== 'boolean') {
     return res.status(400).json({ error: 'employeeId and approve (boolean) are required' });
@@ -48,11 +51,17 @@ export default async function handler(req: any, res: any) {
   let newRate: number | null = null;
 
   if (approve) {
-    newRate = userRow?.rate_change_request?.newRate;
-    if (newRate == null) {
-      return res.status(400).json({ error: 'No pending rate change request found' });
+    if (directRate != null) {
+      // Admin direct override — rate supplied in the request body
+      newRate = Number(directRate);
+    } else {
+      // Approval of a pending employee request — read rate from DB
+      newRate = userRow?.rate_change_request?.newRate ?? null;
+      if (newRate == null) {
+        return res.status(400).json({ error: 'No pending rate change request found' });
+      }
     }
-    updates.hourly_rate = Number(newRate);
+    updates.hourly_rate = newRate;
   }
 
   const { error } = await supabase
@@ -65,16 +74,17 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: error.message });
   }
 
-  // Notify the employee of the decision — fire-and-forget
+  // Notify the employee — fire-and-forget
+  const isDirectOverride = approve && directRate != null;
   void sendNotification(supabase, {
     userId: employeeId,
     companyId: userRow.company_id,
     type: 'general',
-    title: approve ? 'Rate Change Approved' : 'Rate Change Rejected',
+    title: approve ? 'Hourly Rate Updated' : 'Rate Change Rejected',
     message: approve
-      ? `Your hourly rate has been updated to $${Number(newRate).toFixed(2)}/hr`
+      ? `Your hourly rate has been set to $${Number(newRate).toFixed(2)}/hr`
       : 'Your rate change request was not approved at this time',
-    data: {},
+    data: { newRate, directOverride: isDirectOverride },
   });
 
   return res.status(200).json({ success: true });
