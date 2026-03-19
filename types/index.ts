@@ -214,7 +214,8 @@ export interface ChatMessage {
   id: string;
   senderId: string;
   text?: string;
-  timestamp: string;
+  timestamp: string;      // Display time string (HH:MM) — kept for backward compat
+  createdAt?: string;     // Raw ISO timestamp — used for date separators & read receipts
   type: 'text' | 'voice' | 'image' | 'file' | 'video';
   content?: string;
   fileName?: string;
@@ -226,6 +227,7 @@ export interface ChatMessage {
     type: 'text' | 'voice' | 'image' | 'file' | 'video';
     text?: string;
     content?: string;
+    fileName?: string;
   };
   isDeleted?: boolean;
 }

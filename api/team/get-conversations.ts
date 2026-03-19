@@ -7,10 +7,10 @@ export const config = {
 
 /**
  * Get Conversations API
- * Fetches all conversations for a user with participant info and last message
+ * Fetches all conversations for a user with participant info, last message,
+ * unread count, and other participant's last_read_at (for read receipts).
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -25,7 +25,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'userId is required' });
     }
 
-    // Initialize Supabase
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -35,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch conversations where user is a participant
+    // Fetch user's conversation participations
     const { data: participations, error: participationsError } = await supabase
       .from('conversation_participants')
       .select(`
@@ -57,49 +56,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error(participationsError.message);
     }
 
-    // Extract conversations and fetch additional data
     const conversations = await Promise.all(
       (participations || []).map(async (p: any) => {
         const conv = p.conversations;
         if (!conv) return null;
 
-        // Fetch all participants for this conversation
-        const { data: participants } = await supabase
-          .from('conversation_participants')
-          .select(`
-            user_id,
-            users (
-              id,
-              name,
-              email,
-              avatar,
-              role
-            )
-          `)
-          .eq('conversation_id', conv.id);
+        const lastReadAt = p.last_read_at as string | null;
 
-        // Fetch last message
-        const { data: lastMessage } = await supabase
-          .from('messages')
-          .select('content, type, created_at, sender_id')
-          .eq('conversation_id', conv.id)
-          .or('is_deleted.eq.false,is_deleted.is.null')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+        // Run all queries for this conversation in parallel
+        const [participantsResult, lastMessageResult, unreadResult] = await Promise.all([
+          // Participants WITH their last_read_at (needed for read receipts)
+          supabase
+            .from('conversation_participants')
+            .select(`
+              user_id,
+              last_read_at,
+              users (
+                id,
+                name,
+                email,
+                avatar,
+                role
+              )
+            `)
+            .eq('conversation_id', conv.id),
 
-        // For individual chats, use the other participant's info
+          // Last non-deleted message
+          supabase
+            .from('messages')
+            .select('content, type, created_at, sender_id, file_name')
+            .eq('conversation_id', conv.id)
+            .or('is_deleted.eq.false,is_deleted.is.null')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single(),
+
+          // Count messages since this user's last_read_at (that weren't sent by them)
+          supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', conv.id)
+            .neq('sender_id', userId)
+            .or('is_deleted.eq.false,is_deleted.is.null')
+            .gt('created_at', lastReadAt || '1970-01-01T00:00:00.000Z'),
+        ]);
+
+        const participants = participantsResult.data || [];
+        const lastMessage = lastMessageResult.data || null;
+        const unreadCount = unreadResult.count ?? 0;
+
+        // For individual chats: use other participant's name/avatar and their last_read_at
         let conversationName = conv.name;
-        let conversationAvatar = null;
+        let conversationAvatar: string | null = null;
+        let otherLastReadAt: string | null = null;
 
         if (conv.type === 'individual') {
-          const otherParticipant = participants?.find(
-            (p: any) => p.user_id !== userId
-          );
+          const otherParticipant = participants.find((pt: any) => pt.user_id !== userId);
           if (otherParticipant?.users) {
-            conversationName = otherParticipant.users.name;
-            conversationAvatar = otherParticipant.users.avatar;
+            const u = otherParticipant.users as any;
+            conversationName = u.name;
+            conversationAvatar = u.avatar || null;
           }
+          otherLastReadAt = otherParticipant?.last_read_at || null;
         }
 
         return {
@@ -107,21 +125,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           name: conversationName,
           type: conv.type,
           avatar: conversationAvatar,
-          participants: participants?.map((p: any) => p.users).filter(Boolean) || [],
+          participants: participants.map((pt: any) => pt.users).filter(Boolean),
           lastMessage: lastMessage || null,
-          // Prefer DB column; fall back to the actual latest message timestamp so
-          // the client always gets an accurate value even if last_message_at is stale.
           lastMessageAt: conv.last_message_at || lastMessage?.created_at || null,
-          lastReadAt: p.last_read_at,
+          lastReadAt,
+          // New fields for WhatsApp-like UX
+          unreadCount,
+          otherLastReadAt,
           createdAt: conv.created_at,
           updatedAt: conv.updated_at,
         };
       })
     );
 
-    // Filter out null conversations and sort by last message
     const validConversations = conversations
-      .filter(c => c !== null)
+      .filter((c) => c !== null)
       .sort((a, b) => {
         const aTime = a.lastMessageAt || a.createdAt;
         const bTime = b.lastMessageAt || b.createdAt;

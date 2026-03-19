@@ -8,9 +8,9 @@ import {
   Modal,
   Linking,
 } from 'react-native';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Image } from 'expo-image';
-import { Paperclip } from 'lucide-react-native';
+import { Paperclip, CheckCheck } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { ChatMessage } from '@/types';
 import AudioPlayer from './AudioPlayer';
@@ -28,6 +28,9 @@ interface Props {
   onDelete: (messageId: string) => void;
   onImagePress: (uri: string) => void;
   showSenderName?: boolean;
+  /** ISO timestamp of when the other participant last read this conversation.
+   *  Used to determine read receipt status on own messages. */
+  otherLastReadAt?: string | null;
 }
 
 function getInitials(name: string) {
@@ -41,6 +44,40 @@ function avatarColor(name: string) {
   return colors[Math.abs(h) % colors.length];
 }
 
+/** Formats a display time from either createdAt (ISO) or pre-formatted timestamp string. */
+function formatTime(createdAt?: string, timestamp?: string): string {
+  if (createdAt) {
+    const d = new Date(createdAt);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+  }
+  return timestamp || '';
+}
+
+function ReadReceipt({
+  isOwn,
+  createdAt,
+  otherLastReadAt,
+}: {
+  isOwn: boolean;
+  createdAt?: string;
+  otherLastReadAt?: string | null;
+}) {
+  if (!isOwn) return null;
+
+  // Determine read state
+  let isRead = false;
+  if (createdAt && otherLastReadAt) {
+    isRead = otherLastReadAt >= createdAt;
+  }
+
+  if (isRead) {
+    return <CheckCheck size={14} color="#2563EB" strokeWidth={2.5} />;
+  }
+  return <CheckCheck size={14} color="rgba(0,0,0,0.3)" strokeWidth={2.5} />;
+}
+
 export default function MessageBubble({
   message,
   isOwn,
@@ -52,6 +89,7 @@ export default function MessageBubble({
   onDelete,
   onImagePress,
   showSenderName = false,
+  otherLastReadAt,
 }: Props) {
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -97,6 +135,7 @@ export default function MessageBubble({
   }
 
   const bubbleStyle = isOwn ? styles.bubbleOwn : styles.bubbleOther;
+  const displayTime = formatTime(message.createdAt, message.timestamp);
 
   return (
     <>
@@ -132,10 +171,17 @@ export default function MessageBubble({
                 onImagePress={onImagePress}
               />
 
-              {/* Timestamp */}
-              <Text style={[styles.timestamp, isOwn ? styles.timestampOwn : styles.timestampOther]}>
-                {message.timestamp}
-              </Text>
+              {/* Timestamp + read receipt row */}
+              <View style={styles.metaRow}>
+                <Text style={[styles.timestamp, isOwn ? styles.timestampOwn : styles.timestampOther]}>
+                  {displayTime}
+                </Text>
+                <ReadReceipt
+                  isOwn={isOwn}
+                  createdAt={message.createdAt}
+                  otherLastReadAt={otherLastReadAt}
+                />
+              </View>
             </View>
           </TouchableOpacity>
         </View>
@@ -249,7 +295,7 @@ function BubbleContent({
       );
 
     case 'video':
-      return <VideoMessage uri={message.content || ''} isOwn={isOwn} duration={message.duration} />;
+      return <VideoMessage uri={message.content || ''} duration={message.duration} />;
 
     case 'file': {
       const url = message.content;
@@ -347,10 +393,15 @@ const styles = StyleSheet.create({
     flex: 1,
     flexWrap: 'wrap',
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 3,
+    marginTop: 2,
+  },
   timestamp: {
     fontSize: 11,
-    alignSelf: 'flex-end',
-    marginTop: 2,
   },
   timestampOwn: {
     color: '#6B7280',
