@@ -2200,7 +2200,7 @@ export default function DashboardScreen() {
                     <PauseCircle size={20} color="#F59E0B" />
                   )}
                   <Text style={{ fontSize: 16, color: '#1F2937', fontWeight: '500' }}>
-                    {selectedProjectForActions.status === 'on-hold' ? 'Resume Project' : 'Delay Project'}
+                    {selectedProjectForActions.status === 'on-hold' ? 'Resume Project' : 'Hold Project'}
                   </Text>
                 </TouchableOpacity>
 
