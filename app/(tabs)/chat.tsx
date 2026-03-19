@@ -1203,7 +1203,7 @@ export default function ChatScreen() {
       <View style={styles.content}>
         {/* ─── Sidebar ──────────────────────────────────────────────────── */}
         {(!isSmallScreen || !selectedChat) && (
-          <View style={[styles.sidebar, isSmallScreen && styles.sidebarMobile]}>
+          <View style={[styles.sidebar, isSmallScreen && styles.sidebarMobile, isSmallScreen && { paddingTop: insets.top + 8 }]}>
             <TouchableOpacity style={styles.newChatButton} onPress={() => setShowNewChatModal(true)}>
               <Text style={styles.newChatButtonText}>Start New Chat</Text>
             </TouchableOpacity>
@@ -1325,7 +1325,7 @@ export default function ChatScreen() {
             ) : selectedChat ? (
               <>
                 {isSmallScreen && (
-                  <View style={styles.mobileHeader}>
+                  <View style={[styles.mobileHeader, { paddingTop: insets.top + 6 }]}>
                     <TouchableOpacity onPress={() => setSelectedChat(null)} style={styles.backButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <ChevronLeft size={28} color="#2563EB" />
                     </TouchableOpacity>
