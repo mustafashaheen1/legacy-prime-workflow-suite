@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import SkeletonBox from '@/components/SkeletonBox';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image, Platform, ActivityIndicator, Clipboard } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
@@ -8,8 +8,9 @@ import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permis
 import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, DollarSign, Clock } from 'lucide-react-native';
 import EditAccessModal from '@/components/EditAccessModal';
 import { useTranslation } from 'react-i18next';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '@/lib/supabase';
 
 // Validation helpers
 const isValidUSPhone = (phone: string): boolean => {
@@ -53,6 +54,28 @@ export default function SettingsScreen() {
   const { user: currentUser, company, setCompany, setUser, logout } = useApp();
   const { isAdmin, isSuperAdmin } = usePermissions();
   const { t } = useTranslation();
+
+  // Re-sync current user from DB on every focus so rate change approval/rejection
+  // is reflected immediately without requiring logout/login.
+  useFocusEffect(
+    useCallback(() => {
+      if (!currentUser?.id) return;
+      supabase
+        .from('users')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single()
+        .then(({ data }) => {
+          if (!data) return;
+          setUser({
+            ...currentUser,
+            hourlyRate: data.hourly_rate ?? undefined,
+            rateChangeRequest: data.rate_change_request ?? undefined,
+          });
+        });
+    }, [currentUser?.id])
+  );
+
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showRoleModal, setShowRoleModal] = useState<boolean>(false);
