@@ -176,7 +176,9 @@ export default function TabLayout() {
           title: t('common.chat'),
           tabBarIcon: ({ color }) => <MessageSquare size={24} color={color} />,
           href: tabHref('chat', '/chat'),
-          headerLeft: Platform.OS !== 'web' ? () => <BackButton /> : () => <UserAvatar />,
+          // Chat manages its own header and hides the tab bar when a conversation is open
+          headerShown: Platform.OS === 'web',
+          headerLeft: Platform.OS === 'web' ? () => <UserAvatar /> : undefined,
         }}
       />
       <Tabs.Screen

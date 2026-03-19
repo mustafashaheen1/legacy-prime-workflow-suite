@@ -230,6 +230,8 @@ export interface ChatMessage {
     fileName?: string;
   };
   isDeleted?: boolean;
+  /** 0 = uploading (spinner shown), undefined = fully sent */
+  uploadProgress?: number;
 }
 
 export interface ChatConversation {

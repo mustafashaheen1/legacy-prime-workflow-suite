@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useTranslation } from 'react-i18next';
 import {
@@ -30,6 +31,7 @@ import {
   Trash2,
   Video as VideoIcon,
   Reply,
+  ChevronLeft,
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -64,6 +66,17 @@ type MessageItem =
 
 type TypingUser = { name: string; avatar?: string };
 
+type PendingUpload = {
+  tempId: string;
+  conversationId: string;
+  type: 'image' | 'video' | 'file' | 'voice';
+  localUri: string;
+  fileName?: string;
+  duration?: number;
+  timestamp: string;
+  createdAt: string;
+};
+
 // ─── Inline video preview (expo-video, lazy) ─────────────────────────────────
 let _VideoView: any = null;
 let _useVideoPlayer: any = null;
@@ -95,6 +108,7 @@ export default function ChatScreen() {
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 768;
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const rorkApi =
     process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
     process.env.EXPO_PUBLIC_API_URL ||
@@ -104,6 +118,7 @@ export default function ChatScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
+  const [pendingUploads, setPendingUploads] = useState<Map<string, PendingUpload>>(new Map());
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
@@ -111,8 +126,6 @@ export default function ChatScreen() {
   const [newChatSearch, setNewChatSearch] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewVideo, setPreviewVideo] = useState<{ uri: string; mimeType: string; duration?: number } | null>(null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [dailyTipSent, setDailyTipSent] = useState(false);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
@@ -150,6 +163,25 @@ export default function ChatScreen() {
   const selectedChatRef = useRef<string | null>(null);
   useEffect(() => { selectedChatRef.current = selectedChat; }, [selectedChat]);
 
+  // ── Hide tab bar when conversation open on mobile ─────────────────────────
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const parent = (navigation as any).getParent?.();
+    if (!parent) return;
+    if (selectedChat && isSmallScreen) {
+      parent.setOptions({ tabBarStyle: { display: 'none' } });
+    } else {
+      parent.setOptions({
+        tabBarStyle: { backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+      });
+    }
+    return () => {
+      parent.setOptions({
+        tabBarStyle: { backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+      });
+    };
+  }, [selectedChat, isSmallScreen, navigation]);
+
   // ── iOS keyboard padding ──────────────────────────────────────────────────
   const [iosKbPadding, setIosKbPadding] = useState(0);
 
@@ -182,7 +214,7 @@ export default function ChatScreen() {
     return map;
   }, [user, teamMembers]);
 
-  // ── Build message items list with date separators ─────────────────────────
+  // ── Build message items list with date separators + pending uploads ───────
   const messageItems = useMemo<MessageItem[]>(() => {
     const items: MessageItem[] = [];
     let lastDateStr = '';
@@ -201,8 +233,29 @@ export default function ChatScreen() {
       items.push({ kind: 'message', data: { ...message, isDeleted }, key: message.id });
     });
 
+    // Append pending (optimistic) uploads for this conversation
+    pendingUploads.forEach((pu) => {
+      if (pu.conversationId !== selectedChat) return;
+      items.push({
+        kind: 'message',
+        key: pu.tempId,
+        data: {
+          id: pu.tempId,
+          senderId: user?.id || '',
+          type: pu.type === 'voice' ? 'voice' : pu.type,
+          content: pu.localUri,
+          fileName: pu.fileName,
+          duration: pu.duration,
+          timestamp: pu.timestamp,
+          createdAt: pu.createdAt,
+          isDeleted: false,
+          uploadProgress: 0,
+        },
+      });
+    });
+
     return items;
-  }, [messages, locallyDeletedIds]);
+  }, [messages, locallyDeletedIds, pendingUploads, selectedChat, user?.id]);
 
   // ── Scroll to end on new messages ─────────────────────────────────────────
   const prevMessageCountRef = useRef(0);
@@ -850,18 +903,20 @@ export default function ChatScreen() {
   const sendMediaMessage = async (
     type: 'image' | 'video' | 'file',
     publicUrl: string,
-    extras?: { fileName?: string; duration?: number }
+    extras?: { fileName?: string; duration?: number },
+    convId?: string,
   ) => {
-    if (!selectedChat) return;
+    const targetConvId = convId ?? selectedChat;
+    if (!targetConvId) return;
     const resp = await fetch(`${rorkApi}/api/team/send-message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId: selectedChat, senderId: user?.id, type, content: publicUrl, fileName: extras?.fileName, duration: extras?.duration }),
+      body: JSON.stringify({ conversationId: targetConvId, senderId: user?.id, type, content: publicUrl, fileName: extras?.fileName, duration: extras?.duration }),
     });
     const result = await resp.json();
     if (result.success) {
       const now = new Date().toISOString();
-      addMessageToConversation(selectedChat, {
+      addMessageToConversation(targetConvId, {
         id: result.message.id,
         senderId: user?.id || '',
         type,
@@ -878,23 +933,39 @@ export default function ChatScreen() {
 
   const handleSendImage = async () => {
     if (!previewImage || !selectedChat) return;
-    setIsUploadingImage(true);
+    const localUri = previewImage;
+    const convId = selectedChat;
+
+    // Close modal immediately — don't block the user
+    setPreviewImage(null);
+
+    const conversation = conversations.find((c) => c.id === convId);
+    const isTeam = convId !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
+
+    if (!isTeam) {
+      const now = new Date().toISOString();
+      addMessageToConversation(convId, { id: Date.now().toString(), senderId: user?.id || '', type: 'image', content: localUri, timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), createdAt: now });
+      return;
+    }
+
+    // Optimistic pending message (shows upload spinner in chat)
+    const tempId = `pending-img-${Date.now()}`;
+    const now = new Date();
+    const pendingEntry: PendingUpload = {
+      tempId, conversationId: convId, type: 'image', localUri,
+      timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: now.toISOString(),
+    };
+    setPendingUploads((prev) => { const next = new Map(prev); next.set(tempId, pendingEntry); return next; });
+
     try {
-      const conversation = conversations.find((c) => c.id === selectedChat);
-      const isTeam = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
-      if (isTeam) {
-        const ext = previewImage.split('.').pop()?.toLowerCase() || 'jpg';
-        const { publicUrl } = await uploadToS3(previewImage, `image/${ext}`);
-        await sendMediaMessage('image', publicUrl);
-      } else {
-        const now = new Date().toISOString();
-        addMessageToConversation(selectedChat, { id: Date.now().toString(), senderId: user?.id || '', type: 'image', content: previewImage, timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), createdAt: now });
-      }
-      setPreviewImage(null);
+      const ext = localUri.split('.').pop()?.toLowerCase() || 'jpg';
+      const { publicUrl } = await uploadToS3(localUri, `image/${ext}`);
+      await sendMediaMessage('image', publicUrl, undefined, convId);
     } catch (e: any) {
       Alert.alert('Error', 'Failed to send image: ' + e.message);
     } finally {
-      setIsUploadingImage(false);
+      setPendingUploads((prev) => { const next = new Map(prev); next.delete(tempId); return next; });
     }
   };
 
@@ -902,7 +973,13 @@ export default function ChatScreen() {
     setShowAttachMenu(false);
     await new Promise((r) => setTimeout(r, 300));
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Videos, allowsEditing: true, videoMaxDuration: 60 });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        videoMaxDuration: 60,
+        // iOS OS-level compression at pick time — significantly reduces upload size/time
+        ...(Platform.OS === 'ios' ? { videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality } : {}),
+      });
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         const rawMime = asset.mimeType || `video/${asset.uri.split('.').pop()?.toLowerCase() || 'mp4'}`;
@@ -916,22 +993,37 @@ export default function ChatScreen() {
 
   const handleSendVideo = async () => {
     if (!previewVideo || !selectedChat) return;
-    setIsUploadingVideo(true);
+    const { uri: localUri, mimeType, duration } = previewVideo;
+    const convId = selectedChat;
+
+    // Close modal immediately
+    setPreviewVideo(null);
+
+    const conversation = conversations.find((c) => c.id === convId);
+    const isTeam = convId !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
+
+    if (!isTeam) {
+      const now = new Date().toISOString();
+      addMessageToConversation(convId, { id: Date.now().toString(), senderId: user?.id || '', type: 'video', content: localUri, duration, timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), createdAt: now });
+      return;
+    }
+
+    const tempId = `pending-vid-${Date.now()}`;
+    const now = new Date();
+    const pendingEntry: PendingUpload = {
+      tempId, conversationId: convId, type: 'video', localUri, duration,
+      timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: now.toISOString(),
+    };
+    setPendingUploads((prev) => { const next = new Map(prev); next.set(tempId, pendingEntry); return next; });
+
     try {
-      const conversation = conversations.find((c) => c.id === selectedChat);
-      const isTeam = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
-      if (isTeam) {
-        const { publicUrl } = await uploadToS3(previewVideo.uri, previewVideo.mimeType);
-        await sendMediaMessage('video', publicUrl, { duration: previewVideo.duration });
-      } else {
-        const now = new Date().toISOString();
-        addMessageToConversation(selectedChat, { id: Date.now().toString(), senderId: user?.id || '', type: 'video', content: previewVideo.uri, duration: previewVideo.duration, timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), createdAt: now });
-      }
-      setPreviewVideo(null);
+      const { publicUrl } = await uploadToS3(localUri, mimeType);
+      await sendMediaMessage('video', publicUrl, { duration }, convId);
     } catch (e: any) {
       Alert.alert('Error', 'Failed to send video: ' + e.message);
     } finally {
-      setIsUploadingVideo(false);
+      setPendingUploads((prev) => { const next = new Map(prev); next.delete(tempId); return next; });
     }
   };
 
@@ -942,20 +1034,39 @@ export default function ChatScreen() {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (!result.canceled && result.assets[0]) {
-        const conversation = conversations.find((c) => c.id === selectedChat);
-        const isTeam = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
-        if (isTeam) {
-          const file = result.assets[0];
+        const file = result.assets[0];
+        const convId = selectedChat;
+        const conversation = conversations.find((c) => c.id === convId);
+        const isTeam = convId !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
+
+        if (!isTeam) {
+          const now = new Date().toISOString();
+          addMessageToConversation(convId, { id: Date.now().toString(), senderId: user?.id || '', type: 'file', fileName: file.name, content: file.uri, timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), createdAt: now });
+          return;
+        }
+
+        // Optimistic pending entry — upload in background
+        const tempId = `pending-doc-${Date.now()}`;
+        const now = new Date();
+        const pendingEntry: PendingUpload = {
+          tempId, conversationId: convId, type: 'file', localUri: file.uri, fileName: file.name,
+          timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          createdAt: now.toISOString(),
+        };
+        setPendingUploads((prev) => { const next = new Map(prev); next.set(tempId, pendingEntry); return next; });
+
+        try {
           const mime = file.mimeType || 'application/octet-stream';
           const { publicUrl } = await uploadToS3(file.uri, mime);
-          await sendMediaMessage('file', publicUrl, { fileName: file.name });
-        } else {
-          const now = new Date().toISOString();
-          addMessageToConversation(selectedChat, { id: Date.now().toString(), senderId: user?.id || '', type: 'file', fileName: result.assets[0].name, content: result.assets[0].uri, timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), createdAt: now });
+          await sendMediaMessage('file', publicUrl, { fileName: file.name }, convId);
+        } catch (e: any) {
+          Alert.alert('Error', e.message || 'Failed to send document');
+        } finally {
+          setPendingUploads((prev) => { const next = new Map(prev); next.delete(tempId); return next; });
         }
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to send document');
+      Alert.alert('Error', e.message || 'Failed to pick document');
     }
   };
 
@@ -968,56 +1079,65 @@ export default function ChatScreen() {
     setIsAudioMode(false);
     if (!selectedChat) return;
 
-    const conversation = conversations.find((c) => c.id === selectedChat);
-    const isTeam = selectedChat !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
+    const convId = selectedChat;
+    const conversation = conversations.find((c) => c.id === convId);
+    const isTeam = convId !== 'ai-assistant' && conversation && (conversation.type === 'individual' || conversation.type === 'group');
+
+    let audioLocalUri: string | null = null;
+    let blobUrl: string | null = null;
+
+    if (result.blob) {
+      blobUrl = URL.createObjectURL(result.blob);
+      audioLocalUri = blobUrl;
+    } else if (result.uri) {
+      audioLocalUri = result.uri;
+    }
+
+    if (!isTeam) {
+      const now = new Date().toISOString();
+      addMessageToConversation(convId, {
+        id: Date.now().toString(), senderId: user?.id || '', type: 'voice',
+        content: audioLocalUri || '', duration: result.durationSec,
+        timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), createdAt: now,
+      });
+      return;
+    }
+
+    if (!audioLocalUri) { Alert.alert('Error', 'No audio data'); return; }
+
+    // Optimistic pending entry
+    const tempId = `pending-voice-${Date.now()}`;
+    const now = new Date();
+    const pendingEntry: PendingUpload = {
+      tempId, conversationId: convId, type: 'voice', localUri: audioLocalUri,
+      duration: result.durationSec,
+      timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: now.toISOString(),
+    };
+    setPendingUploads((prev) => { const next = new Map(prev); next.set(tempId, pendingEntry); return next; });
 
     try {
-      if (isTeam) {
-        let audioLocalUri: string;
-        if (result.blob) {
-          audioLocalUri = URL.createObjectURL(result.blob);
-        } else if (result.uri) {
-          audioLocalUri = result.uri;
-        } else {
-          throw new Error('No audio data');
-        }
+      const { publicUrl: audioUrl } = await uploadToS3(audioLocalUri, result.mimeType);
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
 
-        const { publicUrl: audioUrl } = await uploadToS3(audioLocalUri, result.mimeType);
-        if (result.blob) URL.revokeObjectURL(audioLocalUri);
-
-        const msgResp = await fetch(`${rorkApi}/api/team/send-message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conversationId: selectedChat, senderId: user?.id, type: 'voice', content: audioUrl, duration: result.durationSec }),
-        });
-        const msgResult = await msgResp.json();
-        if (msgResult.success) {
-          const now = new Date().toISOString();
-          addMessageToConversation(selectedChat, {
-            id: msgResult.message.id,
-            senderId: user?.id || '',
-            type: 'voice',
-            content: audioUrl,
-            duration: result.durationSec,
-            timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            createdAt: now,
-          });
-        }
-      } else {
-        const localUri = result.uri || (result.blob ? URL.createObjectURL(result.blob) : null);
-        const now = new Date().toISOString();
-        addMessageToConversation(selectedChat, {
-          id: Date.now().toString(),
-          senderId: user?.id || '',
-          type: 'voice',
-          content: localUri || '',
-          duration: result.durationSec,
-          timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          createdAt: now,
+      const msgResp = await fetch(`${rorkApi}/api/team/send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: convId, senderId: user?.id, type: 'voice', content: audioUrl, duration: result.durationSec }),
+      });
+      const msgResult = await msgResp.json();
+      if (msgResult.success) {
+        const sentAt = new Date().toISOString();
+        addMessageToConversation(convId, {
+          id: msgResult.message.id, senderId: user?.id || '', type: 'voice',
+          content: audioUrl, duration: result.durationSec,
+          timestamp: new Date(sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), createdAt: sentAt,
         });
       }
     } catch (e: any) {
       Alert.alert('Error', 'Failed to send voice message: ' + e.message);
+    } finally {
+      setPendingUploads((prev) => { const next = new Map(prev); next.delete(tempId); return next; });
     }
   };
 
@@ -1206,19 +1326,35 @@ export default function ChatScreen() {
               <>
                 {isSmallScreen && (
                   <View style={styles.mobileHeader}>
-                    <TouchableOpacity onPress={() => setSelectedChat(null)} style={styles.backButton}>
-                      <Text style={styles.backButtonText}>← Back</Text>
+                    <TouchableOpacity onPress={() => setSelectedChat(null)} style={styles.backButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <ChevronLeft size={28} color="#2563EB" />
                     </TouchableOpacity>
-                    <View style={styles.mobileHeaderCenter}>
-                      <Text style={styles.chatTitle} numberOfLines={1}>
+                    {/* Avatar */}
+                    {selectedConversation?.avatar ? (
+                      <Image source={{ uri: selectedConversation.avatar }} style={styles.mobileHeaderAvatar} contentFit="cover" />
+                    ) : (
+                      <View style={styles.mobileHeaderAvatarPlaceholder}>
+                        <Text style={styles.mobileHeaderAvatarInitials}>
+                          {getInitials(selectedConversation?.name || 'CH')}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.mobileHeaderInfo}>
+                      <Text style={styles.mobileHeaderName} numberOfLines={1}>
                         {selectedConversation?.name || 'Chat'}
                       </Text>
-                      {typingUsers.size > 0 && (
+                      {typingUsers.size > 0 ? (
                         <Text style={styles.mobileTypingLabel}>
                           {typingUsers.size === 1
                             ? `${Array.from(typingUsers.values())[0].name.split(' ')[0]} is typing...`
                             : 'Several people are typing...'}
                         </Text>
+                      ) : selectedConversation?.type === 'group' ? (
+                        <Text style={styles.mobileHeaderSubtitle}>
+                          {(selectedConversation.participants?.length || 0) + 1} members
+                        </Text>
+                      ) : (
+                        <Text style={styles.mobileHeaderSubtitle}>tap here for more info</Text>
                       )}
                     </View>
                   </View>
@@ -1436,11 +1572,11 @@ export default function ChatScreen() {
             </View>
             {previewImage && <Image source={{ uri: previewImage }} style={styles.previewImage} contentFit="contain" />}
             <View style={styles.previewActions}>
-              <TouchableOpacity style={styles.previewCancelButton} onPress={() => setPreviewImage(null)} disabled={isUploadingImage}>
+              <TouchableOpacity style={styles.previewCancelButton} onPress={() => setPreviewImage(null)}>
                 <Text style={styles.previewCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.previewSendButton} onPress={handleSendImage} disabled={isUploadingImage}>
-                {isUploadingImage ? <ActivityIndicator size="small" color="#FFFFFF" /> : (<><Send size={20} color="#FFFFFF" /><Text style={styles.previewSendText}>Send</Text></>)}
+              <TouchableOpacity style={styles.previewSendButton} onPress={handleSendImage}>
+                <Send size={20} color="#FFFFFF" /><Text style={styles.previewSendText}>Send</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1448,10 +1584,10 @@ export default function ChatScreen() {
       </Modal>
 
       {/* ─── Send Video Preview Modal ─────────────────────────────────────── */}
-      <Modal visible={previewVideo != null} transparent={false} animationType="slide" onRequestClose={() => !isUploadingVideo && setPreviewVideo(null)}>
+      <Modal visible={previewVideo != null} transparent={false} animationType="slide" onRequestClose={() => setPreviewVideo(null)}>
         <View style={styles.videoPreviewScreen}>
           <View style={styles.videoPreviewTopBar}>
-            <TouchableOpacity onPress={() => !isUploadingVideo && setPreviewVideo(null)} style={styles.videoPreviewBackBtn} disabled={isUploadingVideo}>
+            <TouchableOpacity onPress={() => setPreviewVideo(null)} style={styles.videoPreviewBackBtn}>
               <X size={26} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.videoPreviewTopTitle}>Send to {conversations.find((c) => c.id === selectedChat)?.name || 'Chat'}</Text>
@@ -1472,8 +1608,8 @@ export default function ChatScreen() {
             ) : null}
           </View>
           <View style={styles.videoPreviewBottomBar}>
-            <TouchableOpacity style={[styles.videoSendBtn, isUploadingVideo && styles.videoSendBtnDisabled]} onPress={handleSendVideo} disabled={isUploadingVideo} activeOpacity={0.85}>
-              {isUploadingVideo ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Send size={24} color="#FFFFFF" />}
+            <TouchableOpacity style={styles.videoSendBtn} onPress={handleSendVideo} activeOpacity={0.85}>
+              <Send size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
@@ -1492,10 +1628,15 @@ const styles = StyleSheet.create({
   userName: { fontSize: 16, fontWeight: '600' as const, color: '#1F2937' },
   teamInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   teamName: { fontSize: 14, color: '#1F2937' },
-  mobileHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', gap: 12 },
-  mobileHeaderCenter: { flex: 1 },
-  mobileTypingLabel: { fontSize: 12, color: '#6B7280', fontStyle: 'italic', marginTop: 1 },
-  backButton: { paddingVertical: 4 },
+  mobileHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 10, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', gap: 10 },
+  mobileHeaderAvatar: { width: 38, height: 38, borderRadius: 19 },
+  mobileHeaderAvatarPlaceholder: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#2563EB', alignItems: 'center', justifyContent: 'center' },
+  mobileHeaderAvatarInitials: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' as const },
+  mobileHeaderInfo: { flex: 1, justifyContent: 'center' },
+  mobileHeaderName: { fontSize: 16, fontWeight: '600' as const, color: '#1F2937' },
+  mobileHeaderSubtitle: { fontSize: 12, color: '#6B7280', marginTop: 1 },
+  mobileTypingLabel: { fontSize: 12, color: '#25D366', fontStyle: 'italic', marginTop: 1 },
+  backButton: { paddingHorizontal: 4, paddingVertical: 4 },
   backButtonText: { fontSize: 16, color: '#2563EB', fontWeight: '600' as const },
   chatTitle: { fontSize: 17, fontWeight: '600' as const, color: '#1F2937' },
   content: { flex: 1, flexDirection: 'row' },
