@@ -109,22 +109,30 @@ export default function NotificationsScreen() {
       }
 
       const data = notification.data as any;
+      const title = notification.title;
 
       switch (notification.type) {
         case 'task-reminder':
           router.push('/(tabs)/dashboard');
           break;
+
         case 'estimate-received':
+          // Estimate requests live in the CRM tab
+          router.push('/(tabs)/crm');
+          break;
+
         case 'proposal-submitted':
           router.push('/(tabs)/subcontractors');
           break;
+
         case 'payment-received':
           if (data?.projectId) {
             router.push(`/project/${data.projectId}` as any);
           } else {
-            router.push('/(tabs)/expenses');
+            router.push('/(tabs)/crm');
           }
           break;
+
         case 'change-order':
           if (data?.projectId) {
             router.push(`/project/${data.projectId}/change-orders` as any);
@@ -132,10 +140,52 @@ export default function NotificationsScreen() {
             router.push('/(tabs)/dashboard');
           }
           break;
-        case 'general':
-          // Task-assignment notifications carry a taskId — go to dashboard where tasks live
-          router.push('/(tabs)/dashboard');
+
+        case 'general': {
+          // Route by title since 'general' covers many distinct subtypes
+          if (
+            title === 'New Employee Pending Approval' ||
+            title === 'New Employee Approved' ||
+            title === 'Account Approved'
+          ) {
+            router.push('/(tabs)/settings');
+          } else if (title === 'Employee Clocked In' || title === 'Employee Clocked Out') {
+            if (data?.projectId) {
+              router.push(`/project/${data.projectId}` as any);
+            } else {
+              router.push('/(tabs)/clock');
+            }
+          } else if (title === 'Photo Added') {
+            if (data?.projectId) {
+              router.push(`/project/${data.projectId}` as any);
+            } else {
+              router.push('/(tabs)/photos');
+            }
+          } else if (title === 'Expense Added') {
+            if (data?.projectId) {
+              router.push(`/project/${data.projectId}` as any);
+            } else {
+              router.push('/(tabs)/expenses');
+            }
+          } else if (
+            title === 'Estimate Accepted' ||
+            title === 'Estimate Rejected' ||
+            title === 'Estimate Paid' ||
+            title === 'Estimate Sent'
+          ) {
+            router.push('/(tabs)/crm');
+          } else if (title === 'Daily Log Created') {
+            if (data?.projectId) {
+              router.push(`/project/${data.projectId}` as any);
+            } else {
+              router.push('/(tabs)/dashboard');
+            }
+          } else {
+            router.push('/(tabs)/dashboard');
+          }
           break;
+        }
+
         default:
           break;
       }
