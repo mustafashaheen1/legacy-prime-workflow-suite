@@ -169,6 +169,7 @@ interface AppState {
   setSubscription: (subscription: Subscription) => void;
   addProject: (project: Project) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
+  deleteProject: (id: string) => Promise<void>;
   archiveProject: (id: string) => Promise<void>;
   addClient: (client: Client) => void;
   updateClient: (id: string, updates: Partial<Client>) => void;
@@ -972,6 +973,26 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.log('[App] Project updated in backend:', id);
     } catch (error) {
       console.error('[App] Error updating project in backend:', error);
+    }
+  }, []);
+
+  const deleteProject = useCallback(async (id: string) => {
+    // Optimistically remove from UI
+    setProjects(prev => prev.filter(p => p.id !== id));
+    try {
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/delete-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      console.log('[App] Project deleted:', id);
+    } catch (error) {
+      console.error('[App] Error deleting project:', error);
     }
   }, []);
 
@@ -2997,6 +3018,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setSubscription,
     addProject,
     updateProject,
+    deleteProject,
     archiveProject,
     addClient,
     updateClient,
@@ -3123,6 +3145,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     setSubscription,
     addProject,
     updateProject,
+    deleteProject,
     archiveProject,
     addClient,
     updateClient,

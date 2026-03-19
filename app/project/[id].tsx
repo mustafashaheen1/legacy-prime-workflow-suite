@@ -26,7 +26,7 @@ type TabType = 'overview' | 'schedule' | 'estimate' | 'change-orders' | 'clock' 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, archiveProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject, addNotification } = useApp();
+  const { projects, archiveProject, deleteProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject, addNotification } = useApp();
 
   const [changeOrdersData, setChangeOrdersData] = useState<ChangeOrder[]>([]);
   const [paymentsData, setPaymentsData] = useState<Payment[]>([]);
@@ -1199,7 +1199,7 @@ export default function ProjectDetailScreen() {
                     onPress={() => updateProject(project.id, { status: 'on-hold' })}
                   >
                     <PauseCircle size={18} color="#F59E0B" />
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#F59E0B' }}>Delay Project</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#F59E0B' }}>Hold Project</Text>
                   </TouchableOpacity>
                 )}
                 {project.status === 'active' && (
@@ -1209,6 +1209,31 @@ export default function ProjectDetailScreen() {
                   >
                     <Archive size={18} color="#6B7280" />
                     <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>Archive Project</Text>
+                  </TouchableOpacity>
+                )}
+                {(user?.role === 'admin' || user?.role === 'super-admin') && (
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 12, paddingVertical: 14 }}
+                    onPress={() => {
+                      Alert.alert(
+                        'Delete Project',
+                        `Are you sure you want to permanently delete "${project.name}"? This cannot be undone.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Delete',
+                            style: 'destructive',
+                            onPress: async () => {
+                              await deleteProject(project.id);
+                              router.replace('/(tabs)/dashboard');
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Trash2 size={18} color="#DC2626" />
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#DC2626' }}>Delete Project</Text>
                   </TouchableOpacity>
                 )}
                 {project.status === 'on-hold' && (
