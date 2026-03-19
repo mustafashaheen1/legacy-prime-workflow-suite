@@ -5,7 +5,7 @@ import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
 import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permissions';
-import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, Wrench, DollarSign } from 'lucide-react-native';
+import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, DollarSign } from 'lucide-react-native';
 import EditAccessModal from '@/components/EditAccessModal';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
@@ -877,24 +877,6 @@ export default function SettingsScreen() {
               <Text style={styles.emptyText}>{t('settings.noUsers')}</Text>
             </View>
           )}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Wrench size={24} color="#2563EB" />
-            <Text style={styles.sectionTitle}>Developer Tools</Text>
-          </View>
-
-          <TouchableOpacity 
-            style={styles.devToolButton}
-            onPress={() => router.push('/api-test')}
-          >
-            <View style={styles.devToolContent}>
-              <Text style={styles.devToolTitle}>API Connection Test</Text>
-              <Text style={styles.devToolDescription}>Test backend API connectivity</Text>
-            </View>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
