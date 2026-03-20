@@ -451,8 +451,10 @@ export default function ProjectDetailScreen() {
   const totalLaborCost = useMemo(() => {
     return projectClockEntries.reduce((sum, entry) => {
       if (!entry.clockIn) return sum;
-      // Prefer snapshotted rate on the entry; fall back to current rate for legacy entries
-      const rate = entry.hourlyRate ?? userRatesMap.get(entry.employeeId) ?? 0;
+      // Only count entries with a snapshotted rate. Legacy entries (hourlyRate = null)
+      // are excluded so a rate change never retroactively alters historical cost.
+      if (entry.hourlyRate == null) return sum;
+      const rate = entry.hourlyRate;
       if (!rate) return sum;
       const clockInMs = new Date(entry.clockIn).getTime();
       const clockOutMs = entry.clockOut ? new Date(entry.clockOut).getTime() : nowMs;
@@ -535,8 +537,10 @@ export default function ProjectDetailScreen() {
       }
       const hours = Math.max(0, ms / 3_600_000);
       const isLegacy = entry.hourlyRate == null;
-      // Prefer snapshotted rate; fall back to current rate for legacy entries
-      const rate = entry.hourlyRate ?? userRatesMap.get(entry.employeeId) ?? null;
+      // Skip legacy entries entirely — no rate snapshot means no cost contribution.
+      // This prevents a rate change from retroactively repricing historical hours.
+      if (isLegacy) return;
+      const rate = entry.hourlyRate;
       const cost = rate ? hours * rate : 0;
       const name = userNamesMap.get(entry.employeeId)
         || entry.employeeName
@@ -1281,11 +1285,6 @@ export default function ProjectDetailScreen() {
                     </Text>
                   </View>
 
-                  {laborBreakdown.some(r => r.hasLegacyEntries) && (
-                    <Text style={styles.laborRateWarning}>
-                      * Sessions logged before rate tracking was enabled use the employee's current rate as an estimate.
-                    </Text>
-                  )}
                   {laborBreakdown.some(r => !r.rate) && (
                     <Text style={styles.laborRateWarning}>
                       Employees without a rate set are excluded from the cost total. Set their rate in Employee Management.
