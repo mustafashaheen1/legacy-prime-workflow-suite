@@ -778,9 +778,9 @@ export default function FilesNavigationScreen() {
           {files.map((file: any) => {
             if (folder.type === 'photos') {
               return (
-                <View key={file.id} style={styles.photoCard}>
+                <View key={file.id} style={[styles.photoCard, { position: 'relative' }]}>
                   <TouchableOpacity
-                    style={{ flex: 1, flexDirection: 'row' }}
+                    style={{ flexDirection: 'row', flex: 1, paddingRight: 32 }}
                     onPress={() => setViewingFile({ uri: file.url, name: file.category, type: 'image' })}
                     activeOpacity={0.8}
                   >
@@ -798,17 +798,16 @@ export default function FilesNavigationScreen() {
                   <TouchableOpacity
                     style={styles.deleteFileButton}
                     onPress={() => handleDeletePhoto(file.id)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Trash2 size={18} color="#EF4444" />
+                    <Trash2 size={16} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
               );
             } else if (folder.type === 'receipts') {
               return (
-                <View key={file.id} style={[styles.expenseCard, { flexDirection: 'row', alignItems: 'flex-start' }]}>
+                <View key={file.id} style={[styles.expenseCard, { position: 'relative' }]}>
                   <TouchableOpacity
-                    style={{ flex: 1 }}
+                    style={{ paddingRight: 32 }}
                     onPress={() => {
                       if (file.receiptUrl) {
                         const isPdf = file.receiptUrl.toLowerCase().includes('.pdf') ||
@@ -842,9 +841,8 @@ export default function FilesNavigationScreen() {
                   <TouchableOpacity
                     style={styles.deleteFileButton}
                     onPress={() => handleDeleteExpenseFile(file.id)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Trash2 size={18} color="#EF4444" />
+                    <Trash2 size={16} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
               );
@@ -894,9 +892,9 @@ export default function FilesNavigationScreen() {
               // All files now use 'uri' property from database
               const fileUrl = file.uri;
               return (
-                <View key={file.id} style={styles.documentCard}>
+                <View key={file.id} style={[styles.documentCard, { position: 'relative' }]}>
                   <TouchableOpacity
-                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 32 }}
                     onPress={() => {
                       if (isImage) {
                         setViewingFile({ uri: fileUrl, name: file.name, type: 'image' });
@@ -926,9 +924,8 @@ export default function FilesNavigationScreen() {
                   <TouchableOpacity
                     style={styles.deleteFileButton}
                     onPress={() => handleDeleteDocument(file.id)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Trash2 size={18} color="#EF4444" />
+                    <Trash2 size={16} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
               );
@@ -1233,11 +1230,16 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   deleteFileButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    alignSelf: 'center',
-    justifyContent: 'center',
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 14,
+    width: 28,
+    height: 28,
     alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   emptyState: {
     width: '100%',
