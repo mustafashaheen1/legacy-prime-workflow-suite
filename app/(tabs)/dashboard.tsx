@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput,
 import { useApp } from '@/contexts/AppContext';
 import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, AlertTriangle, Camera, MoreHorizontal, Pencil, PauseCircle, PlayCircle } from 'lucide-react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +13,7 @@ import AddTaskModal from '@/components/DailyTasks/AddTaskModal';
 import DashboardSkeleton from '@/components/DashboardSkeleton';
 import * as ImagePicker from 'expo-image-picker';
 import { compressImage } from '@/lib/upload-utils';
+import { supabase } from '@/lib/supabase';
 
 
 export default function DashboardScreen() {
@@ -97,6 +99,18 @@ export default function DashboardScreen() {
     projectFilter === 'delayed' ? filteredDelayedProjects :
     projectFilter === 'completed' ? filteredCompletedProjects :
     filteredArchivedProjects;
+
+  // Company users map for avatar display on project cards
+  const [usersMap, setUsersMap] = useState<Map<string, { name: string; avatar?: string }>>(new Map());
+  useEffect(() => {
+    if (!company?.id) return;
+    supabase.from('users').select('id, name, avatar').eq('company_id', company.id)
+      .then(({ data }) => {
+        const map = new Map<string, { name: string; avatar?: string }>();
+        (data || []).forEach((u: any) => map.set(u.id, { name: u.name, avatar: u.avatar }));
+        setUsersMap(map);
+      });
+  }, [company?.id]);
 
 
   // Non-archived projects are the source of truth for all financial stats —
@@ -1345,77 +1359,140 @@ export default function DashboardScreen() {
             pagingEnabled
             showsHorizontalScrollIndicator={Platform.OS === 'web'}
             decelerationRate="fast"
-            snapToInterval={310}
+            snapToInterval={256}
             snapToAlignment="center"
             contentContainerStyle={styles.projectsCarousel}
             style={[styles.projectsCarouselContainer, Platform.OS === 'web' && styles.projectsCarouselWeb]}
           >
-            {displayProjects.map((project) => (
-              <TouchableOpacity
-                key={project.id}
-                style={[
-                  styles.projectCard,
-                  isSelectMode && selectedProjects.includes(project.id) && styles.projectCardSelected
-                ]}
-                onPress={() => {
-                  if (isSelectMode) {
-                    toggleProjectSelection(project.id);
-                  } else {
-                    router.push(`/project/${project.id}` as any);
-                  }
-                }}
-              >
-                {isSelectMode && (
-                  <View style={styles.projectCheckbox}>
-                    <CheckSquare
-                      size={24}
-                      color={selectedProjects.includes(project.id) ? '#10B981' : '#FFFFFF'}
-                      fill={selectedProjects.includes(project.id) ? '#10B981' : 'transparent'}
-                    />
+            {displayProjects.map((project) => {
+              const activeEntries = clockEntries.filter(c => c.projectId === project.id && !c.clockOut);
+              const visibleAvatars = activeEntries.slice(0, 3);
+              const extraCount = Math.max(0, activeEntries.length - 3);
+              const progressPct = Math.min(100, Math.max(0, project.progress || 0));
+              const isSelected = isSelectMode && selectedProjects.includes(project.id);
+
+              return (
+                <TouchableOpacity
+                  key={project.id}
+                  style={[styles.projectCard, isSelected && styles.projectCardSelected]}
+                  onPress={() => {
+                    if (isSelectMode) {
+                      toggleProjectSelection(project.id);
+                    } else {
+                      router.push(`/project/${project.id}` as any);
+                    }
+                  }}
+                  activeOpacity={0.92}
+                >
+                  {/* Full-bleed background image */}
+                  <Image
+                    source={{ uri: project.image }}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                  />
+
+                  {/* Gradient overlay — bottom-heavy dark fade */}
+                  <LinearGradient
+                    colors={['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.28)', 'rgba(0,0,0,0.80)']}
+                    locations={[0, 0.4, 1]}
+                    style={StyleSheet.absoluteFill}
+                  />
+
+                  {/* TOP ROW: badges left, menu/checkbox right */}
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.cardBadges}>
+                      {(!project.contractAmount || project.contractAmount === 0) && (
+                        <View style={styles.cardBadgeWarning}>
+                          <AlertTriangle size={9} color="#F97316" />
+                          <Text style={styles.cardBadgeText}>No Contract</Text>
+                        </View>
+                      )}
+                      {project.status === 'on-hold' && (
+                        <View style={styles.cardBadgeHold}>
+                          <PauseCircle size={9} color="#D97706" />
+                          <Text style={[styles.cardBadgeText, { color: '#D97706' }]}>On Hold</Text>
+                        </View>
+                      )}
+                      {project.status === 'completed' && (
+                        <View style={styles.cardBadgeDone}>
+                          <Text style={[styles.cardBadgeText, { color: '#059669' }]}>✓ Completed</Text>
+                        </View>
+                      )}
+                    </View>
+                    {isSelectMode ? (
+                      <View style={styles.projectCheckbox}>
+                        <CheckSquare
+                          size={24}
+                          color={isSelected ? '#10B981' : '#FFFFFF'}
+                          fill={isSelected ? '#10B981' : 'transparent'}
+                        />
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.cardMoreBtn}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setSelectedProjectForActions(project);
+                          setShowProjectActionsModal(true);
+                        }}
+                      >
+                        <MoreHorizontal size={16} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    )}
                   </View>
-                )}
-                <View style={styles.projectCardContent}>
-                  <Text style={styles.projectName} numberOfLines={2}>{project.name}</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
-                    {(!project.contractAmount || project.contractAmount === 0) && (
-                      <View style={{
-                        flexDirection: 'row', alignItems: 'center', gap: 4,
-                        backgroundColor: '#FFF7ED', borderRadius: 6,
-                        paddingHorizontal: 7, paddingVertical: 3,
-                        borderWidth: 1, borderColor: '#FED7AA',
-                      }}>
-                        <AlertTriangle size={9} color="#F97316" />
-                        <Text style={{ fontSize: 9, fontWeight: '700', color: '#F97316' }}>No Contract</Text>
+
+                  {/* BOTTOM CONTENT: name, progress, budget, avatars */}
+                  <View style={styles.cardBottom}>
+                    <Text style={styles.projectName} numberOfLines={2}>{project.name}</Text>
+
+                    {/* Thin progress bar */}
+                    <View style={styles.cardProgressBg}>
+                      <View style={[styles.cardProgressFill, {
+                        width: `${progressPct}%` as any,
+                        backgroundColor: project.status === 'completed' ? '#10B981' : project.status === 'on-hold' ? '#F59E0B' : '#60A5FA',
+                      }]} />
+                    </View>
+
+                    {/* Budget row */}
+                    <View style={styles.cardMetaRow}>
+                      <Text style={styles.cardBudgetText}>
+                        ${project.budget.toLocaleString()}
+                      </Text>
+                      <Text style={styles.cardProgressPct}>{progressPct}%</Text>
+                    </View>
+
+                    {/* Clocked-in avatars */}
+                    {activeEntries.length > 0 && (
+                      <View style={styles.cardAvatarRow}>
+                        {visibleAvatars.map((entry, idx) => {
+                          const userData = usersMap.get(entry.employeeId);
+                          const displayName = userData?.name || entry.employeeName || '?';
+                          const initials = displayName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+                          return (
+                            <View key={entry.id} style={[styles.cardAvatar, { marginLeft: idx === 0 ? 0 : -8, zIndex: 3 - idx }]}>
+                              {userData?.avatar ? (
+                                <Image source={{ uri: userData.avatar }} style={styles.cardAvatarImg} contentFit="cover" />
+                              ) : (
+                                <Text style={styles.cardAvatarInitials}>{initials}</Text>
+                              )}
+                            </View>
+                          );
+                        })}
+                        {extraCount > 0 && (
+                          <View style={[styles.cardAvatar, styles.cardAvatarExtra, { marginLeft: -8, zIndex: 0 }]}>
+                            <Text style={styles.cardAvatarExtraText}>+{extraCount}</Text>
+                          </View>
+                        )}
+                        <View style={styles.cardLivePill}>
+                          <View style={styles.cardLiveDot} />
+                          <Text style={styles.cardLiveText}>{activeEntries.length} live</Text>
+                        </View>
                       </View>
                     )}
-                    {project.status === 'on-hold' && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#FCD34D' }}>
-                        <PauseCircle size={9} color="#D97706" />
-                        <Text style={{ fontSize: 9, fontWeight: '700', color: '#D97706' }}>On Hold</Text>
-                      </View>
-                    )}
                   </View>
-                  <Text style={styles.projectBudget}>Budget: ${project.budget.toLocaleString()}</Text>
-                </View>
-                <Image
-                  source={{ uri: project.image }}
-                  style={styles.projectImage}
-                  contentFit="cover"
-                />
-                {!isSelectMode && (
-                  <TouchableOpacity
-                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 16, padding: 5 }}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      setSelectedProjectForActions(project);
-                      setShowProjectActionsModal(true);
-                    }}
-                  >
-                    <MoreHorizontal size={16} color="#FFFFFF" />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
 
@@ -2570,7 +2647,7 @@ const styles = StyleSheet.create({
   },
 
   projectsCarouselContainer: {
-    height: 280,
+    height: 260,
   },
   projectsCarouselWeb: {
     // @ts-ignore - Web-only CSS properties
@@ -2617,33 +2694,189 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   projectCard: {
-    width: 280,
-    backgroundColor: '#2563EB',
-    borderRadius: 16,
-    height: 240,
+    width: 240,
+    borderRadius: 20,
+    height: 228,
     position: 'relative' as const,
     overflow: 'hidden',
-  },
-  projectCardContent: {
-    padding: 14,
-    paddingBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 10,
   },
   projectCardSelected: {
     borderWidth: 3,
     borderColor: '#10B981',
   },
   projectCheckbox: {
-    position: 'absolute' as const,
-    top: 12,
-    right: 12,
     zIndex: 10,
   },
+  // card layout
+  cardTopRow: {
+    position: 'absolute' as const,
+    top: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'flex-start' as const,
+    zIndex: 10,
+  },
+  cardBadges: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 5,
+    flex: 1,
+    marginRight: 8,
+  },
+  cardBadgeWarning: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    backgroundColor: 'rgba(255,247,237,0.93)',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  cardBadgeHold: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    backgroundColor: 'rgba(255,243,199,0.93)',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  cardBadgeDone: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    backgroundColor: 'rgba(240,253,244,0.93)',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+  },
+  cardBadgeText: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: '#F97316',
+  },
+  cardMoreBtn: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 14,
+    padding: 5,
+  },
+  cardBottom: {
+    position: 'absolute' as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 14,
+    paddingTop: 18,
+  },
   projectName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700' as const,
     color: '#FFFFFF',
+    marginBottom: 8,
+    lineHeight: 20,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  cardProgressBg: {
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 2,
     marginBottom: 6,
-    lineHeight: 22,
+    overflow: 'hidden' as const,
+  },
+  cardProgressFill: {
+    height: 3,
+    borderRadius: 2,
+  },
+  cardMetaRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 8,
+  },
+  cardBudgetText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  cardProgressPct: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.65)',
+  },
+  cardAvatarRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+  },
+  cardAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#3B82F6',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    overflow: 'hidden' as const,
+  },
+  cardAvatarImg: {
+    width: 26,
+    height: 26,
+  },
+  cardAvatarInitials: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  cardAvatarExtra: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  cardAvatarExtraText: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  cardLivePill: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: 'rgba(16,185,129,0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    marginLeft: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.4)',
+  },
+  cardLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  cardLiveText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: '#10B981',
+  },
+  // keep legacy - may be referenced elsewhere
+  projectCardContent: {
+    padding: 14,
+    paddingBottom: 8,
   },
   projectBudget: {
     fontSize: 13,
