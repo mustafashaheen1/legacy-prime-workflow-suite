@@ -51,15 +51,21 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: error.message });
   }
 
-  // 2. Notify all admins in the company — fire-and-forget
-  void notifyCompanyAdmins(supabase, {
-    companyId: userRow.company_id,
-    actorId: employeeId,
-    type: 'general',
-    title: 'Rate Change Request',
-    message: `${userRow.name} has requested a new hourly rate of $${Number(newRate).toFixed(2)}/hr`,
-    data: { employeeId, newRate: Number(newRate) },
-  });
+  // 2. Notify all admins in the company.
+  // Must be awaited before res.json() — Vercel freezes the process the moment
+  // the response is sent, so fire-and-forget notifications never execute.
+  try {
+    await notifyCompanyAdmins(supabase, {
+      companyId: userRow.company_id,
+      actorId: employeeId,
+      type: 'general',
+      title: 'Rate Change Request',
+      message: `${userRow.name} has requested a new hourly rate of $${Number(newRate).toFixed(2)}/hr`,
+      data: { employeeId, newRate: Number(newRate) },
+    });
+  } catch (notifyErr) {
+    console.warn('[request-rate-change] Admin notify failed (non-fatal):', notifyErr);
+  }
 
   return res.status(200).json({ success: true, rateChangeRequest });
 }

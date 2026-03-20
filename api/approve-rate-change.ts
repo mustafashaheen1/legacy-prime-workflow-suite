@@ -74,18 +74,24 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: error.message });
   }
 
-  // Notify the employee — fire-and-forget
+  // Notify the employee.
+  // Must be awaited before res.json() — Vercel freezes the process the moment
+  // the response is sent, so fire-and-forget notifications never execute.
   const isDirectOverride = approve && directRate != null;
-  void sendNotification(supabase, {
-    userId: employeeId,
-    companyId: userRow.company_id,
-    type: 'general',
-    title: approve ? 'Hourly Rate Updated' : 'Rate Change Rejected',
-    message: approve
-      ? `Your hourly rate has been set to $${Number(newRate).toFixed(2)}/hr`
-      : 'Your rate change request was not approved at this time',
-    data: { newRate, directOverride: isDirectOverride },
-  });
+  try {
+    await sendNotification(supabase, {
+      userId: employeeId,
+      companyId: userRow.company_id,
+      type: 'general',
+      title: approve ? 'Hourly Rate Updated' : 'Rate Change Rejected',
+      message: approve
+        ? `Your hourly rate has been set to $${Number(newRate).toFixed(2)}/hr`
+        : 'Your rate change request was not approved at this time',
+      data: { newRate, directOverride: isDirectOverride },
+    });
+  } catch (notifyErr) {
+    console.warn('[approve-rate-change] Employee notify failed (non-fatal):', notifyErr);
+  }
 
   return res.status(200).json({ success: true });
 }
