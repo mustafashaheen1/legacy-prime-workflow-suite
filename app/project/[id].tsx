@@ -2619,6 +2619,10 @@ export default function ProjectDetailScreen() {
         );
 
       case 'files':
+        // Files tab navigates directly to the organized files-navigation screen.
+        // The tab button (below) calls router.push so this case is never rendered.
+        return null;
+      case '__files_dead__':
         return (
           <View style={styles.filesTabContent}>
             <View style={styles.filesHeaderFixed}>
@@ -2628,14 +2632,14 @@ export default function ProjectDetailScreen() {
                   <Text style={styles.filesSubtitle}>{currentProjectFiles.length} files • {projectPhotos.length} photos • {filesByCategory['videos']?.length || 0} videos • {projectReports.length} reports</Text>
                 </View>
                 <View style={styles.filesHeaderButtons}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.organizedViewButton}
                     onPress={() => router.push(`/project/${id}/files-navigation` as any)}
                   >
                     <Folder size={18} color="#2563EB" />
                     <Text style={styles.organizedViewButtonText}>Organized</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.uploadButton}
                     onPress={() => setUploadModalVisible(true)}
                   >
@@ -3361,10 +3365,10 @@ export default function ProjectDetailScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'files' && styles.activeTab]}
-            onPress={() => setActiveTab('files')}
+            style={styles.tab}
+            onPress={() => router.push(`/project/${id}/files-navigation` as any)}
           >
-            <Text style={[styles.tabText, activeTab === 'files' && styles.activeTabText]}>
+            <Text style={styles.tabText}>
               Files
             </Text>
           </TouchableOpacity>
