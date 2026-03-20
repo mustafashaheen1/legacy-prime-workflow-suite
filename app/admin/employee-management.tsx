@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
 export default function EmployeeManagementScreen() {
-  const { user: currentUser, clockEntries } = useApp();
+  const { user: currentUser, clockEntries, refreshClockEntries } = useApp();
   const [selectedEmployee, setSelectedEmployee] = useState<User | null>(null);
 
   const [showTimecardModal, setShowTimecardModal] = useState<boolean>(false);
@@ -59,7 +59,8 @@ export default function EmployeeManagementScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchUsers();
-    }, [fetchUsers])
+      refreshClockEntries();
+    }, [fetchUsers, refreshClockEntries])
   );
 
   const handleRefresh = useCallback(async () => {

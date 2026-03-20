@@ -233,6 +233,7 @@ interface AppState {
   refreshExpenses: () => Promise<void>;
   refreshDailyLogs: () => Promise<void>;
   refreshPhotos: () => Promise<void>;
+  refreshClockEntries: () => Promise<void>;
   refreshSubcontractors: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
   loadDailyTasks: () => Promise<void>;
@@ -1218,6 +1219,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.log('[App] ✅ Refreshed', photoRows?.length ?? 0, 'photos');
     } catch (error) {
       console.error('[App] ❌ Error refreshing photos:', error);
+    }
+  }, [company?.id]);
+
+  const refreshClockEntries = useCallback(async () => {
+    if (!company?.id) return;
+    try {
+      const { data } = await supabase
+        .from('clock_entries')
+        .select('*, employee:employee_id(id,name,email)')
+        .eq('company_id', company.id)
+        .order('clock_in', { ascending: false });
+      setClockEntries((data ?? []).map(mapClockEntry));
+      console.log('[App] ✅ Refreshed', data?.length ?? 0, 'clock entries');
+    } catch (error) {
+      console.error('[App] ❌ Error refreshing clock entries:', error);
     }
   }, [company?.id]);
 
@@ -3095,6 +3111,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     refreshExpenses,
     refreshDailyLogs,
     refreshPhotos,
+    refreshClockEntries,
     refreshSubcontractors,
     refreshNotifications,
     loadDailyTasks,
@@ -3224,6 +3241,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     refreshExpenses,
     refreshDailyLogs,
     refreshPhotos,
+    refreshClockEntries,
     refreshSubcontractors,
     refreshNotifications,
     loadDailyTasks,

@@ -27,7 +27,7 @@ type TabType = 'overview' | 'schedule' | 'estimate' | 'change-orders' | 'clock' 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, archiveProject, deleteProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject, addNotification } = useApp();
+  const { projects, archiveProject, deleteProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject, addNotification, refreshClockEntries } = useApp();
 
   const [changeOrdersData, setChangeOrdersData] = useState<ChangeOrder[]>([]);
   const [paymentsData, setPaymentsData] = useState<Payment[]>([]);
@@ -65,7 +65,8 @@ export default function ProjectDetailScreen() {
 
   useFocusEffect(useCallback(() => {
     fetchUserRates();
-  }, [fetchUserRates]));
+    refreshClockEntries();
+  }, [fetchUserRates, refreshClockEntries]));
 
   // Tick every 30s so active-entry elapsed hours/costs update in real-time.
   const [nowMs, setNowMs] = useState(() => Date.now());
