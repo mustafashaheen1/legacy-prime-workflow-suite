@@ -434,13 +434,11 @@ export default function EmployeeManagementScreen() {
             setTimeout(() => win.print(), 400);
           }
         } else {
-          const { uri } = await Print.printToFileAsync({ html });
-          const canShare = await Sharing.isAvailableAsync();
-          if (canShare) {
-            await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
-          } else {
-            Alert.alert('PDF saved', uri);
-          }
+          // Use printAsync (opens OS print dialog) instead of printToFileAsync + shareAsync.
+          // On Mac Catalyst, UIActivityViewController runs in a sandboxed WebContent process
+          // that cannot read files from the app's Caches/Print folder, causing silent failures.
+          // printAsync bypasses file sharing entirely — the OS print dialog handles Save as PDF.
+          await Print.printAsync({ html });
         }
 
       } else {
@@ -475,7 +473,9 @@ export default function EmployeeManagementScreen() {
           document.body.removeChild(link);
           Alert.alert('Success', 'Spreadsheet downloaded.');
         } else {
-          const fileUri = `${FileSystem.cacheDirectory}${safeName}_work_history.csv`;
+          // documentDirectory is accessible to the share sheet on Mac Catalyst;
+          // cacheDirectory is not (sandboxed WebContent process can't read it).
+          const fileUri = `${FileSystem.documentDirectory}${safeName}_work_history.csv`;
           await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
           const canShare = await Sharing.isAvailableAsync();
           if (canShare) {
