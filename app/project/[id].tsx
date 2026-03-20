@@ -823,45 +823,43 @@ export default function ProjectDetailScreen() {
                 </View>
 
                 {/* Row 1 — Contract Amount | Project Budget | Planned Profit */}
-                <View style={[styles.topMetrics, { gap: rs.metricGap }]}>
-                  <View style={[styles.topMetricLarge, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Contract Amount</Text>
+                <View style={styles.topMetrics}>
+                  <View style={[styles.topMetricLarge, { borderRightWidth: 1, borderRightColor: '#F0F0F0' }]}>
+                    <Text style={styles.topMetricLabel}>Contract</Text>
                     <Text style={[styles.topMetricValue, { color: (project.contractAmount ?? 0) > 0 ? '#1E40AF' : '#9CA3AF', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                       {(project.contractAmount ?? 0) > 0 ? `$${project.contractAmount!.toLocaleString()}` : '—'}
                     </Text>
-                    <Text style={styles.topMetricSubtext}>What client agreed to pay</Text>
+                    <Text style={styles.topMetricSubtext}>Client agreed</Text>
                   </View>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Project Budget</Text>
+                  <View style={[styles.topMetricMedium, { borderRightWidth: (project.contractAmount ?? 0) > 0 ? 1 : 0, borderRightColor: '#F0F0F0' }]}>
+                    <Text style={styles.topMetricLabel}>Budget</Text>
                     <Text style={[styles.topMetricValue, { color: '#064E3B', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>${project.budget.toLocaleString()}</Text>
                     <Text style={styles.topMetricSubtext}>
                       {totalChangeOrdersApproved > 0 ? `+$${totalChangeOrdersApproved.toLocaleString()} COs` : 'Planned spend'}
                     </Text>
                   </View>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Planned Profit</Text>
-                    <Text style={[styles.topMetricValue, { color: plannedProfit >= 0 ? '#10B981' : '#EF4444', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                      {(project.contractAmount ?? 0) > 0
-                        ? `${plannedProfit >= 0 ? '+' : '-'}$${Math.abs(plannedProfit).toLocaleString()}`
-                        : '—'}
-                    </Text>
-                    <Text style={styles.topMetricSubtext}>
-                      {(project.contractAmount ?? 0) > 0
-                        ? `${((plannedProfit / (project.contractAmount ?? 1)) * 100).toFixed(1)}% margin`
-                        : 'Set contract amount'}
-                    </Text>
-                  </View>
+                  {(project.contractAmount ?? 0) > 0 && (
+                    <View style={styles.topMetricMedium}>
+                      <Text style={styles.topMetricLabel}>Profit</Text>
+                      <Text style={[styles.topMetricValue, { color: plannedProfit >= 0 ? '#10B981' : '#EF4444', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                        {`${plannedProfit >= 0 ? '+' : '-'}$${Math.abs(plannedProfit).toLocaleString()}`}
+                      </Text>
+                      <Text style={styles.topMetricSubtext}>
+                        {`${((plannedProfit / (project.contractAmount ?? 1)) * 100).toFixed(1)}% margin`}
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
-                {/* Row 2 — Total Expenses | Remaining Budget */}
-                <View style={[styles.topMetrics, { gap: rs.metricGap, marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }]}>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Total Expenses</Text>
+                {/* Row 2 — Total Expenses | Remaining Budget | Budget Used */}
+                <View style={[styles.topMetrics, { marginTop: 4, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F3F4F6' }]}>
+                  <View style={[styles.topMetricMedium, { paddingLeft: 0, borderRightWidth: 1, borderRightColor: '#F0F0F0' }]}>
+                    <Text style={styles.topMetricLabel}>Expenses</Text>
                     <Text style={[styles.topMetricValue, { color: '#EF4444', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>${totalJobCost.toLocaleString()}</Text>
                     <Text style={styles.topMetricSubtext}>{projectExpenses.length} transactions</Text>
                   </View>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Remaining Budget</Text>
+                  <View style={[styles.topMetricMedium, { borderRightWidth: 1, borderRightColor: '#F0F0F0' }]}>
+                    <Text style={styles.topMetricLabel}>Remaining</Text>
                     <Text style={[styles.topMetricValue, { color: budgetRemaining >= 0 ? '#10B981' : '#EF4444', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                       ${Math.abs(budgetRemaining).toLocaleString()}
                     </Text>
@@ -869,12 +867,12 @@ export default function ProjectDetailScreen() {
                       {budgetRemaining >= 0 ? 'Available' : 'Over Budget'}
                     </Text>
                   </View>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Budget Used</Text>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Used</Text>
                     <Text style={[styles.topMetricValue, { color: budgetUsedPercentage > 100 ? '#EF4444' : '#F59E0B', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                       {budgetUsedPercentage.toFixed(0)}%
                     </Text>
-                    <Text style={styles.topMetricSubtext}>of project budget</Text>
+                    <Text style={styles.topMetricSubtext}>of budget</Text>
                   </View>
                 </View>
 
@@ -922,43 +920,37 @@ export default function ProjectDetailScreen() {
                 <View style={styles.balancesGrid}>
                   <View style={styles.balanceItem}>
                     <View style={[styles.balanceIconContainer, { backgroundColor: '#FEE2E2' }]}>
-                      <Users size={16} color="#EF4444" />
+                      <Users size={15} color="#EF4444" />
                     </View>
                     <Text style={styles.balanceLabel}>Subcontractors</Text>
-                    <Text style={[styles.balanceValue, { color: '#EF4444', fontSize: rs.balanceValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                      ${totalSubcontractorCost.toLocaleString()}
-                    </Text>
+                    <Text style={[styles.balanceValue, { color: '#EF4444' }]}>${totalSubcontractorCost.toLocaleString()}</Text>
                   </View>
 
                   <View style={styles.balanceItem}>
                     <View style={[styles.balanceIconContainer, { backgroundColor: '#DBEAFE' }]}>
-                      <UserCheck size={16} color="#2563EB" />
+                      <UserCheck size={15} color="#2563EB" />
                     </View>
-                    <Text style={styles.balanceLabel}>Labor</Text>
-                    <Text style={[styles.balanceValue, { color: '#2563EB', fontSize: rs.balanceValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                      ${totalLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </Text>
-                    <Text style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>See breakdown ↓</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.balanceLabel, { flex: 0 }]}>Labor</Text>
+                      <Text style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>See breakdown ↓</Text>
+                    </View>
+                    <Text style={[styles.balanceValue, { color: '#2563EB' }]}>${totalLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                   </View>
 
                   <View style={styles.balanceItem}>
                     <View style={[styles.balanceIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                      <FileText size={16} color="#F59E0B" />
+                      <FileText size={15} color="#F59E0B" />
                     </View>
                     <Text style={styles.balanceLabel}>Materials</Text>
-                    <Text style={[styles.balanceValue, { color: '#F59E0B', fontSize: rs.balanceValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                      ${totalMaterialCost.toLocaleString()}
-                    </Text>
+                    <Text style={[styles.balanceValue, { color: '#F59E0B' }]}>${totalMaterialCost.toLocaleString()}</Text>
                   </View>
 
-                  <View style={styles.balanceItem}>
+                  <View style={[styles.balanceItem, { borderBottomWidth: 0 }]}>
                     <View style={[styles.balanceIconContainer, { backgroundColor: '#E9D5FF' }]}>
-                      <DollarSign size={16} color="#9333EA" />
+                      <DollarSign size={15} color="#9333EA" />
                     </View>
                     <Text style={styles.balanceLabel}>Other Costs</Text>
-                    <Text style={[styles.balanceValue, { color: '#9333EA', fontSize: rs.balanceValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                      ${Math.max(0, totalJobCost - totalSubcontractorCost - totalLaborCost - totalMaterialCost).toLocaleString()}
-                    </Text>
+                    <Text style={[styles.balanceValue, { color: '#9333EA' }]}>${Math.max(0, totalJobCost - totalSubcontractorCost - totalLaborCost - totalMaterialCost).toLocaleString()}</Text>
                   </View>
                 </View>
 
@@ -1017,9 +1009,8 @@ export default function ProjectDetailScreen() {
                     }}
                     style={{
                       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                      gap: 8, paddingVertical: 12, borderRadius: 10, marginBottom: 12,
-                      borderWidth: 1.5, borderColor: '#10B981',
-                      borderStyle: 'dashed' as any,
+                      gap: 8, paddingVertical: 13, borderRadius: 12, marginBottom: 14,
+                      backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#86EFAC',
                     }}
                   >
                     <Plus size={16} color="#10B981" />
@@ -1594,45 +1585,43 @@ export default function ProjectDetailScreen() {
                   <Text style={styles.cardTitle}>Financial Overview</Text>
                 </View>
                 {/* Row 1 — Contract Amount | Project Budget | Planned Profit */}
-                <View style={[styles.topMetrics, { gap: rs.metricGap }]}>
-                  <View style={[styles.topMetricLarge, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Contract Amount</Text>
+                <View style={styles.topMetrics}>
+                  <View style={[styles.topMetricLarge, { borderRightWidth: 1, borderRightColor: '#F0F0F0' }]}>
+                    <Text style={styles.topMetricLabel}>Contract</Text>
                     <Text style={[styles.topMetricValue, { color: (project.contractAmount ?? 0) > 0 ? '#1E40AF' : '#9CA3AF', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                       {(project.contractAmount ?? 0) > 0 ? `$${project.contractAmount!.toLocaleString()}` : '—'}
                     </Text>
-                    <Text style={styles.topMetricSubtext}>What client agreed to pay</Text>
+                    <Text style={styles.topMetricSubtext}>Client agreed</Text>
                   </View>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Project Budget</Text>
+                  <View style={[styles.topMetricMedium, { borderRightWidth: (project.contractAmount ?? 0) > 0 ? 1 : 0, borderRightColor: '#F0F0F0' }]}>
+                    <Text style={styles.topMetricLabel}>Budget</Text>
                     <Text style={[styles.topMetricValue, { color: '#064E3B', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>${project.budget.toLocaleString()}</Text>
                     <Text style={styles.topMetricSubtext}>
                       {totalChangeOrdersApproved > 0 ? `+$${totalChangeOrdersApproved.toLocaleString()} COs` : 'Planned spend'}
                     </Text>
                   </View>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Planned Profit</Text>
-                    <Text style={[styles.topMetricValue, { color: plannedProfit >= 0 ? '#10B981' : '#EF4444', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                      {(project.contractAmount ?? 0) > 0
-                        ? `${plannedProfit >= 0 ? '+' : '-'}$${Math.abs(plannedProfit).toLocaleString()}`
-                        : '—'}
-                    </Text>
-                    <Text style={styles.topMetricSubtext}>
-                      {(project.contractAmount ?? 0) > 0
-                        ? `${((plannedProfit / (project.contractAmount ?? 1)) * 100).toFixed(1)}% margin`
-                        : 'Set contract amount'}
-                    </Text>
-                  </View>
+                  {(project.contractAmount ?? 0) > 0 && (
+                    <View style={styles.topMetricMedium}>
+                      <Text style={styles.topMetricLabel}>Profit</Text>
+                      <Text style={[styles.topMetricValue, { color: plannedProfit >= 0 ? '#10B981' : '#EF4444', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                        {`${plannedProfit >= 0 ? '+' : '-'}$${Math.abs(plannedProfit).toLocaleString()}`}
+                      </Text>
+                      <Text style={styles.topMetricSubtext}>
+                        {`${((plannedProfit / (project.contractAmount ?? 1)) * 100).toFixed(1)}% margin`}
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Row 2 — Total Expenses | Remaining Budget | Budget Used */}
-                <View style={[styles.topMetrics, { gap: rs.metricGap, marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }]}>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Total Expenses</Text>
+                <View style={[styles.topMetrics, { marginTop: 4, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F3F4F6' }]}>
+                  <View style={[styles.topMetricMedium, { paddingLeft: 0, borderRightWidth: 1, borderRightColor: '#F0F0F0' }]}>
+                    <Text style={styles.topMetricLabel}>Expenses</Text>
                     <Text style={[styles.topMetricValue, { color: '#EF4444', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>${totalJobCost.toLocaleString()}</Text>
                     <Text style={styles.topMetricSubtext}>{projectExpenses.length} transactions</Text>
                   </View>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Remaining Budget</Text>
+                  <View style={[styles.topMetricMedium, { borderRightWidth: 1, borderRightColor: '#F0F0F0' }]}>
+                    <Text style={styles.topMetricLabel}>Remaining</Text>
                     <Text style={[styles.topMetricValue, { color: budgetRemaining >= 0 ? '#10B981' : '#EF4444', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                       ${Math.abs(budgetRemaining).toLocaleString()}
                     </Text>
@@ -1640,12 +1629,12 @@ export default function ProjectDetailScreen() {
                       {budgetRemaining >= 0 ? 'Available' : 'Over Budget'}
                     </Text>
                   </View>
-                  <View style={[styles.topMetricMedium, { padding: rs.metricPadding }]}>
-                    <Text style={styles.topMetricLabel}>Budget Used</Text>
+                  <View style={styles.topMetricMedium}>
+                    <Text style={styles.topMetricLabel}>Used</Text>
                     <Text style={[styles.topMetricValue, { color: budgetUsedPercentage > 100 ? '#EF4444' : '#F59E0B', fontSize: rs.metricValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                       {budgetUsedPercentage.toFixed(0)}%
                     </Text>
-                    <Text style={styles.topMetricSubtext}>of project budget</Text>
+                    <Text style={styles.topMetricSubtext}>of budget</Text>
                   </View>
                 </View>
 
@@ -1655,31 +1644,31 @@ export default function ProjectDetailScreen() {
                 <View style={styles.balancesGrid}>
                   <View style={styles.balanceItem}>
                     <View style={[styles.balanceIconContainer, { backgroundColor: '#FEE2E2' }]}>
-                      <Users size={16} color="#EF4444" />
+                      <Users size={15} color="#EF4444" />
                     </View>
                     <Text style={styles.balanceLabel}>Subcontractors</Text>
-                    <Text style={[styles.balanceValue, { color: '#EF4444', fontSize: rs.balanceValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>${totalSubcontractorCost.toLocaleString()}</Text>
+                    <Text style={[styles.balanceValue, { color: '#EF4444' }]}>${totalSubcontractorCost.toLocaleString()}</Text>
                   </View>
                   <View style={styles.balanceItem}>
                     <View style={[styles.balanceIconContainer, { backgroundColor: '#DBEAFE' }]}>
-                      <UserCheck size={16} color="#2563EB" />
+                      <UserCheck size={15} color="#2563EB" />
                     </View>
                     <Text style={styles.balanceLabel}>Labor</Text>
-                    <Text style={[styles.balanceValue, { color: '#2563EB', fontSize: rs.balanceValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>${totalLaborCost.toLocaleString()}</Text>
+                    <Text style={[styles.balanceValue, { color: '#2563EB' }]}>${totalLaborCost.toLocaleString()}</Text>
                   </View>
                   <View style={styles.balanceItem}>
                     <View style={[styles.balanceIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                      <FileText size={16} color="#F59E0B" />
+                      <FileText size={15} color="#F59E0B" />
                     </View>
                     <Text style={styles.balanceLabel}>Materials</Text>
-                    <Text style={[styles.balanceValue, { color: '#F59E0B', fontSize: rs.balanceValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>${totalMaterialCost.toLocaleString()}</Text>
+                    <Text style={[styles.balanceValue, { color: '#F59E0B' }]}>${totalMaterialCost.toLocaleString()}</Text>
                   </View>
-                  <View style={styles.balanceItem}>
+                  <View style={[styles.balanceItem, { borderBottomWidth: 0 }]}>
                     <View style={[styles.balanceIconContainer, { backgroundColor: '#E9D5FF' }]}>
-                      <DollarSign size={16} color="#9333EA" />
+                      <DollarSign size={15} color="#9333EA" />
                     </View>
                     <Text style={styles.balanceLabel}>Other Costs</Text>
-                    <Text style={[styles.balanceValue, { color: '#9333EA', fontSize: rs.balanceValueSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                    <Text style={[styles.balanceValue, { color: '#9333EA' }]}>
                       ${Math.max(0, totalJobCost - totalSubcontractorCost - totalLaborCost - totalMaterialCost).toLocaleString()}
                     </Text>
                   </View>
@@ -1694,7 +1683,7 @@ export default function ProjectDetailScreen() {
                       <CreditCard size={18} color="#10B981" />
                       <Text style={styles.paymentMetricTitle}>Payments Received</Text>
                     </View>
-                    <Text style={[styles.paymentMetricValue, { fontSize: rs.paymentValueSize }]}>${totalPaymentsReceived.toLocaleString()}</Text>
+                    <Text style={[styles.paymentMetricValue, { fontSize: rs.paymentValueSize, letterSpacing: -0.5 }]}>${totalPaymentsReceived.toLocaleString()}</Text>
                     <View style={styles.paymentProgressBar}>
                       <View style={[styles.paymentProgressFill, {
                         width: `${Math.min(100, paymentBaseline > 0 ? (totalPaymentsReceived / paymentBaseline) * 100 : 0)}%`,
@@ -1710,7 +1699,7 @@ export default function ProjectDetailScreen() {
                       <AlertCircle size={18} color={pendingBalance > 0 ? '#F59E0B' : '#10B981'} />
                       <Text style={styles.paymentMetricTitle}>Pending Balance</Text>
                     </View>
-                    <Text style={[styles.paymentMetricValue, { color: pendingBalance > 0 ? '#F59E0B' : '#10B981', fontSize: rs.paymentValueSize }]}>
+                    <Text style={[styles.paymentMetricValue, { color: pendingBalance > 0 ? '#F59E0B' : '#10B981', fontSize: rs.paymentValueSize, letterSpacing: -0.5 }]}>
                       ${pendingBalance.toLocaleString()}
                     </Text>
                     <View style={styles.paymentProgressBar}>
@@ -4661,39 +4650,34 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   balancesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
+    flexDirection: 'column',
+    marginBottom: 8,
   },
   balanceItem: {
-    flex: 1,
-    minWidth: 0,
-    maxWidth: '48%',
-    backgroundColor: '#F9FAFB',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    alignItems: 'center',
-    gap: 6,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    gap: 12,
   },
   balanceIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   balanceLabel: {
-    fontSize: 11,
-    color: '#6B7280',
-    textAlign: 'center',
+    flex: 1,
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '500' as const,
   },
   balanceValue: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700' as const,
-    color: '#2563EB',
+    color: '#1F2937',
   },
   profitSection: {
     paddingTop: 16,
@@ -4805,55 +4789,61 @@ const styles = StyleSheet.create({
   },
   topMetricLarge: {
     flex: 1.5,
-    backgroundColor: '#F0F9FF',
-    padding: 8,
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#2563EB',
+    paddingRight: 12,
   },
   topMetricMedium: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-    padding: 8,
-    borderRadius: 8,
+    paddingLeft: 12,
   },
   topMetricLabel: {
-    fontSize: 8,
-    color: '#6B7280',
-    marginBottom: 3,
+    fontSize: 9,
+    color: '#9CA3AF',
+    marginBottom: 4,
     fontWeight: '600' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
   },
   topMetricValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700' as const,
     color: '#1F2937',
     marginBottom: 2,
   },
   topMetricSubtext: {
-    fontSize: 7,
+    fontSize: 9,
     color: '#9CA3AF',
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 20,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 18,
   },
   sectionSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700' as const,
     color: '#1F2937',
-    marginBottom: 12,
+    marginBottom: 14,
+    paddingLeft: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2563EB',
   },
   paymentGrid: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     marginBottom: 16,
   },
   paymentMetric: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   paymentMetricHeader: {
     flexDirection: 'row',
@@ -4862,15 +4852,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   paymentMetricTitle: {
-    fontSize: 12,
+    flex: 1,
+    fontSize: 11,
     fontWeight: '600' as const,
-    color: '#1F2937',
+    color: '#6B7280',
   },
   paymentMetricValue: {
     fontSize: 22,
-    fontWeight: '700' as const,
+    fontWeight: '800' as const,
     color: '#1F2937',
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: -0.5,
   },
   paymentProgressBar: {
     height: 6,
