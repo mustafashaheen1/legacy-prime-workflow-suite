@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Tabs } from 'expo-router';
+import { Tabs, useLocalSearchParams } from 'expo-router';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useTranslation } from 'react-i18next';
 import {
@@ -52,6 +52,7 @@ import AudioRecorder from '@/components/chat/AudioRecorder';
 import { preloadAudio } from '@/components/chat/AudioPlayer';
 import TypingIndicator from '@/components/chat/TypingIndicator';
 import DateSeparator, { formatDateLabel } from '@/components/chat/DateSeparator';
+import { setActiveConversationId } from '@/hooks/useNotificationSetup';
 
 type PreviewEntry = { text: string; timestamp: string; senderId: string; type?: string };
 
@@ -113,6 +114,9 @@ export default function ChatScreen() {
     process.env.EXPO_PUBLIC_API_URL ||
     'https://legacy-prime-workflow-suite.vercel.app';
 
+  // ── Notification deep-link param ───────────────────────────────────────────
+  const { conversationId: notifConversationId } = useLocalSearchParams<{ conversationId?: string }>();
+
   // ── Core chat state ────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
@@ -160,7 +164,26 @@ export default function ChatScreen() {
   const conversationsRef = useRef(conversations);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
   const selectedChatRef = useRef<string | null>(null);
-  useEffect(() => { selectedChatRef.current = selectedChat; }, [selectedChat]);
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+    // Tell notification handler which conversation is open so it can suppress
+    // redundant banners while the user is actively reading that chat
+    setActiveConversationId(selectedChat);
+    return () => { setActiveConversationId(null); };
+  }, [selectedChat]);
+
+  // ── Auto-open conversation from notification tap ───────────────────────────
+  // Uses a ref so we only act once per unique conversationId param even if
+  // conversations list re-renders multiple times while loading.
+  const notifOpenHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!notifConversationId || notifOpenHandledRef.current === notifConversationId) return;
+    const found = conversations.find((c) => c.id === notifConversationId);
+    if (found) {
+      notifOpenHandledRef.current = notifConversationId;
+      handleSelectChat(notifConversationId);
+    }
+  }, [notifConversationId, conversations]);
 
   // ── iOS keyboard padding ──────────────────────────────────────────────────
   const [iosKbPadding, setIosKbPadding] = useState(0);

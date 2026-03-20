@@ -4,15 +4,24 @@ import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import type { Notification } from '@/types';
 
+// Track which conversation is currently open so foreground chat notifications
+// for that conversation are suppressed (user is already reading it).
+export let activeConversationId: string | null = null;
+export function setActiveConversationId(id: string | null) {
+  activeConversationId = id;
+}
+
 // Configure how notifications appear when the app is foregrounded.
 // Set once at module level so it applies globally before any listener is added.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList:   true,
-    shouldPlaySound:  true,
-    shouldSetBadge:   true,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data as any;
+    // Suppress banner if the user has this conversation open right now
+    if (data?.type === 'chat' && data?.conversationId && data.conversationId === activeConversationId) {
+      return { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false };
+    }
+    return { shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true };
+  },
 });
 
 // Register FCM background message handler (native only).
@@ -320,7 +329,11 @@ export function useNotificationSetup(
       setTimeout(() => {
         switch (data?.type) {
           case 'chat':
-            router.push('/(tabs)/chat');
+            if (data?.conversationId) {
+              router.push({ pathname: '/(tabs)/chat', params: { conversationId: data.conversationId } } as any);
+            } else {
+              router.push('/(tabs)/chat');
+            }
             break;
           case 'task-reminder':
             router.push('/(tabs)/dashboard');
