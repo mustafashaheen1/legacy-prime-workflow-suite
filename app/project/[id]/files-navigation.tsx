@@ -76,7 +76,7 @@ export default function FilesNavigationScreen() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, projectFiles, photos, expenses, addProjectFile, addPhoto, addExpense, photoCategories, company } = useApp();
+  const { projects, projectFiles, photos, expenses, addProjectFile, addPhoto, addExpense, deletePhoto, deleteExpense, deleteProjectFile, photoCategories, company } = useApp();
 
   const [inspectionVideos, setInspectionVideos] = useState<any[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<FolderType | null>(null);
@@ -593,6 +593,66 @@ export default function FilesNavigationScreen() {
     );
   };
 
+  const handleDeletePhoto = (photoId: string) => {
+    Alert.alert('Delete Photo', 'Are you sure you want to delete this photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try {
+            await deletePhoto(photoId);
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to delete photo');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteDocument = (fileId: string) => {
+    Alert.alert('Delete File', 'Are you sure you want to delete this file?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try {
+            const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+            const res = await fetch(`${apiUrl}/api/delete-project-file?id=${fileId}`, { method: 'DELETE' });
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              throw new Error(body.error || 'Failed to delete file');
+            }
+            // Remove from both S3 list and local AppContext state
+            setS3ProjectFiles(prev => prev.filter(f => f.id !== fileId));
+            deleteProjectFile(fileId);
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to delete file');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteExpenseFile = (expenseId: string) => {
+    Alert.alert(
+      'Delete Expense',
+      'This will permanently delete the expense and its receipt. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteExpense(expenseId);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete expense');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderFolderView = () => {
     if (!selectedFolder) {
       return (
@@ -718,60 +778,75 @@ export default function FilesNavigationScreen() {
           {files.map((file: any) => {
             if (folder.type === 'photos') {
               return (
-                <TouchableOpacity
-                  key={file.id}
-                  style={styles.photoCard}
-                  onPress={() => setViewingFile({ uri: file.url, name: file.category, type: 'image' })}
-                  activeOpacity={0.8}
-                >
-                  <Image source={{ uri: file.url }} style={styles.photoThumbnail} contentFit="cover" />
-                  <View style={styles.photoInfo}>
-                    <Text style={styles.photoCategory}>{file.category}</Text>
-                    <Text style={styles.photoDate}>
-                      {new Date(file.date).toLocaleDateString()}
-                    </Text>
-                    {file.notes && (
-                      <Text style={styles.photoNotes} numberOfLines={2}>{file.notes}</Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
+                <View key={file.id} style={styles.photoCard}>
+                  <TouchableOpacity
+                    style={{ flex: 1, flexDirection: 'row' }}
+                    onPress={() => setViewingFile({ uri: file.url, name: file.category, type: 'image' })}
+                    activeOpacity={0.8}
+                  >
+                    <Image source={{ uri: file.url }} style={styles.photoThumbnail} contentFit="cover" />
+                    <View style={styles.photoInfo}>
+                      <Text style={styles.photoCategory}>{file.category}</Text>
+                      <Text style={styles.photoDate}>
+                        {new Date(file.date).toLocaleDateString()}
+                      </Text>
+                      {file.notes && (
+                        <Text style={styles.photoNotes} numberOfLines={2}>{file.notes}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteFileButton}
+                    onPress={() => handleDeletePhoto(file.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Trash2 size={18} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
               );
             } else if (folder.type === 'receipts') {
               return (
-                <TouchableOpacity
-                  key={file.id}
-                  style={styles.expenseCard}
-                  onPress={() => {
-                    if (file.receiptUrl) {
-                      // Detect if it's a PDF or image
-                      const isPdf = file.receiptUrl.toLowerCase().includes('.pdf') ||
-                                   file.receiptUrl.toLowerCase().includes('application/pdf');
-                      setViewingFile({
-                        uri: file.receiptUrl,
-                        name: `${file.store} - $${file.amount.toFixed(2)}`,
-                        type: isPdf ? 'pdf' : 'image'
-                      });
-                    } else {
-                      Alert.alert('No Receipt', 'This expense does not have a receipt image attached.');
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.expenseHeader}>
-                    <Text style={styles.expenseType}>{file.type}</Text>
-                    <Text style={styles.expenseAmount}>${file.amount.toLocaleString()}</Text>
-                  </View>
-                  <Text style={styles.expenseStore}>{file.store}</Text>
-                  <Text style={styles.expenseDate}>
-                    {new Date(file.date).toLocaleDateString()}
-                  </Text>
-                  {file.receiptUrl && (
-                    <View style={styles.receiptIndicator}>
-                      <Receipt size={14} color="#10B981" />
-                      <Text style={styles.receiptIndicatorText}>Tap to view receipt</Text>
+                <View key={file.id} style={[styles.expenseCard, { flexDirection: 'row', alignItems: 'flex-start' }]}>
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() => {
+                      if (file.receiptUrl) {
+                        const isPdf = file.receiptUrl.toLowerCase().includes('.pdf') ||
+                                     file.receiptUrl.toLowerCase().includes('application/pdf');
+                        setViewingFile({
+                          uri: file.receiptUrl,
+                          name: `${file.store} - $${file.amount.toFixed(2)}`,
+                          type: isPdf ? 'pdf' : 'image'
+                        });
+                      } else {
+                        Alert.alert('No Receipt', 'This expense does not have a receipt image attached.');
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.expenseHeader}>
+                      <Text style={styles.expenseType}>{file.type}</Text>
+                      <Text style={styles.expenseAmount}>${file.amount.toLocaleString()}</Text>
                     </View>
-                  )}
-                </TouchableOpacity>
+                    <Text style={styles.expenseStore}>{file.store}</Text>
+                    <Text style={styles.expenseDate}>
+                      {new Date(file.date).toLocaleDateString()}
+                    </Text>
+                    {file.receiptUrl && (
+                      <View style={styles.receiptIndicator}>
+                        <Receipt size={14} color="#10B981" />
+                        <Text style={styles.receiptIndicatorText}>Tap to view receipt</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteFileButton}
+                    onPress={() => handleDeleteExpenseFile(file.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Trash2 size={18} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
               );
             } else if (folder.type === 'videos') {
               return (
@@ -819,37 +894,43 @@ export default function FilesNavigationScreen() {
               // All files now use 'uri' property from database
               const fileUrl = file.uri;
               return (
-                <TouchableOpacity
-                  key={file.id}
-                  style={styles.documentCard}
-                  onPress={() => {
-                    if (isImage) {
-                      setViewingFile({ uri: fileUrl, name: file.name, type: 'image' });
-                    } else if (isPdf && Platform.OS === 'web') {
-                      // On web, open PDF in new tab
-                      window.open(fileUrl, '_blank');
-                    } else {
-                      // Try to open the file with the system viewer
-                      Linking.openURL(fileUrl).catch(() => {
-                        Alert.alert('Cannot Open', 'Unable to open this file type on this device.');
-                      });
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.documentIcon, { backgroundColor: `${folder.color}20` }]}>
-                    <FileIcon size={24} color={folder.color} />
-                  </View>
-                  <View style={styles.documentInfo}>
-                    <Text style={styles.documentName} numberOfLines={1}>{file.name}</Text>
-                    <Text style={styles.documentDate}>
-                      {new Date(file.uploadDate).toLocaleDateString()}
-                    </Text>
-                    {file.notes && (
-                      <Text style={styles.documentNotes} numberOfLines={2}>{file.notes}</Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
+                <View key={file.id} style={styles.documentCard}>
+                  <TouchableOpacity
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                    onPress={() => {
+                      if (isImage) {
+                        setViewingFile({ uri: fileUrl, name: file.name, type: 'image' });
+                      } else if (isPdf && Platform.OS === 'web') {
+                        window.open(fileUrl, '_blank');
+                      } else {
+                        Linking.openURL(fileUrl).catch(() => {
+                          Alert.alert('Cannot Open', 'Unable to open this file type on this device.');
+                        });
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.documentIcon, { backgroundColor: `${folder.color}20` }]}>
+                      <FileIcon size={24} color={folder.color} />
+                    </View>
+                    <View style={styles.documentInfo}>
+                      <Text style={styles.documentName} numberOfLines={1}>{file.name}</Text>
+                      <Text style={styles.documentDate}>
+                        {new Date(file.uploadDate).toLocaleDateString()}
+                      </Text>
+                      {file.notes && (
+                        <Text style={styles.documentNotes} numberOfLines={2}>{file.notes}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteFileButton}
+                    onPress={() => handleDeleteDocument(file.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Trash2 size={18} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
               );
             }
           })}
@@ -1150,6 +1231,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  deleteFileButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyState: {
     width: '100%',
