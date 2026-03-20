@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Platform, NativeModules, AppState, AppStateStatus } from 'react-native';
+import { Platform, NativeModules, AppState, AppStateStatus, Alert, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import type { Notification } from '@/types';
@@ -41,6 +41,9 @@ interface NotificationSetupUser    { id: string; }
 interface NotificationSetupCompany { id: string; }
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+
+// Show the Settings prompt at most once per app session to avoid nagging.
+let permissionDeniedAlertShown = false;
 
 async function registerPushToken(
   token: string,
@@ -197,6 +200,23 @@ export function useNotificationSetup(
 
         if (finalStatus !== 'granted') {
           console.log('[Notifications] Permission not granted — skipping token registration');
+          // existingStatus === 'denied' means the user previously tapped "Don't Allow".
+          // requestPermissionsAsync cannot re-prompt in that state; only the device
+          // Settings page can re-enable it. Show the alert once per session.
+          if (existingStatus === 'denied' && !permissionDeniedAlertShown) {
+            permissionDeniedAlertShown = true;
+            Alert.alert(
+              'Enable Notifications',
+              'Push notifications are disabled. To receive alerts for rate change requests and other updates, enable notifications in your device settings.',
+              [
+                { text: 'Not Now', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => Linking.openSettings(),
+                },
+              ]
+            );
+          }
           return;
         }
 

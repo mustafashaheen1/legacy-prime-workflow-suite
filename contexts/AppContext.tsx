@@ -280,6 +280,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [clockEntries, setClockEntries] = useState<ClockEntry[]>([]);
+  const [clockEntryChannelRetry, setClockEntryChannelRetry] = useState(0);
   const [estimates, setEstimates] = useState<Estimate[]>([]);
   const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
@@ -1386,12 +1387,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       )
       .subscribe((status) => {
         console.log('[Realtime] Clock-entries channel status:', status);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          // Channel dropped (network blip or table not yet in publication).
+          // Remove the dead channel and increment the retry counter so this
+          // effect re-runs and creates a fresh subscription.
+          supabase.removeChannel(channel);
+          setTimeout(() => setClockEntryChannelRetry(n => n + 1), 5_000);
+        }
       });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [company?.id]);
+  }, [company?.id, clockEntryChannelRetry]);
 
   // Load daily logs when company is available
   useEffect(() => {
