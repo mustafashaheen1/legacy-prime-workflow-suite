@@ -1359,7 +1359,7 @@ export default function DashboardScreen() {
             pagingEnabled
             showsHorizontalScrollIndicator={Platform.OS === 'web'}
             decelerationRate="fast"
-            snapToInterval={256}
+            snapToInterval={263}
             snapToAlignment="center"
             contentContainerStyle={styles.projectsCarousel}
             style={[styles.projectsCarouselContainer, Platform.OS === 'web' && styles.projectsCarouselWeb]}
@@ -1402,13 +1402,13 @@ export default function DashboardScreen() {
                     <View style={styles.cardBadges}>
                       {(!project.contractAmount || project.contractAmount === 0) && (
                         <View style={styles.cardBadgeWarning}>
-                          <AlertTriangle size={9} color="#F97316" />
+                          <AlertTriangle size={10} color="#F97316" />
                           <Text style={styles.cardBadgeText}>No Contract</Text>
                         </View>
                       )}
                       {project.status === 'on-hold' && (
                         <View style={styles.cardBadgeHold}>
-                          <PauseCircle size={9} color="#D97706" />
+                          <PauseCircle size={10} color="#D97706" />
                           <Text style={[styles.cardBadgeText, { color: '#D97706' }]}>On Hold</Text>
                         </View>
                       )}
@@ -2650,7 +2650,7 @@ const styles = StyleSheet.create({
   },
 
   projectsCarouselContainer: {
-    height: 260,
+    height: 272,
   },
   projectsCarouselWeb: {
     // @ts-ignore - Web-only CSS properties
@@ -2697,9 +2697,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   projectCard: {
-    width: 240,
+    width: 247,
     borderRadius: 20,
-    height: 228,
+    height: 240,
     position: 'relative' as const,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -2767,7 +2767,7 @@ const styles = StyleSheet.create({
     borderColor: '#6EE7B7',
   },
   cardBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700' as const,
     color: '#F97316',
   },
@@ -2785,17 +2785,17 @@ const styles = StyleSheet.create({
     paddingTop: 18,
   },
   projectName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700' as const,
     color: '#FFFFFF',
     marginBottom: 8,
-    lineHeight: 20,
+    lineHeight: 22,
     textShadowColor: 'rgba(0,0,0,0.4)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   cardBudgetText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: 'rgba(255,255,255,0.9)',
     marginBottom: 10,
@@ -2808,9 +2808,9 @@ const styles = StyleSheet.create({
     position: 'relative' as const,
   },
   cardAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#3B82F6',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.85)',
@@ -2837,11 +2837,11 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   cardAvatarImg: {
-    width: 26,
-    height: 26,
+    width: 30,
+    height: 30,
   },
   cardAvatarInitials: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700' as const,
     color: '#FFFFFF',
   },
@@ -2849,7 +2849,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.22)',
   },
   cardAvatarExtraText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700' as const,
     color: '#FFFFFF',
   },
@@ -2872,7 +2872,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
   cardLiveText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700' as const,
     color: '#10B981',
   },
