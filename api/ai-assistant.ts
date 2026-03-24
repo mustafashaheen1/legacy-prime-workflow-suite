@@ -7722,12 +7722,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // ── RAG: Retrieve relevant knowledge chunks ─────────────────────────────────
+    // Embed the latest user message and fetch the top-5 most relevant knowledge
+    // chunks from the company's knowledge base. Non-fatal if table doesn't exist
+    // yet or the query fails — the assistant simply responds without RAG context.
+    let ragChunks: Array<{ source_name: string; chunk_text: string }> = [];
+    if (supabase && effectiveCompanyId) {
+      try {
+        const latestUserMsg = [...messages].reverse().find((m: any) => m.role === 'user');
+        const queryText = (latestUserMsg?.text || latestUserMsg?.content || '').slice(0, 1000);
+
+        if (queryText.length > 10) {
+          const embeddingRes = await openai.embeddings.create({
+            model: 'text-embedding-3-small',
+            input: queryText,
+          });
+          const queryEmbedding = embeddingRes.data[0].embedding;
+
+          const { data: chunks } = await supabase.rpc('search_knowledge_chunks', {
+            p_company_id: effectiveCompanyId,
+            p_embedding: queryEmbedding,
+            p_limit: 5,
+            p_threshold: 0.70,
+          });
+
+          if (chunks && chunks.length > 0) {
+            ragChunks = chunks;
+            console.log(`[AI Assistant] RAG: retrieved ${ragChunks.length} relevant chunks`);
+          }
+        }
+      } catch (ragErr: any) {
+        // Non-fatal — knowledge base may not exist yet
+        console.warn('[AI Assistant] RAG retrieval skipped:', ragErr?.message);
+      }
+    }
+
     // Build context-aware system prompt
     let contextAwarePrompt = systemPrompt;
 
     // Inject cross-session memory so Alex references it naturally
     if (userMemory.length > 0) {
       contextAwarePrompt += `\n\n## WHAT I KNOW ABOUT YOU\nBased on our previous conversations, here's what I've noted about you:\n${userMemory.map(m => `- ${m.value}`).join('\n')}\n\nUse this context to personalize your responses. Reference it naturally when relevant — don't recite it back robotically.`;
+    }
+
+    // Inject RAG knowledge chunks when relevant content was found
+    if (ragChunks.length > 0) {
+      contextAwarePrompt += `\n\n## RELEVANT COMPANY KNOWLEDGE\nThe following content from your company's knowledge base is relevant to this conversation:\n\n${ragChunks.map(c => `[${c.source_name}]\n${c.chunk_text}`).join('\n\n---\n\n')}\n\nUse this knowledge to give accurate, company-specific answers. Cite the source name naturally when referencing it.`;
     }
 
     // Inject identity and company context so AI knows who it's talking to

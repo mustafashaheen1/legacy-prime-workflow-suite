@@ -5,7 +5,7 @@ import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
 import { getRoleDisplayName, getAvailableRolesForManagement } from '@/lib/permissions';
-import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, DollarSign, Clock } from 'lucide-react-native';
+import { Users, Shield, ChevronRight, X, Building2, Copy, LogOut, Upload, Edit3, DollarSign, Clock, BookOpen } from 'lucide-react-native';
 import EditAccessModal from '@/components/EditAccessModal';
 import { useTranslation } from 'react-i18next';
 import { router, useFocusEffect } from 'expo-router';
@@ -729,6 +729,17 @@ export default function SettingsScreen() {
             <View style={styles.adminNavButtonLeft}>
               <Clock size={20} color="#2563EB" />
               <Text style={styles.adminNavButtonText}>Employee Management</Text>
+            </View>
+            <ChevronRight size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.adminNavButton}
+            onPress={() => router.push('/admin/knowledge-base' as any)}
+          >
+            <View style={styles.adminNavButtonLeft}>
+              <BookOpen size={20} color="#2563EB" />
+              <Text style={styles.adminNavButtonText}>AI Knowledge Base</Text>
             </View>
             <ChevronRight size={18} color="#9CA3AF" />
           </TouchableOpacity>
