@@ -2081,7 +2081,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'remember_user_preference',
-      description: 'Save something important about the user for future sessions. Use when the user shares preferences, working patterns, recurring project types, key clients, or context worth remembering across sessions. Do NOT overuse — only save genuinely useful long-term information, not one-off facts.',
+      description: 'Save or delete something important about the user for future sessions. Use when the user shares preferences, working patterns, recurring project types, key clients, or context worth remembering across sessions. Set value to null to forget/delete a memory. Do NOT overuse — only save genuinely useful long-term information, not one-off facts.',
       parameters: {
         type: 'object',
         properties: {
@@ -2090,11 +2090,11 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             description: 'A short unique snake_case identifier for this memory. Examples: "project_type", "budget_range", "communication_style", "preferred_report_format", "recurring_client". Reusing the same key updates the existing memory.',
           },
           value: {
-            type: 'string',
-            description: 'A clear, natural language description of what to remember. Examples: "Typically works on kitchen and bathroom renovations in the $30-75K range", "Prefers bullet-point summaries over long paragraphs", "Main recurring client is Johnson Properties for commercial builds".',
+            type: ['string', 'null'],
+            description: 'A clear, natural language description of what to remember. Set to null to forget/delete this memory entirely. Examples: "Typically works on kitchen and bathroom renovations in the $30-75K range", "Prefers bullet-point summaries over long paragraphs".',
           },
         },
-        required: ['key', 'value'],
+        required: ['key'],
       },
     },
   },
@@ -7508,6 +7508,21 @@ Based on the store and items, intelligently categorize this expense:
         return { result: { error: 'Cannot save memory — user not identified.' } };
       }
       try {
+        if (value === null || value === undefined) {
+          // Delete the memory row
+          await supabase
+            .from('ai_user_memory')
+            .delete()
+            .eq('user_id', userId)
+            .eq('key', key);
+          console.log(`[AI Assistant] Memory deleted for user ${userId}: ${key}`);
+          return {
+            result: {
+              success: true,
+              message: `Done — I've forgotten that.`,
+            },
+          };
+        }
         await supabase
           .from('ai_user_memory')
           .upsert(
@@ -7528,8 +7543,8 @@ Based on the store and items, intelligently categorize this expense:
           },
         };
       } catch (err: any) {
-        console.error('[AI Assistant] Failed to save memory:', err);
-        return { result: { error: `Failed to save memory: ${err.message}` } };
+        console.error('[AI Assistant] Failed to save/delete memory:', err);
+        return { result: { error: `Failed to update memory: ${err.message}` } };
       }
     }
 
