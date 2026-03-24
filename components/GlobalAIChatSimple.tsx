@@ -881,6 +881,67 @@ export default function GlobalAIChatSimple({ currentPageContext, inline = false 
     currentPageContext, // Pass page context from component prop
   });
 
+  // ─── Proactive session opener ────────────────────────────────────────────────
+  // After chat history loads, if no messages exist from today, Alex greets the
+  // user with a real-data snapshot — due tasks, budget alerts, active projects.
+  // Fires once per session (greetingShownRef guard) and saves to DB so it appears
+  // in history on subsequent opens.
+  const greetingShownRef = useRef(false);
+
+  useEffect(() => {
+    if (isLoadingHistory || greetingShownRef.current) return;
+    greetingShownRef.current = true;
+
+    // Check whether the most recent DB message is already from today
+    const lastMsg = messages[messages.length - 1];
+    const lastMsgDate = lastMsg?.createdAt ? new Date(lastMsg.createdAt).toDateString() : null;
+    const today = new Date().toDateString();
+    if (lastMsgDate === today) return; // Active session — no greeting needed
+
+    // Build greeting from real AppContext data
+    const hour = new Date().getHours();
+    const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    const firstName = user?.name?.split(' ')[0] || '';
+
+    const activeProjects = projects.filter((p: any) => p.status === 'active');
+
+    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const dueTodayTasks = (dailyTasks || []).filter((t: any) =>
+      !t.completed && t.dueDate && t.dueDate.slice(0, 10) === todayStr
+    );
+    const overdueTasks = (dailyTasks || []).filter((t: any) =>
+      !t.completed && t.dueDate && t.dueDate.slice(0, 10) < todayStr
+    );
+    const budgetAlertProjects = activeProjects.filter((p: any) => {
+      if (!p.budget || p.budget === 0) return false;
+      return (p.expenses / p.budget) >= 0.8;
+    });
+
+    const items: string[] = [];
+    if (overdueTasks.length > 0)
+      items.push(`**${overdueTasks.length} overdue task${overdueTasks.length > 1 ? 's' : ''}**`);
+    if (dueTodayTasks.length > 0)
+      items.push(`**${dueTodayTasks.length} task${dueTodayTasks.length > 1 ? 's' : ''} due today**`);
+    if (budgetAlertProjects.length > 0)
+      items.push(`**${budgetAlertProjects.length} project${budgetAlertProjects.length > 1 ? 's' : ''} above 80% budget**`);
+
+    let greetingText: string;
+    if (items.length > 0) {
+      greetingText = `${timeGreeting}${firstName ? `, ${firstName}` : ''}! Here's your snapshot — you've got ${items.join(', ')}. Want me to walk through any of these?`;
+    } else if (activeProjects.length > 0) {
+      greetingText = `${timeGreeting}${firstName ? `, ${firstName}` : ''}! You've got ${activeProjects.length} active project${activeProjects.length > 1 ? 's' : ''} running and things look on track. What do you need help with today?`;
+    } else {
+      greetingText = `${timeGreeting}${firstName ? `, ${firstName}` : ''}! What can I help you with today?`;
+    }
+
+    addMessage({
+      id: `greeting-${Date.now()}`,
+      role: 'assistant',
+      text: greetingText,
+      parts: [{ type: 'text', text: greetingText }],
+    });
+  }, [isLoadingHistory]);
+
   // Handle pending actions from AI assistant
   useEffect(() => {
     const handlePendingAction = async () => {
