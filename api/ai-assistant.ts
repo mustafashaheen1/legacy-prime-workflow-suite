@@ -7743,7 +7743,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             p_company_id: effectiveCompanyId,
             p_embedding: queryEmbedding,
             p_limit: 5,
-            p_threshold: 0.70,
+            p_threshold: 0.60,
           });
 
           if (chunks && chunks.length > 0) {
