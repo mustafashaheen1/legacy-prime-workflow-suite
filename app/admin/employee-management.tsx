@@ -75,8 +75,8 @@ export default function EmployeeManagementScreen() {
 
   const employees = useMemo(() => {
     const allUsers = usersData?.users || [];
-    return allUsers.filter((u: User) => 
-      u.role === 'employee' || u.role === 'field-employee'
+    return allUsers.filter((u: User) =>
+      u.role !== 'admin' && u.role !== 'super-admin'
     );
   }, [usersData]);
 
