@@ -2077,6 +2077,27 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'remember_user_preference',
+      description: 'Save something important about the user for future sessions. Use when the user shares preferences, working patterns, recurring project types, key clients, or context worth remembering across sessions. Do NOT overuse — only save genuinely useful long-term information, not one-off facts.',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: {
+            type: 'string',
+            description: 'A short unique snake_case identifier for this memory. Examples: "project_type", "budget_range", "communication_style", "preferred_report_format", "recurring_client". Reusing the same key updates the existing memory.',
+          },
+          value: {
+            type: 'string',
+            description: 'A clear, natural language description of what to remember. Examples: "Typically works on kitchen and bathroom renovations in the $30-75K range", "Prefers bullet-point summaries over long paragraphs", "Main recurring client is Johnson Properties for commercial builds".',
+          },
+        },
+        required: ['key', 'value'],
+      },
+    },
+  },
 ];
 
 // Price list categories for expense categorization
@@ -2700,7 +2721,8 @@ async function executeToolCall(
   attachedFiles?: any[],
   supabase?: any,
   companyId?: string,
-  timezone?: string
+  timezone?: string,
+  userId?: string
 ): Promise<{ result: any; actionRequired?: string; actionData?: any }> {
   const { projects = [], clients = [], expenses = [], estimates = [], payments = [], clockEntries = [], company } = appData;
 
@@ -7480,6 +7502,37 @@ Based on the store and items, intelligently categorize this expense:
       };
     }
 
+    case 'remember_user_preference': {
+      const { key, value } = args;
+      if (!supabase || !userId) {
+        return { result: { error: 'Cannot save memory — user not identified.' } };
+      }
+      try {
+        await supabase
+          .from('ai_user_memory')
+          .upsert(
+            {
+              user_id: userId,
+              company_id: companyId || '',
+              key,
+              value,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,key' }
+          );
+        console.log(`[AI Assistant] Memory saved for user ${userId}: ${key} = ${value}`);
+        return {
+          result: {
+            success: true,
+            message: `Got it — I'll remember that for next time.`,
+          },
+        };
+      } catch (err: any) {
+        console.error('[AI Assistant] Failed to save memory:', err);
+        return { result: { error: `Failed to save memory: ${err.message}` } };
+      }
+    }
+
     default:
       return { result: { error: `Unknown tool: ${toolName}` } };
   }
@@ -7647,8 +7700,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     console.log('[AI Assistant] Attached files:', attachedFiles.length, attachedFiles.map((f: any) => ({ name: f.name, mimeType: f.mimeType, uri: f.uri?.substring(0, 50) })));
 
+    // ── Fetch cross-session user memory ────────────────────────────────────────
+    // Retrieve facts Alex has saved about this user in previous sessions so
+    // responses stay personalized without the user repeating themselves.
+    let userMemory: Array<{ key: string; value: string }> = [];
+    if (supabase && effectiveUserId) {
+      try {
+        const { data: memoryRows } = await supabase
+          .from('ai_user_memory')
+          .select('key, value')
+          .eq('user_id', effectiveUserId)
+          .order('updated_at', { ascending: false })
+          .limit(20);
+        if (memoryRows && memoryRows.length > 0) {
+          userMemory = memoryRows;
+          console.log(`[AI Assistant] Loaded ${userMemory.length} memory entries for user ${effectiveUserId}`);
+        }
+      } catch (memErr) {
+        // Non-fatal — continue without memory
+        console.warn('[AI Assistant] Failed to fetch user memory:', memErr);
+      }
+    }
+
     // Build context-aware system prompt
     let contextAwarePrompt = systemPrompt;
+
+    // Inject cross-session memory so Alex references it naturally
+    if (userMemory.length > 0) {
+      contextAwarePrompt += `\n\n## WHAT I KNOW ABOUT YOU\nBased on our previous conversations, here's what I've noted about you:\n${userMemory.map(m => `- ${m.value}`).join('\n')}\n\nUse this context to personalize your responses. Reference it naturally when relevant — don't recite it back robotically.`;
+    }
 
     // Inject identity and company context so AI knows who it's talking to
     // Use server-verified role/level — never trust client-provided values
@@ -7897,7 +7977,7 @@ When the user says "this project", "this client", "this estimate", etc., they ar
 
         if (blockedByPermission) continue;
 
-        const toolResult = await executeToolCall(toolName, args, appData || {}, openai, messages, attachedFiles, supabase, effectiveCompanyId, timezone || 'UTC');
+        const toolResult = await executeToolCall(toolName, args, appData || {}, openai, messages, attachedFiles, supabase, effectiveCompanyId, timezone || 'UTC', effectiveUserId);
 
         console.log('[AI Assistant] Tool result for', tc.function.name, ':', toolResult.result);
 
