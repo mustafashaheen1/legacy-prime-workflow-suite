@@ -770,7 +770,7 @@ export default function SettingsScreen() {
                     </View>
                     <View style={styles.userDetails}>
                       <Text style={styles.userName}>{user.name}</Text>
-                      <Text style={styles.userEmail}>{user.email}</Text>
+                      <Text style={styles.userEmail} numberOfLines={1} ellipsizeMode="tail">{user.email}</Text>
                       {!user.isActive && user.id !== currentUser?.id && (
                         <View style={styles.pendingBadge}>
                           <Text style={styles.pendingText}>Pending Approval</Text>
@@ -1364,6 +1364,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 0,
+    marginLeft: 8,
   },
   roleChip: {
     paddingHorizontal: 10,
