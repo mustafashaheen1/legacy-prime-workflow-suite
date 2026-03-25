@@ -183,10 +183,9 @@ export default function AudioPlayer({
         }
       }
       // else: stay 'idle', load lazily on first tap
-    } else {
-      // Web: always ready (HTML Audio is lazy by nature)
-      setLoadState('ready');
     }
+    // Web: stay 'idle' — loadState transitions to 'loading' then 'ready'
+    // when the user first taps play and the browser buffers the audio.
 
     return () => {
       mountedRef.current = false;
@@ -294,17 +293,26 @@ export default function AudioPlayer({
 
     if (Platform.OS === 'web') {
       if (!webAudioRef.current) {
+        // Show spinner until the browser has buffered enough to start playing
+        setLoadState('loading');
         const audio = new window.Audio(uri);
         webAudioRef.current = audio;
+        audio.addEventListener('canplay', () => {
+          if (mountedRef.current) setLoadState('ready');
+        }, { once: true });
         audio.ontimeupdate = () => {
           if (!isSeeking.current) setPositionSec(audio.currentTime);
           setTotalSec(audio.duration || duration || 0);
         };
         audio.onended = () => { setIsPlaying(false); setPositionSec(0); };
-        audio.onerror = () => setIsPlaying(false);
+        audio.onerror = () => {
+          if (mountedRef.current) { setIsPlaying(false); setLoadState('error'); }
+        };
       }
-      await webAudioRef.current.play().catch(() => setIsPlaying(false));
-      setIsPlaying(true);
+      await webAudioRef.current.play().catch(() => {
+        if (mountedRef.current) setIsPlaying(false);
+      });
+      if (mountedRef.current) setIsPlaying(true);
       return;
     }
 
@@ -322,7 +330,10 @@ export default function AudioPlayer({
   const togglePlayback = () => {
     if (loadState === 'loading') return;
     if (loadState === 'idle') {
-      loadAndPlay();
+      // Web uses handlePlay (HTML Audio, lazy load on first tap).
+      // Native uses loadAndPlay (expo-audio/expo-av, explicit load + play).
+      if (Platform.OS === 'web') handlePlay();
+      else loadAndPlay();
       return;
     }
     if (isPlaying) handlePauseStop(false);
