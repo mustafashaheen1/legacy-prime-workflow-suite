@@ -295,6 +295,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [proposals, setProposals] = useState<SubcontractorProposal[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const notificationRefreshInFlight = useRef(false);
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [scheduleShareLinks, setScheduleShareLinks] = useState<ScheduleShareLink[]>([]);
@@ -1256,6 +1257,9 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
   const refreshNotifications = useCallback(async () => {
     if (!user?.id || !company?.id) return;
+    // Collapse concurrent callers into a single in-flight request.
+    if (notificationRefreshInFlight.current) return;
+    notificationRefreshInFlight.current = true;
     try {
       const { data, error } = await supabase.from('notifications').select('*')
         .eq('user_id', user.id!).eq('company_id', company.id!)
@@ -1273,6 +1277,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       console.log('[App] ✅ Refreshed', rows.length, 'notifications');
     } catch (error) {
       console.warn('[Notifications] Refresh failed (non-fatal):', error);
+    } finally {
+      notificationRefreshInFlight.current = false;
     }
   }, [user?.id, company?.id]);
 

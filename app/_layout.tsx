@@ -54,7 +54,13 @@ function RootLayoutNav() {
     refreshNotifications();
     const interval = setInterval(() => refreshNotifications(), 30_000);
     return () => clearInterval(interval);
-  }, [user?.id, company?.id, refreshNotifications]);
+    // refreshNotifications is a useCallback derived from these same two IDs —
+    // including it would double-fire on startup when both the IDs and the
+    // function reference change in the same render cycle, causing N concurrent
+    // Supabase requests and ERR_CONNECTION_CLOSED. The IDs already capture the
+    // dependency correctly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, company?.id]);
 
   // Global unread chat count — runs even before the chat tab is first visited.
   // Chat tab is lazily mounted, so without this the FloatingChatButton badge
