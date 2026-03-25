@@ -26,6 +26,8 @@ const MAX_CACHE = 30;
 const soundCache = new Map<string, ExpoAudioPlayer>();
 // URIs that failed to load — skip re-attempting preload for these
 const failedUriCache = new Set<string>();
+// Web: pre-buffered HTMLAudioElement instances keyed by URI
+const webAudioCache = new Map<string, HTMLAudioElement>();
 
 function evictIfNeeded() {
   if (soundCache.size >= MAX_CACHE) {
@@ -49,10 +51,28 @@ async function ensureAudioMode() {
 }
 
 // ─── Background preload (called from parent when chat opens) ──────────────────
-// Waits for the sound to confirm it's loadable before committing to cache.
-// Broken/expired S3 URLs are added to failedUriCache so they're not retried.
+// Web: creates an HTMLAudioElement with preload="auto" so the browser starts
+//      buffering immediately. Stored in webAudioCache for instant playback on tap.
+// Native: waits for first status confirmation before committing to soundCache.
+//         Broken/expired S3 URLs are added to failedUriCache so they're skipped.
 export async function preloadAudio(uri: string): Promise<void> {
-  if (Platform.OS === 'web' || !uri || soundCache.has(uri) || failedUriCache.has(uri)) return;
+  if (!uri) return;
+
+  if (Platform.OS === 'web') {
+    if (webAudioCache.has(uri) || failedUriCache.has(uri)) return;
+    try {
+      const audio = new (window as any).Audio(uri) as HTMLAudioElement;
+      audio.preload = 'auto';
+      // Start buffering — browser fetches ahead of playback in the background.
+      // Store immediately so a second call for the same URI is a no-op.
+      webAudioCache.set(uri, audio);
+    } catch {
+      failedUriCache.add(uri);
+    }
+    return; // fire-and-forget — don't await browser buffering
+  }
+
+  if (soundCache.has(uri) || failedUriCache.has(uri)) return;
   let player: ExpoAudioPlayer | null = null;
   try {
     await ensureAudioMode();
@@ -293,13 +313,23 @@ export default function AudioPlayer({
 
     if (Platform.OS === 'web') {
       if (!webAudioRef.current) {
-        // Show spinner until the browser has buffered enough to start playing
-        setLoadState('loading');
-        const audio = new window.Audio(uri);
-        webAudioRef.current = audio;
-        audio.addEventListener('canplay', () => {
-          if (mountedRef.current) setLoadState('ready');
-        }, { once: true });
+        // Prefer a pre-buffered element from the module-level cache so playback
+        // starts instantly without a loading spinner.
+        const cached = webAudioCache.get(uri);
+        if (cached) {
+          webAudioRef.current = cached;
+          // Already buffering/buffered — no loading state needed
+          setLoadState('ready');
+        } else {
+          // Cold start: show spinner until browser has enough data
+          setLoadState('loading');
+          const audio = new (window as any).Audio(uri) as HTMLAudioElement;
+          webAudioRef.current = audio;
+          audio.addEventListener('canplay', () => {
+            if (mountedRef.current) setLoadState('ready');
+          }, { once: true });
+        }
+        const audio = webAudioRef.current;
         audio.ontimeupdate = () => {
           if (!isSeeking.current) setPositionSec(audio.currentTime);
           setTotalSec(audio.duration || duration || 0);

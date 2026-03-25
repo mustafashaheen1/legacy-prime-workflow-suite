@@ -303,22 +303,18 @@ export default function ChatScreen() {
   }, [selectedChat]);
 
   // ── Preload voice messages ────────────────────────────────────────────────
+  // Run all preloads concurrently (Promise.allSettled) so messages 2-6 start
+  // buffering immediately instead of waiting for message 1 to finish.
+  // Web preloading is handled by AudioPlayer's webAudioCache (HTMLAudioElement
+  // with preload="auto"), so no Platform guard needed here.
   useEffect(() => {
-    if (!selectedChat || Platform.OS === 'web') return;
+    if (!selectedChat) return;
     const voiceUris = messages
       .filter((m) => m.type === 'voice' && !m.isDeleted && m.content)
       .map((m) => m.content as string)
-      .slice(-3)
-      .reverse();
+      .slice(-6); // preload 6 most recent voice messages
     if (voiceUris.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      for (const uri of voiceUris) {
-        if (cancelled) break;
-        await preloadAudio(uri);
-      }
-    })();
-    return () => { cancelled = true; };
+    Promise.allSettled(voiceUris.map(preloadAudio));
   }, [selectedChat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Typing: broadcast to others in this conversation ─────────────────────
