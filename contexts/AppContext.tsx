@@ -1,6 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Platform, AppState as RNAppState } from 'react-native';
 import { User, Project, Client, Expense, Photo, Task, DailyTask, ClockEntry, Subscription, Estimate, CallLog, ChatConversation, ChatMessage, Report, ProjectFile, DailyLog, Payment, ChangeOrder, Company, Subcontractor, SubcontractorProposal, Notification, ScheduledTask, DailyTaskReminder, ScheduleShareLink } from '@/types';
 import { PriceListItem, CustomPriceListItem, CustomCategory } from '@/mocks/priceList';
