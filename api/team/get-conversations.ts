@@ -84,8 +84,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       new Date().toISOString()
     );
 
-    // ── Step 2: Run all batch queries in parallel (3 total) ───────────────────
-    const [allParticipantsResult, recentMessagesResult, unreadMessagesResult] = await Promise.all([
+    // ── Step 2: Run all batch queries in parallel ─────────────────────────────
+    //
+    // Batch B was previously a single query with limit(convIds.length * 3).
+    // This caused "No messages yet" for all conversations except the most active
+    // one: if Henry has 50+ messages, all 50 fetched rows came from Henry and
+    // every other conversation got zero rows → lastMessage: null.
+    //
+    // Fix: one limit(1) query per conversation, all run in parallel inside the
+    // same Promise.all. Each returns exactly the most-recent non-deleted message
+    // for that conversation. Wall time = max(single query) ≈ same as before.
+    const lastMsgQueries = convIds.map((id) =>
+      supabase
+        .from('messages')
+        .select('content, type, created_at, sender_id, file_name, conversation_id')
+        .eq('conversation_id', id)
+        .or('is_deleted.eq.false,is_deleted.is.null')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
+
+    const [allParticipantsResult, unreadMessagesResult, ...lastMsgResults] = await Promise.all([
 
       // Batch A: ALL participants for ALL conversations in one query
       supabase
@@ -104,17 +124,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `)
         .in('conversation_id', convIds),
 
-      // Batch B: Recent messages across ALL conversations.
-      // Fetching convIds.length×3 rows (ordered DESC) gives us enough buffer
-      // to find the latest message per conversation after JS grouping.
-      supabase
-        .from('messages')
-        .select('content, type, created_at, sender_id, file_name, conversation_id')
-        .in('conversation_id', convIds)
-        .or('is_deleted.eq.false,is_deleted.is.null')
-        .order('created_at', { ascending: false })
-        .limit(Math.max(convIds.length * 3, 50)),
-
       // Batch C: All potentially-unread messages since the oldest last_read_at.
       // Capped at 500 rows — more than enough to count unread badges accurately.
       supabase
@@ -126,6 +135,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .gt('created_at', minLastReadAt)
         .order('created_at', { ascending: false })
         .limit(500),
+
+      // Batch B: last message per conversation (one query each, all parallel)
+      ...lastMsgQueries,
     ]);
 
     // ── Step 3: Build lookup maps from batch results ──────────────────────────
@@ -137,13 +149,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       participantsByConv[p.conversation_id].push(p);
     }
 
-    // Last message per conversation (rows already sorted DESC — first hit wins)
+    // Last message per conversation — one result per convId, same index order
     const lastMessageByConv: Record<string, any> = {};
-    for (const msg of (recentMessagesResult.data || []) as any[]) {
-      if (!lastMessageByConv[msg.conversation_id]) {
-        lastMessageByConv[msg.conversation_id] = msg;
+    (lastMsgResults as any[]).forEach((result, i) => {
+      if (!result.error && result.data) {
+        lastMessageByConv[convIds[i]] = result.data;
       }
-    }
+    });
 
     // Unread count per conversation (filter by each conv's last_read_at in JS)
     const unreadByConv: Record<string, number> = {};
