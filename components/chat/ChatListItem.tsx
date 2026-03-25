@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { Mic, Image as ImageIcon, Video, Paperclip, Users } from 'lucide-react-native';
 import { ChatConversation } from '@/types';
+import SkeletonBox from '@/components/SkeletonBox';
 
 type PreviewEntry = { text: string; timestamp: string; senderId: string; type?: string };
 
@@ -11,6 +12,7 @@ interface Props {
   hasUnread: boolean;
   unreadCount?: number;
   preview?: PreviewEntry;
+  isLoadingPreview?: boolean;
   currentUserId?: string;
   onPress: () => void;
 }
@@ -42,8 +44,11 @@ function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
-function LastMessagePreview({ preview, isGroup }: { preview?: PreviewEntry; isGroup: boolean }) {
+function LastMessagePreview({ preview, isGroup, isLoading }: { preview?: PreviewEntry; isGroup: boolean; isLoading?: boolean }) {
   if (!preview) {
+    if (isLoading) {
+      return <SkeletonBox width="65%" height={12} borderRadius={4} />;
+    }
     return <Text style={styles.previewText} numberOfLines={1}>No messages yet</Text>;
   }
 
@@ -83,6 +88,7 @@ export default function ChatListItem({
   hasUnread,
   unreadCount = 0,
   preview,
+  isLoadingPreview,
   currentUserId,
   onPress,
 }: Props) {
@@ -129,7 +135,7 @@ export default function ChatListItem({
 
         <View style={styles.bottomRow}>
           <View style={styles.previewContainer}>
-            <LastMessagePreview preview={preview} isGroup={isGroup} />
+            <LastMessagePreview preview={preview} isGroup={isGroup} isLoading={isLoadingPreview} />
           </View>
           {hasUnread && (
             <View style={styles.badge}>

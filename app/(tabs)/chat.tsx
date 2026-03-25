@@ -1393,6 +1393,7 @@ export default function ChatScreen() {
                     hasUnread={unreadConversations.has(conv.id)}
                     unreadCount={conversationMeta.get(conv.id)?.unreadCount || 0}
                     preview={conversationPreviews.get(conv.id)}
+                    isLoadingPreview={isLoadingConversations && !conversationPreviews.has(conv.id)}
                     currentUserId={user?.id}
                     onPress={() => handleSelectChat(conv.id)}
                   />
