@@ -359,12 +359,6 @@ export default function LoginScreen() {
       keyboardVerticalOffset={0}
     >
       <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-        {!isKeyboardVisible && (
-          <View style={styles.languageSwitcherContainer}>
-            <LanguageSwitcher />
-          </View>
-        )}
-
         <View style={styles.header}>
           <Logo size={100} />
           <Text style={styles.title}>Legacy Prime</Text>
@@ -486,6 +480,12 @@ export default function LoginScreen() {
               <Text style={styles.signupText}>{t('login.signUp')}</Text>
             </TouchableOpacity>
           </View>
+
+          {!isKeyboardVisible && (
+            <View style={styles.languageSwitcherContainer}>
+              <LanguageSwitcher />
+            </View>
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -500,8 +500,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   languageSwitcherContainer: {
-    alignSelf: 'flex-end',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginTop: 16,
   },
   header: {
     alignItems: 'center',
