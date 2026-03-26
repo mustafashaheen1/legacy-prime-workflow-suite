@@ -358,7 +358,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+      <View style={[styles.container, { paddingTop: insets.top + 64, paddingBottom: insets.bottom + 20 }]}>
         <View style={styles.header}>
           <Logo size={100} />
           <Text style={styles.title}>Legacy Prime</Text>
@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 32,
   },
   title: {
     fontSize: 32,
