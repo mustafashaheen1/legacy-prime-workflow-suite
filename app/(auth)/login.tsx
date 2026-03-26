@@ -500,10 +500,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   languageSwitcherContainer: {
-    position: 'absolute',
-    top: 60,
-    right: 24,
-    zIndex: 10,
+    alignSelf: 'flex-end',
+    marginBottom: 12,
   },
   header: {
     alignItems: 'center',
