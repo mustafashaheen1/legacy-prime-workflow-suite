@@ -481,13 +481,14 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {!isKeyboardVisible && (
-            <View style={styles.languageSwitcherContainer}>
-              <LanguageSwitcher />
-            </View>
-          )}
         </View>
       </View>
+
+      {!isKeyboardVisible && (
+        <View style={[styles.languageSwitcherContainer, { top: insets.top + 12 }]}>
+          <LanguageSwitcher />
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -500,8 +501,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   languageSwitcherContainer: {
-    alignItems: 'center',
-    marginTop: 16,
+    position: 'absolute',
+    left: 24,
   },
   header: {
     alignItems: 'center',
