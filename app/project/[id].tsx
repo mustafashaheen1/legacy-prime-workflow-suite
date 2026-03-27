@@ -27,7 +27,7 @@ type TabType = 'overview' | 'schedule' | 'estimate' | 'change-orders' | 'clock' 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { projects, archiveProject, deleteProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject, addNotification, refreshClockEntries } = useApp();
+  const { projects, archiveProject, deleteProject, user, company, clockEntries, expenses, estimates, projectFiles, addProjectFile, deleteProjectFile, photos, addPhoto, deletePhoto, reports, addReport, refreshReports, dailyLogs = [], scheduledTasks, loadScheduledTasks, updateProject, addNotification, refreshClockEntries } = useApp();
 
   const [changeOrdersData, setChangeOrdersData] = useState<ChangeOrder[]>([]);
   const [paymentsData, setPaymentsData] = useState<Payment[]>([]);
@@ -2548,65 +2548,85 @@ export default function ProjectDetailScreen() {
                 ) : (
                   <View style={styles.photosGalleryGrid}>
                     {projectPhotos.map((photo) => (
-                      <TouchableOpacity
-                        key={photo.id}
-                        style={styles.photosGalleryItem}
-                        onPress={() => setViewingPhoto({ url: photo.url, category: photo.category, notes: photo.notes, date: photo.date })}
-                        activeOpacity={0.8}
-                      >
-                        <Image source={{ uri: photo.url }} style={styles.photosThumbnail} contentFit="cover" />
+                      <View key={photo.id} style={[styles.photosGalleryItem, { position: 'relative' }]}>
+                        <TouchableOpacity
+                          style={{ flex: 1 }}
+                          onPress={() => setViewingPhoto({ url: photo.url, category: photo.category, notes: photo.notes, date: photo.date })}
+                          activeOpacity={0.8}
+                        >
+                          <Image source={{ uri: photo.url }} style={styles.photosThumbnail} contentFit="cover" />
 
-                        {/* 🎯 CLIENT DESIGN: Uploader info below image */}
-                        <View style={styles.photosThumbnailInfo}>
-                          {/* Uploader: Avatar + Name */}
-                          <View style={styles.photoUploaderRow}>
-                            {photo.uploader ? (
-                              <>
-                                {photo.uploader.avatar ? (
-                                  <Image
-                                    source={{ uri: photo.uploader.avatar }}
-                                    style={styles.photoUploaderAvatar}
-                                    contentFit="cover"
-                                  />
-                                ) : (
+                          {/* 🎯 CLIENT DESIGN: Uploader info below image */}
+                          <View style={styles.photosThumbnailInfo}>
+                            {/* Uploader: Avatar + Name */}
+                            <View style={styles.photoUploaderRow}>
+                              {photo.uploader ? (
+                                <>
+                                  {photo.uploader.avatar ? (
+                                    <Image
+                                      source={{ uri: photo.uploader.avatar }}
+                                      style={styles.photoUploaderAvatar}
+                                      contentFit="cover"
+                                    />
+                                  ) : (
+                                    <View style={styles.photoUploaderAvatarPlaceholder}>
+                                      <Text style={styles.photoUploaderInitials}>
+                                        {photo.uploader.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                      </Text>
+                                    </View>
+                                  )}
+                                  <Text style={styles.photoUploaderName} numberOfLines={1}>
+                                    {photo.uploader.name}
+                                  </Text>
+                                </>
+                              ) : (
+                                <>
                                   <View style={styles.photoUploaderAvatarPlaceholder}>
-                                    <Text style={styles.photoUploaderInitials}>
-                                      {photo.uploader.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                    </Text>
+                                    <Text style={styles.photoUploaderInitials}>?</Text>
                                   </View>
-                                )}
-                                <Text style={styles.photoUploaderName} numberOfLines={1}>
-                                  {photo.uploader.name}
-                                </Text>
-                              </>
-                            ) : (
-                              <>
-                                <View style={styles.photoUploaderAvatarPlaceholder}>
-                                  <Text style={styles.photoUploaderInitials}>?</Text>
-                                </View>
-                                <Text style={styles.photoUploaderName}>Unknown</Text>
-                              </>
+                                  <Text style={styles.photoUploaderName}>Unknown</Text>
+                                </>
+                              )}
+                            </View>
+
+                            {/* Category */}
+                            <View style={styles.photosCategoryBadge}>
+                              <Text style={styles.photosCategoryBadgeText}>{photo.category}</Text>
+                            </View>
+
+                            {/* Notes */}
+                            {photo.notes && (
+                              <Text style={styles.photosThumbnailNotes} numberOfLines={2}>
+                                {photo.notes}
+                              </Text>
                             )}
-                          </View>
 
-                          {/* Category */}
-                          <View style={styles.photosCategoryBadge}>
-                            <Text style={styles.photosCategoryBadgeText}>{photo.category}</Text>
-                          </View>
-
-                          {/* Notes */}
-                          {photo.notes && (
-                            <Text style={styles.photosThumbnailNotes} numberOfLines={2}>
-                              {photo.notes}
+                            {/* Date */}
+                            <Text style={styles.photosThumbnailDate}>
+                              {new Date(photo.date).toLocaleDateString()}
                             </Text>
-                          )}
+                          </View>
+                        </TouchableOpacity>
 
-                          {/* Date */}
-                          <Text style={styles.photosThumbnailDate}>
-                            {new Date(photo.date).toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
+                        {project?.status !== 'completed' && (
+                          <TouchableOpacity
+                            style={styles.photosGalleryDeleteBtn}
+                            onPress={() => {
+                              if (Platform.OS === 'web') {
+                                if (!window.confirm('Delete this photo?')) return;
+                                deletePhoto(photo.id).catch((err: any) => window.alert(err.message || 'Failed to delete photo'));
+                                return;
+                              }
+                              Alert.alert('Delete Photo', 'Are you sure?', [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Delete', style: 'destructive', onPress: () => deletePhoto(photo.id) },
+                              ]);
+                            }}
+                          >
+                            <Trash2 size={13} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     ))}
                   </View>
                 )}
@@ -5473,6 +5493,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  photosGalleryDeleteBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(239,68,68,0.85)',
+    borderRadius: 14,
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   photosThumbnail: {
     width: '100%',
