@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput,
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2, ChevronRight } from 'lucide-react-native';
+import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2, ChevronRight, LayoutGrid, LayoutList } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -90,6 +90,7 @@ export default function FilesNavigationScreen() {
   const [newFolderName, setNewFolderName] = useState<string>('');
   const [viewingFile, setViewingFile] = useState<{ uri: string; name: string; type: string } | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [photoViewMode, setPhotoViewMode] = useState<'grid' | 'list'>('grid');
   const [s3ProjectFiles, setS3ProjectFiles] = useState<ProjectFile[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(true);
   const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
@@ -806,20 +807,38 @@ export default function FilesNavigationScreen() {
         <View style={styles.filesHeader}>
           <View>
             <Text style={styles.filesTitle}>{selectedCategory}</Text>
-            <Text style={styles.filesSubtitle}>{files.length} items</Text>
+            <Text style={styles.filesSubtitle}>{files.length} {files.length === 1 ? 'item' : 'items'}</Text>
           </View>
-          {folder.type !== 'videos' && (
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => setUploadModalVisible(true)}
-            >
-              <Plus size={20} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Add</Text>
-            </TouchableOpacity>
-          )}
+          <View style={styles.filesHeaderRight}>
+            {folder.type === 'photos' && (
+              <View style={styles.viewToggle}>
+                <TouchableOpacity
+                  style={[styles.viewToggleBtn, photoViewMode === 'grid' && styles.viewToggleBtnActive]}
+                  onPress={() => setPhotoViewMode('grid')}
+                >
+                  <LayoutGrid size={16} color={photoViewMode === 'grid' ? '#2563EB' : '#9CA3AF'} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.viewToggleBtn, photoViewMode === 'list' && styles.viewToggleBtnActive]}
+                  onPress={() => setPhotoViewMode('list')}
+                >
+                  <LayoutList size={16} color={photoViewMode === 'list' ? '#2563EB' : '#9CA3AF'} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {folder.type !== 'videos' && (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => setUploadModalVisible(true)}
+              >
+                <Plus size={20} color="#FFFFFF" />
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         <ScrollView style={styles.filesList} showsVerticalScrollIndicator={false}>
-          {folder.type === 'photos' && (
+          {folder.type === 'photos' && photoViewMode === 'grid' && (
             <View style={styles.photoGrid}>
               {files.map((file: any) => (
                 <View key={file.id} style={styles.photoGridItem}>
@@ -836,6 +855,31 @@ export default function FilesNavigationScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => handleDeletePhoto(file.id)}>
                     <Trash2 size={13} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+          {folder.type === 'photos' && photoViewMode === 'list' && (
+            <View>
+              {files.map((file: any) => (
+                <View key={file.id} style={[styles.photoCard, { position: 'relative' }]}>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', flex: 1, paddingRight: 40 }}
+                    onPress={() => setViewingFile({ uri: file.url, name: file.category, type: 'image' })}
+                    activeOpacity={0.8}
+                  >
+                    <Image source={{ uri: file.url }} style={styles.photoThumbnail} contentFit="cover" />
+                    <View style={styles.photoInfo}>
+                      <Text style={styles.photoCategory}>{file.category}</Text>
+                      <Text style={styles.photoDate}>{new Date(file.date).toLocaleDateString()}</Text>
+                      {file.notes && (
+                        <Text style={styles.photoNotes} numberOfLines={2}>{file.notes}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteFileButton} onPress={() => handleDeletePhoto(file.id)}>
+                    <Trash2 size={16} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -1774,5 +1818,34 @@ const styles = StyleSheet.create({
   // Category chevron
   categoryChevron: {
     marginLeft: 4,
+  },
+  // Files header right cluster
+  filesHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  // View toggle
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 2,
+    gap: 2,
+  },
+  viewToggleBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewToggleBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
 });
