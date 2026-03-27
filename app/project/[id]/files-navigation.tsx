@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput,
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2 } from 'lucide-react-native';
+import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2, ChevronRight } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -686,6 +686,16 @@ export default function FilesNavigationScreen() {
     );
   };
 
+  const handleBack = () => {
+    if (selectedCategory) {
+      setSelectedCategory(null);
+    } else if (selectedFolder) {
+      setSelectedFolder(null);
+    } else {
+      router.back();
+    }
+  };
+
   const renderFolderView = () => {
     if (!selectedFolder) {
       return (
@@ -778,8 +788,9 @@ export default function FilesNavigationScreen() {
                     </View>
                     <View style={styles.categoryInfo}>
                       <Text style={styles.categoryName}>{category}</Text>
-                      <Text style={styles.categoryCount}>{files.length} items</Text>
+                      <Text style={styles.categoryCount}>{files.length} {files.length === 1 ? 'item' : 'items'}</Text>
                     </View>
+                    <ChevronRight size={18} color="#9CA3AF" />
                   </TouchableOpacity>
                 );
               })}
@@ -808,34 +819,31 @@ export default function FilesNavigationScreen() {
           )}
         </View>
         <ScrollView style={styles.filesList} showsVerticalScrollIndicator={false}>
-          {files.map((file: any) => {
-            if (folder.type === 'photos') {
-              return (
-                <View key={file.id} style={[styles.photoCard, { position: 'relative' }]}>
+          {folder.type === 'photos' && (
+            <View style={styles.photoGrid}>
+              {files.map((file: any) => (
+                <View key={file.id} style={styles.photoGridItem}>
                   <TouchableOpacity
-                    style={{ flexDirection: 'row', flex: 1, paddingRight: 32 }}
+                    activeOpacity={0.85}
                     onPress={() => setViewingFile({ uri: file.url, name: file.category, type: 'image' })}
-                    activeOpacity={0.8}
+                    style={styles.photoGridCard}
                   >
-                    <Image source={{ uri: file.url }} style={styles.photoThumbnail} contentFit="cover" />
-                    <View style={styles.photoInfo}>
-                      <Text style={styles.photoCategory}>{file.category}</Text>
-                      <Text style={styles.photoDate}>
-                        {new Date(file.date).toLocaleDateString()}
-                      </Text>
-                      {file.notes && (
-                        <Text style={styles.photoNotes} numberOfLines={2}>{file.notes}</Text>
-                      )}
+                    <Image source={{ uri: file.url }} style={styles.photoGridImage} contentFit="cover" />
+                    <View style={styles.photoGridOverlay}>
+                      <Text style={styles.photoGridCategory} numberOfLines={1}>{file.category}</Text>
+                      <Text style={styles.photoGridDate}>{new Date(file.date).toLocaleDateString()}</Text>
                     </View>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deleteFileButton}
-                    onPress={() => handleDeletePhoto(file.id)}
-                  >
-                    <Trash2 size={16} color="#EF4444" />
+                  <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => handleDeletePhoto(file.id)}>
+                    <Trash2 size={13} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
-              );
+              ))}
+            </View>
+          )}
+          {files.map((file: any) => {
+            if (folder.type === 'photos') {
+              return null;
             } else if (folder.type === 'receipts') {
               return (
                 <View key={file.id} style={[styles.expenseCard, { position: 'relative' }]}>
@@ -979,32 +987,31 @@ export default function FilesNavigationScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ 
-        headerShown: true,
-        title: 'Files',
-        headerLeft: () => (
-          <TouchableOpacity onPress={() => {
-            if (selectedCategory) {
-              setSelectedCategory(null);
-            } else if (selectedFolder) {
-              setSelectedFolder(null);
-            } else {
-              router.back();
-            }
-          }}>
-            <ArrowLeft size={24} color="#1F2937" />
-          </TouchableOpacity>
-        ),
-      }} />
+      <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
         <View style={styles.header}>
-          <View>
-            <Text style={styles.projectName}>{project.name}</Text>
-            <Text style={styles.breadcrumb}>
-              Files
-              {selectedFolder && ` > ${folders.find(f => f.type === selectedFolder)?.name}`}
-              {selectedCategory && ` > ${selectedCategory}`}
-            </Text>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <ArrowLeft size={22} color="#1F2937" />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.projectName} numberOfLines={1}>{project.name}</Text>
+            <View style={styles.breadcrumbRow}>
+              <Text style={[styles.breadcrumbItem, !selectedFolder && styles.breadcrumbActive]}>Files</Text>
+              {selectedFolder && (
+                <>
+                  <ChevronRight size={12} color="#9CA3AF" />
+                  <Text style={[styles.breadcrumbItem, !selectedCategory && styles.breadcrumbActive]} numberOfLines={1}>
+                    {folders.find(f => f.type === selectedFolder)?.name}
+                  </Text>
+                </>
+              )}
+              {selectedCategory && (
+                <>
+                  <ChevronRight size={12} color="#9CA3AF" />
+                  <Text style={[styles.breadcrumbItem, styles.breadcrumbActive]} numberOfLines={1}>{selectedCategory}</Text>
+                </>
+              )}
+            </View>
           </View>
         </View>
 
@@ -1173,13 +1180,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F3F4F6',
-  },
-  header: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   projectName: {
     fontSize: 20,
@@ -1667,5 +1667,112 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Custom header
+  header: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingTop: Platform.OS === 'ios' ? 54 : Platform.OS === 'android' ? 36 : 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  headerContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  breadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+    gap: 4,
+    marginTop: 2,
+  },
+  breadcrumbItem: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500' as const,
+  },
+  breadcrumbActive: {
+    color: '#2563EB',
+    fontWeight: '600' as const,
+  },
+  // Photo grid
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    padding: 4,
+    paddingBottom: 8,
+  },
+  photoGridItem: {
+    width: '48%',
+    position: 'relative',
+  },
+  photoGridCard: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  photoGridImage: {
+    width: '100%',
+    aspectRatio: 1,
+  },
+  photoGridOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  photoGridCategory: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  photoGridDate: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 1,
+  },
+  photoGridDeleteBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(239,68,68,0.85)',
+    borderRadius: 14,
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  // Category chevron
+  categoryChevron: {
+    marginLeft: 4,
   },
 });
