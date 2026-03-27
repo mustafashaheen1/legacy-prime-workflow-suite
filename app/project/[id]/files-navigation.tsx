@@ -90,6 +90,7 @@ export default function FilesNavigationScreen() {
   const [newFolderName, setNewFolderName] = useState<string>('');
   const [viewingFile, setViewingFile] = useState<{ uri: string; name: string; type: string } | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [modalCategory, setModalCategory] = useState<string>('');
   const [photoViewMode, setPhotoViewMode] = useState<'grid' | 'list'>('grid');
   const [s3ProjectFiles, setS3ProjectFiles] = useState<ProjectFile[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(true);
@@ -316,11 +317,16 @@ export default function FilesNavigationScreen() {
   };
 
   const uploadPhotoToS3AndSave = async (localUri: string) => {
+    if (!selectedCategory && !modalCategory.trim()) {
+      Alert.alert('Category Required', 'Please enter or select a category before uploading.');
+      return;
+    }
     const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
     setIsUploading(true);
     try {
       const compressed = await compressImage(localUri, { quality: 0.8 });
-      const fileName = `photo-${Date.now()}-${(selectedCategory || 'photo').toLowerCase().replace(/\s+/g, '-')}.jpg`;
+      const resolvedCategory = selectedCategory || modalCategory.trim() || 'Other';
+      const fileName = `photo-${Date.now()}-${resolvedCategory.toLowerCase().replace(/\s+/g, '-')}.jpg`;
 
       const urlResponse = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
         method: 'POST',
@@ -347,7 +353,7 @@ export default function FilesNavigationScreen() {
       await addPhoto({
         id: generateUUID(),
         projectId: id as string,
-        category: selectedCategory || photoCategories[0] || 'Other',
+        category: resolvedCategory,
         notes: fileNotes,
         url: fileUrl,
         date: new Date().toISOString(),
@@ -757,6 +763,15 @@ export default function FilesNavigationScreen() {
         <View style={styles.categoriesView}>
           <View style={styles.categoriesHeader}>
             <Text style={styles.categoriesTitle}>{folder.name}</Text>
+            {folder.type === 'photos' && !hasCategories && (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => { setModalCategory(''); setUploadModalVisible(true); }}
+              >
+                <Plus size={20} color="#FFFFFF" />
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            )}
           </View>
           
           {!hasCategories ? (
@@ -1060,16 +1075,52 @@ export default function FilesNavigationScreen() {
           visible={uploadModalVisible}
           transparent
           animationType="slide"
-          onRequestClose={() => setUploadModalVisible(false)}
+          onRequestClose={() => { setUploadModalVisible(false); setModalCategory(''); }}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add to {selectedCategory || folders.find(f => f.type === selectedFolder)?.name}</Text>
-                <TouchableOpacity onPress={() => setUploadModalVisible(false)}>
+                <TouchableOpacity onPress={() => { setUploadModalVisible(false); setModalCategory(''); }}>
                   <X size={24} color="#6B7280" />
                 </TouchableOpacity>
               </View>
+
+              {selectedFolder === 'photos' && !selectedCategory && (
+                <>
+                  <Text style={styles.modalLabel}>Category <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. Framing, Drywall, Electrical..."
+                    placeholderTextColor="#9CA3AF"
+                    value={modalCategory}
+                    onChangeText={setModalCategory}
+                    autoCapitalize="words"
+                  />
+                  {photoCategories.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                      <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
+                        {photoCategories.map(cat => (
+                          <TouchableOpacity
+                            key={cat}
+                            style={{
+                              paddingHorizontal: 12,
+                              paddingVertical: 6,
+                              borderRadius: 16,
+                              backgroundColor: modalCategory === cat ? '#2563EB' : '#F3F4F6',
+                              borderWidth: 1,
+                              borderColor: modalCategory === cat ? '#2563EB' : '#E5E7EB',
+                            }}
+                            onPress={() => setModalCategory(cat)}
+                          >
+                            <Text style={{ fontSize: 13, color: modalCategory === cat ? '#FFFFFF' : '#374151', fontWeight: '500' }}>{cat}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  )}
+                </>
+              )}
 
               <Text style={styles.modalLabel}>Notes (Optional)</Text>
               <TextInput
