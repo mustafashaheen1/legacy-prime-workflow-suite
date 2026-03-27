@@ -757,13 +757,6 @@ export default function FilesNavigationScreen() {
         <View style={styles.categoriesView}>
           <View style={styles.categoriesHeader}>
             <Text style={styles.categoriesTitle}>{folder.name}</Text>
-            <TouchableOpacity 
-              style={styles.addButton}
-              onPress={() => setUploadModalVisible(true)}
-            >
-              <Plus size={20} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Add</Text>
-            </TouchableOpacity>
           </View>
           
           {!hasCategories ? (
