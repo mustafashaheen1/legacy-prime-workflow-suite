@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabase';
 import { Linking } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import { compressImage } from '@/lib/upload-utils';
+import { generateUUID } from '@/utils/uuid';
 
 type FolderType = 'photos' | 'receipts' | 'permit-files' | 'inspections' | 'agreements' | 'videos';
 
@@ -312,26 +314,62 @@ export default function FilesNavigationScreen() {
     }
   };
 
+  const uploadPhotoToS3AndSave = async (localUri: string) => {
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+    setIsUploading(true);
+    try {
+      const compressed = await compressImage(localUri, { quality: 0.8 });
+      const fileName = `photo-${Date.now()}-${(selectedCategory || 'photo').toLowerCase().replace(/\s+/g, '-')}.jpg`;
+
+      const urlResponse = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType: 'image/jpeg' }),
+      });
+      if (!urlResponse.ok) throw new Error('Failed to get upload URL');
+      const { uploadUrl, fileUrl } = await urlResponse.json();
+
+      if (Platform.OS === 'web') {
+        const resp = await fetch(compressed.uri);
+        const blob = await resp.blob();
+        const s3Res = await fetch(uploadUrl, { method: 'PUT', body: blob, headers: { 'Content-Type': 'image/jpeg' } });
+        if (!s3Res.ok) throw new Error('Failed to upload photo to S3');
+      } else {
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, compressed.uri, {
+          httpMethod: 'PUT',
+          headers: { 'Content-Type': 'image/jpeg' },
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        });
+        if (uploadResult.status < 200 || uploadResult.status >= 300) throw new Error('Failed to upload photo to S3');
+      }
+
+      await addPhoto({
+        id: generateUUID(),
+        projectId: id as string,
+        category: selectedCategory || photoCategories[0] || 'Other',
+        notes: fileNotes,
+        url: fileUrl,
+        date: new Date().toISOString(),
+      });
+
+      setFileNotes('');
+      setUploadModalVisible(false);
+      Alert.alert('Success', 'Photo uploaded successfully!');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to upload photo');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handlePickPhoto = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       quality: 1,
     });
-
     if (!result.canceled) {
-      const newPhoto = {
-        id: Date.now().toString(),
-        projectId: id as string,
-        category: selectedCategory || photoCategories[0] || 'Other',
-        notes: fileNotes,
-        url: result.assets[0].uri,
-        date: new Date().toISOString(),
-      };
-      addPhoto(newPhoto);
-      setFileNotes('');
-      setUploadModalVisible(false);
-      Alert.alert('Success', 'Photo added successfully!');
+      await uploadPhotoToS3AndSave(result.assets[0].uri);
     }
   };
 
@@ -351,20 +389,8 @@ export default function FilesNavigationScreen() {
       allowsEditing: true,
       quality: 1,
     });
-
     if (!result.canceled) {
-      const newPhoto = {
-        id: Date.now().toString(),
-        projectId: id as string,
-        category: selectedCategory || photoCategories[0] || 'Other',
-        notes: fileNotes,
-        url: result.assets[0].uri,
-        date: new Date().toISOString(),
-      };
-      addPhoto(newPhoto);
-      setFileNotes('');
-      setUploadModalVisible(false);
-      Alert.alert('Success', 'Photo added successfully!');
+      await uploadPhotoToS3AndSave(result.assets[0].uri);
     }
   };
 
