@@ -472,7 +472,7 @@ export default function PhotosScreen() {
                       >
                         <Edit2 size={14} color="#2563EB" />
                       </TouchableOpacity>
-                      <TouchableOpacity
+                      {photo.uploadedBy === user?.id && <TouchableOpacity
                         style={styles.editButton}
                         onPress={() => {
                           const doDelete = () => {
@@ -495,7 +495,7 @@ export default function PhotosScreen() {
                         }}
                       >
                         <Trash2 size={14} color="#EF4444" />
-                      </TouchableOpacity>
+                      </TouchableOpacity>}
                     </View>
                   </View>
 
