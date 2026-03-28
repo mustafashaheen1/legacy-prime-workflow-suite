@@ -466,12 +466,12 @@ export default function PhotosScreen() {
                   <View style={styles.categoryRow}>
                     <Text style={styles.thumbnailLabel}>{photo.category}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <TouchableOpacity
+                      {photo.uploadedBy === user?.id && <TouchableOpacity
                         onPress={() => handleEditCategory(photo)}
                         style={styles.editButton}
                       >
                         <Edit2 size={14} color="#2563EB" />
-                      </TouchableOpacity>
+                      </TouchableOpacity>}
                       {photo.uploadedBy === user?.id && <TouchableOpacity
                         style={styles.editButton}
                         onPress={() => {
