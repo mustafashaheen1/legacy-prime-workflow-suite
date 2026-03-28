@@ -237,7 +237,7 @@ export default function GanttSchedule({
       endDate: endDate.toISOString(),
       duration: 3,
       workType: 'in-house',
-      color: phase.color,
+      color: phase.color || '#6B7280',
       visibleToClient: true,
       completed: false,
       row: 0,

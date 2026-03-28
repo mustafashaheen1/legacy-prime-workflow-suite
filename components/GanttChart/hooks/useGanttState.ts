@@ -2,16 +2,8 @@ import { useState, useCallback, useEffect } from 'react';
 import { SchedulePhase, GanttTask } from '@/types';
 
 // Helper function to get API base URL for both web and mobile
-const getApiBaseUrl = () => {
-  const rorkApi = process.env.EXPO_PUBLIC_RORK_API_BASE_URL;
-  if (rorkApi) {
-    return rorkApi;
-  }
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-  return 'http://localhost:8081';
-};
+const getApiBaseUrl = () =>
+  process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
 interface UseGanttStateProps {
   projectId: string | null;

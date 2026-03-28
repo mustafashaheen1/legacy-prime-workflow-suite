@@ -28,13 +28,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       completedAt,
     } = req.body;
 
-    // Validate required fields
-    if (!projectId || !category || !startDate || !endDate || !duration || !workType || !color) {
+    // Validate required fields (color is optional — defaults to gray)
+    if (!projectId || !category || !startDate || !endDate || !duration || !workType) {
       return res.status(400).json({
         error: 'Missing required fields',
-        required: ['projectId', 'category', 'startDate', 'endDate', 'duration', 'workType', 'color']
+        required: ['projectId', 'category', 'startDate', 'endDate', 'duration', 'workType']
       });
     }
+    const resolvedColor = color || '#6B7280';
 
     // Initialize Supabase client
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -71,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         duration,
         work_type: workType,
         notes: notes || null,
-        color,
+        color: resolvedColor,
         row: row || 0,
         row_span: rowSpan || 1,
         phase_id: phaseId || null,
