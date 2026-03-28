@@ -1627,20 +1627,21 @@ ${pdfDates.length > 0 ? `
                   <Pressable
                     ref={gridPressableRef}
                     onPress={(e) => {
-                      let lx: number;
+                      const pageX = (e.nativeEvent as any).pageX as number;
                       if (Platform.OS === 'web' && ganttAreaRef.current) {
                         // offsetX is relative to the innermost clicked child, not the Pressable.
                         // Use pageX - ganttArea.left - sidebarWidth + scrollX for true content position.
                         const rect = (ganttAreaRef.current as any).getBoundingClientRect?.();
                         if (rect) {
-                          lx = (e.nativeEvent as any).pageX - rect.left - SIDEBAR_WIDTH + currentScrollXRef.current;
-                        } else {
-                          lx = (e.nativeEvent as any).locationX ?? (e.nativeEvent as any).offsetX ?? 0;
+                          handleGridTap(pageX - rect.left - SIDEBAR_WIDTH + currentScrollXRef.current);
                         }
-                      } else {
-                        lx = (e.nativeEvent as any).locationX ?? (e.nativeEvent as any).offsetX ?? 0;
+                      } else if (ganttAreaRef.current) {
+                        // Native: locationX is also relative to innermost child — same problem.
+                        // measureInWindow gives screen-absolute left of the gantt area view.
+                        (ganttAreaRef.current as any).measureInWindow((areaX: number) => {
+                          handleGridTap(pageX - areaX - SIDEBAR_WIDTH + currentScrollXRef.current);
+                        });
                       }
-                      handleGridTap(lx);
                     }}
                     style={{ width: effectiveGridWidth, height: GRID_HEIGHT }}
                   >
@@ -1761,7 +1762,7 @@ ${pdfDates.length > 0 ? `
                               <View
                                 hitSlop={{ top: 10, bottom: 10, left: 14, right: 6 }}
                                 style={[styles.resizeHandle, styles.resizeHandleLeft, { cursor: 'w-resize', userSelect: 'none' } as any]}
-                                onMouseDown={(e: any) => { e.preventDefault(); e.stopPropagation(); handleResizeMouseDown(task, 'left', e.clientX); }}
+                                {...({ onMouseDown: (e: any) => { e.preventDefault(); e.stopPropagation(); handleResizeMouseDown(task, 'left', e.clientX); } } as any)}
                               >
                                 <View style={styles.resizeDot} />
                               </View>
@@ -1855,7 +1856,7 @@ ${pdfDates.length > 0 ? `
                               <View
                                 hitSlop={{ top: 10, bottom: 10, left: 6, right: 14 }}
                                 style={[styles.resizeHandle, styles.resizeHandleRight, { cursor: 'ew-resize', userSelect: 'none' } as any]}
-                                onMouseDown={(e: any) => { e.preventDefault(); e.stopPropagation(); handleResizeMouseDown(task, 'right', e.clientX); }}
+                                {...({ onMouseDown: (e: any) => { e.preventDefault(); e.stopPropagation(); handleResizeMouseDown(task, 'right', e.clientX); } } as any)}
                               >
                                 <View style={styles.resizeDot} />
                               </View>
