@@ -11,7 +11,7 @@ import { useUploadProgress } from '@/hooks/useUploadProgress';
 import { supabase } from '@/lib/supabase';
 
 export default function PhotosScreen() {
-  const { user, photos, addPhoto, updatePhoto, photoCategories, priceListCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company, projects, refreshPhotos, isLoading, isCompanyReloading } = useApp();
+  const { user, photos, addPhoto, updatePhoto, deletePhoto, photoCategories, priceListCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company, projects, refreshPhotos, isLoading, isCompanyReloading } = useApp();
   const isEmployee = user?.role === 'employee' || user?.role === 'field-employee';
 
   // Merge price-list categories with photo-specific categories (deduped, price list first).
@@ -465,12 +465,38 @@ export default function PhotosScreen() {
 
                   <View style={styles.categoryRow}>
                     <Text style={styles.thumbnailLabel}>{photo.category}</Text>
-                    <TouchableOpacity
-                      onPress={() => handleEditCategory(photo)}
-                      style={styles.editButton}
-                    >
-                      <Edit2 size={14} color="#2563EB" />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <TouchableOpacity
+                        onPress={() => handleEditCategory(photo)}
+                        style={styles.editButton}
+                      >
+                        <Edit2 size={14} color="#2563EB" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => {
+                          const doDelete = () => {
+                            deletePhoto(photo.id).catch((err: Error) => {
+                              if (Platform.OS === 'web') {
+                                window.alert(err.message || 'Failed to delete photo');
+                              } else {
+                                Alert.alert('Error', err.message || 'Failed to delete photo');
+                              }
+                            });
+                          };
+                          if (Platform.OS === 'web') {
+                            if (window.confirm('Delete this photo? This cannot be undone.')) doDelete();
+                          } else {
+                            Alert.alert('Delete Photo', 'Are you sure? This cannot be undone.', [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Delete', style: 'destructive', onPress: doDelete },
+                            ]);
+                          }
+                        }}
+                      >
+                        <Trash2 size={14} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   {photo.notes && (
