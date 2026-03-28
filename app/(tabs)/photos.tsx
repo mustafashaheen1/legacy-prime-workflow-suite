@@ -227,8 +227,8 @@ export default function PhotosScreen() {
       uploadProgress.setProgress(90);
 
       if (result.success && result.photo) {
-        // Add to local state
-        addPhoto(result.photo);
+        // Reload from DB — photo already saved by /api/add-photo, don't call addPhoto() which would re-save via /api/save-photo
+        await refreshPhotos();
 
         uploadProgress.complete();
 
