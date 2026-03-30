@@ -18,7 +18,7 @@ function BackButton() {
         if (router.canGoBack()) {
           router.back();
         } else {
-          router.replace('/(tabs)/more');
+          router.replace('/(tabs)/dashboard');
         }
       }}
       style={{ paddingLeft: 16, paddingVertical: 8 }}
@@ -178,7 +178,7 @@ export default function TabLayout() {
           href: tabHref('chat', '/chat'),
           // Chat manages its own header and hides the tab bar when a conversation is open
           headerShown: Platform.OS === 'web',
-          headerLeft: Platform.OS === 'web' ? () => <UserAvatar /> : undefined,
+          headerLeft: Platform.OS === 'web' ? () => <BackButton /> : undefined,
         }}
       />
       <Tabs.Screen
