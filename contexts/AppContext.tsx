@@ -676,21 +676,21 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           // Load clients
           try {
             const { data: clientRows } = await supabase.from('clients').select('*').eq('company_id', parsedCompany.id).order('name');
-            setClients(clientRows?.length ? clientRows.map(mapClient) : mockClients);
+            setClients(clientRows?.map(mapClient) ?? []);
             console.log('[App] Loaded', clientRows?.length ?? 0, 'clients');
           } catch (error) {
             console.error('[App] Error loading clients:', error);
-            setClients(mockClients);
+            setClients([]);
           }
 
           // Load projects
           try {
             const { data: projectRows } = await supabase.from('projects').select('*').eq('company_id', parsedCompany.id);
-            setProjects(projectRows?.length ? projectRows.map(mapProject) : mockProjects);
+            setProjects(projectRows?.map(mapProject) ?? []);
             console.log('[App] Loaded', projectRows?.length ?? 0, 'projects');
           } catch (error) {
             console.error('[App] Error loading projects:', error);
-            setProjects(mockProjects);
+            setProjects([]);
           }
 
           // Load expenses
