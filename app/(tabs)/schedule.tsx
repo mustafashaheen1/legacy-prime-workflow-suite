@@ -22,6 +22,7 @@ import { Calendar, X, BookOpen, Plus, Trash2, Check, Users, History, Download, C
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto, DailyTaskReminder } from '@/types';
 import * as Clipboard from 'expo-clipboard';
 import { Gesture, GestureDetector, ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import { useRouter } from 'expo-router';
 
 interface PhaseStructure {
   id: string;
@@ -112,6 +113,7 @@ const ZOOM_STEP = 0.1;
 
 export default function ScheduleScreen() {
   const { user, projects, dailyLogs, addDailyLog, loadScheduledTasks, addDailyTaskReminder, updateDailyTaskReminder, deleteDailyTaskReminder, getDailyTaskReminders, generateShareLink, disableShareLink, regenerateShareLink, getShareLinkByProject, updateScheduledTasks, scheduledTasks: contextScheduledTasks } = useApp();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [selectedProject, setSelectedProject] = useState<string | null>(
@@ -1435,8 +1437,17 @@ ${pdfDates.length > 0 ? `
 
       {!selectedProject ? (
         <View style={styles.emptyState}>
-          <Calendar size={48} color="#9CA3AF" />
-          <Text style={styles.emptyText}>Select a project to view schedule</Text>
+          <View style={styles.emptyIconContainer}>
+            <Calendar size={40} color="#2563EB" />
+          </View>
+          <Text style={styles.emptyTitle}>No Projects Yet</Text>
+          <Text style={styles.emptySubtext}>
+            Create a project to start planning your schedule, assign phases, and track progress on a Gantt chart.
+          </Text>
+          <TouchableOpacity style={styles.emptyButton} onPress={() => router.replace('/(tabs)/dashboard')}>
+            <Plus size={18} color="#FFFFFF" />
+            <Text style={styles.emptyButtonText}>Create a Project</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <>
@@ -3322,8 +3333,52 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 40,
     paddingVertical: 60,
     backgroundColor: '#FFFFFF',
+    gap: 16,
+  },
+  emptyIconContainer: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#111827',
+  },
+  emptySubtext: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  emptyButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 8,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  emptyButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   emptyText: {
     fontSize: 16,
