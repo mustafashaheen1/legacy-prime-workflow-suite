@@ -106,7 +106,7 @@ const promotionTemplates: MessageTemplate[] = [
 ];
 
 export default function CRMScreen() {
-  const { clients, addClient, addProject, updateClient, updateProject, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog, setCallLogs, company, refreshClients, refreshEstimates, projects, customPriceListItems, isLoading, isCompanyReloading } = useApp();
+  const { clients, addClient, addProject, updateClient, updateProject, estimates, updateEstimate, callLogs, addCallLog, deleteCallLog, setCallLogs, company, user, refreshClients, refreshEstimates, projects, customPriceListItems, isLoading, isCompanyReloading } = useApp();
   const router = useRouter();
   const { sendSingleSMS, sendBulkSMSMessages, isLoading: isSendingSMS } = useTwilioSMS();
   const { initiateCall, isLoadingCall } = useTwilioCalls();
@@ -363,17 +363,67 @@ export default function CRMScreen() {
   const [callAssistantConfig, setCallAssistantConfig] = useState({
     enabled: true,
     businessName: 'Legacy Prime Construction',
-    greeting: 'Thank you for calling Legacy Prime Construction. How can I help you today?',
-    qualificationQuestions: [
-      'What type of construction project are you interested in?',
-      'What is your estimated budget for this project?',
-      'When are you looking to start the project?',
-      'Is this for a residential or commercial property?',
-    ],
+    greeting: 'Thank you for calling us. How can I help you today?',
+    projectQuestion: 'What type of project do you need help with?',
+    budgetQuestion: 'What is your budget for this project?',
     autoAddToCRM: true,
     autoSchedule: true,
     seriousLeadCriteria: 'Budget over $10,000 and ready to start within 3 months',
   });
+  const [isLoadingAssistantConfig, setIsLoadingAssistantConfig] = useState(false);
+  const [isSavingAssistantConfig, setIsSavingAssistantConfig] = useState(false);
+
+  const loadCallAssistantConfig = async () => {
+    if (!company?.id) return;
+    setIsLoadingAssistantConfig(true);
+    try {
+      const { data } = await supabase
+        .from('call_assistant_config')
+        .select('*')
+        .eq('company_id', company.id)
+        .single();
+      if (data) {
+        setCallAssistantConfig(prev => ({
+          ...prev,
+          enabled: data.enabled ?? true,
+          greeting: data.greeting || prev.greeting,
+          projectQuestion: data.project_question || prev.projectQuestion,
+          budgetQuestion: data.budget_question || prev.budgetQuestion,
+          autoAddToCRM: data.auto_add_to_crm ?? true,
+        }));
+      }
+    } catch (e) {
+      // No config yet — defaults are fine
+    } finally {
+      setIsLoadingAssistantConfig(false);
+    }
+  };
+
+  const saveCallAssistantConfig = async () => {
+    if (!company?.id) return;
+    setIsSavingAssistantConfig(true);
+    try {
+      const { error } = await supabase
+        .from('call_assistant_config')
+        .upsert({
+          company_id: company.id,
+          enabled: callAssistantConfig.enabled,
+          greeting: callAssistantConfig.greeting,
+          project_question: callAssistantConfig.projectQuestion,
+          budget_question: callAssistantConfig.budgetQuestion,
+          auto_add_to_crm: callAssistantConfig.autoAddToCRM,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'company_id' });
+
+      if (error) throw error;
+      Alert.alert('Saved', 'Call assistant settings saved successfully!');
+      setShowCallAssistantModal(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to save settings');
+    } finally {
+      setIsSavingAssistantConfig(false);
+    }
+  };
 
   const onRefresh = async () => {
     if (refreshing) return;
@@ -1348,13 +1398,15 @@ export default function CRMScreen() {
               <PhoneIncoming size={20} color="#FFFFFF" />
               <Text style={styles.callLogsButtonText}>Call Logs ({callLogs.length})</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.callAssistantButton}
-              onPress={() => setShowCallAssistantModal(true)}
-            >
-              <Phone size={20} color="#FFFFFF" />
-              <Text style={styles.callAssistantButtonText}>Call Assistant</Text>
-            </TouchableOpacity>
+            {(user?.role === 'admin' || user?.role === 'super-admin') && (
+              <TouchableOpacity
+                style={styles.callAssistantButton}
+                onPress={() => { setShowCallAssistantModal(true); loadCallAssistantConfig(); }}
+              >
+                <Phone size={20} color="#FFFFFF" />
+                <Text style={styles.callAssistantButtonText}>Call Assistant</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={styles.addButton}
@@ -2660,12 +2712,22 @@ export default function CRMScreen() {
                 <Text style={styles.configDescription}>
                   These questions will be asked to qualify leads
                 </Text>
-                {callAssistantConfig.qualificationQuestions.map((question, index) => (
-                  <View key={index} style={styles.questionItem}>
-                    <Text style={styles.questionNumber}>{index + 1}.</Text>
-                    <Text style={styles.questionText}>{question}</Text>
-                  </View>
-                ))}
+                <Text style={styles.inputLabel}>Project Question</Text>
+                <TextInput
+                  style={styles.configInput}
+                  value={callAssistantConfig.projectQuestion}
+                  onChangeText={(text) => setCallAssistantConfig(prev => ({ ...prev, projectQuestion: text }))}
+                  placeholder="What type of project do you need help with?"
+                  placeholderTextColor="#9CA3AF"
+                />
+                <Text style={styles.inputLabel}>Budget Question</Text>
+                <TextInput
+                  style={styles.configInput}
+                  value={callAssistantConfig.budgetQuestion}
+                  onChangeText={(text) => setCallAssistantConfig(prev => ({ ...prev, budgetQuestion: text }))}
+                  placeholder="What is your budget for this project?"
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
 
               <View style={styles.configSection}>
@@ -2762,14 +2824,14 @@ export default function CRMScreen() {
               >
                 <Text style={styles.cancelButtonText}>Close</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.saveConfigButton}
-                onPress={() => {
-                  Alert.alert('Success', 'Call assistant settings saved successfully!');
-                  setShowCallAssistantModal(false);
-                }}
+              <TouchableOpacity
+                style={[styles.saveConfigButton, isSavingAssistantConfig && { opacity: 0.6 }]}
+                onPress={saveCallAssistantConfig}
+                disabled={isSavingAssistantConfig}
               >
-                <Text style={styles.saveConfigButtonText}>Save Configuration</Text>
+                <Text style={styles.saveConfigButtonText}>
+                  {isSavingAssistantConfig ? 'Saving...' : 'Save Configuration'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

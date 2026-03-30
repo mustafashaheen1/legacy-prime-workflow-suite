@@ -14,6 +14,14 @@ interface State {
   budget: string;
 }
 
+interface AssistantConfig {
+  enabled: boolean;
+  greeting: string;
+  projectQuestion: string;
+  budgetQuestion: string;
+  autoAddToCRM: boolean;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Voice Webhook] Request received:', {
     method: req.method,
@@ -50,6 +58,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // Load call assistant config for this company
+  const assistantConfig: AssistantConfig = {
+    enabled: true,
+    greeting: `Thank you for calling ${companyName}. How can I help you today?`,
+    projectQuestion: 'What type of project do you need help with?',
+    budgetQuestion: 'What is your budget for this project?',
+    autoAddToCRM: true,
+  };
+
+  if (companyId) {
+    try {
+      const { data: config } = await supabase
+        .from('call_assistant_config')
+        .select('*')
+        .eq('company_id', companyId)
+        .single();
+
+      if (config) {
+        assistantConfig.enabled = config.enabled ?? true;
+        assistantConfig.greeting = config.greeting || assistantConfig.greeting;
+        assistantConfig.projectQuestion = config.project_question || assistantConfig.projectQuestion;
+        assistantConfig.budgetQuestion = config.budget_question || assistantConfig.budgetQuestion;
+        assistantConfig.autoAddToCRM = config.auto_add_to_crm ?? true;
+        console.log('[Voice Webhook] Loaded assistant config for company:', companyId);
+      }
+    } catch (e) {
+      console.warn('[Voice Webhook] No assistant config found, using defaults');
+    }
+  }
+
+  // If assistant is disabled, politely decline
+  if (!assistantConfig.enabled) {
+    console.log('[Voice Webhook] Assistant disabled for company:', companyId);
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">Thank you for calling ${companyName}. Our office is currently unavailable. Please call back during business hours or leave a message on our website.</Say>
+  <Hangup/>
+</Response>`;
+    res.setHeader('Content-Type', 'text/xml');
+    return res.status(200).send(twiml);
+  }
+
   // Initialize or restore state
   let state: State = {
     step: 0,
@@ -77,7 +127,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="auto">
-    <Say voice="alice">Thank you for calling ${companyName}. How can I help you today?</Say>
+    <Say voice="alice">${assistantConfig.greeting}</Say>
   </Gather>
 </Response>`;
 
@@ -100,7 +150,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         state.name = nameMatch[1].trim();
         console.log('[Voice Webhook] Extracted name:', state.name);
       } else if (SpeechResult.trim().split(' ').length <= 3) {
-        // Fallback: if short response with no keywords, treat whole thing as name
         state.name = SpeechResult.trim();
         console.log('[Voice Webhook] Extracted name (fallback):', state.name);
       }
@@ -132,8 +181,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (hasEnoughInfo) {
     console.log('[Voice Webhook] ✅ QUALIFIED LEAD:', state);
 
-    // Save lead to clients table
-    if (companyId) {
+    // Save lead to clients table (if enabled)
+    if (companyId && assistantConfig.autoAddToCRM) {
       try {
         const notes = `[AI Call] ${state.project || 'Project'}${state.budget ? ' - Budget: ' + state.budget : ''}`;
         const { data: newClient, error: clientError } = await supabase
@@ -160,6 +209,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } catch (err: any) {
         console.error('[Voice Webhook] Error saving lead:', err.message);
       }
+    } else if (!assistantConfig.autoAddToCRM) {
+      console.log('[Voice Webhook] Auto-add to CRM disabled — lead not saved');
     } else {
       console.warn('[Voice Webhook] No companyId — lead not saved to CRM');
     }
@@ -183,9 +234,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!state.name) {
     question = 'What is your name?';
   } else if (!state.project) {
-    question = 'What type of project do you need help with?';
+    question = assistantConfig.projectQuestion;
   } else if (!state.budget) {
-    question = 'What is your budget for this project?';
+    question = assistantConfig.budgetQuestion;
   }
 
   console.log('[Voice Webhook] Asking:', question);
