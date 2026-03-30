@@ -143,21 +143,6 @@ export default function SignupScreen() {
         }
 
         if (accountType === 'company' && result.user && result.company) {
-          setUser({
-            id: result.user.id, name: result.user.name, email: result.user.email,
-            role: result.user.role, companyId: result.user.company_id || '',
-            isActive: result.user.is_active, createdAt: result.user.created_at,
-          } as any);
-          setCompany({
-            id: result.company.id, name: result.company.name,
-            subscriptionStatus: result.company.subscription_status,
-            subscriptionPlan: result.company.subscription_plan,
-            employeeCount: result.company.employee_count,
-            companyCode: result.company.company_code || undefined,
-            settings: result.company.settings,
-            createdAt: result.company.created_at,
-            updatedAt: result.company.updated_at,
-          } as any);
           router.push({
             pathname: '/(auth)/subscription',
             params: {
@@ -197,50 +182,6 @@ export default function SignupScreen() {
 
         console.log('[Signup] Company account created successfully');
         console.log('[Signup] Company Code:', result.companyCode);
-
-        // Update app context with user and company data
-        if (result.user && result.company) {
-          setUser({
-            id: result.user.id,
-            name: result.user.name,
-            email: result.user.email,
-            role: result.user.role,
-            companyId: result.user.company_id || '',
-            isActive: result.user.is_active,
-            createdAt: result.user.created_at,
-            phone: result.user.phone || undefined,
-            address: result.user.address || undefined,
-            hourlyRate: result.user.hourly_rate || undefined,
-            avatar: result.user.avatar || undefined,
-          });
-
-          setCompany({
-            id: result.company.id,
-            name: result.company.name,
-            brandColor: result.company.brand_color,
-            subscriptionStatus: result.company.subscription_status,
-            subscriptionPlan: result.company.subscription_plan,
-            subscriptionStartDate: result.company.subscription_start_date,
-            employeeCount: result.company.employee_count,
-            companyCode: result.company.company_code || undefined,
-            settings: result.company.settings,
-            createdAt: result.company.created_at,
-            updatedAt: result.company.updated_at,
-            logo: result.company.logo || undefined,
-            licenseNumber: result.company.license_number || undefined,
-            officePhone: result.company.office_phone || undefined,
-            cellPhone: result.company.cell_phone || undefined,
-            address: result.company.address || undefined,
-            email: result.company.email || undefined,
-            website: result.company.website || undefined,
-            slogan: result.company.slogan || undefined,
-            estimateTemplate: result.company.estimate_template || undefined,
-            subscriptionEndDate: result.company.subscription_end_date || undefined,
-            stripePaymentIntentId: result.company.stripe_payment_intent_id || undefined,
-            stripeCustomerId: result.company.stripe_customer_id || undefined,
-            stripeSubscriptionId: result.company.stripe_subscription_id || undefined,
-          });
-        }
 
         // On web, navigate directly. On native, show alert first.
         if (Platform.OS === 'web') {

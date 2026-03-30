@@ -7,6 +7,7 @@ import { Check } from 'lucide-react-native';
 import { StripeProvider, useStripe } from '@/lib/stripe-provider';
 import { StripePaymentForm } from '@/components/StripePaymentForm';
 import { useTranslation } from 'react-i18next';
+import { supabase } from '@/lib/supabase';
 
 function SubscriptionContent() {
   const { setSubscription, setUser, setCompany } = useApp();
@@ -64,6 +65,49 @@ function SubscriptionContent() {
     });
 
     console.log('[Subscription] Subscription updated successfully');
+
+    // Load user + company into AppContext now that payment is complete
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && params.companyId) {
+        const [{ data: userData }, { data: companyData }] = await Promise.all([
+          supabase.from('users').select('*').eq('id', session.user.id).single(),
+          supabase.from('companies').select('*').eq('id', params.companyId).single(),
+        ]);
+        if (userData) {
+          setUser({
+            id: userData.id, name: userData.name, email: userData.email,
+            role: userData.role, companyId: userData.company_id || '',
+            isActive: userData.is_active, createdAt: userData.created_at,
+            phone: userData.phone || undefined,
+            address: userData.address || undefined,
+            hourlyRate: userData.hourly_rate || undefined,
+            avatar: userData.avatar || undefined,
+          } as any);
+        }
+        if (companyData) {
+          setCompany({
+            id: companyData.id, name: companyData.name,
+            brandColor: companyData.brand_color || '#2563EB',
+            subscriptionStatus: companyData.subscription_status,
+            subscriptionPlan: companyData.subscription_plan,
+            subscriptionStartDate: companyData.subscription_start_date,
+            employeeCount: companyData.employee_count,
+            companyCode: companyData.company_code || undefined,
+            settings: companyData.settings,
+            createdAt: companyData.created_at,
+            updatedAt: companyData.updated_at,
+            logo: companyData.logo || undefined,
+            address: companyData.address || undefined,
+            postalCode: companyData.postal_code || undefined,
+            twilioPhoneNumber: companyData.twilio_phone_number || undefined,
+          } as any);
+        }
+        console.log('[Subscription] User + company loaded into context');
+      }
+    } catch (err) {
+      console.warn('[Subscription] Could not load user/company context (non-fatal):', err);
+    }
 
     // Provision a unique Twilio number for this company based on their location
     if (params.companyId && params.address && params.postalCode) {
