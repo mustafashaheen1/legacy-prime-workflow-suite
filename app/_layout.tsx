@@ -131,7 +131,7 @@ function RootLayoutNav() {
       isTokenRoute,
     });
 
-    if (user && inAuthGroup && !pathname?.includes('reset-password')) {
+    if (user && inAuthGroup && !pathname?.includes('reset-password') && !pathname?.includes('subscription')) {
       // User is already authenticated but on an auth screen — send to dashboard
       console.log('[Auth] Already logged in, redirecting to dashboard');
       router.replace('/(tabs)/dashboard');
