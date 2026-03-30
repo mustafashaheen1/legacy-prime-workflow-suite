@@ -1,4 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.EXPO_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 interface State {
   step: number;
@@ -12,6 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Voice Webhook] Request received:', {
     method: req.method,
     From: req.body.From,
+    To: req.body.To,
     SpeechResult: req.body.SpeechResult || '(initial call)',
   });
 
@@ -19,8 +26,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).send('Method Not Allowed');
   }
 
-  const { From, SpeechResult, conversationState } = req.body;
+  const { From, To, SpeechResult, conversationState } = req.body;
   const webhookUrl = 'https://legacy-prime-workflow-suite.vercel.app/api/voice-webhook';
+
+  // Look up company name by the Twilio number that was called
+  let companyName = 'Legacy Prime Construction';
+  if (To) {
+    try {
+      const { data } = await supabase
+        .from('companies')
+        .select('name')
+        .eq('twilio_phone_number', To)
+        .single();
+      if (data?.name) {
+        companyName = data.name;
+        console.log('[Voice Webhook] Company found:', companyName);
+      }
+    } catch (e) {
+      console.warn('[Voice Webhook] Could not look up company, using default');
+    }
+  }
 
   // Initialize or restore state
   let state: State = {
@@ -41,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // First call - send greeting
   if (state.step === 0 && !SpeechResult) {
-    console.log('[Voice Webhook] Sending greeting');
+    console.log('[Voice Webhook] Sending greeting for:', companyName);
     state.step = 1;
 
     const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
@@ -49,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${webhookUrl}" method="POST" speechTimeout="auto">
-    <Say voice="alice">Thank you for calling Legacy Prime Construction. How can I help you today?</Say>
+    <Say voice="alice">Thank you for calling ${companyName}. How can I help you today?</Say>
     <Parameter name="conversationState" value="${encodedState}"/>
   </Gather>
 </Response>`;
