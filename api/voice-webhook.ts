@@ -115,9 +115,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (state.project) console.log('[Voice Webhook] Extracted project:', state.project);
     }
 
-    // Extract budget
+    // Extract budget — matches $15000, 15,000, 15000, $5k etc.
     if (!state.budget) {
-      const budgetMatch = SpeechResult.match(/\$?\d{1,3}(?:,\d{3})*/);
+      const budgetMatch = SpeechResult.match(/\$?\d[\d,]*(?:k)?/i);
       if (budgetMatch) {
         state.budget = budgetMatch[0];
         console.log('[Voice Webhook] Extracted budget:', state.budget);
