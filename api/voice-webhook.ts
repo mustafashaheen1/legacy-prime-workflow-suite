@@ -141,7 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             company_id: companyId,
             name: state.name,
             phone: state.phone,
-            email: `phonecall_${Date.now()}@unknown.com`,
+            email: null,
             source: 'Phone Call',
             status: 'Lead',
             address: notes,
