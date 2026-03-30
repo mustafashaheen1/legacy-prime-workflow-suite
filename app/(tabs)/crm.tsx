@@ -265,7 +265,7 @@ export default function CRMScreen() {
     setEditingClientId(client.id);
     setEditClientName(client.name);
     setEditClientAddress(client.address || '');
-    setEditClientEmail(client.email);
+    setEditClientEmail(client.email || '');
     setEditClientPhone(client.phone.replace(/\D/g, '').slice(-10));
     setEditClientSource(client.source);
     setEditClientFieldErrors({});
@@ -275,8 +275,7 @@ export default function CRMScreen() {
   const handleUpdateClient = async () => {
     const errors: typeof editClientFieldErrors = {};
     if (!editClientName.trim()) errors.name = 'Name is required';
-    if (!editClientEmail.trim()) errors.email = 'Email is required';
-    else if (!isValidEmail(editClientEmail)) errors.email = 'Enter a valid email address';
+    if (editClientEmail.trim() && !isValidEmail(editClientEmail)) errors.email = 'Enter a valid email address';
     if (!editClientPhone) errors.phone = 'Phone is required';
     else if (!isValidUSPhone(editClientPhone)) errors.phone = 'Enter a valid 10-digit US phone number';
     if (!editClientSource) errors.source = 'Select how they found you';
@@ -289,7 +288,7 @@ export default function CRMScreen() {
       const oldName = clients.find(c => c.id === editingClientId)?.name ?? '';
       await updateClient(editingClientId, {
         name: newName,
-        email: editClientEmail.trim().toLowerCase(),
+        email: editClientEmail.trim() ? editClientEmail.trim().toLowerCase() : null,
         phone: formattedPhone,
         address: editClientAddress.trim() || undefined,
         source: editClientSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call',
