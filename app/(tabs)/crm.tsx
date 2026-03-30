@@ -2084,7 +2084,7 @@ export default function CRMScreen() {
               />
               {editClientFieldErrors.name && <Text style={styles.fieldErrorText}>{editClientFieldErrors.name}</Text>}
 
-              <Text style={styles.inputLabel}>Email Address <Text style={styles.requiredStar}>*</Text></Text>
+              <Text style={styles.inputLabel}>Email Address <Text style={styles.optionalHint}>(optional)</Text></Text>
               <TextInput
                 style={[styles.modalInput, editClientFieldErrors.email && styles.modalInputError]}
                 placeholder="e.g. john@example.com"
