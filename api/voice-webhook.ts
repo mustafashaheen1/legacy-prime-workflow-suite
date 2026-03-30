@@ -29,18 +29,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { From, To, SpeechResult, conversationState } = req.body;
   const webhookUrl = 'https://legacy-prime-workflow-suite.vercel.app/api/voice-webhook';
 
-  // Look up company name by the Twilio number that was called
+  // Look up company by the Twilio number that was called
   let companyName = 'Legacy Prime Construction';
+  let companyId: string | null = null;
   if (To) {
     try {
       const { data } = await supabase
         .from('companies')
-        .select('name')
+        .select('id, name')
         .eq('twilio_phone_number', To)
         .single();
       if (data?.name) {
         companyName = data.name;
-        console.log('[Voice Webhook] Company found:', companyName);
+        companyId = data.id;
+        console.log('[Voice Webhook] Company found:', companyName, companyId);
       }
     } catch (e) {
       console.warn('[Voice Webhook] Could not look up company, using default');
@@ -123,6 +125,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (hasEnoughInfo) {
     console.log('[Voice Webhook] ✅ QUALIFIED LEAD:', state);
+
+    // Save lead to clients table
+    if (companyId) {
+      try {
+        const notes = `[AI Call] ${state.project || 'Project'}${state.budget ? ' - Budget: ' + state.budget : ''}`;
+        const { data: newClient, error: clientError } = await supabase
+          .from('clients')
+          .insert({
+            company_id: companyId,
+            name: state.name,
+            phone: state.phone,
+            email: `phonecall_${Date.now()}@unknown.com`,
+            source: 'Phone Call',
+            status: 'Lead',
+            address: notes,
+            last_contact_date: new Date().toISOString(),
+            last_contacted: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (clientError) {
+          console.error('[Voice Webhook] Failed to save lead:', clientError.message);
+        } else {
+          console.log('[Voice Webhook] ✅ Lead saved to CRM:', newClient.id, state.name);
+        }
+      } catch (err: any) {
+        console.error('[Voice Webhook] Error saving lead:', err.message);
+      }
+    } else {
+      console.warn('[Voice Webhook] No companyId — lead not saved to CRM');
+    }
 
     const closingMessage = `Thank you ${state.name.split(' ')[0]}. We have received your ${state.project || 'project'} inquiry${state.budget ? ' with a budget of ' + state.budget : ''}. We will call you back within 24 hours.`;
 
