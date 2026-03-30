@@ -699,7 +699,7 @@ export default function FilesNavigationScreen() {
     } else if (selectedFolder) {
       setSelectedFolder(null);
     } else {
-      router.back();
+      router.replace(`/project/${id}`);
     }
   };
 
