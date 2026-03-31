@@ -22,6 +22,15 @@ interface AssistantConfig {
   autoAddToCRM: boolean;
 }
 
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Voice Webhook] Request received:', {
     method: req.method,
@@ -125,7 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="auto">
-    <Say voice="alice">${assistantConfig.greeting}</Say>
+    <Say voice="alice">${escapeXml(assistantConfig.greeting)}</Say>
   </Gather>
 </Response>`;
 
@@ -217,7 +226,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">${closingMessage}</Say>
+  <Say voice="alice">${escapeXml(closingMessage)}</Say>
   <Pause length="1"/>
   <Say voice="alice">Have a great day!</Say>
   <Hangup/>
@@ -244,7 +253,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="auto">
-    <Say voice="alice">${question}</Say>
+    <Say voice="alice">${escapeXml(question)}</Say>
   </Gather>
 </Response>`;
 
