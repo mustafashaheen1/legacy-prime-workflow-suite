@@ -5467,7 +5467,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     width: '95%',
     maxWidth: 600,
-    maxHeight: '85%',
+    height: Dimensions.get('window').height * 0.85,
     overflow: 'hidden',
     zIndex: 10000,
   },
@@ -5491,7 +5491,6 @@ const styles = StyleSheet.create({
   },
   previewScroll: {
     flex: 1,
-    maxHeight: Dimensions.get('window').height * 0.6,
   },
   previewContent: {
     padding: 20,
