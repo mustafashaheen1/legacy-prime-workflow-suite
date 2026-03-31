@@ -5491,6 +5491,7 @@ const styles = StyleSheet.create({
   },
   previewScroll: {
     flex: 1,
+    maxHeight: Dimensions.get('window').height * 0.6,
   },
   previewContent: {
     padding: 20,

@@ -1,4 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform, RefreshControl, ActivityIndicator } from 'react-native';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
@@ -1191,7 +1193,7 @@ export default function CRMScreen() {
       console.log('[Payment] Creating payment link for estimate:', estimate.name);
 
       // Call API to create Stripe payment link
-      const response = await fetch('/api/create-payment-link', {
+      const response = await fetch(`${API_BASE}/api/create-payment-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

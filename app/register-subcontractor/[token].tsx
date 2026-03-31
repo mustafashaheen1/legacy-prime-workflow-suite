@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -173,7 +175,7 @@ export default function SubcontractorRegistrationPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/complete-subcontractor-registration', {
+      const response = await fetch(`${API_BASE}/api/complete-subcontractor-registration`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

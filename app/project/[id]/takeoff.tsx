@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal, Dimensions, Platform, ActivityIndicator, FlatList, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -572,7 +574,7 @@ export default function TakeoffScreen() {
             console.log(`[AI Takeoff] Uploading page ${pageNum}...`);
 
             // Get pre-signed URL for this page
-            const urlResponse = await fetch('/api/get-s3-upload-url', {
+            const urlResponse = await fetch(`${API_BASE}/api/get-s3-upload-url`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -622,7 +624,7 @@ export default function TakeoffScreen() {
 
         try {
           // Step 1: Get pre-signed upload URL
-          const urlResponse = await fetch('/api/get-s3-upload-url', {
+          const urlResponse = await fetch(`${API_BASE}/api/get-s3-upload-url`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -692,7 +694,7 @@ export default function TakeoffScreen() {
         imageData = `data:${uploadedDocumentType === 'pdf' ? 'application/pdf' : 'image/jpeg'};base64,${base64Image}`;
       }
 
-      const response = await fetch('/api/analyze-document', {
+      const response = await fetch(`${API_BASE}/api/analyze-document`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

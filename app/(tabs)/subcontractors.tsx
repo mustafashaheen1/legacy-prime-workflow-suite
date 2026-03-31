@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from 'react';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import SkeletonBox from '@/components/SkeletonBox';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Linking, ActivityIndicator, RefreshControl } from 'react-native';
 import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp, Check, Loader } from 'lucide-react-native';
@@ -437,7 +439,7 @@ export default function SubcontractorsScreen() {
     setSendingInvitation(true);
 
     try {
-      const response = await fetch('/api/send-subcontractor-invitation', {
+      const response = await fetch(`${API_BASE}/api/send-subcontractor-invitation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -482,7 +484,7 @@ export default function SubcontractorsScreen() {
     setSendingInvitation(true);
 
     try {
-      const response = await fetch('/api/send-subcontractor-invitation', {
+      const response = await fetch(`${API_BASE}/api/send-subcontractor-invitation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -554,7 +556,7 @@ export default function SubcontractorsScreen() {
     setSendingSms(true);
 
     try {
-      const response = await fetch('/api/send-subcontractor-invitation-sms', {
+      const response = await fetch(`${API_BASE}/api/send-subcontractor-invitation-sms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -800,7 +802,7 @@ ${company?.officePhone || ''}`;
     setSendingEmail(true);
 
     try {
-      const response = await fetch('/api/send-email', {
+      const response = await fetch(`${API_BASE}/api/send-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

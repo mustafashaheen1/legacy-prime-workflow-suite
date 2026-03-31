@@ -1,4 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -159,7 +161,7 @@ function SubscriptionContent() {
     try {
       // Activate the Stripe subscription with recurring billing
       console.log('[Subscription] Activating subscription...');
-      const activateResponse = await fetch('/api/activate-subscription', {
+      const activateResponse = await fetch(`${API_BASE}/api/activate-subscription`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -210,7 +212,7 @@ function SubscriptionContent() {
       if (isOnline && process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
         console.log('[Subscription] Creating payment intent with Stripe...');
         try {
-          const response = await fetch('/api/stripe-payment', {
+          const response = await fetch(`${API_BASE}/api/stripe-payment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
