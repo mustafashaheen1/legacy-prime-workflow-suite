@@ -82,6 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       subscriptionStartDate: data.subscription_start_date,
       subscriptionEndDate: data.subscription_end_date || undefined,
       employeeCount: data.employee_count || undefined,
+      twilioPhoneNumber: data.twilio_phone_number || undefined,
       companyCode: data.company_code || undefined,
       stripeCustomerId: data.stripe_customer_id || undefined,
       stripeSubscriptionId: data.stripe_subscription_id || undefined,

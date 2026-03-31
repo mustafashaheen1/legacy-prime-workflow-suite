@@ -606,7 +606,7 @@ export default function SettingsScreen() {
       logo: company?.logo || '',
       licenseNumber: company?.licenseNumber || '',
       officePhone: company?.officePhone || '',
-      cellPhone: company?.cellPhone || '',
+      cellPhone: company?.cellPhone || company?.twilioPhoneNumber || '',
       address: company?.address || '',
       email: company?.email || currentUser?.email || '', // Use admin's email
       website: company?.website || '',
