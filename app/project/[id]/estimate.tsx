@@ -991,15 +991,20 @@ export default function EstimateScreen() {
         }
         await clearDraft();
 
-        Alert.alert('Success', 'Estimate saved successfully!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              console.log('[Estimate] Navigating to CRM page...');
-              router.push('/crm');
+        if (Platform.OS === 'web') {
+          alert('Estimate saved successfully!');
+          router.push('/crm');
+        } else {
+          Alert.alert('Success', 'Estimate saved successfully!', [
+            {
+              text: 'OK',
+              onPress: () => {
+                console.log('[Estimate] Navigating to CRM page...');
+                router.push('/crm');
+              }
             }
-          }
-        ]);
+          ]);
+        }
       } else {
         console.error('[Estimate] Invalid response structure:', result);
         throw new Error('Invalid response from server');
