@@ -76,6 +76,20 @@ export default function SettingsScreen() {
     }, [currentUser?.id])
   );
 
+  const [provisionedTwilioNumber, setProvisionedTwilioNumber] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!company?.id) return;
+    supabase
+      .from('companies')
+      .select('twilio_phone_number')
+      .eq('id', company.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.twilio_phone_number) setProvisionedTwilioNumber(data.twilio_phone_number);
+      });
+  }, [company?.id]);
+
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showRoleModal, setShowRoleModal] = useState<boolean>(false);
@@ -606,7 +620,7 @@ export default function SettingsScreen() {
       logo: company?.logo || '',
       licenseNumber: company?.licenseNumber || '',
       officePhone: company?.officePhone || '',
-      cellPhone: company?.cellPhone || company?.twilioPhoneNumber || '',
+      cellPhone: company?.cellPhone || provisionedTwilioNumber || '',
       address: company?.address || '',
       email: company?.email || currentUser?.email || '', // Use admin's email
       website: company?.website || '',
