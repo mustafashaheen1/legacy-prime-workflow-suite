@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, FlatList, Platform, Linking, Dimensions, Modal, ActivityIndicator, Image } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -2425,7 +2425,9 @@ export default function EstimateScreen() {
           styles.itemSelectionSection,
           isWeb && !isNarrow && styles.itemSelectionSectionWeb,
           isNarrow && styles.itemSelectionSectionNarrow
-        ]} showsVerticalScrollIndicator={false}>
+        ]} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{selectedCategory}</Text>
             <TouchableOpacity style={styles.addCustomButton} onPress={addCustomItem}>
@@ -2695,7 +2697,7 @@ export default function EstimateScreen() {
       </View>
 
       {showAddTemplateModal && (
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Template Item</Text>
             <Text style={styles.modalSubtitle}>Category: {selectedCategory}</Text>
@@ -2753,7 +2755,7 @@ export default function EstimateScreen() {
       )}
 
       {showAddCategoryModal && (
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Create Custom Assembly</Text>
             <Text style={styles.modalSubtitle}>Add a new category/assembly to organize your line items</Text>
@@ -2813,7 +2815,7 @@ export default function EstimateScreen() {
       )}
 
       {showAddSeparatorModal && (
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Break Point</Text>
             <Text style={styles.modalSubtitle}>Add a category separator to organize your line items</Text>
@@ -2851,7 +2853,7 @@ export default function EstimateScreen() {
       )}
 
       {showEditPriceModal && (
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Price</Text>
             <Text style={styles.modalSubtitle}>
@@ -2919,7 +2921,7 @@ export default function EstimateScreen() {
       )}
 
       {showPreview && (
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.previewModalContent}>
             <View style={styles.previewHeader}>
               <Text style={styles.previewTitle}>Estimate Preview</Text>
@@ -2928,7 +2930,9 @@ export default function EstimateScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.previewScroll} showsVerticalScrollIndicator={true}>
+            <ScrollView style={styles.previewScroll} showsVerticalScrollIndicator={true}
+          keyboardDismissMode="on-drag"
+        >
               <View style={styles.previewContent}>
                 <View style={styles.previewCompanyHeader}>
                   {company?.logo && (
@@ -3177,7 +3181,9 @@ export default function EstimateScreen() {
             </View>
 
             {/* Results List */}
-            <ScrollView style={styles.spotlightResults}>
+            <ScrollView style={styles.spotlightResults}
+          keyboardDismissMode="on-drag"
+        >
               {spotlightFilteredItems.length === 0 ? (
                 <View style={styles.spotlightEmptyState}>
                   <Text style={styles.spotlightEmptyText}>
@@ -4229,7 +4235,7 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
+      <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
         <View style={[styles.modalContent, styles.aiModalContent]}>
           <View style={styles.modalHeaderRow}>
             <View style={{ flex: 1 }}>
@@ -4320,7 +4326,7 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </Pressable>
     </Modal>
   );
 }

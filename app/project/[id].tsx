@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, FlatList, Platform, Dimensions, Linking, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
@@ -2203,7 +2203,9 @@ export default function ProjectDetailScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              <ScrollView style={styles.changeOrdersList}>
+              <ScrollView style={styles.changeOrdersList}
+          keyboardDismissMode="on-drag"
+        >
                 {changeOrders.map((co) => (
                   <TouchableOpacity
                     key={co.id}
@@ -2298,7 +2300,9 @@ export default function ProjectDetailScreen() {
                   </Text>
                 </View>
               ) : (
-                <ScrollView style={styles.recentExpensesScroll}>
+                <ScrollView style={styles.recentExpensesScroll}
+          keyboardDismissMode="on-drag"
+        >
                   {projectExpenses.slice(0, 10).map((expense) => (
                     <View key={expense.id} style={styles.recentExpenseCard}>
                       <View style={styles.recentExpenseHeader}>
@@ -2461,7 +2465,9 @@ export default function ProjectDetailScreen() {
 
         return (
           <View style={styles.photosTabContent}>
-            <ScrollView style={styles.photosScrollView} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.photosScrollView} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               <View style={styles.photosHeader}>
                 <Text style={styles.photosTitle}>Photos</Text>
                 <View style={styles.photosHeaderButtons}>
@@ -2483,7 +2489,9 @@ export default function ProjectDetailScreen() {
                   showsHorizontalScrollIndicator={false}
                   style={styles.photoCategoryScroll}
                   contentContainerStyle={styles.photoCategoryContent}
-                >
+                
+          keyboardDismissMode="on-drag"
+        >
                   {photoCategories.map((cat) => (
                     <TouchableOpacity
                       key={cat}
@@ -2677,7 +2685,9 @@ export default function ProjectDetailScreen() {
                 />
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilters}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilters}
+          keyboardDismissMode="on-drag"
+        >
                 <TouchableOpacity
                   style={[styles.categoryFilterChip, categoryFilter === 'all' && styles.categoryFilterChipActive]}
                   onPress={() => setCategoryFilter('all')}
@@ -2701,7 +2711,9 @@ export default function ProjectDetailScreen() {
             <ScrollView 
               style={styles.filesList}
               showsVerticalScrollIndicator={false}
-            >
+            
+          keyboardDismissMode="on-drag"
+        >
               {Object.keys(filesByCategory).length === 0 ? (
                 <View style={styles.emptyFilesState}>
                   <FolderOpen size={64} color="#D1D5DB" />
@@ -2840,7 +2852,9 @@ export default function ProjectDetailScreen() {
                   </View>
 
                   <Text style={styles.uploadModalLabel}>Category</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categorySelector}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categorySelector}
+          keyboardDismissMode="on-drag"
+        >
                     {(['receipts', 'photos', 'reports', 'plans', 'estimates', 'documentation', 'other'] as FileCategory[]).map(cat => {
                       const CategoryIcon = getCategoryIcon(cat);
                       const categoryColor = getCategoryColor(cat);
@@ -2923,7 +2937,9 @@ export default function ProjectDetailScreen() {
 
         return (
           <View style={styles.photosTabContent}>
-            <ScrollView style={styles.photosScrollView} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.photosScrollView} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               <View style={styles.photosHeader}>
                 <View>
                   <Text style={styles.photosTitle}>Inspection Videos</Text>
@@ -3316,7 +3332,9 @@ export default function ProjectDetailScreen() {
       </View>
 
       <View style={styles.tabsContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs} contentContainerStyle={styles.tabsContent}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs} contentContainerStyle={styles.tabsContent}
+          keyboardDismissMode="on-drag"
+        >
           <TouchableOpacity
             style={[styles.tab, activeTab === 'overview' && styles.activeTab]}
             onPress={() => setActiveTab('overview')}
@@ -3410,7 +3428,9 @@ export default function ProjectDetailScreen() {
         </View>
       )}
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
         {renderTabContent()}
       </ScrollView>
       </View>
@@ -3454,7 +3474,9 @@ export default function ProjectDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
               {/* Amount */}
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>
                 Amount Received *

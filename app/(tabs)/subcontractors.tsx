@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import SkeletonBox from '@/components/SkeletonBox';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, Platform, Linking, ActivityIndicator, RefreshControl } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp, Check, Loader } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Subcontractor, Project, ProjectFile, EstimateRequest } from '@/types';
@@ -863,7 +863,9 @@ ${company?.officePhone || ''}`;
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} /
+          keyboardDismissMode="on-drag"
+        >}
       >
         <View style={styles.header}>
           <View style={styles.headerActions}>
@@ -887,7 +889,9 @@ ${company?.officePhone || ''}`;
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}
+          keyboardDismissMode="on-drag"
+        >
           <TouchableOpacity
             style={[styles.filterChip, selectedTrade === 'all' && styles.filterChipActive]}
             onPress={() => setSelectedTrade('all')}
@@ -1153,7 +1157,9 @@ ${company?.officePhone || ''}`;
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
+          <ScrollView style={styles.modalContent}
+          keyboardDismissMode="on-drag"
+        >
             {/* Error Banner for Web */}
             {formError && Platform.OS === 'web' && (
               <View style={styles.errorBanner}>
@@ -1229,7 +1235,9 @@ ${company?.officePhone || ''}`;
 
             <Text style={styles.label}>Trade *</Text>
             {fieldErrors.trade && <Text style={styles.fieldError}>{fieldErrors.trade}</Text>}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tradeSelector, fieldErrors.trade && styles.tradeSelectorError]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tradeSelector, fieldErrors.trade && styles.tradeSelectorError]}
+          keyboardDismissMode="on-drag"
+        >
               {trades.map((trade) => (
                 <TouchableOpacity
                   key={trade}
@@ -1300,7 +1308,7 @@ ${company?.officePhone || ''}`;
               <Text style={styles.submitButtonText}>Add Subcontractor</Text>
             </TouchableOpacity>
           </ScrollView>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal visible={showDetailsModal} animationType="slide" presentationStyle="pageSheet">
@@ -1314,7 +1322,9 @@ ${company?.officePhone || ''}`;
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={styles.modalContent}>
+              <ScrollView style={styles.modalContent}
+          keyboardDismissMode="on-drag"
+        >
                 <View style={styles.detailSection}>
                   <Text style={styles.detailLabel}>Company</Text>
                   <Text style={styles.detailValue}>{selectedSubcontractor.companyName}</Text>
@@ -1382,7 +1392,7 @@ ${company?.officePhone || ''}`;
               </ScrollView>
             </>
           )}
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal visible={showRequestModal} animationType="slide" presentationStyle="pageSheet">
@@ -1399,7 +1409,9 @@ ${company?.officePhone || ''}`;
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
+          <ScrollView style={styles.modalContent}
+          keyboardDismissMode="on-drag"
+        >
             {selectedSubcontractor && (
               <View style={styles.requestSubInfo}>
                 <View style={styles.avatar}>
@@ -1413,7 +1425,9 @@ ${company?.officePhone || ''}`;
             )}
 
             <Text style={styles.requestLabel}>Select Project *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectSelector}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectSelector}
+          keyboardDismissMode="on-drag"
+        >
               {projects.filter(p => p.status === 'active').map((project) => (
                 <TouchableOpacity
                   key={project.id}
@@ -1665,7 +1679,7 @@ ${company?.officePhone || ''}`;
               </Text>
             </TouchableOpacity>
           </ScrollView>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Invite Method Selection Modal */}
@@ -1675,7 +1689,7 @@ ${company?.officePhone || ''}`;
         transparent={true}
         onRequestClose={() => setShowInviteMethodModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.inviteMethodModal}>
             <View style={styles.inviteMethodHeader}>
               <Text style={styles.inviteMethodTitle}>Send Invitation</Text>
@@ -1727,7 +1741,7 @@ ${company?.officePhone || ''}`;
               <Text style={styles.inviteMethodCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* SMS Phone Number Modal */}
@@ -1737,7 +1751,7 @@ ${company?.officePhone || ''}`;
         transparent={true}
         onRequestClose={() => setShowSmsPhoneModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.smsPhoneModal}>
             <View style={styles.smsPhoneHeader}>
               <Text style={styles.smsPhoneTitle}>Send SMS Invitation</Text>
@@ -1818,7 +1832,7 @@ ${company?.officePhone || ''}`;
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Email Compose Modal */}
@@ -1828,7 +1842,7 @@ ${company?.officePhone || ''}`;
         transparent={true}
         onRequestClose={() => setShowEmailModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.emailModal}>
             <View style={styles.emailHeader}>
               <View>
@@ -1907,7 +1921,7 @@ ${company?.officePhone || ''}`;
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
     </View>

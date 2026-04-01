@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Platform,
-  ActivityIndicator,
-  TextInput,
-} from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -632,7 +622,9 @@ export default function ProfileScreen() {
         }}
       />
       
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView}
+          keyboardDismissMode="on-drag"
+        >
         <View style={styles.headerSection}>
           <View style={styles.avatarContainer}>
             {(localAvatarUri || (!avatarLoadError && user.avatar)) ? (

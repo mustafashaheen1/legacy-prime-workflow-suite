@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Modal, Platform } from 'react-native';
+import { Alert, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Plus, X, DollarSign, FileText, Clock, CheckCircle, XCircle, AlertCircle, Download, History } from 'lucide-react-native';
@@ -347,7 +347,9 @@ export default function ChangeOrdersScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
           <View style={styles.summaryCard}>
             <View style={styles.summaryHeader}>
               <DollarSign size={24} color="#10B981" />
@@ -503,7 +505,9 @@ export default function ChangeOrdersScreen() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
                 <Text style={styles.modalLabel}>Description *</Text>
                 <TextInput
                   style={styles.modalInput}
@@ -591,7 +595,9 @@ export default function ChangeOrdersScreen() {
                     </Text>
                   </View>
 
-                  <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
+                  <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
                     {selectedChangeOrderForHistory.history && selectedChangeOrderForHistory.history.length > 0 ? (
                       selectedChangeOrderForHistory.history.map((entry, index) => (
                         <View key={entry.id} style={styles.historyEntry}>

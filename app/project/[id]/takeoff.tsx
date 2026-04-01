@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal, Dimensions, Platform, ActivityIndicator, FlatList, PanResponder } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
@@ -1816,7 +1816,9 @@ export default function TakeoffScreen() {
         ) : (
           <>
             <View style={styles.planTabs}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.planTabsContent}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.planTabsContent}
+          keyboardDismissMode="on-drag"
+        >
                 {plans.map((plan, index) => (
                   <TouchableOpacity
                     key={plan.id}
@@ -1834,7 +1836,9 @@ export default function TakeoffScreen() {
               </ScrollView>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolbar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolbar}
+          keyboardDismissMode="on-drag"
+        >
               <View style={styles.toolbarContent}>
                 <TouchableOpacity
                   style={styles.toolButtonPrimary}
@@ -2061,7 +2065,9 @@ export default function TakeoffScreen() {
                   </TouchableOpacity>
                 </View>
                 
-                <ScrollView style={styles.totalsScrollView} showsVerticalScrollIndicator={false}>
+                <ScrollView style={styles.totalsScrollView} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
                   <View style={styles.totalsTable}>
                     <View style={styles.totalsTableHeader}>
                       <Text style={[styles.totalsTableHeaderText, { flex: 3 }]}>Description</Text>
@@ -2153,7 +2159,7 @@ export default function TakeoffScreen() {
           animationType="slide"
           onRequestClose={() => setShowItemPicker(false)}
         >
-          <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Item</Text>
@@ -2162,7 +2168,9 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}
+          keyboardDismissMode="on-drag"
+        >
                 {priceListCategories.map(category => (
                   <TouchableOpacity
                     key={category}
@@ -2176,7 +2184,9 @@ export default function TakeoffScreen() {
                 ))}
               </ScrollView>
 
-              <ScrollView style={styles.itemsList}>
+              <ScrollView style={styles.itemsList}
+          keyboardDismissMode="on-drag"
+        >
                 {priceListItems
                   .filter(item => item.category === selectedCategory)
                   .map(item => (
@@ -2194,7 +2204,7 @@ export default function TakeoffScreen() {
                   ))}
               </ScrollView>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         <Modal
@@ -2216,7 +2226,9 @@ export default function TakeoffScreen() {
                 Select a common architectural scale or enter a custom ratio
               </Text>
               
-              <ScrollView style={styles.scalePresetsScroll} showsVerticalScrollIndicator={false}>
+              <ScrollView style={styles.scalePresetsScroll} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
                 <Text style={styles.scalePresetsTitle}>Common Scales</Text>
                 <View style={styles.scalePresetsGrid}>
                   {ARCHITECTURAL_SCALES.map((scaleOption, index) => (
@@ -2273,7 +2285,7 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         {/* Mode Selection Modal */}
@@ -2332,7 +2344,7 @@ export default function TakeoffScreen() {
                 </View>
               </TouchableOpacity>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         {/* Shape Selection Modal */}
@@ -2409,7 +2421,7 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         <Modal
@@ -2452,7 +2464,9 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={styles.categorySelectionList}>
+              <ScrollView style={styles.categorySelectionList}
+          keyboardDismissMode="on-drag"
+        >
                 {priceListCategories.map((category) => {
                   const isSelected = selectedCategories.includes(category);
                   return (
@@ -2492,7 +2506,7 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         <Modal
@@ -2510,12 +2524,14 @@ export default function TakeoffScreen() {
                 The AI is analyzing {aiAnalyzingAllPages ? 'all pages' : 'the current page'} for {selectedCategories.length === priceListCategories.length ? 'all categories' : `${selectedCategories.length} ${selectedCategories.length === 1 ? 'category' : 'categories'}`}
               </Text>
               {aiResults && (
-                <ScrollView style={styles.aiResultsPreview}>
+                <ScrollView style={styles.aiResultsPreview}
+          keyboardDismissMode="on-drag"
+        >
                   <Text style={styles.aiResultsText}>{aiResults}</Text>
                 </ScrollView>
               )}
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         {/* PDF Conversion Loading Modal */}
@@ -2535,7 +2551,7 @@ export default function TakeoffScreen() {
                 This may take a moment for large PDFs
               </Text>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         {/* AI Review Modal */}
@@ -2545,7 +2561,7 @@ export default function TakeoffScreen() {
           animationType="slide"
           onRequestClose={() => setShowAIReview(false)}
         >
-          <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
             <View style={[styles.aiResultsModal, { maxHeight: SCREEN_HEIGHT * 0.9 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>AI-Generated Estimate ({aiEstimateItems.length} items)</Text>
@@ -2568,7 +2584,9 @@ export default function TakeoffScreen() {
                 />
               </View>
 
-              <ScrollView style={styles.aiResultsScroll}>
+              <ScrollView style={styles.aiResultsScroll}
+          keyboardDismissMode="on-drag"
+        >
                 <View style={styles.aiItemsTable}>
                   <View style={styles.aiItemsHeader}>
                     <Text style={[styles.aiItemsHeaderText, { flex: 3 }]}>Item</Text>
@@ -2624,7 +2642,7 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         {/* Export Options Modal */}
@@ -2634,7 +2652,7 @@ export default function TakeoffScreen() {
           animationType="fade"
           onRequestClose={() => setShowExportModal(false)}
         >
-          <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
             <View style={styles.exportModal}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Export Estimate</Text>
@@ -2680,7 +2698,7 @@ export default function TakeoffScreen() {
                 </View>
               </TouchableOpacity>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         {/* Image Annotation Component */}

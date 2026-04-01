@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Modal, RefreshControl, Platform, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
@@ -538,7 +538,9 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10B981" colors={['#10B981']} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10B981" colors={['#10B981']} /
+          keyboardDismissMode="on-drag"
+        >
         }
       >
         {employeesWithRateChangeRequests.length > 0 && (
@@ -695,7 +697,7 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
         transparent
         onRequestClose={() => setShowReportModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Generate Work History Report</Text>
 
@@ -786,7 +788,7 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -795,7 +797,7 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
         transparent
         onRequestClose={() => setShowEditRateModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Hourly Rate</Text>
 
@@ -856,7 +858,7 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </View>
   );

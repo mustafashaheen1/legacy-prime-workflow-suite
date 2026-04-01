@@ -1,19 +1,4 @@
-import { 
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Platform,
-  PanResponder,
-  Alert,
-  Image,
-  Switch,
-  Pressable,
-  KeyboardAvoidingView,
-} from 'react-native';
+import { Alert, Image, Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
@@ -211,9 +196,15 @@ export default function ScheduleScreen() {
   const [ganttStartOverride, setGanttStartOverride] = useState<Date | null>(null);
   const pendingScrollTargetRef = useRef<{ year: number; month: number } | null>(null);
 
-  const dateHeaderRef = useRef<ScrollView>(null);
-  const gridHRef = useRef<ScrollView>(null);
-  const bodyScrollRef = useRef<ScrollView>(null);
+  const dateHeaderRef = useRef<ScrollView
+          keyboardDismissMode="on-drag"
+        >(null);
+  const gridHRef = useRef<ScrollView
+          keyboardDismissMode="on-drag"
+        >(null);
+  const bodyScrollRef = useRef<ScrollView
+          keyboardDismissMode="on-drag"
+        >(null);
   const ganttAreaRef = useRef<View>(null);
   const gridPressableRef = useRef<any>(null);
   const isPanningRef = useRef<boolean>(false);
@@ -1383,7 +1374,9 @@ ${pdfDates.length > 0 ? `
       </View>
 
       <View style={styles.projectSelector}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
           {projects.filter(p => p.status === 'active').map(project => (
             <TouchableOpacity
               key={project.id}
@@ -1476,7 +1469,9 @@ ${pdfDates.length > 0 ? `
                 scrollEnabled={false}
                 showsHorizontalScrollIndicator={false}
                 style={styles.dateHeaderScroll}
-              >
+              
+          keyboardDismissMode="on-drag"
+        >
                 <View style={styles.dateHeaderContent}>
                   {dates.map((date, i) => (
                     <View key={i} style={[styles.dateCell, { width: colWidths[i] ?? dayWidth }, isToday(date) && styles.dateCellToday]}>
@@ -1499,7 +1494,9 @@ ${pdfDates.length > 0 ? `
               nestedScrollEnabled
               scrollEventThrottle={16}
               scrollEnabled={!resizingTask}
-              onScroll={(e) => {
+              onScroll={(e) =
+          keyboardDismissMode="on-drag"
+        > {
                 currentScrollYRef.current = e.nativeEvent.contentOffset.y;
               }}
             >
@@ -1932,7 +1929,9 @@ ${pdfDates.length > 0 ? `
                 style={styles.editModalBody}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-              >
+              
+          keyboardDismissMode="on-drag"
+        >
                 <Text style={styles.editLabel}>Date Range</Text>
                 {(() => {
                   const dur = Math.max(1, parseInt(editDuration) || 1);
@@ -2128,7 +2127,7 @@ ${pdfDates.length > 0 ? `
         animationType="slide"
         onRequestClose={() => setShowDailyLogsModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2145,7 +2144,9 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               <View style={styles.toggleSection}>
                 <TouchableOpacity style={styles.toggleRow} onPress={() => setEquipmentExpanded(!equipmentExpanded)}>
                   {equipmentExpanded ? <ChevronDown size={20} color="#2563EB" /> : <ChevronRight size={20} color="#6B7280" />}
@@ -2222,7 +2223,9 @@ ${pdfDates.length > 0 ? `
                   </View>
                 </View>
                 {photos.length > 0 && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
                     <View style={styles.photosList}>
                       {photos.map((photo) => (
                         <View key={photo.id} style={styles.photoItem}>
@@ -2314,7 +2317,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* History Modal */}
@@ -2324,7 +2327,7 @@ ${pdfDates.length > 0 ? `
         animationType="slide"
         onRequestClose={() => setShowHistoryModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2336,7 +2339,9 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               {projectDailyLogs.length === 0 ? (
                 <View style={styles.emptyHistoryState}>
                   <BookOpen size={48} color="#9CA3AF" />
@@ -2418,7 +2423,9 @@ ${pdfDates.length > 0 ? `
                       {log.photos.length > 0 && (
                         <View style={styles.historySection}>
                           <Text style={styles.historySectionTitle}>Photos ({log.photos.length}):</Text>
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
                             <View style={styles.historyPhotosList}>
                               {log.photos.map((photo) => (
                                 <View key={photo.id} style={styles.historyPhotoItem}>
@@ -2460,7 +2467,7 @@ ${pdfDates.length > 0 ? `
               )}
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Tasks Modal */}
@@ -2470,7 +2477,7 @@ ${pdfDates.length > 0 ? `
         animationType="slide"
         onRequestClose={() => setShowTasksModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2482,7 +2489,9 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               <View style={styles.addTaskSection}>
                 <Text style={styles.label}>Add New Task/Reminder</Text>
                 <TextInput
@@ -2687,7 +2696,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Context Menu Modal */}
@@ -2796,7 +2805,7 @@ ${pdfDates.length > 0 ? `
           setNewSubPhaseName('');
         }}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.subPhaseModalContent}>
             <View style={styles.subPhaseModalHeader}>
               <Text style={styles.subPhaseModalTitle}>Add Sub-Phase</Text>
@@ -2837,7 +2846,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Rename Sub-Phase Modal */}
@@ -2850,7 +2859,7 @@ ${pdfDates.length > 0 ? `
           setRenameValue('');
         }}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.subPhaseModalContent}>
             <View style={styles.subPhaseModalHeader}>
               <Text style={styles.subPhaseModalTitle}>{showRenameModal?.id.startsWith('custom-main-') ? 'Rename Category' : 'Rename Sub-Phase'}</Text>
@@ -2891,7 +2900,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Add Main Category Modal */}
@@ -2905,7 +2914,7 @@ ${pdfDates.length > 0 ? `
           setNewMainCategoryColor('#2563EB');
         }}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.subPhaseModalContent}>
             <View style={styles.subPhaseModalHeader}>
               <Text style={styles.subPhaseModalTitle}>Insert Main Category</Text>
@@ -2964,7 +2973,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Share Schedule Modal */}
@@ -2974,7 +2983,7 @@ ${pdfDates.length > 0 ? `
         animationType="slide"
         onRequestClose={() => setShowShareModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.shareModalContent}>
             <View style={styles.shareModalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -2996,7 +3005,9 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.shareModalBody} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.shareModalBody} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               {(() => {
                 const existingLink = selectedProject ? getShareLinkByProject(selectedProject) : undefined;
                 const isActive = existingLink?.enabled && (!existingLink?.expiresAt || new Date(existingLink.expiresAt) > new Date());
@@ -3171,7 +3182,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Hover tooltip — web only */}

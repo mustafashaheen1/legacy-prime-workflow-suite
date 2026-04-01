@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import SkeletonBox from '@/components/SkeletonBox';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput, Image, Platform, ActivityIndicator, Clipboard } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { User, UserRole } from '@/types';
@@ -276,7 +276,9 @@ export default function SettingsScreen() {
   if (!isAdmin && !isSuperAdmin) {
     return (
       <View style={styles.container}>
-        <ScrollView style={styles.scrollView}>
+        <ScrollView style={styles.scrollView}
+          keyboardDismissMode="on-drag"
+        >
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Shield size={24} color="#2563EB" />
@@ -353,7 +355,7 @@ export default function SettingsScreen() {
           transparent
           onRequestClose={() => setShowRateChangeModal(false)}
         >
-          <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Request Rate Change</Text>
@@ -404,7 +406,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
             </View>
-          </View>
+          </Pressable>
         </Modal>
       </View>
     );
@@ -633,7 +635,9 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView}
+          keyboardDismissMode="on-drag"
+        >
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Building2 size={24} color="#2563EB" />
@@ -955,7 +959,7 @@ export default function SettingsScreen() {
         transparent
         onRequestClose={() => setShowCompanyProfileModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={[styles.modalContent, { height: '90%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Company Profile</Text>
@@ -964,7 +968,9 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.companyFormScroll} showsVerticalScrollIndicator={true}>
+            <ScrollView style={styles.companyFormScroll} showsVerticalScrollIndicator={true}
+          keyboardDismissMode="on-drag"
+        >
               <Text style={styles.formLabel}>Company Logo</Text>
               <View style={styles.logoUploadSection}>
                 {companyForm.logo ? (
@@ -1128,7 +1134,7 @@ export default function SettingsScreen() {
               </View>
             </ScrollView>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -1140,7 +1146,7 @@ export default function SettingsScreen() {
           setSelectedUser(null);
         }}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('settings.changeRole')}</Text>
@@ -1205,7 +1211,7 @@ export default function SettingsScreen() {
               </View>
             )}
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <EditAccessModal

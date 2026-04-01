@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, Platform, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { FileText, Calendar, Trash2, X, BarChart, Folder, Download, FileSpreadsheet, ArrowLeft, Home } from 'lucide-react-native';
 import { Stack, useRouter } from 'expo-router';
@@ -771,7 +771,9 @@ export default function ReportsScreen() {
         }}
       />
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.headerRow}>
@@ -905,7 +907,7 @@ export default function ReportsScreen() {
         transparent
         onRequestClose={() => setShowDetailsModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Report Details</Text>
@@ -939,7 +941,9 @@ export default function ReportsScreen() {
             </View>
 
             {selectedReport && (
-              <ScrollView style={styles.modalBody}>
+              <ScrollView style={styles.modalBody}
+          keyboardDismissMode="on-drag"
+        >
                 <View style={styles.detailSection}>
                   <Text style={styles.detailSectionTitle}>{selectedReport.name}</Text>
                   <View style={styles.detailRow}>
@@ -1182,7 +1186,7 @@ export default function ReportsScreen() {
               </ScrollView>
             )}
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </View>
   );

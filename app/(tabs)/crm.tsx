@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Linking, Alert, Platform, RefreshControl, ActivityIndicator, Dimensions } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Keyboard, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import SkeletonBox from '@/components/SkeletonBox';
@@ -1370,7 +1370,9 @@ export default function CRMScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /
+          keyboardDismissMode="on-drag"
+        >
         }
       >
         <View style={styles.header}>
@@ -1923,7 +1925,7 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowAddClientModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add New Client</Text>
@@ -1932,7 +1934,9 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody}
+          keyboardDismissMode="on-drag"
+        >
               <Text style={styles.inputLabel}>Full Name <Text style={styles.requiredStar}>*</Text></Text>
               <TextInput
                 style={[styles.modalInput, clientFieldErrors.name && styles.modalInputError]}
@@ -2037,7 +2041,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Edit Client Modal */}
@@ -2047,7 +2051,7 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowEditClientModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Client Info</Text>
@@ -2056,7 +2060,9 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody}
+          keyboardDismissMode="on-drag"
+        >
               <Text style={styles.inputLabel}>Full Name <Text style={styles.requiredStar}>*</Text></Text>
               <TextInput
                 style={[styles.modalInput, editClientFieldErrors.name && styles.modalInputError]}
@@ -2144,7 +2150,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -2153,7 +2159,7 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowMessageModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -2175,7 +2181,9 @@ export default function CRMScreen() {
 
             <View style={styles.templateSection}>
               <Text style={styles.templateLabel}>Quick Templates:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templateScroll}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templateScroll}
+          keyboardDismissMode="on-drag"
+        >
                 {promotionTemplates.map(template => (
                   <TouchableOpacity
                     key={template.id}
@@ -2271,7 +2279,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -2280,7 +2288,7 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowEstimateModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Estimate Management</Text>
@@ -2289,7 +2297,9 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.estimateModalScroll}>
+            <ScrollView style={styles.estimateModalScroll}
+          keyboardDismissMode="on-drag"
+        >
               {selectedClientForEstimate && (() => {
                 const client = clients.find(c => c.id === selectedClientForEstimate);
                 if (!client) return null;
@@ -2428,7 +2438,7 @@ export default function CRMScreen() {
               })()}
             </ScrollView>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -2437,7 +2447,7 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowEstimateTypeModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.estimateTypeModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Choose Estimate Type</Text>
@@ -2498,7 +2508,7 @@ export default function CRMScreen() {
               </View>
             </TouchableOpacity>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -2507,7 +2517,7 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowAIModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.aiModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.aiModalTitleContainer}>
@@ -2523,7 +2533,9 @@ export default function CRMScreen() {
               Ask me anything about your CRM data, clients, leads, estimates, and more!
             </Text>
 
-            <ScrollView style={styles.aiMessagesContainer} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.aiMessagesContainer} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               {messages.length === 0 && (
                 <View style={styles.aiEmptyState}>
                   <Sparkles size={48} color="#D1D5DB" />
@@ -2617,7 +2629,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -2626,7 +2638,7 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowCallAssistantModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.callAssistantModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.callAssistantTitleContainer}>
@@ -2638,7 +2650,9 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.callAssistantScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.callAssistantScroll} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               <View style={styles.callAssistantDescription}>
                 <Text style={styles.callAssistantDescText}>
                   Set up an AI-powered virtual assistant to handle incoming calls, qualify leads, gather customer information, and automatically add serious prospects to your CRM with scheduled follow-ups.
@@ -2820,7 +2834,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -2829,7 +2843,7 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowCallLogsModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.callLogsModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.callLogsTitleContainer}>
@@ -2910,7 +2924,9 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.callLogsScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.callLogsScroll} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               {isLoadingCallLogs ? (
                 <View style={styles.emptyCallLogs}>
                   <ActivityIndicator size="large" color="#2563EB" />
@@ -3022,7 +3038,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               )}
             </ScrollView>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -3031,7 +3047,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         transparent={true}
         onRequestClose={() => setSelectedCallLog(null)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           {selectedCallLog && (
             <View style={styles.callLogDetailModal}>
               <View style={styles.modalHeader}>
@@ -3041,7 +3057,9 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={styles.callLogDetailScroll}>
+              <ScrollView style={styles.callLogDetailScroll}
+          keyboardDismissMode="on-drag"
+        >
                 <View style={styles.callLogDetailSection}>
                   <Text style={styles.callLogDetailSectionTitle}>Caller Information</Text>
                   <View style={styles.callLogDetailItem}>
@@ -3177,7 +3195,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               </View>
             </View>
           )}
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -3186,7 +3204,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         transparent={true}
         onRequestClose={() => setShowFollowUpModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.followUpModal}>
             <View style={styles.modalHeader}>
               <View style={styles.followUpModalTitleContainer}>
@@ -3340,7 +3358,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Payment Request Modal */}
@@ -3350,7 +3368,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         transparent={true}
         onRequestClose={() => setShowPaymentRequestModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.paymentModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.paymentModalTitleContainer}>
@@ -3370,7 +3388,9 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               const clientEstimates = estimates.filter(e => e.clientId === selectedClientForPayment);
 
               return (
-                <ScrollView style={styles.estimateListScroll} showsVerticalScrollIndicator={false}>
+                <ScrollView style={styles.estimateListScroll} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
                   {clientEstimates.length === 0 ? (
                     <View style={styles.emptyEstimatesContainer}>
                       <Calculator size={48} color="#D1D5DB" />
@@ -3471,7 +3491,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Convert to Project Modal */}
@@ -3481,7 +3501,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         transparent={true}
         onRequestClose={() => setShowConvertToProjectModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.paymentModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.paymentModalTitleContainer}>
@@ -3504,7 +3524,9 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               );
 
               return (
-                <ScrollView style={styles.estimateListScroll} showsVerticalScrollIndicator={false}>
+                <ScrollView style={styles.estimateListScroll} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
                   {clientEstimates.length === 0 ? (
                     <View style={styles.emptyEstimatesContainer}>
                       <Calculator size={48} color="#D1D5DB" />
@@ -3585,7 +3607,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </View>
   );

@@ -1,18 +1,4 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Platform,
-  Alert,
-  Modal,
-  FlatList,
-  useWindowDimensions,
-  KeyboardAvoidingView,
-  ActivityIndicator,
-  Keyboard,
-} from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tabs, useLocalSearchParams } from 'expo-router';
@@ -1603,7 +1589,7 @@ export default function ChatScreen() {
 
       {/* ─── New Chat Modal ────────────────────────────────────────────────── */}
       <Modal visible={showNewChatModal} transparent animationType="slide" onRequestClose={() => setShowNewChatModal(false)}>
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.newChatModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('chat.title')}</Text>
@@ -1662,7 +1648,7 @@ export default function ChatScreen() {
               <Text style={styles.createChatButtonText}>{selectedParticipants.length === 1 ? 'Start Direct Chat' : `Create Group (${selectedParticipants.length})`}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* ─── Attach Menu ──────────────────────────────────────────────────── */}
@@ -1719,7 +1705,7 @@ export default function ChatScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* ─── Send Video Preview Modal ─────────────────────────────────────── */}
@@ -1751,7 +1737,7 @@ export default function ChatScreen() {
               <Send size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </View>
   );

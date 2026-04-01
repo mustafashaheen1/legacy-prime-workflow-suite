@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Platform, RefreshControl } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
@@ -584,7 +584,9 @@ export default function ExpensesScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} /
+          keyboardDismissMode="on-drag"
+        >}
       >
         <View style={styles.header}>
           <View>
@@ -840,7 +842,9 @@ export default function ExpensesScreen() {
                 <X size={24} color="#1F2937" />
               </TouchableOpacity>
             </View>
-            <ScrollView>
+            <ScrollView
+          keyboardDismissMode="on-drag"
+        >
               {activeProjects.map((project) => (
                 <TouchableOpacity
                   key={project.id}
@@ -886,7 +890,9 @@ export default function ExpensesScreen() {
                 <X size={24} color="#1F2937" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.categoryList}>
+            <ScrollView style={styles.categoryList}
+          keyboardDismissMode="on-drag"
+        >
               {['Subcontractor', 'Labor', 'Material', 'Office', 'Others'].map((type) => (
                 <TouchableOpacity
                   key={type}
@@ -953,7 +959,9 @@ export default function ExpensesScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            <ScrollView style={styles.categoryList}>
+            <ScrollView style={styles.categoryList}
+          keyboardDismissMode="on-drag"
+        >
               {priceListCategories.map((cat) => (
                 <TouchableOpacity
                   key={cat}

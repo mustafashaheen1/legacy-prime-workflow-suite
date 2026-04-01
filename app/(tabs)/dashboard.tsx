@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform, ActivityIndicator, RefreshControl } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, AlertTriangle, Camera, MoreHorizontal, Pencil, PauseCircle, PlayCircle, Coffee } from 'lucide-react-native';
 import { Image } from 'expo-image';
@@ -1111,7 +1111,9 @@ export default function DashboardScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} /
+          keyboardDismissMode="on-drag"
+        >}
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
@@ -1231,7 +1233,9 @@ export default function DashboardScreen() {
               showsHorizontalScrollIndicator={false} 
               style={styles.reportMenuScroll}
               contentContainerStyle={styles.reportMenuScrollContent}
-            >
+            
+          keyboardDismissMode="on-drag"
+        >
               <TouchableOpacity
                 style={styles.reportMenuItemHorizontal}
                 onPress={() => {
@@ -1363,7 +1367,9 @@ export default function DashboardScreen() {
             snapToAlignment="center"
             contentContainerStyle={styles.projectsCarousel}
             style={[styles.projectsCarouselContainer, Platform.OS === 'web' && styles.projectsCarouselWeb]}
-          >
+          
+          keyboardDismissMode="on-drag"
+        >
             {displayProjects.map((project) => {
               const activeEntries = clockEntries.filter(c => c.projectId === project.id && !c.clockOut);
               const visibleAvatars = activeEntries.slice(0, 3);
@@ -1624,7 +1630,7 @@ export default function DashboardScreen() {
         transparent
         onRequestClose={() => setShowImportOptions(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.importOptionsModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('dashboard.addProject')}</Text>
@@ -1683,7 +1689,7 @@ export default function DashboardScreen() {
               </View>
             </TouchableOpacity>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -1692,12 +1698,14 @@ export default function DashboardScreen() {
         transparent
         onRequestClose={() => setShowCreateModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <ScrollView
             style={styles.modalScrollView}
             contentContainerStyle={styles.modalScrollContent}
             showsVerticalScrollIndicator={false}
-          >
+          
+          keyboardDismissMode="on-drag"
+        >
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{t('projects.createNew')}</Text>
@@ -1813,7 +1821,7 @@ export default function DashboardScreen() {
               </View>
             </View>
           </ScrollView>
-        </View>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -1826,7 +1834,7 @@ export default function DashboardScreen() {
           setSelectedProjects([]);
         }}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.aiModalContent}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1843,7 +1851,9 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.aiModalScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.aiModalScroll} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               <View style={styles.modalBody}>
                 <Text style={styles.aiInstructionText}>
                   Describe what you want in your custom report. AI will analyze your project data and generate a comprehensive report based on your requirements.
@@ -1933,7 +1943,9 @@ export default function DashboardScreen() {
                     <Text style={styles.aiProjectPickerTitle}>
                       Select Projects ({selectedProjects.length} selected)
                     </Text>
-                    <ScrollView style={styles.aiProjectPickerList} nestedScrollEnabled>
+                    <ScrollView style={styles.aiProjectPickerList} nestedScrollEnabled
+          keyboardDismissMode="on-drag"
+        >
                       {activeProjects.map(project => (
                         <TouchableOpacity
                           key={project.id}
@@ -1990,7 +2002,7 @@ export default function DashboardScreen() {
               </View>
             </ScrollView>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Report Generation Loading Modal */}
@@ -2020,7 +2032,7 @@ export default function DashboardScreen() {
               />
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Client Picker Modal for Import from CRM */}
@@ -2033,7 +2045,7 @@ export default function DashboardScreen() {
           setSelectedClientForConversion(null);
         }}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Client</Text>
@@ -2050,7 +2062,9 @@ export default function DashboardScreen() {
                 Select a client with estimates to convert to a project
               </Text>
 
-              <ScrollView style={{ maxHeight: 400 }}>
+              <ScrollView style={{ maxHeight: 400 }}
+          keyboardDismissMode="on-drag"
+        >
                 {clients
                   .filter(client => estimates.some(est => est.clientId === client.id))
                   .map(client => {
@@ -2085,7 +2099,7 @@ export default function DashboardScreen() {
               </ScrollView>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* Estimate Picker Modal */}
@@ -2098,7 +2112,7 @@ export default function DashboardScreen() {
           setSelectedClientForConversion(null);
         }}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <TouchableOpacity
@@ -2127,7 +2141,9 @@ export default function DashboardScreen() {
                     {clients.find(c => c.id === selectedClientForConversion)?.name}
                   </Text>
 
-                  <ScrollView style={{ maxHeight: 400 }}>
+                  <ScrollView style={{ maxHeight: 400 }}
+          keyboardDismissMode="on-drag"
+        >
                     {estimates
                       .filter(est => est.clientId === selectedClientForConversion)
                       .map(estimate => (
@@ -2156,7 +2172,7 @@ export default function DashboardScreen() {
               )}
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* ===== DAILY TASKS SIDE MENU ===== */}
@@ -2199,7 +2215,9 @@ export default function DashboardScreen() {
             </View>
 
             {/* Task List */}
-            <ScrollView style={styles.taskList} contentContainerStyle={styles.taskListContent} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.taskList} contentContainerStyle={styles.taskListContent} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               {filteredTasks.length === 0 ? (
                 <View style={styles.emptyTasks}>
                   <CheckSquare size={48} color="#D1D5DB" />
@@ -2227,7 +2245,7 @@ export default function DashboardScreen() {
               <Text style={styles.closeTasksText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
       {/* ===== ADD TASK MODAL ===== */}
@@ -2304,7 +2322,7 @@ export default function DashboardScreen() {
         transparent
         onRequestClose={() => setShowDashEditClientModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Client Info</Text>
@@ -2313,7 +2331,9 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody}
+          keyboardDismissMode="on-drag"
+        >
               <Text style={styles.inputLabel}>Full Name *</Text>
               <TextInput
                 style={[styles.modalInput, dashEditClientErrors.name ? styles.modalInputError : undefined]}
@@ -2389,7 +2409,7 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
 
     </View>

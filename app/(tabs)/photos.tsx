@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, ActivityIndicator, Pressable, Alert, RefreshControl } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
@@ -345,7 +345,9 @@ export default function PhotosScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} /
+          keyboardDismissMode="on-drag"
+        >}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Photos</Text>
@@ -537,7 +539,9 @@ export default function PhotosScreen() {
             )}
 
             <Text style={styles.modalLabel}>Select Category</Text>
-            <ScrollView style={styles.categoryList} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.categoryList} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               {allCategories.map((cat) => (
                 <TouchableOpacity
                   key={cat}
@@ -605,7 +609,9 @@ export default function PhotosScreen() {
             </View>
 
             <Text style={styles.modalLabel}>Existing Categories</Text>
-            <ScrollView style={styles.categoriesList} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.categoriesList} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               {photoCategories.map((cat) => (
                 <View key={cat} style={styles.categoryManageItem}>
                   {editingCategoryName === cat ? (
@@ -683,7 +689,9 @@ export default function PhotosScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.previewModalScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.previewModalScroll} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               {selectedImage && (
                 <View style={styles.previewImageContainer}>
                   <Image
@@ -709,7 +717,9 @@ export default function PhotosScreen() {
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   style={styles.quickCategoriesScroll}
-                >
+                
+          keyboardDismissMode="on-drag"
+        >
                   {allCategories.map((cat) => (
                     <TouchableOpacity
                       key={cat}
@@ -831,7 +841,9 @@ export default function PhotosScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 400 }}>
+            <ScrollView style={{ maxHeight: 400 }}
+          keyboardDismissMode="on-drag"
+        >
               {projects
                 .filter(p => p.status === 'active')
                 .map(project => (

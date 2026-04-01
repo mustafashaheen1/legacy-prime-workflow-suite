@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
+import { Alert, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
@@ -783,7 +783,9 @@ export default function FilesNavigationScreen() {
               </Text>
             </View>
           ) : (
-            <ScrollView style={styles.categoriesList} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.categoriesList} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
               {folder.categories.map((category) => {
                 const files = getFilesForCategory(folder.type, category);
                 return (
@@ -845,7 +847,9 @@ export default function FilesNavigationScreen() {
             )}
           </View>
         </View>
-        <ScrollView style={styles.filesList} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.filesList} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
           {folder.type === 'photos' && photoViewMode === 'grid' && (
             <View style={styles.photoGrid}>
               {files.map((file: any) => (
@@ -1067,7 +1071,9 @@ export default function FilesNavigationScreen() {
           </View>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
           {renderFolderView()}
         </ScrollView>
 
@@ -1077,7 +1083,7 @@ export default function FilesNavigationScreen() {
           animationType="slide"
           onRequestClose={() => { setUploadModalVisible(false); setModalCategory(''); }}
         >
-          <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add to {selectedCategory || folders.find(f => f.type === selectedFolder)?.name}</Text>
@@ -1098,7 +1104,9 @@ export default function FilesNavigationScreen() {
                     autoCapitalize="words"
                   />
                   {photoCategories.length > 0 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}
+          keyboardDismissMode="on-drag"
+        >
                       <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
                         {photoCategories.map(cat => (
                           <TouchableOpacity
@@ -1166,7 +1174,7 @@ export default function FilesNavigationScreen() {
                 )}
               </View>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         <Modal
@@ -1175,7 +1183,7 @@ export default function FilesNavigationScreen() {
           animationType="slide"
           onRequestClose={() => setNewFolderModalVisible(false)}
         >
-          <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{t('projects.files.createNewFolder')}</Text>
@@ -1205,7 +1213,7 @@ export default function FilesNavigationScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         {/* File Viewer Modal */}
@@ -1257,7 +1265,7 @@ export default function FilesNavigationScreen() {
                 </View>
               )}
             </View>
-          </View>
+          </Pressable>
         </Modal>
       </View>
     </>

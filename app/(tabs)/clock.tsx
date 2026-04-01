@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
@@ -52,6 +52,8 @@ export default function ClockScreen() {
           style={styles.scrollView}
           contentContainerStyle={isWeb ? styles.scrollContentWeb : undefined}
           showsVerticalScrollIndicator={false}
+        
+          keyboardDismissMode="on-drag"
         >
           <View style={isWeb ? styles.webWrapper : undefined}>
             {/* Page header */}
@@ -164,7 +166,9 @@ export default function ClockScreen() {
         style={styles.scrollView}
         contentContainerStyle={isWeb ? styles.scrollContentWeb : undefined}
         showsVerticalScrollIndicator={false}
-      >
+      
+          keyboardDismissMode="on-drag"
+        >
         <View style={isWeb ? styles.webWrapper : undefined}>
           {/* Page header */}
           <View style={[styles.header, isWeb && styles.headerWeb]}>

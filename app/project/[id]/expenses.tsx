@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Platform } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useState, useMemo, useEffect } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
@@ -711,7 +711,9 @@ export default function ProjectExpensesScreen() {
           </View>
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
           <View style={styles.form}>
             {/* Prominent AI scanner — shown to all roles when no receipt captured yet */}
             {!receiptImage && (
@@ -1011,7 +1013,9 @@ export default function ProjectExpensesScreen() {
                   <X size={24} color="#1F2937" />
                 </TouchableOpacity>
               </View>
-              <ScrollView style={styles.categoryList}>
+              <ScrollView style={styles.categoryList}
+          keyboardDismissMode="on-drag"
+        >
                 {['Subcontractor', 'Labor', 'Material', 'Office', 'Others'].map((type) => (
                   <TouchableOpacity
                     key={type}
@@ -1079,7 +1083,9 @@ export default function ProjectExpensesScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              <ScrollView style={styles.categoryList}>
+              <ScrollView style={styles.categoryList}
+          keyboardDismissMode="on-drag"
+        >
                 {priceListCategories.map((cat) => (
                   <TouchableOpacity
                     key={cat}
@@ -1152,7 +1158,7 @@ export default function ProjectExpensesScreen() {
                 )
               )}
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         {/* Expense Detail Modal */}
@@ -1162,7 +1168,7 @@ export default function ProjectExpensesScreen() {
           animationType="slide"
           onRequestClose={() => setShowExpenseDetail(false)}
         >
-          <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
             <View style={styles.detailSheet}>
               {/* Header */}
               <View style={styles.detailHeader}>
@@ -1173,7 +1179,9 @@ export default function ProjectExpensesScreen() {
               </View>
 
               {selectedExpense && (
-                <ScrollView style={styles.detailBody} showsVerticalScrollIndicator={false}>
+                <ScrollView style={styles.detailBody} showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+        >
                   {/* Amount */}
                   <View style={styles.detailAmountRow}>
                     <Text style={styles.detailAmount}>${Number(selectedExpense.amount).toLocaleString()}</Text>
@@ -1265,7 +1273,7 @@ export default function ProjectExpensesScreen() {
                 </ScrollView>
               )}
             </View>
-          </View>
+          </Pressable>
         </Modal>
 
         {/* Loading Overlay */}
