@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, Alert, Platform, Linking } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/contexts/AppContext';
 
@@ -778,7 +778,7 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
                         if (Platform.OS === 'web') {
                           window.open(mapsUrl, '_blank');
                         } else {
-                          console.log('[Location] Opening maps:', mapsUrl);
+                          Linking.openURL(mapsUrl!);
                         }
                       }}
                     >
