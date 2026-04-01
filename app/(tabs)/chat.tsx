@@ -1454,8 +1454,8 @@ export default function ChatScreen() {
                 )}
 
                 <KeyboardAvoidingView
-                  style={[{ flex: 1 }, Platform.OS === 'ios' && { paddingBottom: iosKbPadding }]}
-                  behavior={Platform.OS === 'ios' ? undefined : 'height'}
+                  style={{ flex: 1 }}
+                  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                   keyboardVerticalOffset={0}
                 >
                   {!isSmallScreen && (
