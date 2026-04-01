@@ -1630,7 +1630,8 @@ export default function DashboardScreen() {
         transparent
         onRequestClose={() => setShowImportOptions(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.importOptionsModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('dashboard.addProject')}</Text>
@@ -1689,7 +1690,7 @@ export default function DashboardScreen() {
               </View>
             </TouchableOpacity>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -1698,7 +1699,8 @@ export default function DashboardScreen() {
         transparent
         onRequestClose={() => setShowCreateModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <ScrollView
             style={styles.modalScrollView}
             contentContainerStyle={styles.modalScrollContent}
@@ -1821,7 +1823,7 @@ export default function DashboardScreen() {
               </View>
             </View>
           </ScrollView>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -1834,7 +1836,8 @@ export default function DashboardScreen() {
           setSelectedProjects([]);
         }}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.aiModalContent}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2002,7 +2005,7 @@ export default function DashboardScreen() {
               </View>
             </ScrollView>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Report Generation Loading Modal */}
@@ -2032,7 +2035,7 @@ export default function DashboardScreen() {
               />
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Client Picker Modal for Import from CRM */}
@@ -2045,7 +2048,8 @@ export default function DashboardScreen() {
           setSelectedClientForConversion(null);
         }}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Client</Text>
@@ -2099,7 +2103,7 @@ export default function DashboardScreen() {
               </ScrollView>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Estimate Picker Modal */}
@@ -2112,7 +2116,8 @@ export default function DashboardScreen() {
           setSelectedClientForConversion(null);
         }}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <TouchableOpacity
@@ -2172,7 +2177,7 @@ export default function DashboardScreen() {
               )}
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* ===== DAILY TASKS SIDE MENU ===== */}
@@ -2245,7 +2250,7 @@ export default function DashboardScreen() {
               <Text style={styles.closeTasksText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* ===== ADD TASK MODAL ===== */}
@@ -2322,7 +2327,8 @@ export default function DashboardScreen() {
         transparent
         onRequestClose={() => setShowDashEditClientModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Client Info</Text>
@@ -2409,7 +2415,7 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
     </View>

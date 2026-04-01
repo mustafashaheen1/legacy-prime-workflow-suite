@@ -907,7 +907,8 @@ export default function ReportsScreen() {
         transparent
         onRequestClose={() => setShowDetailsModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Report Details</Text>
@@ -1186,7 +1187,7 @@ export default function ReportsScreen() {
               </ScrollView>
             )}
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );

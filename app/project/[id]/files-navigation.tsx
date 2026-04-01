@@ -1083,7 +1083,8 @@ export default function FilesNavigationScreen() {
           animationType="slide"
           onRequestClose={() => { setUploadModalVisible(false); setModalCategory(''); }}
         >
-          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add to {selectedCategory || folders.find(f => f.type === selectedFolder)?.name}</Text>
@@ -1174,7 +1175,7 @@ export default function FilesNavigationScreen() {
                 )}
               </View>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         <Modal
@@ -1183,7 +1184,8 @@ export default function FilesNavigationScreen() {
           animationType="slide"
           onRequestClose={() => setNewFolderModalVisible(false)}
         >
-          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{t('projects.files.createNewFolder')}</Text>
@@ -1213,7 +1215,7 @@ export default function FilesNavigationScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         {/* File Viewer Modal */}
@@ -1265,7 +1267,7 @@ export default function FilesNavigationScreen() {
                 </View>
               )}
             </View>
-          </Pressable>
+          </View>
         </Modal>
       </View>
     </>

@@ -2697,7 +2697,8 @@ export default function EstimateScreen() {
       </View>
 
       {showAddTemplateModal && (
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Template Item</Text>
             <Text style={styles.modalSubtitle}>Category: {selectedCategory}</Text>
@@ -2755,7 +2756,8 @@ export default function EstimateScreen() {
       )}
 
       {showAddCategoryModal && (
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Create Custom Assembly</Text>
             <Text style={styles.modalSubtitle}>Add a new category/assembly to organize your line items</Text>
@@ -2815,7 +2817,8 @@ export default function EstimateScreen() {
       )}
 
       {showAddSeparatorModal && (
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Break Point</Text>
             <Text style={styles.modalSubtitle}>Add a category separator to organize your line items</Text>
@@ -2853,7 +2856,8 @@ export default function EstimateScreen() {
       )}
 
       {showEditPriceModal && (
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Price</Text>
             <Text style={styles.modalSubtitle}>
@@ -2921,7 +2925,8 @@ export default function EstimateScreen() {
       )}
 
       {showPreview && (
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.previewModalContent}>
             <View style={styles.previewHeader}>
               <Text style={styles.previewTitle}>Estimate Preview</Text>
@@ -4235,7 +4240,8 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+      <View style={styles.modalOverlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
         <View style={[styles.modalContent, styles.aiModalContent]}>
           <View style={styles.modalHeaderRow}>
             <View style={{ flex: 1 }}>
@@ -4326,7 +4332,7 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
             </TouchableOpacity>
           </View>
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }

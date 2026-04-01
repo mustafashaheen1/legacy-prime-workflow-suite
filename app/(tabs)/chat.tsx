@@ -1589,7 +1589,8 @@ export default function ChatScreen() {
 
       {/* ─── New Chat Modal ────────────────────────────────────────────────── */}
       <Modal visible={showNewChatModal} transparent animationType="slide" onRequestClose={() => setShowNewChatModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.newChatModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('chat.title')}</Text>
@@ -1648,7 +1649,7 @@ export default function ChatScreen() {
               <Text style={styles.createChatButtonText}>{selectedParticipants.length === 1 ? 'Start Direct Chat' : `Create Group (${selectedParticipants.length})`}</Text>
             </TouchableOpacity>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* ─── Attach Menu ──────────────────────────────────────────────────── */}
@@ -1705,7 +1706,7 @@ export default function ChatScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* ─── Send Video Preview Modal ─────────────────────────────────────── */}
@@ -1737,7 +1738,7 @@ export default function ChatScreen() {
               <Send size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );

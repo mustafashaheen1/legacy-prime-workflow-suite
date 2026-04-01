@@ -1308,7 +1308,7 @@ ${company?.officePhone || ''}`;
               <Text style={styles.submitButtonText}>Add Subcontractor</Text>
             </TouchableOpacity>
           </ScrollView>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal visible={showDetailsModal} animationType="slide" presentationStyle="pageSheet">
@@ -1392,7 +1392,7 @@ ${company?.officePhone || ''}`;
               </ScrollView>
             </>
           )}
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal visible={showRequestModal} animationType="slide" presentationStyle="pageSheet">
@@ -1679,7 +1679,7 @@ ${company?.officePhone || ''}`;
               </Text>
             </TouchableOpacity>
           </ScrollView>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Invite Method Selection Modal */}
@@ -1689,7 +1689,8 @@ ${company?.officePhone || ''}`;
         transparent={true}
         onRequestClose={() => setShowInviteMethodModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.inviteMethodModal}>
             <View style={styles.inviteMethodHeader}>
               <Text style={styles.inviteMethodTitle}>Send Invitation</Text>
@@ -1741,7 +1742,7 @@ ${company?.officePhone || ''}`;
               <Text style={styles.inviteMethodCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* SMS Phone Number Modal */}
@@ -1751,7 +1752,8 @@ ${company?.officePhone || ''}`;
         transparent={true}
         onRequestClose={() => setShowSmsPhoneModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.smsPhoneModal}>
             <View style={styles.smsPhoneHeader}>
               <Text style={styles.smsPhoneTitle}>Send SMS Invitation</Text>
@@ -1832,7 +1834,7 @@ ${company?.officePhone || ''}`;
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Email Compose Modal */}
@@ -1842,7 +1844,8 @@ ${company?.officePhone || ''}`;
         transparent={true}
         onRequestClose={() => setShowEmailModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.emailModal}>
             <View style={styles.emailHeader}>
               <View>
@@ -1921,7 +1924,7 @@ ${company?.officePhone || ''}`;
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
     </View>

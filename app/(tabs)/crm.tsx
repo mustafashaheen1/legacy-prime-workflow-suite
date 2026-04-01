@@ -1925,7 +1925,8 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowAddClientModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add New Client</Text>
@@ -2041,7 +2042,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Edit Client Modal */}
@@ -2051,7 +2052,8 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowEditClientModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Client Info</Text>
@@ -2150,7 +2152,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -2159,7 +2161,8 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowMessageModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -2279,7 +2282,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -2288,7 +2291,8 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowEstimateModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Estimate Management</Text>
@@ -2438,7 +2442,7 @@ export default function CRMScreen() {
               })()}
             </ScrollView>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -2447,7 +2451,8 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowEstimateTypeModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.estimateTypeModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Choose Estimate Type</Text>
@@ -2508,7 +2513,7 @@ export default function CRMScreen() {
               </View>
             </TouchableOpacity>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -2517,7 +2522,8 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowAIModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.aiModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.aiModalTitleContainer}>
@@ -2629,7 +2635,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -2638,7 +2644,8 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowCallAssistantModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.callAssistantModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.callAssistantTitleContainer}>
@@ -2834,7 +2841,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -2843,7 +2850,8 @@ export default function CRMScreen() {
         transparent={true}
         onRequestClose={() => setShowCallLogsModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.callLogsModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.callLogsTitleContainer}>
@@ -3038,7 +3046,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               )}
             </ScrollView>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -3047,7 +3055,8 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         transparent={true}
         onRequestClose={() => setSelectedCallLog(null)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           {selectedCallLog && (
             <View style={styles.callLogDetailModal}>
               <View style={styles.modalHeader}>
@@ -3195,7 +3204,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               </View>
             </View>
           )}
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -3204,7 +3213,8 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         transparent={true}
         onRequestClose={() => setShowFollowUpModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.followUpModal}>
             <View style={styles.modalHeader}>
               <View style={styles.followUpModalTitleContainer}>
@@ -3358,7 +3368,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Payment Request Modal */}
@@ -3368,7 +3378,8 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         transparent={true}
         onRequestClose={() => setShowPaymentRequestModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.paymentModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.paymentModalTitleContainer}>
@@ -3491,7 +3502,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Convert to Project Modal */}
@@ -3501,7 +3512,8 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         transparent={true}
         onRequestClose={() => setShowConvertToProjectModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.paymentModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.paymentModalTitleContainer}>
@@ -3607,7 +3619,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );

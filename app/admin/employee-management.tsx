@@ -697,7 +697,8 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
         transparent
         onRequestClose={() => setShowReportModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Generate Work History Report</Text>
 
@@ -788,7 +789,7 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -797,7 +798,8 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
         transparent
         onRequestClose={() => setShowEditRateModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Hourly Rate</Text>
 
@@ -858,7 +860,7 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   );

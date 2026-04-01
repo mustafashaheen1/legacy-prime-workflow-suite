@@ -2127,7 +2127,8 @@ ${pdfDates.length > 0 ? `
         animationType="slide"
         onRequestClose={() => setShowDailyLogsModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2317,7 +2318,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* History Modal */}
@@ -2327,7 +2328,8 @@ ${pdfDates.length > 0 ? `
         animationType="slide"
         onRequestClose={() => setShowHistoryModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2467,7 +2469,7 @@ ${pdfDates.length > 0 ? `
               )}
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Tasks Modal */}
@@ -2477,7 +2479,8 @@ ${pdfDates.length > 0 ? `
         animationType="slide"
         onRequestClose={() => setShowTasksModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2696,7 +2699,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Context Menu Modal */}
@@ -2805,7 +2808,8 @@ ${pdfDates.length > 0 ? `
           setNewSubPhaseName('');
         }}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.subPhaseModalContent}>
             <View style={styles.subPhaseModalHeader}>
               <Text style={styles.subPhaseModalTitle}>Add Sub-Phase</Text>
@@ -2846,7 +2850,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Rename Sub-Phase Modal */}
@@ -2859,7 +2863,8 @@ ${pdfDates.length > 0 ? `
           setRenameValue('');
         }}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.subPhaseModalContent}>
             <View style={styles.subPhaseModalHeader}>
               <Text style={styles.subPhaseModalTitle}>{showRenameModal?.id.startsWith('custom-main-') ? 'Rename Category' : 'Rename Sub-Phase'}</Text>
@@ -2900,7 +2905,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Add Main Category Modal */}
@@ -2914,7 +2919,8 @@ ${pdfDates.length > 0 ? `
           setNewMainCategoryColor('#2563EB');
         }}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.subPhaseModalContent}>
             <View style={styles.subPhaseModalHeader}>
               <Text style={styles.subPhaseModalTitle}>Insert Main Category</Text>
@@ -2973,7 +2979,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Share Schedule Modal */}
@@ -2983,7 +2989,8 @@ ${pdfDates.length > 0 ? `
         animationType="slide"
         onRequestClose={() => setShowShareModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.shareModalContent}>
             <View style={styles.shareModalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -3182,7 +3189,7 @@ ${pdfDates.length > 0 ? `
               </TouchableOpacity>
             </View>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       {/* Hover tooltip — web only */}

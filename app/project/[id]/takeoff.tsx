@@ -2159,7 +2159,8 @@ export default function TakeoffScreen() {
           animationType="slide"
           onRequestClose={() => setShowItemPicker(false)}
         >
-          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Item</Text>
@@ -2204,7 +2205,7 @@ export default function TakeoffScreen() {
                   ))}
               </ScrollView>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         <Modal
@@ -2285,7 +2286,7 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         {/* Mode Selection Modal */}
@@ -2344,7 +2345,7 @@ export default function TakeoffScreen() {
                 </View>
               </TouchableOpacity>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         {/* Shape Selection Modal */}
@@ -2421,7 +2422,7 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         <Modal
@@ -2506,7 +2507,7 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         <Modal
@@ -2531,7 +2532,7 @@ export default function TakeoffScreen() {
                 </ScrollView>
               )}
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         {/* PDF Conversion Loading Modal */}
@@ -2551,7 +2552,7 @@ export default function TakeoffScreen() {
                 This may take a moment for large PDFs
               </Text>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         {/* AI Review Modal */}
@@ -2561,7 +2562,8 @@ export default function TakeoffScreen() {
           animationType="slide"
           onRequestClose={() => setShowAIReview(false)}
         >
-          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
             <View style={[styles.aiResultsModal, { maxHeight: SCREEN_HEIGHT * 0.9 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>AI-Generated Estimate ({aiEstimateItems.length} items)</Text>
@@ -2642,7 +2644,7 @@ export default function TakeoffScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         {/* Export Options Modal */}
@@ -2652,7 +2654,8 @@ export default function TakeoffScreen() {
           animationType="fade"
           onRequestClose={() => setShowExportModal(false)}
         >
-          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
             <View style={styles.exportModal}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Export Estimate</Text>
@@ -2698,7 +2701,7 @@ export default function TakeoffScreen() {
                 </View>
               </TouchableOpacity>
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         {/* Image Annotation Component */}

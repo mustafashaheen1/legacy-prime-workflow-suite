@@ -1158,7 +1158,7 @@ export default function ProjectExpensesScreen() {
                 )
               )}
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         {/* Expense Detail Modal */}
@@ -1168,7 +1168,8 @@ export default function ProjectExpensesScreen() {
           animationType="slide"
           onRequestClose={() => setShowExpenseDetail(false)}
         >
-          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
             <View style={styles.detailSheet}>
               {/* Header */}
               <View style={styles.detailHeader}>
@@ -1273,7 +1274,7 @@ export default function ProjectExpensesScreen() {
                 </ScrollView>
               )}
             </View>
-          </Pressable>
+          </View>
         </Modal>
 
         {/* Loading Overlay */}

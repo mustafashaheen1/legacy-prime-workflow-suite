@@ -355,7 +355,8 @@ export default function SettingsScreen() {
           transparent
           onRequestClose={() => setShowRateChangeModal(false)}
         >
-          <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Request Rate Change</Text>
@@ -406,7 +407,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
             </View>
-          </Pressable>
+          </View>
         </Modal>
       </View>
     );
@@ -959,7 +960,8 @@ export default function SettingsScreen() {
         transparent
         onRequestClose={() => setShowCompanyProfileModal(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={[styles.modalContent, { height: '90%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Company Profile</Text>
@@ -1134,7 +1136,7 @@ export default function SettingsScreen() {
               </View>
             </ScrollView>
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -1146,7 +1148,8 @@ export default function SettingsScreen() {
           setSelectedUser(null);
         }}
       >
-        <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('settings.changeRole')}</Text>
@@ -1211,7 +1214,7 @@ export default function SettingsScreen() {
               </View>
             )}
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <EditAccessModal
