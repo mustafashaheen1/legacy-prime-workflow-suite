@@ -2429,6 +2429,7 @@ Generate appropriate line items from the price list that fit this scope of work$
           playsInSilentMode: true,
         });
 
+        await nativeRecorder.prepareToRecordAsync();
         nativeRecorder.record();
         setIsRecording(true);
       }

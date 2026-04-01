@@ -58,6 +58,7 @@ export type CompatAudioPlayer = {
 };
 
 export type CompatRecorder = {
+  prepareToRecordAsync: () => Promise<void>;
   record: () => void;
   stop: () => Promise<void>;
   uri: string | null;
@@ -211,6 +212,9 @@ function useAvRecorderFallback(_options: any): CompatRecorder {
   const pendingStartRef = useRef<Promise<void> | null>(null);
 
   return useMemo<CompatRecorder>(() => ({
+    async prepareToRecordAsync() {
+      // expo-av handles preparation inside Recording.createAsync — no-op here
+    },
     record() {
       pendingStartRef.current = (async () => {
         try {
@@ -248,7 +252,7 @@ function useAvRecorderFallback(_options: any): CompatRecorder {
 
 function useNoOpRecorder(_options?: any): CompatRecorder {
   return useMemo<CompatRecorder>(
-    () => ({ record: () => {}, stop: async () => {}, uri: null, isRecording: false, duration: 0 }),
+    () => ({ prepareToRecordAsync: async () => {}, record: () => {}, stop: async () => {}, uri: null, isRecording: false, duration: 0 }),
     []
   );
 }
