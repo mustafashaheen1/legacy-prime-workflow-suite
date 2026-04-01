@@ -101,7 +101,10 @@ const mapClockEntry = (row: any) => ({
   location: row.location ?? { latitude: 0, longitude: 0 },
   workPerformed: row.work_performed ?? row.workPerformed,
   category: row.category,
-  lunchBreaks: row.lunch_breaks ?? row.lunchBreaks,
+  lunchBreaks: (row.lunch_breaks ?? row.lunchBreaks)?.map((lb: any) => ({
+    startTime: lb.startTime ?? lb.start ?? '',
+    endTime:   lb.endTime   ?? lb.end   ?? '',
+  })),
   hourlyRate: row.hourly_rate != null ? Number(row.hourly_rate) : undefined,
 });
 

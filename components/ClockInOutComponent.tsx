@@ -514,7 +514,7 @@ export default function ClockInOutComponent({ projectId, projectName, compact = 
       });
     }
     
-    return sum + totalMs / (1000 * 60 * 60);
+    return sum + (isNaN(totalMs) ? 0 : Math.max(0, totalMs) / (1000 * 60 * 60));
   }, 0);
 
   const { addReport } = useApp();
