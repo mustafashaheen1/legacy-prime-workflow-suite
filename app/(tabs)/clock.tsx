@@ -172,21 +172,34 @@ export default function ClockScreen() {
         <View style={isWeb ? styles.webWrapper : undefined}>
           {/* Page header */}
           <View style={[styles.header, isWeb && styles.headerWeb]}>
-            <View style={styles.headerTop}>
-              <View style={styles.headerTitleRow}>
-                {isWeb && <Clock size={22} color="#2563EB" style={{ marginRight: 10 }} />}
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.title, isWeb && styles.titleWeb]}>Clock In/Out</Text>
-                  <Text style={styles.subtitle} numberOfLines={1}>{selectedProject.name}</Text>
+            {isWeb ? (
+              <View style={styles.headerTop}>
+                <View style={styles.headerTitleRow}>
+                  <Clock size={22} color="#2563EB" style={{ marginRight: 10 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.title, styles.titleWeb]}>Clock In/Out</Text>
+                    <Text style={styles.subtitle} numberOfLines={1}>{selectedProject.name}</Text>
+                  </View>
                 </View>
+                <TouchableOpacity
+                  style={styles.changeProjectButton}
+                  onPress={() => setSelectedProjectId(null)}
+                >
+                  <Text style={styles.changeProjectText}>Change Project</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.changeProjectButton}
-                onPress={() => setSelectedProjectId(null)}
-              >
-                <Text style={styles.changeProjectText}>Change Project</Text>
-              </TouchableOpacity>
-            </View>
+            ) : (
+              <View>
+                <Text style={styles.title}>Clock In/Out</Text>
+                <Text style={styles.subtitle} numberOfLines={2}>{selectedProject.name}</Text>
+                <TouchableOpacity
+                  style={styles.changeProjectButtonMobile}
+                  onPress={() => setSelectedProjectId(null)}
+                >
+                  <Text style={styles.changeProjectText}>Change Project</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {/* Web: 2-column layout, Mobile: stacked */}
@@ -333,6 +346,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF',
     borderRadius: 8,
     flexShrink: 0,
+  },
+  changeProjectButtonMobile: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
   },
   changeProjectText: {
     fontSize: 14,
