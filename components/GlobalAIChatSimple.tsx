@@ -2510,9 +2510,13 @@ Generate appropriate line items from the price list that fit this scope of work$
                 encoding: 'base64' as any,
               });
               await transcribeAudioBase64(base64, sendImmediately);
+            } else {
+              // No URI — nothing to transcribe, clear the spinner
+              setIsTranscribing(false);
             }
           } catch (recordError) {
             console.error('Error stopping recording:', recordError);
+            setIsTranscribing(false);
           } finally {
             try {
               await AudioModule.setAudioModeAsync({ allowsRecording: false });
@@ -2520,6 +2524,9 @@ Generate appropriate line items from the price list that fit this scope of work$
               console.error('Error resetting audio mode:', audioModeError);
             }
           }
+        } else {
+          // Recorder was not active — nothing to transcribe, clear the spinner
+          setIsTranscribing(false);
         }
       }
     } catch (error) {
