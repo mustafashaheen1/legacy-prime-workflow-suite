@@ -196,15 +196,9 @@ export default function ScheduleScreen() {
   const [ganttStartOverride, setGanttStartOverride] = useState<Date | null>(null);
   const pendingScrollTargetRef = useRef<{ year: number; month: number } | null>(null);
 
-  const dateHeaderRef = useRef<ScrollView
-          keyboardDismissMode="on-drag"
-        >(null);
-  const gridHRef = useRef<ScrollView
-          keyboardDismissMode="on-drag"
-        >(null);
-  const bodyScrollRef = useRef<ScrollView
-          keyboardDismissMode="on-drag"
-        >(null);
+  const dateHeaderRef = useRef<ScrollView>(null);
+  const gridHRef = useRef<ScrollView>(null);
+  const bodyScrollRef = useRef<ScrollView>(null);
   const ganttAreaRef = useRef<View>(null);
   const gridPressableRef = useRef<any>(null);
   const isPanningRef = useRef<boolean>(false);
@@ -1469,9 +1463,8 @@ ${pdfDates.length > 0 ? `
                 scrollEnabled={false}
                 showsHorizontalScrollIndicator={false}
                 style={styles.dateHeaderScroll}
-              
-          keyboardDismissMode="on-drag"
-        >
+                keyboardDismissMode="on-drag"
+              >
                 <View style={styles.dateHeaderContent}>
                   {dates.map((date, i) => (
                     <View key={i} style={[styles.dateCell, { width: colWidths[i] ?? dayWidth }, isToday(date) && styles.dateCellToday]}>
@@ -1494,11 +1487,10 @@ ${pdfDates.length > 0 ? `
               nestedScrollEnabled
               scrollEventThrottle={16}
               scrollEnabled={!resizingTask}
-              onScroll={(e) =
-          keyboardDismissMode="on-drag"
-        > {
+              onScroll={(e) => {
                 currentScrollYRef.current = e.nativeEvent.contentOffset.y;
               }}
+              keyboardDismissMode="on-drag"
             >
               <View style={styles.ganttBodyRow}>
                 <View style={styles.sidebar} data-sidebar="true">

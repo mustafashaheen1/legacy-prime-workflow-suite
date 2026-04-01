@@ -537,10 +537,9 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        keyboardDismissMode="on-drag"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10B981" colors={['#10B981']} /
-          keyboardDismissMode="on-drag"
-        >
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10B981" colors={['#10B981']} />
         }
       >
         {employeesWithRateChangeRequests.length > 0 && (
