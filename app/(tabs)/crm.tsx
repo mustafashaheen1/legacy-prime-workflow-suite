@@ -387,8 +387,11 @@ export default function CRMScreen() {
     // Must have at least 2 words (a real question always has spaces)
     const words = trimmed.split(/\s+/).filter(w => w.length > 0);
     if (words.length < 2) return 'Question must contain at least 2 words.';
-    // Every word must have at least one vowel (catches consonant-only gibberish)
-    const hasGibberishWord = words.some(w => !/[aeiouAEIOU]/.test(w) && w.length > 1);
+    // At least 2 words must be 3+ characters (catches spaced-out single letters like "S r t y")
+    const substantialWords = words.filter(w => w.length >= 3);
+    if (substantialWords.length < 2) return 'Question must contain real words.';
+    // Every substantial word must have at least one vowel (catches consonant-only gibberish)
+    const hasGibberishWord = substantialWords.some(w => !/[aeiouAEIOU]/.test(w));
     if (hasGibberishWord) return 'Question must contain real words.';
     return null;
   };
