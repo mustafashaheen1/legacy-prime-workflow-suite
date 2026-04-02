@@ -209,7 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="3">
+  <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="5">
     <Say voice="alice">${escapeXml(assistantConfig.greeting)}</Say>
   </Gather>
 </Response>`;
@@ -223,7 +223,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="3">
+  <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="5">
     <Say voice="alice">${escapeXml(assistantConfig.nameQuestion)}</Say>
   </Gather>
 </Response>`;
@@ -315,7 +315,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="3">
+  <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="5">
     <Say voice="alice">${escapeXml(question)}</Say>
   </Gather>
 </Response>`;
