@@ -140,11 +140,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (config) {
           assistantConfig.enabled = config.enabled ?? true;
-          // Load greeting and always inject real company name (fixes "calling us" from old saved configs)
-          const rawGreeting = config.greeting || assistantConfig.greeting;
-          assistantConfig.greeting = rawGreeting
+          // Always build greeting dynamically with real company name
+          // Use saved greeting as template but ensure company name is always present
+          const rawGreeting = config.greeting || '';
+          const afterReplacement = rawGreeting
             .replace(/calling us\b/i, `calling ${companyName}`)
-            .replace(/\{company_name\}/gi, companyName);
+            .replace(/\{company_name\}/gi, companyName)
+            .trim();
+          // If saved greeting still doesn't mention the company name, use the dynamic default
+          assistantConfig.greeting = afterReplacement.includes(companyName)
+            ? afterReplacement
+            : `Thank you for calling ${companyName}. How can I help you today?`;
           assistantConfig.nameQuestion = config.name_question || assistantConfig.nameQuestion;
           assistantConfig.autoAddToCRM = config.auto_add_to_crm ?? true;
 
