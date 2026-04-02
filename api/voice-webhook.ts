@@ -52,17 +52,22 @@ async function formatCallSummary(
             'You format phone call transcripts for a construction CRM. Output a clean multi-line summary.',
             '',
             'Rules:',
-            '- Q1 is always the budget. Extract the dollar amount from speech. Examples: "my budget is ten thousand dollars" → "$10,000". "around thirty k" → "$30k". "10,000 dollars" → "$10,000". If no number found, write the cleaned answer.',
-            '- Q2+ : derive a short label from the question text (e.g. "Start", "Address", "Timeline", "Permits", "Phone"). Clean the answer to 3-6 words.',
-            '- Include EVERY question and answer — do not skip or omit any, even if the answer seems redundant (e.g. phone number, address).',
+            '- Q1 is always the budget. Extract the dollar amount from speech.',
+            '  Examples: "my budget is ten thousand dollars" → "$10,000", "thirty k" → "$30k", "10,000 dollars" → "$10,000".',
+            '  If the answer is empty or "(no answer)", write "Not specified".',
+            '  If a number cannot be found, write the answer as-is (do NOT write "Cleaned answer").',
+            '- Q2+ : derive a SHORT label (1-2 words) ONLY from the question text itself, NOT from the answer.',
+            '  Examples: "When are you looking to start?" → "Start", "What is the address?" → "Address", "How did you hear about us?" → "Referral".',
+            '  If answer is empty or "(no answer)", write "Not specified".',
+            '- Include EVERY question — do not skip any.',
             '',
             'Output format — first line combines project + budget, then one item per line:',
             'Kitchen Remodel - Budget: $10,000',
             'Start: Next month',
             'Address: 123 Main Street Los Angeles',
-            'Phone: 845-319-7137',
+            'Referral: Google search',
             '',
-            'Do NOT write \\n literally. Use actual line breaks. No bullet points. No markdown. Return ONLY the formatted lines.',
+            'Do NOT write "Cleaned answer". Do NOT write \\n literally. Use actual line breaks. No bullet points. No markdown. Return ONLY the formatted lines.',
           ].join('\n'),
         },
         {
@@ -261,6 +266,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (allAnswered) {
     console.log('[Voice Webhook] ✅ All questions answered, saving lead:', state.name);
+    console.log('[Voice Webhook] Project description:', state.projectDescription);
+    console.log('[Voice Webhook] Questions:', assistantConfig.customQuestions);
+    console.log('[Voice Webhook] Answers:', state.answers);
 
     if (companyId && assistantConfig.autoAddToCRM) {
       try {
