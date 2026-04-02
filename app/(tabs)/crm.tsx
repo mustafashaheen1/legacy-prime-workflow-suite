@@ -364,7 +364,7 @@ export default function CRMScreen() {
   const [callAssistantConfig, setCallAssistantConfig] = useState({
     enabled: true,
     businessName: 'Legacy Prime Construction',
-    greeting: 'Thank you for calling us. How can I help you today?',
+    greeting: `Thank you for calling ${company?.name || 'us'}. How can I help you today?`,
     nameQuestion: 'What is your name?',
     customQuestions: [
       'What type of project do you need help with?',
@@ -416,10 +416,14 @@ export default function CRMScreen() {
                 data.project_question || 'What type of project do you need help with?',
                 data.budget_question  || 'What is your budget for this project?',
               ];
+        const companyGreeting = `Thank you for calling ${company?.name || 'us'}. How can I help you today?`;
+        const loadedGreeting = !data.greeting || data.greeting === 'Thank you for calling us. How can I help you today?'
+          ? companyGreeting
+          : data.greeting;
         setCallAssistantConfig(prev => ({
           ...prev,
           enabled: data.enabled ?? true,
-          greeting: data.greeting || prev.greeting,
+          greeting: loadedGreeting,
           nameQuestion: data.name_question || prev.nameQuestion,
           customQuestions: loadedQuestions,
           autoAddToCRM: data.auto_add_to_crm ?? true,

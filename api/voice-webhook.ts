@@ -86,7 +86,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (config) {
           assistantConfig.enabled = config.enabled ?? true;
-          assistantConfig.greeting = config.greeting || assistantConfig.greeting;
+          // Load greeting and always inject real company name (fixes "calling us" from old saved configs)
+          const rawGreeting = config.greeting || assistantConfig.greeting;
+          assistantConfig.greeting = rawGreeting
+            .replace(/calling us\b/i, `calling ${companyName}`)
+            .replace(/\{company_name\}/gi, companyName);
           assistantConfig.nameQuestion = config.name_question || assistantConfig.nameQuestion;
           assistantConfig.autoAddToCRM = config.auto_add_to_crm ?? true;
 
@@ -135,16 +139,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // ── Initial greeting ────────────────────────────────────────────────────────
+  // ── Initial greeting (Say only — no Gather so the greeting can't be mistaken for a name) ──
   if (state.step === 0 && !SpeechResult) {
     console.log('[Voice Webhook] Sending greeting for:', companyName);
     state.step = 1;
     const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="auto">
-    <Say voice="alice">${escapeXml(assistantConfig.greeting)}</Say>
-  </Gather>
+  <Say voice="alice">${escapeXml(assistantConfig.greeting)}</Say>
+  <Redirect method="POST">${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}</Redirect>
 </Response>`;
     res.setHeader('Content-Type', 'text/xml');
     return res.status(200).send(twiml);
@@ -182,23 +185,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (companyId && assistantConfig.autoAddToCRM) {
       try {
         // Build compact one-line summary for CRM card display
-        const isDefault =
-          assistantConfig.customQuestions.length === 2 &&
-          assistantConfig.customQuestions[0] === DEFAULT_QUESTIONS[0] &&
-          assistantConfig.customQuestions[1] === DEFAULT_QUESTIONS[1];
-
-        let notes: string;
-        if (isDefault) {
-          const project = state.answers[0] || '';
-          const budget = state.answers[1] || '';
-          notes = `[AI Call] ${project} - Budget: ${budget}`.trim();
-        } else {
-          // Custom questions: compact joined summary
-          const summary = state.answers
-            .map((a, i) => a || 'No answer')
-            .join(' · ');
-          notes = `[AI Call] ${summary}`.trim();
-        }
+        // Always compact: first answer = project, second = budget
+        const project = state.answers[0] || '';
+        const budget = state.answers[1] || '';
+        let notes = `[AI Call] ${project}`.trim();
+        if (budget) notes += ` - Budget: ${budget}`;
 
         const { data: newClient, error: clientError } = await supabase
           .from('clients')
