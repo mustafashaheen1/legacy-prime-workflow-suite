@@ -384,6 +384,12 @@ export default function CRMScreen() {
     if (trimmed.length < 10) return 'Question is too short (min 10 characters).';
     const letterCount = (trimmed.match(/[a-zA-Z]/g) || []).length;
     if (letterCount < 5) return 'Question must contain real words.';
+    // Must have at least 2 words (a real question always has spaces)
+    const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+    if (words.length < 2) return 'Question must contain at least 2 words.';
+    // Every word must have at least one vowel (catches consonant-only gibberish)
+    const hasGibberishWord = words.some(w => !/[aeiouAEIOU]/.test(w) && w.length > 1);
+    if (hasGibberishWord) return 'Question must contain real words.';
     return null;
   };
   const [isSavingAssistantConfig, setIsSavingAssistantConfig] = useState(false);
