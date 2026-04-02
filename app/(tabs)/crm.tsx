@@ -382,6 +382,7 @@ export default function CRMScreen() {
     const trimmed = q.trim();
     if (!trimmed) return 'Question cannot be empty.';
     if (trimmed.length < 10) return 'Question is too short (min 10 characters).';
+    if (trimmed.length > 120) return 'Question is too long (max 120 characters).';
     const letterCount = (trimmed.match(/[a-zA-Z]/g) || []).length;
     if (letterCount < 5) return 'Question must contain real words.';
     // Must have at least 2 words (a real question always has spaces)
@@ -2773,6 +2774,7 @@ export default function CRMScreen() {
                     <TextInput
                       style={[styles.configInput, styles.questionInput]}
                       value={q}
+                      maxLength={120}
                       onChangeText={(text) => {
                         const updated = [...callAssistantConfig.customQuestions];
                         updated[index] = text;
@@ -2799,6 +2801,7 @@ export default function CRMScreen() {
                   <TextInput
                     style={[styles.configInput, styles.addQuestionInput, newQuestionError ? styles.inputError : undefined]}
                     value={newQuestionText}
+                    maxLength={120}
                     onChangeText={(text) => {
                       setNewQuestionText(text);
                       if (newQuestionError) setNewQuestionError('');
