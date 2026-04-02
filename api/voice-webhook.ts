@@ -8,10 +8,11 @@ const supabase = createClient(
 );
 
 interface State {
-  step: number;
+  step: number;        // 0=greeting, 1=name, 2+=custom questions
   name: string;
   phone: string;
-  answers: string[];   // one answer per custom question, in order
+  projectDescription: string;  // captured from greeting "How can I help you today?"
+  answers: string[];            // one answer per custom question, in order
 }
 
 interface AssistantConfig {
@@ -23,20 +24,22 @@ interface AssistantConfig {
 }
 
 const DEFAULT_QUESTIONS = [
-  'What type of project do you need help with?',
   'What is your budget for this project?',
 ];
 
 async function formatCallSummary(
+  projectDescription: string,
   questions: string[],
   answers: string[]
 ): Promise<string> {
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+    const projectLine = `Project: ${projectDescription || '(not specified)'}`;
     const pairs = questions
       .map((q, i) => `Q: ${q}\nA: ${answers[i] || '(no answer)'}`)
       .join('\n\n');
+    const fullInput = pairs ? `${projectLine}\n\n${pairs}` : projectLine;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -63,7 +66,7 @@ async function formatCallSummary(
         },
         {
           role: 'user',
-          content: pairs,
+          content: fullInput,
         },
       ],
     });
@@ -179,6 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     step: 0,
     name: '',
     phone: From || '',
+    projectDescription: '',
     answers: [],
   };
 
@@ -190,53 +194,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // ── Initial greeting (Say only — no Gather so the greeting can't be mistaken for a name) ──
-  if (state.step === 0 && !SpeechResult) {
-    console.log('[Voice Webhook] Sending greeting for:', companyName);
-    state.step = 1;
-    const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+  // ── Step 0: greeting — Gather captures project description ─────────────────
+  if (state.step === 0) {
+    if (!SpeechResult) {
+      // First hit — play greeting and wait for caller to speak
+      console.log('[Voice Webhook] Sending greeting for:', companyName);
+      const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">${escapeXml(assistantConfig.greeting)}</Say>
-  <Redirect method="POST">${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}</Redirect>
+  <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="3">
+    <Say voice="alice">${escapeXml(assistantConfig.greeting)}</Say>
+  </Gather>
 </Response>`;
-    res.setHeader('Content-Type', 'text/xml');
-    return res.status(200).send(twiml);
+      res.setHeader('Content-Type', 'text/xml');
+      return res.status(200).send(twiml);
+    } else {
+      // Caller described their need — store as project description, ask name next
+      state.projectDescription = SpeechResult.trim();
+      state.step = 1;
+      console.log('[Voice Webhook] Project description captured:', state.projectDescription);
+      const encodedState = Buffer.from(JSON.stringify(state)).toString('base64');
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${webhookUrl}?conversationState=${encodeURIComponent(encodedState)}" method="POST" speechTimeout="3">
+    <Say voice="alice">${escapeXml(assistantConfig.nameQuestion)}</Say>
+  </Gather>
+</Response>`;
+      res.setHeader('Content-Type', 'text/xml');
+      return res.status(200).send(twiml);
+    }
   }
 
-  // ── Process speech ──────────────────────────────────────────────────────────
-  if (SpeechResult) {
-    if (!state.name) {
-      // First response is always treated as the caller's name
-      const nameMatch =
-        SpeechResult.match(/(?:name is|i(?:'|')?m|this is|call me)\s+([a-z]+(?:\s+[a-z]+)?)/i) ||
-        SpeechResult.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)$/);
-      if (nameMatch?.[1]) {
-        state.name = nameMatch[1].trim();
-      } else if (SpeechResult.trim().split(' ').length <= 3) {
-        state.name = SpeechResult.trim();
-      } else {
-        // Take first two words as name fallback
-        state.name = SpeechResult.trim().split(' ').slice(0, 2).join(' ');
-      }
-      console.log('[Voice Webhook] Captured name:', state.name);
+  // ── Step 1: name captured ────────────────────────────────────────────────
+  if (state.step === 1 && SpeechResult) {
+    const nameMatch =
+      SpeechResult.match(/(?:name is|i(?:'|')?m|this is|call me)\s+([a-z]+(?:\s+[a-z]+)?)/i) ||
+      SpeechResult.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)$/);
+    if (nameMatch?.[1]) {
+      state.name = nameMatch[1].trim();
+    } else if (SpeechResult.trim().split(' ').length <= 3) {
+      state.name = SpeechResult.trim();
     } else {
-      // Subsequent responses are answers to custom questions in order
-      state.answers = [...(state.answers || []), SpeechResult.trim()];
+      state.name = SpeechResult.trim().split(' ').slice(0, 2).join(' ');
+    }
+    state.step = 2;
+    console.log('[Voice Webhook] Name captured:', state.name);
+  }
+
+  // ── Step 2+: custom question answers ────────────────────────────────────
+  if (state.step >= 2 && SpeechResult && state.name) {
+    // Only add answer if we're past name step and there's an outstanding question
+    if (state.answers.length < assistantConfig.customQuestions.length) {
+      state.answers = [...state.answers, SpeechResult.trim()];
       console.log(`[Voice Webhook] Answer ${state.answers.length}/${assistantConfig.customQuestions.length}:`, SpeechResult);
     }
   }
 
   // ── Check if all questions answered ────────────────────────────────────────
-  const allAnswered = state.name && state.answers.length >= assistantConfig.customQuestions.length;
+  const allAnswered = state.step >= 2 && state.name && state.answers.length >= assistantConfig.customQuestions.length;
 
   if (allAnswered) {
     console.log('[Voice Webhook] ✅ All questions answered, saving lead:', state.name);
 
     if (companyId && assistantConfig.autoAddToCRM) {
       try {
-        // Use OpenAI to clean + format all Q&A into a compact summary
-        const summary = await formatCallSummary(assistantConfig.customQuestions, state.answers);
+        // Use OpenAI to clean + format project description + all Q&A into a compact summary
+        const summary = await formatCallSummary(state.projectDescription, assistantConfig.customQuestions, state.answers);
         const notes = `[AI Call]\n${summary}`;
 
         const { data: newClient, error: clientError } = await supabase
@@ -278,13 +301,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).send(twiml);
   }
 
-  // ── Ask next question ───────────────────────────────────────────────────────
-  let question: string;
-  if (!state.name) {
-    question = assistantConfig.nameQuestion;
-  } else {
-    question = assistantConfig.customQuestions[state.answers.length];
-  }
+  // ── Ask next custom question (step 2+) ──────────────────────────────────────
+  const question = assistantConfig.customQuestions[state.answers.length];
 
   console.log('[Voice Webhook] Asking:', question);
 

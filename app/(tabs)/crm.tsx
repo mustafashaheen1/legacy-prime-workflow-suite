@@ -367,7 +367,6 @@ export default function CRMScreen() {
     greeting: `Thank you for calling ${company?.name || 'us'}. How can I help you today?`,
     nameQuestion: 'What is your name?',
     customQuestions: [
-      'What type of project do you need help with?',
       'What is your budget for this project?',
     ] as string[],
     autoAddToCRM: true,
@@ -413,8 +412,7 @@ export default function CRMScreen() {
           Array.isArray(data.custom_questions) && data.custom_questions.length > 0
             ? data.custom_questions
             : [
-                data.project_question || 'What type of project do you need help with?',
-                data.budget_question  || 'What is your budget for this project?',
+                data.budget_question || 'What is your budget for this project?',
               ];
         const companyGreeting = `Thank you for calling ${company?.name || 'us'}. How can I help you today?`;
         const loadedGreeting = !data.greeting || data.greeting === 'Thank you for calling us. How can I help you today?'
