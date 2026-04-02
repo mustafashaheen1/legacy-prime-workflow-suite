@@ -365,10 +365,10 @@ export default function CRMScreen() {
     enabled: true,
     businessName: 'Legacy Prime Construction',
     greeting: 'Thank you for calling us. How can I help you today?',
+    nameQuestion: 'What is your name?',
     customQuestions: [
       'What type of project do you need help with?',
       'What is your budget for this project?',
-      'When are you looking to start?',
     ] as string[],
     autoAddToCRM: true,
     autoSchedule: true,
@@ -415,12 +415,12 @@ export default function CRMScreen() {
             : [
                 data.project_question || 'What type of project do you need help with?',
                 data.budget_question  || 'What is your budget for this project?',
-                'When are you looking to start?',
               ];
         setCallAssistantConfig(prev => ({
           ...prev,
           enabled: data.enabled ?? true,
           greeting: data.greeting || prev.greeting,
+          nameQuestion: data.name_question || prev.nameQuestion,
           customQuestions: loadedQuestions,
           autoAddToCRM: data.auto_add_to_crm ?? true,
         }));
@@ -456,6 +456,7 @@ export default function CRMScreen() {
           company_id: company.id,
           enabled: callAssistantConfig.enabled,
           greeting: callAssistantConfig.greeting,
+          name_question: callAssistantConfig.nameQuestion,
           // Keep legacy columns in sync for any old consumers
           project_question: callAssistantConfig.customQuestions[0] || '',
           budget_question: callAssistantConfig.customQuestions[1] || '',
@@ -2779,14 +2780,27 @@ export default function CRMScreen() {
                   These questions are asked in order on every call. Tap to edit, trash to remove.
                 </Text>
 
-                {/* Locked built-in name question */}
-                <View style={styles.questionRow}>
-                  <View style={[styles.questionNumberBadge, { backgroundColor: '#E5E7EB' }]}>
-                    <Text style={[styles.questionNumber, { color: '#9CA3AF' }]}>1</Text>
+                {/* Name question — always first, editable wording */}
+                <View>
+                  <View style={styles.questionRow}>
+                    <View style={styles.questionNumberBadge}>
+                      <Text style={styles.questionNumber}>1</Text>
+                    </View>
+                    <TextInput
+                      style={[styles.configInput, styles.questionInput, callAssistantConfig.nameQuestion.length >= 120 ? styles.inputError : undefined]}
+                      value={callAssistantConfig.nameQuestion}
+                      maxLength={120}
+                      onChangeText={(text) => setCallAssistantConfig(prev => ({ ...prev, nameQuestion: text }))}
+                      placeholder="What is your name?"
+                      placeholderTextColor="#9CA3AF"
+                    />
                   </View>
-                  <View style={[styles.configInput, styles.questionInput, { justifyContent: 'center', backgroundColor: '#F9FAFB' }]}>
-                    <Text style={{ color: '#9CA3AF', fontSize: 14 }}>What's your name? (built-in, always first)</Text>
-                  </View>
+                  <Text style={styles.builtInLabel}>Always first — caller's name</Text>
+                  {callAssistantConfig.nameQuestion.length >= 90 && (
+                    <Text style={[styles.charCounter, callAssistantConfig.nameQuestion.length >= 120 && styles.charCounterMax]}>
+                      {callAssistantConfig.nameQuestion.length}/120
+                    </Text>
+                  )}
                 </View>
 
                 {callAssistantConfig.customQuestions.map((q, index) => (
@@ -4727,6 +4741,13 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     marginTop: 4,
     marginLeft: 2,
+  },
+  builtInLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
+    marginLeft: 2,
+    marginBottom: 6,
   },
   charCounter: {
     fontSize: 11,

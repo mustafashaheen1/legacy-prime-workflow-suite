@@ -16,6 +16,7 @@ interface State {
 interface AssistantConfig {
   enabled: boolean;
   greeting: string;
+  nameQuestion: string;
   customQuestions: string[];
   autoAddToCRM: boolean;
 }
@@ -58,6 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const assistantConfig: AssistantConfig = {
     enabled: true,
     greeting: `Thank you for calling ${companyName}. How can I help you today?`,
+    nameQuestion: 'What is your name?',
     customQuestions: [...DEFAULT_QUESTIONS],
     autoAddToCRM: true,
   };
@@ -85,6 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (config) {
           assistantConfig.enabled = config.enabled ?? true;
           assistantConfig.greeting = config.greeting || assistantConfig.greeting;
+          assistantConfig.nameQuestion = config.name_question || assistantConfig.nameQuestion;
           assistantConfig.autoAddToCRM = config.auto_add_to_crm ?? true;
 
           // Prefer new custom_questions; fall back to legacy fields for old rows
@@ -94,7 +97,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             assistantConfig.customQuestions = [
               config.project_question || DEFAULT_QUESTIONS[0],
               config.budget_question  || DEFAULT_QUESTIONS[1],
-              DEFAULT_QUESTIONS[2],
             ];
           }
           console.log('[Voice Webhook] Loaded config, questions:', assistantConfig.customQuestions.length);
@@ -240,7 +242,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── Ask next question ───────────────────────────────────────────────────────
   let question: string;
   if (!state.name) {
-    question = 'May I have your name please?';
+    question = assistantConfig.nameQuestion;
   } else {
     question = assistantConfig.customQuestions[state.answers.length];
   }
