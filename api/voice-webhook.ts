@@ -274,7 +274,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         // Use OpenAI to clean + format project description + all Q&A into a compact summary
         const summary = await formatCallSummary(state.projectDescription, assistantConfig.customQuestions, state.answers);
+        console.log('[Voice Webhook] OpenAI summary:', JSON.stringify(summary));
         const notes = `[AI Call]\n${summary}`;
+        console.log('[Voice Webhook] Final notes saved to CRM:', JSON.stringify(notes));
 
         const { data: newClient, error: clientError } = await supabase
           .from('clients')
