@@ -40,19 +40,26 @@ async function formatCallSummary(
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      max_tokens: 120,
+      max_tokens: 150,
       temperature: 0,
       messages: [
         {
           role: 'system',
-          content:
-            'You format phone call notes for a construction CRM into a compact one-line summary. ' +
-            'Rules:\n' +
-            '- First Q is always project type → extract 2-4 word label (e.g. "Kitchen Remodel")\n' +
-            '- Second Q is always budget → extract dollar amount (e.g. "$30,000" or "$30k"). If unclear write the cleaned answer.\n' +
-            '- Additional Qs → derive a short label from the question (e.g. "Start", "Address", "Timeline") and clean the answer to 3-6 words.\n' +
-            '- Format: "ProjectType - Budget: $X\\nLabel: Value\\nLabel: Value"\n' +
-            '- Use \\n to separate lines. No bullet points. No markdown. Return ONLY the formatted string.',
+          content: [
+            'You format phone call transcripts for a construction CRM. Output a clean multi-line summary.',
+            '',
+            'Rules:',
+            '- Q1 is always the project type. Strip filler like "I need help with", "I want", "so I need". Keep 2-5 words. Example: "Kitchen Remodel".',
+            '- Q2 is always the budget. Extract the dollar amount from speech. Examples: "my budget is ten thousand dollars" → "$10,000". "around thirty k" → "$30k". "10,000 dollars" → "$10,000". Numbers with commas like 10,000 mean ten thousand. If no number found, write the cleaned answer.',
+            '- Q3+ : derive a short label from the question text (e.g. "Start", "Address", "Timeline", "Permits"). Clean the answer to 3-6 words.',
+            '',
+            'Output format — one item per line, exactly like this:',
+            'Kitchen Remodel - Budget: $10,000',
+            'Start: Next month',
+            'Address: 123 Main Street Los Angeles',
+            '',
+            'Do NOT write \\n literally. Use actual line breaks. No bullet points. No markdown. Return ONLY the formatted lines.',
+          ].join('\n'),
         },
         {
           role: 'user',
@@ -61,7 +68,9 @@ async function formatCallSummary(
       ],
     });
 
-    return completion.choices[0]?.message?.content?.trim() || answers.join(' · ');
+    const raw = completion.choices[0]?.message?.content?.trim() || '';
+    // Guard: replace any literal \n the model may have output with real newlines
+    return raw.replace(/\\n/g, '\n') || answers.join(' · ');
   } catch (e: any) {
     console.warn('[Voice Webhook] OpenAI format failed, using raw answers:', e.message);
     return answers.join(' · ');
