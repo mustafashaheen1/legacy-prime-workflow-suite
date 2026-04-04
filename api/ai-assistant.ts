@@ -313,6 +313,30 @@ function buildDateRange(
   }
 }
 
+// Module-level helper: find a project by name or by client name (via estimate linkage).
+// Accepts optional estimates array — when provided, enables client-name → estimate → project lookup.
+function findProjectByNameOrClient(projects: any[], clients: any[], searchName: string, estimates: any[] = []): any {
+  // First try to find by project name
+  let projectFound = projects.find((p: any) =>
+    p.name?.toLowerCase().includes(searchName.toLowerCase())
+  );
+
+  // If not found by project name, try to find by client name via estimate linkage
+  if (!projectFound) {
+    const matchingClient = clients.find((c: any) =>
+      c.name?.toLowerCase().includes(searchName.toLowerCase())
+    );
+    if (matchingClient) {
+      const clientEstimates = estimates.filter((e: any) => e.clientId === matchingClient.id);
+      const clientEstimateIds = clientEstimates.map((e: any) => e.id);
+      projectFound = projects.find((p: any) =>
+        p.estimateId && clientEstimateIds.includes(p.estimateId)
+      );
+    }
+  }
+  return projectFound;
+}
+
 // Define the function calling tools for the AI assistant
 const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -5320,7 +5344,7 @@ Based on the store and items, intelligently categorize this expense:
           body: JSON.stringify(emailData),
         });
 
-        const result = await response.json();
+        const result = await response.json() as { success: boolean; error?: string };
 
         if (result.success) {
           const fileCount = fileUrls && fileUrls.length > 0 ? fileUrls.length : 0;
@@ -7980,7 +8004,7 @@ When the user says "this project", "this client", "this estimate", etc., they ar
     console.log('[AI Assistant] Built', openaiMessages.length, 'messages for OpenAI');
 
     // First API call - let AI decide if it needs tools
-    let completion;
+    let completion: Awaited<ReturnType<typeof openai.chat.completions.create>>;
     try {
       completion = await openai.chat.completions.create({
         model: 'gpt-4o',
