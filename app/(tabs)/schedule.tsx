@@ -97,7 +97,7 @@ const MAX_ZOOM = 2.5;
 const ZOOM_STEP = 0.1;
 
 export default function ScheduleScreen() {
-  const { user, projects, dailyLogs, addDailyLog, loadScheduledTasks, addDailyTaskReminder, updateDailyTaskReminder, deleteDailyTaskReminder, getDailyTaskReminders, generateShareLink, disableShareLink, regenerateShareLink, getShareLinkByProject, updateScheduledTasks, scheduledTasks: contextScheduledTasks, subcontractors } = useApp();
+  const { user, projects, dailyLogs, addDailyLog, loadScheduledTasks, addDailyTaskReminder, updateDailyTaskReminder, deleteDailyTaskReminder, getDailyTaskReminders, generateShareLink, disableShareLink, regenerateShareLink, getShareLinkByProject, updateScheduledTasks, scheduledTasks: contextScheduledTasks, subcontractors, company } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -138,6 +138,8 @@ export default function ScheduleScreen() {
   const [editCompleted, setEditCompleted] = useState<boolean>(false);
   const [editCompletedDate, setEditCompletedDate] = useState<string>('');
   const [editAssignedSubIds, setEditAssignedSubIds] = useState<string[]>([]);
+  const [editAssignedEmpIds, setEditAssignedEmpIds] = useState<string[]>([]);
+  const [companyEmployees, setCompanyEmployees] = useState<any[]>([]);
 
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
   const [equipmentExpanded, setEquipmentExpanded] = useState<boolean>(false);
@@ -213,6 +215,17 @@ export default function ScheduleScreen() {
   useEffect(() => {
     if (selectedProject) loadScheduledTasks(selectedProject);
   }, [selectedProject]);
+
+  // Fetch company employees once for the assignment picker
+  useEffect(() => {
+    const companyId = company?.id;
+    if (!companyId) return;
+    const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+    fetch(`${API_BASE}/api/get-users?companyId=${companyId}`)
+      .then(r => r.json())
+      .then(data => { if (data.users) setCompanyEmployees(data.users); })
+      .catch(() => {});
+  }, [company?.id]);
 
   useEffect(() => {
     const projectContextTasks = contextScheduledTasks.filter(t => t.projectId === selectedProject);
@@ -739,6 +752,7 @@ export default function ScheduleScreen() {
     setEditNoteText(task.notes || '');
     setEditWorkType(task.workType);
     setEditAssignedSubIds(task.assignedSubcontractorIds ?? []);
+    setEditAssignedEmpIds(task.assignedEmployeeIds ?? []);
     setEditDuration(String(task.duration));
     setEditClientVisibleNote(task.visibleToClient ?? false);
     setEditCompleted(task.completed ?? false);
@@ -782,6 +796,7 @@ export default function ScheduleScreen() {
       completed: editCompleted,
       completedAt: editCompleted ? editCompletedDate : (null as any),
       assignedSubcontractorIds: editWorkType === 'subcontractor' ? editAssignedSubIds : [],
+      assignedEmployeeIds: editWorkType === 'in-house' ? editAssignedEmpIds : [],
     };
 
     // Update local state directly — guarantees immediate pill expansion on chart
@@ -793,7 +808,7 @@ export default function ScheduleScreen() {
     updateScheduledTasks(updatedAll);
 
     console.log('[Schedule] Updated task:', editingTask.category, `duration: ${newDuration}d`, editCompleted ? '(completed)' : '');
-  }, [editingTask, editNoteText, editWorkType, editDuration, editClientVisibleNote, editCompleted, editCompletedDate, editAssignedSubIds, updateScheduledTasks]);
+  }, [editingTask, editNoteText, editWorkType, editDuration, editClientVisibleNote, editCompleted, editCompletedDate, editAssignedSubIds, editAssignedEmpIds, updateScheduledTasks]);
 
   const handleOpenDailyLogs = () => {
     setShowDailyLogsModal(true);
@@ -1962,7 +1977,7 @@ ${pdfDates.length > 0 ? `
                 <View style={styles.workTypeRow}>
                   <TouchableOpacity
                     style={[styles.workTypeChip, editWorkType === 'in-house' && styles.workTypeChipActive]}
-                    onPress={() => { setEditWorkType('in-house'); setEditAssignedSubIds([]); }}
+                    onPress={() => setEditWorkType('in-house')}
                   >
                     <Text style={[styles.workTypeText, editWorkType === 'in-house' && styles.workTypeTextActive]}>🏠 In-House</Text>
                   </TouchableOpacity>
@@ -1974,12 +1989,102 @@ ${pdfDates.length > 0 ? `
                   </TouchableOpacity>
                 </View>
 
-                {/* Subcontractor picker — only when work type is subcontractor */}
+                {/* Employee picker — In-House */}
+                {editWorkType === 'in-house' && (
+                  <View style={{ marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <Text style={styles.editLabel}>ASSIGN EMPLOYEES</Text>
+                      {editAssignedEmpIds.length > 0 && (
+                        <View style={{ backgroundColor: '#2563EB', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFF' }}>{editAssignedEmpIds.length}</Text>
+                        </View>
+                      )}
+                    </View>
+                    {/* Selected chips */}
+                    {editAssignedEmpIds.length > 0 && (
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                        {editAssignedEmpIds.map(empId => {
+                          const emp = companyEmployees.find(e => e.id === empId);
+                          if (!emp) return null;
+                          return (
+                            <TouchableOpacity
+                              key={empId}
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 1, borderColor: '#BFDBFE' }}
+                              onPress={() => setEditAssignedEmpIds(prev => prev.filter(id => id !== empId))}
+                              activeOpacity={0.7}
+                            >
+                              {emp.avatar
+                                ? <Image source={{ uri: emp.avatar }} style={{ width: 18, height: 18, borderRadius: 9 }} />
+                                : <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: '#2563EB', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '700', color: '#FFF' }}>{emp.name?.charAt(0)?.toUpperCase()}</Text>
+                                  </View>
+                              }
+                              <Text style={{ fontSize: 12, fontWeight: '600', color: '#1D4ED8' }}>{emp.name?.split(' ')[0]}</Text>
+                              <X size={11} color="#6B7280" strokeWidth={2.5} />
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+                    {/* Avatar cards */}
+                    {companyEmployees.length === 0 ? (
+                      <View style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, borderRadius: 8, padding: 10 }}>
+                        <Text style={{ fontSize: 12, color: '#2563EB' }}>No employees found.</Text>
+                      </View>
+                    ) : (
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                        {companyEmployees.map(emp => {
+                          const isSelected = editAssignedEmpIds.includes(emp.id);
+                          return (
+                            <TouchableOpacity
+                              key={emp.id}
+                              style={{
+                                alignItems: 'center', justifyContent: 'center',
+                                width: 80, paddingVertical: 10, paddingHorizontal: 6,
+                                borderRadius: 12, borderWidth: 2,
+                                borderColor: isSelected ? '#2563EB' : '#E5E7EB',
+                                backgroundColor: isSelected ? '#EFF6FF' : '#F9FAFB',
+                              }}
+                              onPress={() => setEditAssignedEmpIds(prev =>
+                                prev.includes(emp.id) ? prev.filter(id => id !== emp.id) : [...new Set([...prev, emp.id])]
+                              )}
+                              activeOpacity={0.7}
+                            >
+                              <View style={{ position: 'relative' }}>
+                                {emp.avatar
+                                  ? <Image source={{ uri: emp.avatar }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+                                  : <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}>
+                                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#475569' }}>{emp.name?.charAt(0)?.toUpperCase()}</Text>
+                                    </View>
+                                }
+                                {isSelected && (
+                                  <View style={{ position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: 8, backgroundColor: '#2563EB', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#FFF' }}>
+                                    <Check size={9} color="#FFF" strokeWidth={3} />
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: isSelected ? '#1D4ED8' : '#374151', marginTop: 6, textAlign: 'center' }} numberOfLines={1}>{emp.name?.split(' ')[0]}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Subcontractor picker — Sub work type */}
                 {editWorkType === 'subcontractor' && (
-                  <View style={{ marginTop: 4, marginBottom: 4 }}>
-                    <Text style={styles.editLabel}>Assign Subcontractors</Text>
+                  <View style={{ marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <Text style={styles.editLabel}>ASSIGN SUBCONTRACTORS</Text>
+                      {editAssignedSubIds.length > 0 && (
+                        <View style={{ backgroundColor: '#2563EB', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFF' }}>{editAssignedSubIds.length}</Text>
+                        </View>
+                      )}
+                    </View>
                     {subcontractors.length === 0 ? (
-                      <View style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, borderRadius: 8, padding: 10, marginTop: 6 }}>
+                      <View style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, borderRadius: 8, padding: 10 }}>
                         <Text style={{ fontSize: 12, color: '#2563EB' }}>No subcontractors found. Add them in the Subcontractors section.</Text>
                       </View>
                     ) : (
@@ -1994,11 +2099,9 @@ ${pdfDates.length > 0 ? `
                               borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, marginTop: 6,
                               borderWidth: isSelected ? 1 : 0, borderColor: '#BFDBFE',
                             }}
-                            onPress={() => {
-                              setEditAssignedSubIds(prev =>
-                                prev.includes(sub.id) ? prev.filter(id => id !== sub.id) : [...new Set([...prev, sub.id])]
-                              );
-                            }}
+                            onPress={() => setEditAssignedSubIds(prev =>
+                              prev.includes(sub.id) ? prev.filter(id => id !== sub.id) : [...new Set([...prev, sub.id])]
+                            )}
                             activeOpacity={0.7}
                           >
                             <View style={{ flex: 1, marginRight: 8 }}>
