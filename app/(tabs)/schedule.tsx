@@ -97,7 +97,7 @@ const MAX_ZOOM = 2.5;
 const ZOOM_STEP = 0.1;
 
 export default function ScheduleScreen() {
-  const { user, projects, dailyLogs, addDailyLog, loadScheduledTasks, addDailyTaskReminder, updateDailyTaskReminder, deleteDailyTaskReminder, getDailyTaskReminders, generateShareLink, disableShareLink, regenerateShareLink, getShareLinkByProject, updateScheduledTasks, scheduledTasks: contextScheduledTasks } = useApp();
+  const { user, projects, dailyLogs, addDailyLog, loadScheduledTasks, addDailyTaskReminder, updateDailyTaskReminder, deleteDailyTaskReminder, getDailyTaskReminders, generateShareLink, disableShareLink, regenerateShareLink, getShareLinkByProject, updateScheduledTasks, scheduledTasks: contextScheduledTasks, subcontractors } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -137,6 +137,7 @@ export default function ScheduleScreen() {
   const [editDuration, setEditDuration] = useState<string>('1');
   const [editCompleted, setEditCompleted] = useState<boolean>(false);
   const [editCompletedDate, setEditCompletedDate] = useState<string>('');
+  const [editAssignedSubIds, setEditAssignedSubIds] = useState<string[]>([]);
 
   const [showDailyLogsModal, setShowDailyLogsModal] = useState<boolean>(false);
   const [equipmentExpanded, setEquipmentExpanded] = useState<boolean>(false);
@@ -737,6 +738,7 @@ export default function ScheduleScreen() {
     setEditingTask(task);
     setEditNoteText(task.notes || '');
     setEditWorkType(task.workType);
+    setEditAssignedSubIds(task.assignedSubcontractorIds ?? []);
     setEditDuration(String(task.duration));
     setEditClientVisibleNote(task.visibleToClient ?? false);
     setEditCompleted(task.completed ?? false);
@@ -779,6 +781,7 @@ export default function ScheduleScreen() {
       visibleToClient: editClientVisibleNote,
       completed: editCompleted,
       completedAt: editCompleted ? editCompletedDate : (null as any),
+      assignedSubcontractorIds: editWorkType === 'subcontractor' ? editAssignedSubIds : [],
     };
 
     // Update local state directly — guarantees immediate pill expansion on chart
@@ -790,7 +793,7 @@ export default function ScheduleScreen() {
     updateScheduledTasks(updatedAll);
 
     console.log('[Schedule] Updated task:', editingTask.category, `duration: ${newDuration}d`, editCompleted ? '(completed)' : '');
-  }, [editingTask, editNoteText, editWorkType, editDuration, editClientVisibleNote, editCompleted, editCompletedDate, updateScheduledTasks]);
+  }, [editingTask, editNoteText, editWorkType, editDuration, editClientVisibleNote, editCompleted, editCompletedDate, editAssignedSubIds, updateScheduledTasks]);
 
   const handleOpenDailyLogs = () => {
     setShowDailyLogsModal(true);
@@ -1959,7 +1962,7 @@ ${pdfDates.length > 0 ? `
                 <View style={styles.workTypeRow}>
                   <TouchableOpacity
                     style={[styles.workTypeChip, editWorkType === 'in-house' && styles.workTypeChipActive]}
-                    onPress={() => setEditWorkType('in-house')}
+                    onPress={() => { setEditWorkType('in-house'); setEditAssignedSubIds([]); }}
                   >
                     <Text style={[styles.workTypeText, editWorkType === 'in-house' && styles.workTypeTextActive]}>🏠 In-House</Text>
                   </TouchableOpacity>
@@ -1970,6 +1973,48 @@ ${pdfDates.length > 0 ? `
                     <Text style={[styles.workTypeText, editWorkType === 'subcontractor' && styles.workTypeTextActive]}>👷 Subcontractor</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* Subcontractor picker — only when work type is subcontractor */}
+                {editWorkType === 'subcontractor' && (
+                  <View style={{ marginTop: 4, marginBottom: 4 }}>
+                    <Text style={styles.editLabel}>Assign Subcontractors</Text>
+                    {subcontractors.length === 0 ? (
+                      <View style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, borderRadius: 8, padding: 10, marginTop: 6 }}>
+                        <Text style={{ fontSize: 12, color: '#2563EB' }}>No subcontractors found. Add them in the Subcontractors section.</Text>
+                      </View>
+                    ) : (
+                      subcontractors.map(sub => {
+                        const isSelected = editAssignedSubIds.includes(sub.id);
+                        return (
+                          <TouchableOpacity
+                            key={sub.id}
+                            style={{
+                              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                              backgroundColor: isSelected ? '#EFF6FF' : '#F8FAFC',
+                              borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, marginTop: 6,
+                              borderWidth: isSelected ? 1 : 0, borderColor: '#BFDBFE',
+                            }}
+                            onPress={() => {
+                              setEditAssignedSubIds(prev =>
+                                prev.includes(sub.id) ? prev.filter(id => id !== sub.id) : [...new Set([...prev, sub.id])]
+                              );
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '500', color: '#1F2937' }}>{sub.name}</Text>
+                              {sub.trade ? <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{sub.trade}</Text> : null}
+                            </View>
+                            {isSelected
+                              ? <CheckSquare size={18} color="#2563EB" strokeWidth={2} />
+                              : <View style={{ width: 18, height: 18, borderWidth: 1.5, borderColor: '#9CA3AF', borderRadius: 3 }} />
+                            }
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </View>
+                )}
 
                 <Text style={styles.editLabel}>Notes</Text>
                 <TextInput
