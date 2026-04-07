@@ -268,8 +268,8 @@ export default function TaskDetailModal({
               hideNotes={isReadOnly}
             />
 
-            {/* Subcontractor Assignment — only visible when workType is subcontractor and not read-only or completed */}
-            {workType === 'subcontractor' && !isReadOnly && !isAlreadyCompleted && (
+            {/* Subcontractor Assignment — visible when workType is subcontractor and not client view */}
+            {workType === 'subcontractor' && !isReadOnly && (
               <View style={styles.subSection}>
                 <Text style={styles.subSectionHeader}>ASSIGN SUBCONTRACTORS</Text>
                 {subcontractors.length === 0 ? (
@@ -285,8 +285,9 @@ export default function TaskDetailModal({
                       <TouchableOpacity
                         key={sub.id}
                         style={[styles.subRow, isSelected && styles.subRowSelected]}
-                        onPress={() => toggleSubcontractorAssignment(sub.id)}
-                        activeOpacity={0.7}
+                        onPress={() => !isAlreadyCompleted && toggleSubcontractorAssignment(sub.id)}
+                        disabled={isAlreadyCompleted}
+                        activeOpacity={isAlreadyCompleted ? 1 : 0.7}
                       >
                         <View style={styles.subRowLeft}>
                           <Text style={styles.subName}>{sub.name}</Text>
@@ -295,7 +296,7 @@ export default function TaskDetailModal({
                           ) : null}
                         </View>
                         {isSelected
-                          ? <CheckSquare size={18} color="#2563EB" strokeWidth={2} />
+                          ? <CheckSquare size={18} color={isAlreadyCompleted ? '#9CA3AF' : '#2563EB'} strokeWidth={2} />
                           : <Square size={18} color="#9CA3AF" strokeWidth={2} />
                         }
                       </TouchableOpacity>
