@@ -79,15 +79,14 @@ export default function CrewScheduleScreen() {
     fetch(`${API_BASE}/api/get-users?companyId=${companyId}`)
       .then(r => r.json())
       .then(data => {
-        console.log('[CrewSchedule] get-users raw response:', JSON.stringify(data).slice(0, 300));
-        if (Array.isArray(data.users)) {
-          const filtered = (data.users as User[]).filter(
+        const allUsers = data.users ?? [];
+        console.log('[CrewSchedule] get-users total:', allUsers.length, '| roles:', allUsers.map((u: any) => u.role));
+        if (Array.isArray(allUsers)) {
+          const filtered = (allUsers as User[]).filter(
             u => u.role === 'employee' || u.role === 'field-employee' || u.role === 'salesperson'
           );
-          console.log('[CrewSchedule] employees after role filter:', filtered.length, filtered.map(e => `${e.name}(${e.role})`));
+          console.log('[CrewSchedule] employees after role filter:', filtered.length);
           setEmployees(filtered);
-        } else {
-          console.warn('[CrewSchedule] get-users returned no users array:', data);
         }
       })
       .catch(err => console.error('[CrewSchedule] get-users fetch error:', err));
@@ -108,9 +107,12 @@ export default function CrewScheduleScreen() {
     Promise.all(
       activeProjects.map(p =>
         fetch(`${API_BASE}/api/get-scheduled-tasks?projectId=${p.id}`)
-          .then(r => r.json())
+          .then(r => {
+            console.log(`[CrewSchedule] tasks HTTP status for ${p.id}:`, r.status);
+            return r.json();
+          })
           .then(data => {
-            console.log(`[CrewSchedule] tasks for project ${p.id}:`, data.scheduledTasks?.length ?? 0, '| first task assignedEmployeeIds:', data.scheduledTasks?.[0]?.assignedEmployeeIds);
+            console.log(`[CrewSchedule] tasks raw for ${p.id}:`, JSON.stringify(data).slice(0, 400));
             return (data.scheduledTasks ?? []) as ScheduledTask[];
           })
           .catch(err => {
