@@ -1,4 +1,5 @@
-import { Alert, Image, Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as MailComposer from 'expo-mail-composer';
 import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
@@ -47,6 +48,42 @@ async function sendSubAssignmentSMS(
   } catch (err) {
     console.error('[Schedule SMS] Fetch failed for', subName, err);
     return { success: false, subName };
+  }
+}
+
+/** Open mail composer for subcontractor task assignment email. */
+async function sendSubAssignmentEmail(
+  email: string,
+  subName: string,
+  taskName: string,
+  startDate: string,
+  companyName: string,
+): Promise<void> {
+  if (!email?.trim()) {
+    console.log('[Schedule Email] Skipped — no email for', subName);
+    return;
+  }
+  const firstName = subName?.split(' ')[0] || '';
+  const dateStr = new Date(startDate.split('T')[0] + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const subject = `Job Assignment — ${taskName}`;
+  const body = `Hi ${firstName},\n\n${companyName} has assigned you to: ${taskName} on ${dateStr}.\n\n— ${companyName}`;
+
+  try {
+    if (Platform.OS === 'web') {
+      const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      Linking.openURL(mailtoUrl);
+    } else {
+      const isAvailable = await MailComposer.isAvailableAsync();
+      if (isAvailable) {
+        await MailComposer.composeAsync({ recipients: [email], subject, body });
+      } else {
+        const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        Linking.openURL(mailtoUrl);
+      }
+    }
+    console.log('[Schedule Email] Composer opened for', subName);
+  } catch (err) {
+    console.error('[Schedule Email] Failed for', subName, err);
   }
 }
 
@@ -893,6 +930,15 @@ export default function ScheduleScreen() {
             Alert.alert(title, message);
           }
         });
+      }
+
+      // Email newly assigned subcontractors — open mail composer for each one with an email
+      const companyName = company?.name || 'Legacy Prime';
+      for (const subId of newlyAdded) {
+        const sub = subcontractors.find(s => s.id === subId);
+        if (sub?.email?.trim()) {
+          await sendSubAssignmentEmail(sub.email, sub.name, editingTask.category, editingTask.startDate, companyName);
+        }
       }
     }
   }, [editingTask, editNoteText, editWorkType, editDuration, editClientVisibleNote, editCompleted, editCompletedDate, editAssignedSubIds, editAssignedEmpIds, updateScheduledTasks, subcontractors, company]);

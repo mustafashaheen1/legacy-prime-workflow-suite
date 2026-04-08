@@ -15,7 +15,7 @@
 | 4 | DB — store assigned subcontractor IDs on task | ✅ Implemented |
 | 5 | Push notification to employee on assignment | ❌ Not Implemented |
 | 6 | Twilio SMS to subcontractor on assignment | ✅ Implemented |
-| 7 | Email to subcontractor on assignment | ❌ Not Implemented |
+| 7 | Email to subcontractor on assignment | 🔄 In Progress (mailto: now, Resend later) |
 | 8 | Employee-facing personal schedule view (assigned tasks only) | ✅ Implemented |
 | 9 | Crew Schedule icon in schedule header (navigate to crew screen) | ✅ Implemented |
 | 10 | Crew Schedule screen — admin weekly view + assign modal | ✅ Implemented |
@@ -81,7 +81,7 @@
 
 | Module | Total Tasks | Implemented | Remaining |
 |---|---|---|---|
-| 1 — Schedule Assignment | 10 | 8 | 2 |
+| 1 — Schedule Assignment | 10 | 8 | 1 (+ 1 in progress) |
 | 2 — Client View & Cards | 6 | 0 | 6 |
 | 3 — Business Expenses | 6 | 0 | 6 |
 | 4 — CRM Lead Management | 8 | 0 | 8 |
