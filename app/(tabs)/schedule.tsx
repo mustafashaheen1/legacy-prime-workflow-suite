@@ -868,7 +868,7 @@ export default function ScheduleScreen() {
   const scheduledTasksRef = useRef<ScheduledTask[]>(scheduledTasks);
   useEffect(() => { scheduledTasksRef.current = scheduledTasks; }, [scheduledTasks]);
 
-  const handleSaveEdit = useCallback(() => {
+  const handleSaveEdit = useCallback(async () => {
     if (!editingTask) return;
 
     // Guard: completion date must not be before the task's start date
