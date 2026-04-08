@@ -43,9 +43,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    console.log('[twilio-send-sms] Sending:', { from: fromNumber, to, bodyLength: body.length });
     const client = twilio(accountSid, authToken);
     const message = await client.messages.create({ body, from: fromNumber, to });
-    return res.status(200).json({ success: true, messageSid: message.sid, status: message.status });
+    console.log('[twilio-send-sms] Twilio response:', { sid: message.sid, status: message.status, direction: message.direction, errorCode: message.errorCode, errorMessage: message.errorMessage });
+    return res.status(200).json({ success: true, messageSid: message.sid, status: message.status, from: fromNumber, errorCode: message.errorCode || null });
   } catch (error: any) {
     console.error('[twilio-send-sms] Twilio error:', {
       message: error.message,
