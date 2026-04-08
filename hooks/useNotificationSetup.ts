@@ -343,6 +343,9 @@ export function useNotificationSetup(
           case 'task-reminder':
             router.push('/(tabs)/dashboard');
             break;
+          case 'task-assigned':
+            router.push('/(tabs)/schedule');
+            break;
           case 'estimate-received':
           case 'proposal-submitted':
             router.push('/(tabs)/subcontractors');

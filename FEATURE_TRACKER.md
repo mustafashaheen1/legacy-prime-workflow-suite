@@ -13,7 +13,7 @@
 | 2 | Subcontractor picker inside Gantt task modal | ✅ Implemented |
 | 3 | DB — store assigned employee IDs on task | ✅ Implemented |
 | 4 | DB — store assigned subcontractor IDs on task | ✅ Implemented |
-| 5 | Push notification to employee on assignment | ❌ Not Implemented |
+| 5 | Push notification to employee on assignment | ✅ Implemented |
 | 6 | Twilio SMS to subcontractor on assignment | ✅ Implemented |
 | 7 | Email to subcontractor on assignment | 🔄 In Progress (mailto: now, Resend later) |
 | 8 | Employee-facing personal schedule view (assigned tasks only) | ✅ Implemented |
@@ -81,7 +81,7 @@
 
 | Module | Total Tasks | Implemented | Remaining |
 |---|---|---|---|
-| 1 — Schedule Assignment | 10 | 8 | 1 (+ 1 in progress) |
+| 1 — Schedule Assignment | 10 | 9 | 1 in progress |
 | 2 — Client View & Cards | 6 | 0 | 6 |
 | 3 — Business Expenses | 6 | 0 | 6 |
 | 4 — CRM Lead Management | 8 | 0 | 8 |

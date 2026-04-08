@@ -4,7 +4,7 @@ import { getFirebaseMessaging } from './firebase-admin.js';
 export interface SendNotificationParams {
   userId:    string;
   companyId: string;
-  type: 'estimate-received' | 'proposal-submitted' | 'payment-received' | 'change-order' | 'general' | 'task-reminder';
+  type: 'estimate-received' | 'proposal-submitted' | 'payment-received' | 'change-order' | 'general' | 'task-reminder' | 'task-assigned';
   title:     string;
   message:   string;
   data?:     Record<string, unknown>;

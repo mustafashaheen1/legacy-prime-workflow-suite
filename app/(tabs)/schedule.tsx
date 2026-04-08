@@ -954,6 +954,40 @@ export default function ScheduleScreen() {
         }
       }
     }
+
+    // Push notification to newly assigned employees
+    if (editWorkType === 'in-house' && editAssignedEmpIds.length > 0) {
+      const originalEmpIds = editingTask.assignedEmployeeIds ?? [];
+      const newlyAddedEmps = editAssignedEmpIds.filter(id => !originalEmpIds.includes(id));
+      const companyName = company?.name || 'Legacy Prime';
+
+      if (newlyAddedEmps.length > 0) {
+        showNotif(`🔔 Notifying ${newlyAddedEmps.length} employee(s)...`, true);
+        Promise.all(
+          newlyAddedEmps.map(empId =>
+            fetch(`${SMS_API_BASE}/api/send-task-assignment-notification`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                employeeId: empId,
+                companyId: company?.id,
+                taskName: editingTask.category,
+                startDate: editingTask.startDate,
+                companyName,
+              }),
+            }).then(r => r.json()).then(r => ({ success: r.success, empId }))
+              .catch(() => ({ success: false, empId }))
+          )
+        ).then(results => {
+          const allOk = results.every(r => r.success);
+          if (allOk) {
+            showNotif(`🔔 Employees notified ✓`, false, 3000);
+          } else {
+            showNotif(`🔔 Some notifications failed`, false, 3000);
+          }
+        });
+      }
+    }
   }, [editingTask, editNoteText, editWorkType, editDuration, editClientVisibleNote, editCompleted, editCompletedDate, editAssignedSubIds, editAssignedEmpIds, updateScheduledTasks, subcontractors, company]);
 
   const handleOpenDailyLogs = () => {
