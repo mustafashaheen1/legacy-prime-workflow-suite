@@ -43,9 +43,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    console.log('[twilio-send-sms] Sending:', { from: fromNumber, to, bodyLength: body.length });
+    const statusCallback = `${process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app'}/api/twilio-sms-status-webhook`;
+    console.log('[twilio-send-sms] Sending:', { from: fromNumber, to, bodyLength: body.length, statusCallback });
     const client = twilio(accountSid, authToken);
-    const message = await client.messages.create({ body, from: fromNumber, to });
+    const message = await client.messages.create({ body, from: fromNumber, to, statusCallback });
     console.log('[twilio-send-sms] Twilio response:', { sid: message.sid, status: message.status, direction: message.direction, errorCode: message.errorCode, errorMessage: message.errorMessage });
     return res.status(200).json({ success: true, messageSid: message.sid, status: message.status, from: fromNumber, errorCode: message.errorCode || null });
   } catch (error: any) {
