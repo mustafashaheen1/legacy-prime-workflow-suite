@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: error.message });
     }
 
-    console.log('[API] Push token registered — user:', userId, 'source:', tokenSource);
+    console.log('[API] Push token registered — user:', userId, 'platform:', platform, 'source:', tokenSource, 'token:', token);
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('[API] register-push-token unexpected error:', error);

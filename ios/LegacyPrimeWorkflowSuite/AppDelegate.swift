@@ -49,6 +49,8 @@ public class AppDelegate: ExpoAppDelegate, UNUserNotificationCenterDelegate, Mes
     _ application: UIApplication,
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
   ) {
+    let tokenString = deviceToken.map { String(format: "%02x", $0) }.joined()
+    print("[AppDelegate] APNs device token received:", tokenString)
     Messaging.messaging().apnsToken = deviceToken
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
@@ -76,7 +78,7 @@ public class AppDelegate: ExpoAppDelegate, UNUserNotificationCenterDelegate, Mes
     _ messaging: Messaging,
     didReceiveRegistrationToken fcmToken: String?
   ) {
-    print("[AppDelegate] FCM token received:", fcmToken?.prefix(20) ?? "nil")
+    print("[AppDelegate] FCM token received:", fcmToken ?? "nil")
   }
 
   // Linking API

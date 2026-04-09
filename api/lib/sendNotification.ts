@@ -64,6 +64,9 @@ export async function sendNotification(
   const expoTokens = tokenRows.filter(r => r.token.startsWith('ExponentPushToken['));
   const fcmTokens  = tokenRows.filter(r => !r.token.startsWith('ExponentPushToken['));
 
+  console.log('[sendNotification] Tokens found:', tokenRows.length, '— FCM:', fcmTokens.length, 'Expo:', expoTokens.length);
+  fcmTokens.forEach((r, i) => console.log(`[sendNotification] FCM token[${i}]:`, r.token, 'source:', r.token_source));
+
   const dataPayload: Record<string, string> = {
     type: params.type,
     ...(params.data ? Object.fromEntries(
@@ -80,7 +83,7 @@ export async function sendNotification(
       await Promise.all(
         fcmTokens.map(async (row) => {
           try {
-            await messaging.send({
+            const sendResult = await messaging.send({
               token: row.token,
               notification: {
                 title: params.title,
@@ -104,6 +107,7 @@ export async function sendNotification(
                 },
               },
             });
+            console.log('[sendNotification] FCM send OK — token:', row.token.slice(-12), 'result:', sendResult);
           } catch (err: any) {
             const code = err?.errorInfo?.code || err?.code || '';
             if (
