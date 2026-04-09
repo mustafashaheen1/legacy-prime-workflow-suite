@@ -340,6 +340,13 @@ export default function ScheduleScreen() {
   // index-based widths don't bleed onto a completely different column set.
   useEffect(() => { setColWidthOverrides({}); }, [selectedProject, ganttStartOverride]);
 
+  // Per-row height overrides: extra pixels added to a phase's lane height by drag-resize.
+  // Stored as delta from zoom-based rowHeight so zooming still scales all rows uniformly.
+  const [rowHeightOverrides, setRowHeightOverrides] = useState<Record<string, number>>({});
+  const rowHeightOverridesRef = useRef<Record<string, number>>({});
+  useEffect(() => { rowHeightOverridesRef.current = rowHeightOverrides; }, [rowHeightOverrides]);
+  useEffect(() => { setRowHeightOverrides({}); }, [selectedProject]);
+
   const dayWidth = useMemo(
     () => Math.round(DAY_WIDTH * zoomLevel),
     [zoomLevel]
@@ -349,9 +356,20 @@ export default function ScheduleScreen() {
 
   // Column header drag-to-resize (web only — only widens/narrows the dragged column)
   const colResizeDragRef = useRef<{ startX: number; colIndex: number; startExtra: number } | null>(null);
+  const colResizeLastClickRef = useRef<Record<number, number>>({});
   const handleColResizeMouseDown = useCallback((e: any, colIndex: number) => {
     e.preventDefault();
     e.stopPropagation();
+    // Detect double-click (two clicks within 350ms) → reset column to default
+    const now = Date.now();
+    const last = colResizeLastClickRef.current[colIndex] ?? 0;
+    if (now - last < 350) {
+      colResizeLastClickRef.current[colIndex] = 0;
+      setColWidthOverrides(prev => { const n = { ...prev }; delete n[colIndex]; return n; });
+      return;
+    }
+    colResizeLastClickRef.current[colIndex] = now;
+
     const startExtra = colWidthOverridesRef.current[colIndex] ?? 0;
     colResizeDragRef.current = { startX: e.clientX, colIndex, startExtra };
     const onMouseMove = (ev: MouseEvent) => {
@@ -359,13 +377,48 @@ export default function ScheduleScreen() {
       const delta = ev.clientX - colResizeDragRef.current.startX;
       const base = Math.round(DAY_WIDTH * zoomLevelRef.current);
       const newExtra = colResizeDragRef.current.startExtra + delta;
-      // clamp total column width between 30px and 400px
       const clamped = Math.min(400, Math.max(30, base + newExtra)) - base;
       const idx = colResizeDragRef.current.colIndex;
       setColWidthOverrides(prev => ({ ...prev, [idx]: clamped }));
     };
     const onMouseUp = () => {
       colResizeDragRef.current = null;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, []);
+
+  // Row drag-to-resize (web only — only resizes the dragged phase row)
+  const rowResizeDragRef = useRef<{ startY: number; phaseId: string; startExtra: number } | null>(null);
+  const rowResizeLastClickRef = useRef<Record<string, number>>({});
+  const handleRowResizeMouseDown = useCallback((e: any, phaseId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Detect double-click (two clicks within 350ms) → reset row to default height
+    const now = Date.now();
+    const last = rowResizeLastClickRef.current[phaseId] ?? 0;
+    if (now - last < 350) {
+      rowResizeLastClickRef.current[phaseId] = 0;
+      setRowHeightOverrides(prev => { const n = { ...prev }; delete n[phaseId]; return n; });
+      return;
+    }
+    rowResizeLastClickRef.current[phaseId] = now;
+
+    const startExtra = rowHeightOverridesRef.current[phaseId] ?? 0;
+    rowResizeDragRef.current = { startY: e.clientY, phaseId, startExtra };
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!rowResizeDragRef.current) return;
+      const delta = ev.clientY - rowResizeDragRef.current.startY;
+      const base = Math.round(ROW_HEIGHT * zoomLevelRef.current);
+      const newExtra = rowResizeDragRef.current.startExtra + delta;
+      const clamped = Math.min(400, Math.max(20, base + newExtra)) - base;
+      const id = rowResizeDragRef.current.phaseId;
+      setRowHeightOverrides(prev => ({ ...prev, [id]: clamped }));
+    };
+    const onMouseUp = () => {
+      rowResizeDragRef.current = null;
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
@@ -657,19 +710,29 @@ export default function ScheduleScreen() {
     return counts;
   }, [allPhases, projectTasks, taskLanes]);
 
+  // Effective per-lane height for each phase — zoom base + any drag override
+  const phaseRowHeights = useMemo(() => {
+    const m = new Map<string, number>();
+    allPhases.forEach(p => {
+      m.set(p.id, Math.max(20, rowHeight + (rowHeightOverrides[p.id] ?? 0)));
+    });
+    return m;
+  }, [allPhases, rowHeight, rowHeightOverrides]);
+
   // Cumulative y-offset for each phase row
   const phaseRowTops = useMemo(() => {
     const tops = new Map<string, number>();
     let y = 0;
     allPhases.forEach(p => {
       tops.set(p.name, y);
-      y += (phaseLaneCounts.get(p.name) ?? 1) * rowHeight;
+      const laneH = phaseRowHeights.get(p.id) ?? rowHeight;
+      y += (phaseLaneCounts.get(p.name) ?? 1) * laneH;
     });
     return tops;
-  }, [allPhases, phaseLaneCounts, rowHeight]);
+  }, [allPhases, phaseLaneCounts, rowHeight, phaseRowHeights]);
 
   const GRID_HEIGHT = allPhases.reduce(
-    (sum, p) => sum + (phaseLaneCounts.get(p.name) ?? 1) * rowHeight, 0
+    (sum, p) => sum + (phaseLaneCounts.get(p.name) ?? 1) * (phaseRowHeights.get(p.id) ?? rowHeight), 0
   );
 
   const formatDate = (date: Date): string => {
@@ -1363,6 +1426,12 @@ ${pdfDates.length > 0 ? `
 
     const lane = taskLanes.get(task.id) ?? 0;
 
+    // Per-phase lane height (zoom base + any drag override)
+    const phase = allPhases.find(p => p.name === task.category);
+    const laneH = phase ? (phaseRowHeights.get(phase.id) ?? rowHeight) : rowHeight;
+    // Pill scales proportionally with the row; maintains BAR_HEIGHT/ROW_HEIGHT ratio
+    const pilH = Math.max(20, Math.round(barHeight * laneH / rowHeight));
+
     // Use cumulative column offsets so expanded columns are reflected in position
     const endIdx = Math.min(startIdx + task.duration, colXOffsets.length - 1);
     const left = colXOffsets[startIdx] + 2;
@@ -1371,10 +1440,10 @@ ${pdfDates.length > 0 ? `
     return {
       left,
       width,
-      top: rowTop + lane * rowHeight + (rowHeight - barHeight) / 2,
-      height: barHeight,
+      top: rowTop + lane * laneH + (laneH - pilH) / 2,
+      height: pilH,
     };
-  }, [dates, dayWidth, rowHeight, barHeight, phaseRowTops, taskLanes, colXOffsets, colWidths]);
+  }, [dates, dayWidth, rowHeight, barHeight, phaseRowTops, phaseRowHeights, allPhases, taskLanes, colXOffsets, colWidths]);
 
   const createResizePanResponder = (task: ScheduledTask, type: 'left' | 'right') => {
     let initialDuration = task.duration;
@@ -1727,16 +1796,6 @@ ${pdfDates.length > 0 ? `
                           style={styles.colResizeHandle}
                           // @ts-ignore web only
                           onMouseDown={(e) => handleColResizeMouseDown(e, i)}
-                          // @ts-ignore web only — double-click resets this column to default width
-                          onDoubleClick={(e: any) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setColWidthOverrides(prev => {
-                              const next = { ...prev };
-                              delete next[i];
-                              return next;
-                            });
-                          }}
                         >
                           <View style={styles.colResizeLine} />
                           <View style={styles.colResizeLine} />
@@ -1775,7 +1834,7 @@ ${pdfDates.length > 0 ? `
                         <TouchableOpacity
                           style={[
                             styles.sidebarItem,
-                            { height: (phaseLaneCounts.get(phase.name) ?? 1) * rowHeight },
+                            { height: (phaseLaneCounts.get(phase.name) ?? 1) * (phaseRowHeights.get(phase.id) ?? rowHeight) },
                             selectedPhase === phase.name && styles.sidebarItemActive,
                             i % 2 === 0 ? styles.sidebarItemEven : styles.sidebarItemOdd,
                             phase.isSubPhase && styles.sidebarItemIndented,
@@ -1862,6 +1921,13 @@ ${pdfDates.length > 0 ? `
                             </TouchableOpacity>
                           )}
                         </TouchableOpacity>
+                        {Platform.OS === 'web' && (
+                          <View
+                            style={styles.rowResizeHandle}
+                            // @ts-ignore web only
+                            onMouseDown={(e: any) => handleRowResizeMouseDown(e, phase.id)}
+                          />
+                        )}
                       </View>
                     );
                   })}
@@ -1916,7 +1982,7 @@ ${pdfDates.length > 0 ? `
                     <View style={[styles.gridContent, { width: effectiveGridWidth, height: GRID_HEIGHT }]}>
                       {allPhases.map((phase, rowIdx) => {
                         const rowTop = phaseRowTops.get(phase.name) ?? rowIdx * rowHeight;
-                        const rowH = (phaseLaneCounts.get(phase.name) ?? 1) * rowHeight;
+                        const rowH = (phaseLaneCounts.get(phase.name) ?? 1) * (phaseRowHeights.get(phase.id) ?? rowHeight);
                         return (
                           <View
                             key={`row-${rowIdx}`}
@@ -2010,7 +2076,7 @@ ${pdfDates.length > 0 ? `
                                 width: pos.width,
                                 height: pos.height,
                                 backgroundColor: isCompleted ? hexToRgba('#16A34A', 0.14) : hexToRgba(task.color, 0.18),
-                                borderRadius: barHeight / 2,
+                                borderRadius: pos.height / 2,
                                 borderWidth: 1.5,
                                 borderColor: isCompleted ? hexToRgba('#16A34A', 0.5) : hexToRgba(task.color, 0.5),
                               },
@@ -3916,6 +3982,16 @@ const styles = StyleSheet.create({
     height: 10,
     backgroundColor: '#475569',
     borderRadius: 1,
+  },
+  rowResizeHandle: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+    zIndex: 30,
+    cursor: 'row-resize',
+    backgroundColor: 'transparent',
   },
   dateCellText: {
     fontSize: 10,
