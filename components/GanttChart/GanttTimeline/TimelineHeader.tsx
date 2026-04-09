@@ -28,7 +28,6 @@ function ColumnResizeHandle({
 }) {
   const startXRef = useRef<number | null>(null);
 
-  // Keep callbacks in refs so PanResponder (created once) never goes stale
   const onResizeStartRef = useRef(onResizeStart);
   const onResizeDeltaRef = useRef(onResizeDelta);
   const onResizeEndRef   = useRef(onResizeEnd);
@@ -38,13 +37,13 @@ function ColumnResizeHandle({
 
   const panResponder = useRef(
     PanResponder.create({
-      // Capture immediately so ScrollView never gets this gesture
       onStartShouldSetPanResponder:        () => true,
       onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder:        () => true,
       onMoveShouldSetPanResponderCapture: () => true,
 
       onPanResponderGrant: (e) => {
+        console.log('[ColResize] grant pageX:', e.nativeEvent.pageX);
         startXRef.current = e.nativeEvent.pageX;
         onResizeStartRef.current?.();
       },
@@ -52,9 +51,11 @@ function ColumnResizeHandle({
         if (startXRef.current === null) return;
         const delta = e.nativeEvent.pageX - startXRef.current;
         startXRef.current = e.nativeEvent.pageX;
+        console.log('[ColResize] move delta:', delta);
         onResizeDeltaRef.current?.(delta);
       },
       onPanResponderRelease: () => {
+        console.log('[ColResize] release');
         startXRef.current = null;
         onResizeEndRef.current?.();
       },
@@ -73,9 +74,6 @@ function ColumnResizeHandle({
   );
 }
 
-/**
- * Timeline header showing date labels with drag-to-resize column handles.
- */
 export default function TimelineHeader({
   dates,
   cellWidth,
@@ -136,23 +134,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
   },
+  // Positioned slightly inside the right edge so it's visible, not hidden behind the border
   resizeHandle: {
     position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 14,
+    right: -6,
+    top: 4,
+    bottom: 4,
+    width: 12,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 2,
-    zIndex: 20,
-    backgroundColor: 'transparent',
+    zIndex: 30,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
   },
   resizeLine: {
     width: 2,
-    height: 14,
-    backgroundColor: '#9CA3AF',
+    height: 12,
+    backgroundColor: '#6B7280',
     borderRadius: 1,
   },
 });

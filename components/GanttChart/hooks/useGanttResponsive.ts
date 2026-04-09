@@ -69,8 +69,8 @@ export function useGanttResponsive(): GanttResponsiveConfig {
       headerHeight: isMobile ? 40 : 50,
       // Cell dimensions (zoom controls will adjust these)
       defaultCellWidth: isMobile ? 60 : 80,
-      minCellWidth: isMobile ? 30 : 40,
-      maxCellWidth: isMobile ? 100 : 120,
+      minCellWidth: isMobile ? 20 : 30,
+      maxCellWidth: isMobile ? 300 : 400,
       // Typography scale
       headerFontSize: isMobile ? 12 : isTablet ? 14 : 16,
       bodyFontSize: isMobile ? 11 : isTablet ? 12 : 14,
