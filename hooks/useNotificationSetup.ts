@@ -241,10 +241,10 @@ export function useNotificationSetup(
         const { getMessaging, getToken, deleteToken, onTokenRefresh } = await import('@react-native-firebase/messaging');
         const messagingInstance = getMessaging(getApp());
 
-        // One-time forced token refresh to fix BadEnvironmentKeyInToken errors
-        // caused by stale FCM tokens that have incorrect APNs environment metadata.
-        // Once a fresh token is obtained, this is skipped on subsequent launches.
-        const REFRESH_FLAG = '@fcm_apns_env_fix_v1';
+        // One-time forced token refresh to fix stale FCM tokens that were generated
+        // before APNs device token forwarding was added in AppDelegate.
+        // Bump the version suffix whenever the native push setup changes.
+        const REFRESH_FLAG = '@fcm_apns_env_fix_v2';
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const alreadyRefreshed = await AsyncStorage.getItem(REFRESH_FLAG);
         if (!alreadyRefreshed) {
@@ -264,9 +264,22 @@ export function useNotificationSetup(
           return;
         }
 
+        // Log token details for debugging — helps verify APNs token was forwarded
+        const apnsToken = await (async () => {
+          try {
+            const { getAPNSToken } = await import('@react-native-firebase/messaging');
+            return await getAPNSToken(messagingInstance);
+          } catch { return null; }
+        })();
+        console.log('[Notifications] FCM token:', fcmToken.substring(0, 20) + '...');
+        console.log('[Notifications] APNs token present:', !!apnsToken);
+        if (!apnsToken && Platform.OS === 'ios') {
+          console.warn('[Notifications] ⚠️ No APNs token — iOS push will NOT work. Check AppDelegate APNs registration.');
+        }
+
         if (!mounted) return;
         await registerPushToken(fcmToken, Platform.OS as 'ios' | 'android', user.id, company.id, 'fcm');
-        console.log('[Notifications] FCM token registered');
+        console.log('[Notifications] FCM token registered (source: fcm)');
 
         // Listen for FCM token refresh (device rotates token)
         const unsubscribeTokenRefresh = onTokenRefresh(messagingInstance, async (newToken) => {

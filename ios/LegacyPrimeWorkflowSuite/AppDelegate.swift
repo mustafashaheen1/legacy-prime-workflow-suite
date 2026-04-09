@@ -1,6 +1,5 @@
 import Expo
 import Firebase
-import FirebaseMessaging
 import React
 import ReactAppDependencyProvider
 import UserNotifications
