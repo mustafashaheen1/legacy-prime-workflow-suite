@@ -238,8 +238,28 @@ export function useNotificationSetup(
         // Get FCM token via react-native-firebase (modular API)
         // Dynamic import keeps the native module out of the web bundle
         const { getApp }      = await import('@react-native-firebase/app');
-        const { getMessaging, getToken, deleteToken, onTokenRefresh } = await import('@react-native-firebase/messaging');
+        const { getMessaging, getToken, deleteToken, onTokenRefresh, getAPNSToken } = await import('@react-native-firebase/messaging');
         const messagingInstance = getMessaging(getApp());
+
+        // On iOS, Firebase requires the APNs device token before it can generate
+        // an FCM token. The APNs token arrives asynchronously from the OS after
+        // registerForRemoteNotifications() in AppDelegate. Wait for it.
+        if (Platform.OS === 'ios') {
+          let apnsToken: string | null = null;
+          for (let attempt = 0; attempt < 15; attempt++) {
+            try {
+              apnsToken = await getAPNSToken(messagingInstance);
+            } catch { /* not available yet */ }
+            if (apnsToken) break;
+            console.log('[Notifications] Waiting for APNs token... attempt', attempt + 1);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          if (!apnsToken) {
+            console.warn('[Notifications] APNs token not available after 15s — cannot get FCM token');
+            return;
+          }
+          console.log('[Notifications] APNs token ready');
+        }
 
         // One-time forced token refresh to fix stale FCM tokens that were generated
         // before APNs device token forwarding was added in AppDelegate.
@@ -264,18 +284,7 @@ export function useNotificationSetup(
           return;
         }
 
-        // Log token details for debugging — helps verify APNs token was forwarded
-        const apnsToken = await (async () => {
-          try {
-            const { getAPNSToken } = await import('@react-native-firebase/messaging');
-            return await getAPNSToken(messagingInstance);
-          } catch { return null; }
-        })();
-        console.log('[Notifications] FCM token:', fcmToken.substring(0, 20) + '...');
-        console.log('[Notifications] APNs token present:', !!apnsToken);
-        if (!apnsToken && Platform.OS === 'ios') {
-          console.warn('[Notifications] ⚠️ No APNs token — iOS push will NOT work. Check AppDelegate APNs registration.');
-        }
+        console.log('[Notifications] FCM token obtained:', fcmToken);
 
         if (!mounted) return;
         await registerPushToken(fcmToken, Platform.OS as 'ios' | 'android', user.id, company.id, 'fcm');
