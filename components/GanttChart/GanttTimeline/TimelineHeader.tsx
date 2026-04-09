@@ -120,6 +120,8 @@ export default function TimelineHeader({
   onColumnResizeDelta,
   onColumnResizeEnd,
 }: TimelineHeaderProps) {
+  console.log('[TimelineHeader] render — onColumnResizeDelta:', typeof onColumnResizeDelta, '| cellWidth:', cellWidth);
+
   const formatDate = (date: Date, level: ZoomLevel): string => {
     switch (level) {
       case 'day':
