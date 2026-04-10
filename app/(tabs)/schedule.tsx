@@ -1077,7 +1077,7 @@ export default function ScheduleScreen() {
                 employeeId: empId,
                 companyId: company?.id,
                 taskName: editingTask.category,
-                startDate: editingTask.startDate,
+                startDate: editingTask.startDate.split('T')[0].split(' ')[0],
                 companyName,
               }),
             }).then(r => r.json()).then(r => ({ success: r.success, empId }))
