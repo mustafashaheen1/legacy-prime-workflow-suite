@@ -542,6 +542,20 @@ export default function CrewScheduleScreen() {
                   </TouchableOpacity>
                 </View>
 
+                {/* Task notes — scrollable so long notes never push crew list off screen */}
+                {!!selectedTask.notes && (
+                  <View style={styles.modalNotesBlock}>
+                    <Text style={styles.modalNotesLabel}>NOTES</Text>
+                    <ScrollView
+                      style={styles.modalNotesScroll}
+                      showsVerticalScrollIndicator={false}
+                      nestedScrollEnabled
+                    >
+                      <Text style={styles.modalNotesText}>{selectedTask.notes}</Text>
+                    </ScrollView>
+                  </View>
+                )}
+
                 <Text style={styles.modalSectionLabel}>ASSIGN CREW MEMBERS</Text>
 
                 {/* Employee list */}
@@ -692,6 +706,10 @@ const styles = StyleSheet.create({
   modalTitleBlock:         { flex: 1 },
   modalTitle:              { fontSize: 16, fontWeight: '700', color: '#1E293B' },
   modalSubtitle:           { fontSize: 12, color: '#64748B', marginTop: 2 },
+  modalNotesBlock:         { marginHorizontal: 20, marginTop: 12, backgroundColor: '#F8FAFC', borderRadius: 8, padding: 12, borderLeftWidth: 3, borderLeftColor: '#CBD5E1' },
+  modalNotesLabel:         { fontSize: 10, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.8, marginBottom: 4 },
+  modalNotesScroll:        { maxHeight: 90 }, // ~4-5 lines; scrolls if longer, crew list stays visible
+  modalNotesText:          { fontSize: 13, color: '#374151', lineHeight: 19 },
   modalSectionLabel:       { fontSize: 11, fontWeight: '600', color: '#94A3B8', letterSpacing: 0.8, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8 },
 
   // Employee rows

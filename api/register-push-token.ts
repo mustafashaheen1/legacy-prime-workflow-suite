@@ -21,6 +21,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Deactivate all existing tokens for this user+platform except the incoming one.
+    // This ensures only the current token stays active — prevents stale tokens
+    // from receiving notifications after FCM rotates the device token.
+    const { error: deactivateError } = await supabase
+      .from('push_tokens')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('platform', platform)
+      .neq('token', token);
+
+    if (deactivateError) {
+      console.warn('[API] register-push-token deactivate error (non-fatal):', deactivateError.message);
+    }
+
+    // Upsert the new/refreshed token as active.
     const { error } = await supabase
       .from('push_tokens')
       .upsert(
