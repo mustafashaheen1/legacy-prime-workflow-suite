@@ -32,8 +32,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .eq('user_id', employeeId);
   console.log('[TaskNotif] Push tokens for employee', employeeId, ':', JSON.stringify(tokens));
 
-  const dateStr = new Date(startDate.split('T')[0] + 'T00:00:00').toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
+  const datePart = startDate.split('T')[0].split(' ')[0];
+  const [yr, mo, dy] = datePart.split('-').map(Number);
+  const dateStr = new Date(Date.UTC(yr, mo - 1, dy)).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
   });
   const sender = companyName || 'Your company';
 

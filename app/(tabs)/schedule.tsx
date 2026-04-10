@@ -2063,14 +2063,16 @@ ${pdfDates.length > 0 ? `
                         const isLeftTouching = touchingHandle?.id === task.id && touchingHandle?.type === 'left';
                         const isRightTouching = touchingHandle?.id === task.id && touchingHandle?.type === 'right';
 
-                        // RNGH Pan gestures for native (iOS/Android) — coordinates with GHScrollView
-                        // to block horizontal scroll while a handle drag is in progress
+                        // RNGH Pan gestures for native (iOS/Android).
+                        // activateAfterLongPress(400): user holds the handle for 400ms before
+                        // drag activates — this prevents GHScrollView from intercepting the
+                        // touch on a short press/swipe and scrolling the timeline instead.
                         const makeNativeHandleGesture = (type: 'left' | 'right') => {
                           let initDur = task.duration;
                           let initStart = new Date(task.startDate);
                           return Gesture.Pan()
                             .runOnJS(true)
-                            .minDistance(2)
+                            .activateAfterLongPress(400)
                             .onStart(() => {
                               initDur = task.duration;
                               initStart = new Date(task.startDate);

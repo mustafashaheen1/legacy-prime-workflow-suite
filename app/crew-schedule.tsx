@@ -517,9 +517,10 @@ export default function CrewScheduleScreen() {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
                 style={styles.unassignedScroll}
               >
-                {unassignedTasks.slice(0, 15).map(task => (
+                {unassignedTasks.map(task => (
                   <TouchableOpacity
                     key={task.id}
                     style={[styles.unassignedCard, { borderTopColor: task.color }]}
