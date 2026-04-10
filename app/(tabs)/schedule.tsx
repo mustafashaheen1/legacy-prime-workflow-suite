@@ -2072,11 +2072,10 @@ ${pdfDates.length > 0 ? `
                         const pos = getTaskPosition(task);
                         if (!pos) return null;
 
-                        // Apply visual drag delta without touching task state (no blink)
+                        // Visual drag delta — web only (iOS resize disabled)
                         let visualLeft = pos.left;
                         let visualWidth = pos.width;
-                        if (resizeDelta?.taskId === task.id) {
-                          const dw = resizeDelta.days * dayWidth;
+                        if (Platform.OS === 'web' && resizeDelta?.taskId === task.id) {
                           if (resizeDelta.type === 'right') {
                             const clampedDays = Math.max(1, resizeInitDurRef.current + resizeDelta.days) - resizeInitDurRef.current;
                             visualWidth = pos.width + clampedDays * dayWidth;
@@ -2089,9 +2088,6 @@ ${pdfDates.length > 0 ? `
 
                         const isLeftTouching = touchingHandle?.id === task.id && touchingHandle?.type === 'left';
                         const isRightTouching = touchingHandle?.id === task.id && touchingHandle?.type === 'right';
-
-                        const leftPanHandlers = Platform.OS !== 'web' ? createResizePanResponder(task, 'left').panHandlers : null;
-                        const rightPanHandlers = Platform.OS !== 'web' ? createResizePanResponder(task, 'right').panHandlers : null;
 
                         const phase = allPhases.find(p => p.name === task.category);
 
@@ -2115,15 +2111,8 @@ ${pdfDates.length > 0 ? `
                               resizingTask?.id === task.id && styles.taskBarResizing,
                             ]}
                           >
-                            {Platform.OS !== 'web' ? (
-                              <View
-                                hitSlop={{ top: 10, bottom: 10, left: 14, right: 6 }}
-                                style={[styles.resizeHandle, styles.resizeHandleLeft, isLeftTouching && styles.resizeHandleTouching]}
-                                {...leftPanHandlers}
-                              >
-                                <View style={styles.resizeDot} />
-                              </View>
-                            ) : (
+                            {/* iOS resize disabled — web only */}
+                            {Platform.OS === 'web' && (
                               <View
                                 hitSlop={{ top: 10, bottom: 10, left: 14, right: 6 }}
                                 style={[styles.resizeHandle, styles.resizeHandleLeft, { cursor: 'w-resize', userSelect: 'none' } as any]}
@@ -2240,15 +2229,8 @@ ${pdfDates.length > 0 ? `
                               })()}
                             </TouchableOpacity>
 
-                            {Platform.OS !== 'web' ? (
-                              <View
-                                hitSlop={{ top: 10, bottom: 10, left: 6, right: 14 }}
-                                style={[styles.resizeHandle, styles.resizeHandleRight, isRightTouching && styles.resizeHandleTouching]}
-                                {...rightPanHandlers}
-                              >
-                                <View style={styles.resizeDot} />
-                              </View>
-                            ) : (
+                            {/* iOS resize disabled — web only */}
+                            {Platform.OS === 'web' && (
                               <View
                                 hitSlop={{ top: 10, bottom: 10, left: 6, right: 14 }}
                                 style={[styles.resizeHandle, styles.resizeHandleRight, { cursor: 'ew-resize', userSelect: 'none' } as any]}
