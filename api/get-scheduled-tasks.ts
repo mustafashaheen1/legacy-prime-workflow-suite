@@ -29,11 +29,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select('*')
       .order('start_date', { ascending: true });
 
-    // Filter by project if provided; fall back to company-wide if only companyId given
+    // Filter by project if provided; fall back to company-wide if only companyId given.
+    // Some older tasks have company_id = NULL (pre-migration). For those we fall back
+    // to matching via their project's company_id using an OR filter so they still appear.
     if (projectId && typeof projectId === 'string') {
       query = query.eq('project_id', projectId);
     } else if (companyId && typeof companyId === 'string') {
-      query = query.eq('company_id', companyId);
+      // First get the project IDs that belong to this company so we can include
+      // tasks whose company_id is NULL but whose project is scoped to this company.
+      const { data: companyProjects } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('company_id', companyId);
+      const projectIds = (companyProjects ?? []).map((p: any) => p.id);
+
+      if (projectIds.length > 0) {
+        // Tasks with company_id set correctly OR tasks with null company_id but correct project
+        query = query.or(
+          `company_id.eq.${companyId},and(company_id.is.null,project_id.in.(${projectIds.join(',')}))`
+        );
+      } else {
+        query = query.eq('company_id', companyId);
+      }
     }
 
     const { data, error } = await query;

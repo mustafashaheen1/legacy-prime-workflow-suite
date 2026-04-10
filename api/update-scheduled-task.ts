@@ -43,6 +43,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (updates.assignedEmployeeIds !== undefined) updateData.assigned_employee_ids = updates.assignedEmployeeIds;
     if (updates.assignedSubcontractorIds !== undefined) updateData.assigned_subcontractor_ids = updates.assignedSubcontractorIds;
 
+    // Backfill company_id if missing — resolves tasks created before the migration
+    if (updates.projectId) {
+      const { data: proj } = await supabase
+        .from('projects').select('company_id').eq('id', updates.projectId).single();
+      if (proj?.company_id) updateData.company_id = proj.company_id;
+    }
+
     // Update in database
     const { data, error } = await supabase
       .from('scheduled_tasks')

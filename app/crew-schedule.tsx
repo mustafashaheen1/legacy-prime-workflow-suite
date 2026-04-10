@@ -8,8 +8,8 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
 import { ScheduledTask, User } from '@/types';
@@ -86,23 +86,28 @@ export default function CrewScheduleScreen() {
       .catch(err => console.error('[CrewSchedule] get-users fetch error:', err));
   }, [company?.id]);
 
-  // ── Load ALL tasks for the company in one shot ─────────────────────────────
-  // Using companyId param avoids per-project fetching and project status issues.
-  // get-scheduled-tasks supports ?companyId= and scheduled_tasks has company_id column.
-  useEffect(() => {
-    const companyId = company?.id;
-    if (!companyId) return;
-    setLoadingTasks(true);
-    fetch(`${API_BASE}/api/get-scheduled-tasks?companyId=${companyId}`)
-      .then(r => r.json())
-      .then(data => {
-        const all = (data.scheduledTasks ?? []) as ScheduledTask[];
-        console.log('[CrewSchedule] total tasks loaded:', all.length, '| with assignedEmployeeIds:', all.filter(t => t.assignedEmployeeIds?.length).length);
-        setTasks(all);
-      })
-      .catch(err => console.error('[CrewSchedule] tasks fetch error:', err))
-      .finally(() => setLoadingTasks(false));
-  }, [company?.id]);
+  // ── Load ALL tasks for the company — refetch every time screen is focused ──
+  // useFocusEffect ensures newly created tasks (saved async in schedule.tsx)
+  // are visible when the user navigates here, even on repeat visits.
+  const companyIdRef = useRef(company?.id);
+  companyIdRef.current = company?.id;
+
+  useFocusEffect(
+    useCallback(() => {
+      const companyId = companyIdRef.current;
+      if (!companyId) return;
+      setLoadingTasks(true);
+      fetch(`${API_BASE}/api/get-scheduled-tasks?companyId=${companyId}`)
+        .then(r => r.json())
+        .then(data => {
+          const all = (data.scheduledTasks ?? []) as ScheduledTask[];
+          console.log('[CrewSchedule] tasks loaded:', all.length, '| unassigned:', all.filter(t => !t.assignedEmployeeIds?.length).length);
+          setTasks(all);
+        })
+        .catch(err => console.error('[CrewSchedule] tasks fetch error:', err))
+        .finally(() => setLoadingTasks(false));
+    }, [])
+  );
 
   // ── Week navigation ────────────────────────────────────────────────────────
   const weekDates = useMemo<Date[]>(
