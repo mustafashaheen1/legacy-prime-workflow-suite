@@ -198,9 +198,11 @@ export default function ScheduleScreen() {
   });
   const [resizingTask, setResizingTask] = useState<{ id: string; type: 'left' | 'right' } | null>(null);
   const resizingTaskRef = useRef<{ id: string; type: 'left' | 'right' } | null>(null);
-  // Stable refs for resize drag — survive React re-renders caused by setScheduledTasks in onMove
+  // Resize drag — all refs, no setState during drag (prevents blinking & re-render drift)
   const resizeInitDurRef = useRef(0);
   const resizeInitStartRef = useRef<Date>(new Date());
+  const resizeDeltaRef = useRef(0); // current daysDelta during drag
+  const [resizeDelta, setResizeDelta] = useState<{ taskId: string; days: number; type: 'left' | 'right' } | null>(null);
   const setResizingTaskSync = useCallback((val: { id: string; type: 'left' | 'right' } | null) => {
     resizingTaskRef.current = val;
     setResizingTask(val);
@@ -1464,28 +1466,35 @@ ${pdfDates.length > 0 ? `
       onMoveShouldSetPanResponderCapture: () => true,
       onShouldBlockNativeResponder: () => true,
       onPanResponderGrant: () => {
-        // Capture into component-level refs — these survive React re-renders caused
-        // by setScheduledTasks inside onMove, so initialDuration never drifts.
         resizeInitDurRef.current = task.duration;
         resizeInitStartRef.current = new Date(task.startDate);
+        resizeDeltaRef.current = 0;
+        setResizeDelta({ taskId: task.id, days: 0, type });
         setResizingTaskSync({ id: task.id, type });
         setTouchingHandle({ id: task.id, type });
       },
       onPanResponderMove: (_, gs) => {
+        const days = Math.round(gs.dx / dayWidth);
+        if (days === resizeDeltaRef.current) return; // no change — skip re-render
+        resizeDeltaRef.current = days;
+        setResizeDelta({ taskId: task.id, days, type });
+      },
+      onPanResponderRelease: () => {
+        // Commit final position to task state only once on release
         const initDur = resizeInitDurRef.current;
         const initStart = resizeInitStartRef.current;
-        const daysDelta = Math.round(gs.dx / dayWidth);
+        const days = resizeDeltaRef.current;
         if (type === 'right') {
-          const newDuration = Math.max(1, initDur + daysDelta);
+          const newDuration = Math.max(1, initDur + days);
           const newEndDate = new Date(initStart);
           newEndDate.setDate(initStart.getDate() + newDuration);
           setScheduledTasks(prev => prev.map(t =>
             t.id === task.id ? { ...t, duration: newDuration, endDate: newEndDate.toISOString() } : t
           ));
         } else {
-          const newDuration = Math.max(1, initDur - daysDelta);
+          const newDuration = Math.max(1, initDur - days);
           const newStartDate = new Date(initStart);
-          newStartDate.setDate(initStart.getDate() + daysDelta);
+          newStartDate.setDate(initStart.getDate() + days);
           const newEndDate = new Date(newStartDate);
           newEndDate.setDate(newStartDate.getDate() + newDuration);
           setScheduledTasks(prev => prev.map(t =>
@@ -1497,8 +1506,7 @@ ${pdfDates.length > 0 ? `
             } : t
           ));
         }
-      },
-      onPanResponderRelease: () => {
+        setResizeDelta(null);
         setResizingTaskSync(null);
         setTouchingHandle(null);
       },
@@ -2064,6 +2072,21 @@ ${pdfDates.length > 0 ? `
                         const pos = getTaskPosition(task);
                         if (!pos) return null;
 
+                        // Apply visual drag delta without touching task state (no blink)
+                        let visualLeft = pos.left;
+                        let visualWidth = pos.width;
+                        if (resizeDelta?.taskId === task.id) {
+                          const dw = resizeDelta.days * dayWidth;
+                          if (resizeDelta.type === 'right') {
+                            const clampedDays = Math.max(1, resizeInitDurRef.current + resizeDelta.days) - resizeInitDurRef.current;
+                            visualWidth = pos.width + clampedDays * dayWidth;
+                          } else {
+                            const clampedDays = Math.min(resizeDelta.days, resizeInitDurRef.current - 1);
+                            visualLeft = pos.left + clampedDays * dayWidth;
+                            visualWidth = pos.width - clampedDays * dayWidth;
+                          }
+                        }
+
                         const isLeftTouching = touchingHandle?.id === task.id && touchingHandle?.type === 'left';
                         const isRightTouching = touchingHandle?.id === task.id && touchingHandle?.type === 'right';
 
@@ -2071,7 +2094,7 @@ ${pdfDates.length > 0 ? `
                         const rightPanHandlers = Platform.OS !== 'web' ? createResizePanResponder(task, 'right').panHandlers : null;
 
                         const phase = allPhases.find(p => p.name === task.category);
-                        
+
                         const isCompleted = task.completed === true;
 
                         return (
@@ -2080,9 +2103,9 @@ ${pdfDates.length > 0 ? `
                             style={[
                               styles.taskBar,
                               {
-                                left: pos.left,
+                                left: visualLeft,
                                 top: pos.top,
-                                width: pos.width,
+                                width: visualWidth,
                                 height: pos.height,
                                 backgroundColor: isCompleted ? hexToRgba('#16A34A', 0.14) : hexToRgba(task.color, 0.18),
                                 borderRadius: pos.height / 2,
