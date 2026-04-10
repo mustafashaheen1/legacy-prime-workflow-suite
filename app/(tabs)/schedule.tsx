@@ -974,6 +974,7 @@ export default function ScheduleScreen() {
   const handleSaveEdit = useCallback(async () => {
     if (!editingTask || isSaving) return;
     setIsSaving(true);
+    console.log('[SaveEdit] workType:', editWorkType, '| empIds:', editAssignedEmpIds, '| original:', editingTask.assignedEmployeeIds);
 
     // Guard: completion date must not be before the task's start date
     if (editCompleted && editCompletedDate) {
