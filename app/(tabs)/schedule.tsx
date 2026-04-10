@@ -1,5 +1,4 @@
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import * as MailComposer from 'expo-mail-composer';
 import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
@@ -74,34 +73,15 @@ async function sendSubAssignmentEmail(
   const subject = `Job Assignment — ${taskName}`;
   const body = `Hi ${firstName},\n\n${companyName} has assigned you to: ${taskName} on ${dateStr}.\n\n— ${companyName}`;
 
-  // Split comma-separated emails into array for MailComposer
   const recipientList = email.split(',').map(e => e.trim()).filter(Boolean);
-  const mailtoUrl = `mailto:${recipientList.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailtoUrl = `mailto:${recipientList.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   try {
-    if (Platform.OS === 'web') {
-      Linking.openURL(mailtoUrl);
-    } else {
-      const isAvailable = await MailComposer.isAvailableAsync();
-      if (isAvailable) {
-        await MailComposer.composeAsync({ recipients: recipientList, subject, body });
-      } else {
-        // Fallback: open mailto link (works when Gmail/Outlook/etc. is installed)
-        const canOpen = await Linking.canOpenURL('mailto:test@test.com');
-        if (canOpen) {
-          await Linking.openURL(mailtoUrl);
-        } else {
-          Alert.alert(
-            'No Email App Found',
-            `Please send an email to:\n${recipientList.join('\n')}\n\nSubject: ${subject}`,
-          );
-        }
-      }
-    }
-    console.log('[Schedule Email] Composer opened for', subName);
+    await Linking.openURL(mailtoUrl);
+    console.log('[Schedule Email] mailto opened for', subName);
   } catch (err) {
     console.error('[Schedule Email] Failed for', subName, err);
-    Alert.alert('Email Error', `Could not open email. Please email:\n${recipientList.join(', ')}`);
+    Alert.alert('No Email App', `Please email:\n${recipientList.join(', ')}`);
   }
 }
 
