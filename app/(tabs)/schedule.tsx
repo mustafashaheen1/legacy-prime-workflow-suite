@@ -1072,15 +1072,11 @@ export default function ScheduleScreen() {
         const firstNames = emailSubs.map(s => s.name.split(' ')[0]);
         const greetingName = firstNames.join(' & '); // "Blake" or "Blake & James"
         const displayNames = firstNames.join(', ');
-        showNotif(`📧 Opening email for ${displayNames}...`, true);
-        await sendSubAssignmentEmail(
-          emailSubs.map(s => s.email).join(','),
-          greetingName,
-          editingTask.category,
-          editingTask.startDate,
-          companyName,
-        );
-        showNotif(`📧 Email opened for ${displayNames} ✓`, false, 3000);
+        // Delay so the task edit modal fully dismisses before presenting the
+        // mail composer — iOS blocks sheet-on-sheet presentation otherwise.
+        showNotif(`📧 Opening email for ${displayNames}…`, false, 4000);
+        const _emailArgs = [emailSubs.map(s => s.email).join(','), greetingName, editingTask.category, editingTask.startDate, companyName] as const;
+        setTimeout(() => sendSubAssignmentEmail(..._emailArgs), 500);
       }
     }
 
