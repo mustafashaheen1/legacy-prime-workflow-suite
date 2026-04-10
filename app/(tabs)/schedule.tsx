@@ -1978,7 +1978,7 @@ ${pdfDates.length > 0 ? `
                   })}
                 </View>
 
-                <GHScrollView
+                <ScrollView
                   ref={gridHRef as any}
                   horizontal
                   showsHorizontalScrollIndicator={true}
@@ -2064,49 +2064,8 @@ ${pdfDates.length > 0 ? `
                         const isLeftTouching = touchingHandle?.id === task.id && touchingHandle?.type === 'left';
                         const isRightTouching = touchingHandle?.id === task.id && touchingHandle?.type === 'right';
 
-                        // RNGH Pan gestures for native (iOS/Android).
-                        // activateAfterLongPress(400): user holds the handle for 400ms before
-                        // drag activates — this prevents GHScrollView from intercepting the
-                        // touch on a short press/swipe and scrolling the timeline instead.
-                        const makeNativeHandleGesture = (type: 'left' | 'right') => {
-                          let initDur = task.duration;
-                          let initStart = new Date(task.startDate);
-                          return Gesture.Pan()
-                            .runOnJS(true)
-                            .activateAfterLongPress(400)
-                            .onStart(() => {
-                              initDur = task.duration;
-                              initStart = new Date(task.startDate);
-                              setResizingTaskSync({ id: task.id, type });
-                              setTouchingHandle({ id: task.id, type });
-                            })
-                            .onUpdate((e) => {
-                              const dd = Math.round(e.translationX / dayWidth);
-                              if (type === 'right') {
-                                const nd = Math.max(1, initDur + dd);
-                                const ne = new Date(initStart);
-                                ne.setDate(initStart.getDate() + nd);
-                                setScheduledTasks(prev => prev.map(t =>
-                                  t.id === task.id ? { ...t, duration: nd, endDate: ne.toISOString() } : t
-                                ));
-                              } else {
-                                const nd = Math.max(1, initDur - dd);
-                                const ns = new Date(initStart);
-                                ns.setDate(initStart.getDate() + dd);
-                                const ne = new Date(ns);
-                                ne.setDate(ns.getDate() + nd);
-                                setScheduledTasks(prev => prev.map(t =>
-                                  t.id === task.id ? { ...t, duration: nd, startDate: ns.toISOString(), endDate: ne.toISOString() } : t
-                                ));
-                              }
-                            })
-                            .onEnd(() => {
-                              setResizingTaskSync(null);
-                              setTouchingHandle(null);
-                            });
-                        };
-                        const leftNativeGesture = Platform.OS !== 'web' ? makeNativeHandleGesture('left') : null;
-                        const rightNativeGesture = Platform.OS !== 'web' ? makeNativeHandleGesture('right') : null;
+                        const leftPanHandlers = Platform.OS !== 'web' ? createResizePanResponder(task, 'left').panHandlers : null;
+                        const rightPanHandlers = Platform.OS !== 'web' ? createResizePanResponder(task, 'right').panHandlers : null;
 
                         const phase = allPhases.find(p => p.name === task.category);
                         
@@ -2131,14 +2090,13 @@ ${pdfDates.length > 0 ? `
                             ]}
                           >
                             {Platform.OS !== 'web' ? (
-                              <GestureDetector gesture={leftNativeGesture!}>
-                                <View
-                                  hitSlop={{ top: 10, bottom: 10, left: 14, right: 6 }}
-                                  style={[styles.resizeHandle, styles.resizeHandleLeft, isLeftTouching && styles.resizeHandleTouching]}
-                                >
-                                  <View style={styles.resizeDot} />
-                                </View>
-                              </GestureDetector>
+                              <View
+                                hitSlop={{ top: 10, bottom: 10, left: 14, right: 6 }}
+                                style={[styles.resizeHandle, styles.resizeHandleLeft, isLeftTouching && styles.resizeHandleTouching]}
+                                {...leftPanHandlers}
+                              >
+                                <View style={styles.resizeDot} />
+                              </View>
                             ) : (
                               <View
                                 hitSlop={{ top: 10, bottom: 10, left: 14, right: 6 }}
@@ -2257,14 +2215,13 @@ ${pdfDates.length > 0 ? `
                             </TouchableOpacity>
 
                             {Platform.OS !== 'web' ? (
-                              <GestureDetector gesture={rightNativeGesture!}>
-                                <View
-                                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 14 }}
-                                  style={[styles.resizeHandle, styles.resizeHandleRight, isRightTouching && styles.resizeHandleTouching]}
-                                >
-                                  <View style={styles.resizeDot} />
-                                </View>
-                              </GestureDetector>
+                              <View
+                                hitSlop={{ top: 10, bottom: 10, left: 6, right: 14 }}
+                                style={[styles.resizeHandle, styles.resizeHandleRight, isRightTouching && styles.resizeHandleTouching]}
+                                {...rightPanHandlers}
+                              >
+                                <View style={styles.resizeDot} />
+                              </View>
                             ) : (
                               <View
                                 hitSlop={{ top: 10, bottom: 10, left: 6, right: 14 }}
@@ -2281,7 +2238,7 @@ ${pdfDates.length > 0 ? `
                       })}
                     </View>
                   </Pressable>
-                </GHScrollView>
+                </ScrollView>
               </View>
             </ScrollView>
             {(Platform.OS === 'web' || Platform.OS === 'ios') && (
