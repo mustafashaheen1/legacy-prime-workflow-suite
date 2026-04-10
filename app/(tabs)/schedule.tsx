@@ -27,9 +27,8 @@ async function sendSubAssignmentSMS(
   const digits = phone.replace(/\D/g, '');
   const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : phone;
   const firstName = subName?.split(' ')[0] || '';
-  const smsDatePart = startDate.split('T')[0].split(' ')[0];
-  const [smsYr, smsMo, smsDy] = smsDatePart.split('-').map(Number);
-  const dateStr = new Date(smsYr, smsMo - 1, smsDy).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const _smsD = new Date(startDate);
+  const dateStr = new Date(_smsD.getFullYear(), _smsD.getMonth(), _smsD.getDate()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const sender = companyName || 'Legacy Prime';
   const body = `Hi ${firstName}, you've been assigned to: ${taskName} on ${dateStr}. - ${sender}`;
   console.log('[Schedule SMS] Sending to:', subName, '| Phone:', phone, '→ E.164:', e164);
@@ -67,9 +66,8 @@ async function sendSubAssignmentEmail(
     return;
   }
   const firstName = subName?.trim() || ''; // caller pre-computes correct greeting name(s)
-  const datePart = startDate.split('T')[0].split(' ')[0]; // 'YYYY-MM-DD' — handles both ISO 'T' and space separators
-  const [yr, mo, dy] = datePart.split('-').map(Number);
-  const dateStr = new Date(yr, mo - 1, dy).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const _emailD = new Date(startDate);
+  const dateStr = new Date(_emailD.getFullYear(), _emailD.getMonth(), _emailD.getDate()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const subject = `Job Assignment — ${taskName}`;
   const body = `Hi ${firstName},\n\n${companyName} has assigned you to: ${taskName} on ${dateStr}.\n\n— ${companyName}`;
 
@@ -974,7 +972,6 @@ export default function ScheduleScreen() {
   const handleSaveEdit = useCallback(async () => {
     if (!editingTask || isSaving) return;
     setIsSaving(true);
-    console.log('[SaveEdit] workType:', editWorkType, '| empIds:', editAssignedEmpIds, '| original:', editingTask.assignedEmployeeIds);
 
     // Guard: completion date must not be before the task's start date
     if (editCompleted && editCompletedDate) {
@@ -1070,10 +1067,8 @@ export default function ScheduleScreen() {
       if (newlyAddedEmps.length > 0) {
         showNotif(`🔔 Notifying ${newlyAddedEmps.length} employee(s)...`, true);
         const rawStart = editingTask.startDate;
-        const sentStart = rawStart.split('T')[0].split(' ')[0];
-        console.log('[TaskNotif] raw startDate from task:', rawStart);
-        console.log('[TaskNotif] sent startDate to API:', sentStart);
-        console.log('[TaskNotif] task category:', editingTask.category);
+        const _d = new Date(rawStart);
+        const sentStart = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
         Promise.all(
           newlyAddedEmps.map(empId =>
             fetch(`${SMS_API_BASE}/api/send-task-assignment-notification`, {
@@ -1086,7 +1081,7 @@ export default function ScheduleScreen() {
                 startDate: sentStart,
                 companyName,
               }),
-            }).then(r => r.json()).then(r => { console.log('[TaskNotif] API response:', JSON.stringify(r)); return { success: r.success, empId }; })
+            }).then(r => r.json()).then(r => ({ success: r.success, empId }))
               .catch(() => ({ success: false, empId }))
           )
         ).then(results => {
