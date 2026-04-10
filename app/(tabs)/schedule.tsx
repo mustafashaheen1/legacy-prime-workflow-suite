@@ -221,6 +221,7 @@ export default function ScheduleScreen() {
   const [editAssignedEmpIds, setEditAssignedEmpIds] = useState<string[]>([]);
   const [companyEmployees, setCompanyEmployees] = useState<any[]>([]);
   const [notifModal, setNotifModal] = useState<{ message: string; loading: boolean } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const notifModalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showNotif = useCallback((message: string, loading: boolean, autoDismiss = 0) => {
@@ -975,7 +976,8 @@ export default function ScheduleScreen() {
   useEffect(() => { scheduledTasksRef.current = scheduledTasks; }, [scheduledTasks]);
 
   const handleSaveEdit = useCallback(async () => {
-    if (!editingTask) return;
+    if (!editingTask || isSaving) return;
+    setIsSaving(true);
 
     // Guard: completion date must not be before the task's start date
     if (editCompleted && editCompletedDate) {
@@ -1046,14 +1048,22 @@ export default function ScheduleScreen() {
         });
       }
 
-      // Email — open mail composer, show status after composer closes
-      for (const subId of newlyAdded) {
-        const sub = subcontractors.find(s => s.id === subId);
-        if (sub?.email?.trim()) {
-          showNotif(`📧 Opening email for ${sub.name.split(' ')[0]}...`, true);
-          await sendSubAssignmentEmail(sub.email, sub.name, editingTask.category, editingTask.startDate, companyName);
-          showNotif(`📧 Email composed for ${sub.name.split(' ')[0]} ✓`, false, 3000);
-        }
+      // Email — batch all newly assigned subs into one composer open
+      const emailSubs = newlyAdded
+        .map(id => subcontractors.find(s => s.id === id))
+        .filter((s): s is typeof subcontractors[0] => !!s?.email?.trim());
+      if (emailSubs.length > 0) {
+        const names = emailSubs.map(s => s.name.split(' ')[0]).join(', ');
+        showNotif(`📧 Opening email for ${names}...`, true);
+        // Pass first sub's name for greeting; sendSubAssignmentEmail accepts multiple emails via comma
+        await sendSubAssignmentEmail(
+          emailSubs.map(s => s.email).join(','),
+          emailSubs.length === 1 ? emailSubs[0].name : names,
+          editingTask.category,
+          editingTask.startDate,
+          companyName,
+        );
+        showNotif(`📧 Email opened for ${names} ✓`, false, 3000);
       }
     }
 
@@ -1090,7 +1100,8 @@ export default function ScheduleScreen() {
         });
       }
     }
-  }, [editingTask, editNoteText, editWorkType, editDuration, editClientVisibleNote, editCompleted, editCompletedDate, editAssignedSubIds, editAssignedEmpIds, updateScheduledTasks, subcontractors, company]);
+    setIsSaving(false);
+  }, [editingTask, isSaving, editNoteText, editWorkType, editDuration, editClientVisibleNote, editCompleted, editCompletedDate, editAssignedSubIds, editAssignedEmpIds, updateScheduledTasks, subcontractors, company]);
 
   const handleOpenDailyLogs = () => {
     setShowDailyLogsModal(true);
@@ -2579,9 +2590,11 @@ ${pdfDates.length > 0 ? `
               <TouchableOpacity style={styles.editCancelBtn} onPress={() => setEditingTask(null)}>
                 <Text style={styles.editCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.editSaveBtn} onPress={handleSaveEdit}>
-                <Check size={16} color="#FFFFFF" />
-                <Text style={styles.editSaveText}>Save</Text>
+              <TouchableOpacity style={[styles.editSaveBtn, isSaving && { opacity: 0.7 }]} onPress={handleSaveEdit} disabled={isSaving}>
+                {isSaving
+                  ? <ActivityIndicator size="small" color="#FFFFFF" />
+                  : <Check size={16} color="#FFFFFF" />}
+                <Text style={styles.editSaveText}>{isSaving ? 'Saving...' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
           </View>
