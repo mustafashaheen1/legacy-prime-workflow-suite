@@ -74,22 +74,34 @@ async function sendSubAssignmentEmail(
   const subject = `Job Assignment — ${taskName}`;
   const body = `Hi ${firstName},\n\n${companyName} has assigned you to: ${taskName} on ${dateStr}.\n\n— ${companyName}`;
 
+  // Split comma-separated emails into array for MailComposer
+  const recipientList = email.split(',').map(e => e.trim()).filter(Boolean);
+  const mailtoUrl = `mailto:${recipientList.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
   try {
     if (Platform.OS === 'web') {
-      const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       Linking.openURL(mailtoUrl);
     } else {
       const isAvailable = await MailComposer.isAvailableAsync();
       if (isAvailable) {
-        await MailComposer.composeAsync({ recipients: [email], subject, body });
+        await MailComposer.composeAsync({ recipients: recipientList, subject, body });
       } else {
-        const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        Linking.openURL(mailtoUrl);
+        // Fallback: open mailto link (works when Gmail/Outlook/etc. is installed)
+        const canOpen = await Linking.canOpenURL('mailto:test@test.com');
+        if (canOpen) {
+          await Linking.openURL(mailtoUrl);
+        } else {
+          Alert.alert(
+            'No Email App Found',
+            `Please send an email to:\n${recipientList.join('\n')}\n\nSubject: ${subject}`,
+          );
+        }
       }
     }
     console.log('[Schedule Email] Composer opened for', subName);
   } catch (err) {
     console.error('[Schedule Email] Failed for', subName, err);
+    Alert.alert('Email Error', `Could not open email. Please email:\n${recipientList.join(', ')}`);
   }
 }
 
