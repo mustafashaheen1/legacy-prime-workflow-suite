@@ -3532,7 +3532,7 @@ ${pdfDates.length > 0 ? `
               {(() => {
                 const existingLink = selectedProject ? getShareLinkByProject(selectedProject) : undefined;
                 const isActive = existingLink?.enabled && (!existingLink?.expiresAt || new Date(existingLink.expiresAt) > new Date());
-                const baseUrl = Platform.OS === 'web' ? window.location.origin : 'https://app.example.com';
+                const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
                 const fullUrl = existingLink ? `${baseUrl}/schedule-view/${existingLink.token}` : '';
 
                 return (
