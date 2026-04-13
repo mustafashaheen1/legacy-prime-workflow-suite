@@ -357,6 +357,8 @@ export default function ScheduleScreen() {
   // Column header drag-to-resize (web only — only widens/narrows the dragged column)
   const colResizeDragRef = useRef<{ startX: number; colIndex: number; startExtra: number } | null>(null);
   const colResizeLastClickRef = useRef<Record<number, number>>({});
+  const [colResizingIndex, setColResizingIndex] = useState<number | null>(null);
+  const [colResizePreview, setColResizePreview] = useState<{ index: number; extra: number } | null>(null);
   const handleColResizeMouseDown = useCallback((e: any, colIndex: number) => {
     e.preventDefault();
     e.stopPropagation();
@@ -393,6 +395,8 @@ export default function ScheduleScreen() {
   // Row drag-to-resize (web only — only resizes the dragged phase row)
   const rowResizeDragRef = useRef<{ startY: number; phaseId: string; startExtra: number } | null>(null);
   const rowResizeLastClickRef = useRef<Record<string, number>>({});
+  const [rowResizingPhaseId, setRowResizingPhaseId] = useState<string | null>(null);
+  const [rowResizePreview, setRowResizePreview] = useState<{ phaseId: string; extra: number } | null>(null);
   const handleRowResizeMouseDown = useCallback((e: any, phaseId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1799,8 +1803,12 @@ ${pdfDates.length > 0 ? `
                 keyboardDismissMode="on-drag"
               >
                 <View style={styles.dateHeaderContent}>
-                  {dates.map((date, i) => (
-                    <View key={i} style={[styles.dateCell, { width: colWidths[i] ?? dayWidth }, isToday(date) && styles.dateCellToday]}>
+                  {dates.map((date, i) => {
+                    const colVisualWidth = (colResizePreview?.index === i)
+                      ? Math.max(30, Math.min(400, Math.round(DAY_WIDTH * zoomLevelRef.current) + colResizePreview.extra))
+                      : (colWidths[i] ?? dayWidth);
+                    return (
+                    <View key={i} style={[styles.dateCell, { width: colVisualWidth }, isToday(date) && styles.dateCellToday]}>
                       <Text style={[styles.dateCellText, isToday(date) && styles.dateCellTextToday]}>
                         {formatDate(date)}
                       </Text>
@@ -1808,9 +1816,10 @@ ${pdfDates.length > 0 ? `
                         {date.toLocaleDateString('en-US', { weekday: 'short' })}
                       </Text>
                       <View
-                        style={[styles.colResizeHandle, Platform.OS !== 'web' && styles.colResizeHandleNative]}
+                        style={[styles.colResizeHandle, Platform.OS !== 'web' && styles.colResizeHandleNative, Platform.OS !== 'web' && colResizingIndex === i && styles.colResizeHandleActive]}
                         // @ts-ignore web only
                         onMouseDown={Platform.OS === 'web' ? (e: any) => handleColResizeMouseDown(e, i) : undefined}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         onStartShouldSetResponder={Platform.OS !== 'web' ? () => true : undefined}
                         onResponderGrant={Platform.OS !== 'web' ? (e: any) => {
                           const now = Date.now();
@@ -1818,11 +1827,14 @@ ${pdfDates.length > 0 ? `
                           if (last !== 0 && now - last < 400) {
                             colResizeLastClickRef.current[i] = 0;
                             setColWidthOverrides(prev => { const n = { ...prev }; delete n[i]; return n; });
+                            setColResizePreview(null);
+                            setColResizingIndex(null);
                             colResizeDragRef.current = null;
                             return;
                           }
                           colResizeLastClickRef.current[i] = now;
                           colResizeDragRef.current = { startX: e.nativeEvent.pageX, colIndex: i, startExtra: colWidthOverridesRef.current[i] ?? 0 };
+                          setColResizingIndex(i);
                         } : undefined}
                         onResponderMove={Platform.OS !== 'web' ? (e: any) => {
                           const drag = colResizeDragRef.current;
@@ -1830,15 +1842,24 @@ ${pdfDates.length > 0 ? `
                           const delta = e.nativeEvent.pageX - drag.startX;
                           const base = Math.round(DAY_WIDTH * zoomLevelRef.current);
                           const clamped = Math.min(400, Math.max(30, base + drag.startExtra + delta)) - base;
-                          setColWidthOverrides(prev => ({ ...prev, [drag.colIndex]: clamped }));
+                          setColResizePreview({ index: drag.colIndex, extra: clamped });
                         } : undefined}
-                        onResponderRelease={Platform.OS !== 'web' ? () => { colResizeDragRef.current = null; } : undefined}
+                        onResponderRelease={Platform.OS !== 'web' ? () => {
+                          const drag = colResizeDragRef.current;
+                          if (drag && colResizePreview) {
+                            setColWidthOverrides(prev => ({ ...prev, [drag.colIndex]: colResizePreview.extra }));
+                          }
+                          colResizeDragRef.current = null;
+                          setColResizePreview(null);
+                          setColResizingIndex(null);
+                        } : undefined}
                       >
                         <View style={styles.colResizeLine} />
                         <View style={styles.colResizeLine} />
                       </View>
                     </View>
-                  ))}
+                    );
+                  })}
                 </View>
               </ScrollView>
             </View>
@@ -1870,7 +1891,7 @@ ${pdfDates.length > 0 ? `
                         <TouchableOpacity
                           style={[
                             styles.sidebarItem,
-                            { height: (phaseLaneCounts.get(phase.name) ?? 1) * (phaseRowHeights.get(phase.id) ?? rowHeight) },
+                            { height: (phaseLaneCounts.get(phase.name) ?? 1) * (rowResizePreview?.phaseId === phase.id ? Math.max(20, Math.min(400, Math.round(ROW_HEIGHT * zoomLevelRef.current) + rowResizePreview.extra)) : (phaseRowHeights.get(phase.id) ?? rowHeight)) },
                             selectedPhase === phase.name && styles.sidebarItemActive,
                             i % 2 === 0 ? styles.sidebarItemEven : styles.sidebarItemOdd,
                             phase.isSubPhase && styles.sidebarItemIndented,
@@ -1958,7 +1979,8 @@ ${pdfDates.length > 0 ? `
                           )}
                         </TouchableOpacity>
                         <View
-                          style={[styles.rowResizeHandle, Platform.OS !== 'web' && styles.rowResizeHandleNative]}
+                          hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                          style={[styles.rowResizeHandle, Platform.OS !== 'web' && styles.rowResizeHandleNative, Platform.OS !== 'web' && rowResizingPhaseId === phase.id && styles.rowResizeHandleActive]}
                           // @ts-ignore web only
                           onMouseDown={Platform.OS === 'web' ? (e: any) => handleRowResizeMouseDown(e, phase.id) : undefined}
                           onStartShouldSetResponder={Platform.OS !== 'web' ? () => true : undefined}
@@ -1968,11 +1990,14 @@ ${pdfDates.length > 0 ? `
                             if (last !== 0 && now - last < 400) {
                               rowResizeLastClickRef.current[phase.id] = 0;
                               setRowHeightOverrides(prev => { const n = { ...prev }; delete n[phase.id]; return n; });
+                              setRowResizePreview(null);
+                              setRowResizingPhaseId(null);
                               rowResizeDragRef.current = null;
                               return;
                             }
                             rowResizeLastClickRef.current[phase.id] = now;
                             rowResizeDragRef.current = { startY: e.nativeEvent.pageY, phaseId: phase.id, startExtra: rowHeightOverridesRef.current[phase.id] ?? 0 };
+                            setRowResizingPhaseId(phase.id);
                           } : undefined}
                           onResponderMove={Platform.OS !== 'web' ? (e: any) => {
                             const drag = rowResizeDragRef.current;
@@ -1980,9 +2005,17 @@ ${pdfDates.length > 0 ? `
                             const delta = e.nativeEvent.pageY - drag.startY;
                             const base = Math.round(ROW_HEIGHT * zoomLevelRef.current);
                             const clamped = Math.min(400, Math.max(20, base + drag.startExtra + delta)) - base;
-                            setRowHeightOverrides(prev => ({ ...prev, [drag.phaseId]: clamped }));
+                            setRowResizePreview({ phaseId: drag.phaseId, extra: clamped });
                           } : undefined}
-                          onResponderRelease={Platform.OS !== 'web' ? () => { rowResizeDragRef.current = null; } : undefined}
+                          onResponderRelease={Platform.OS !== 'web' ? () => {
+                            const drag = rowResizeDragRef.current;
+                            if (drag && rowResizePreview) {
+                              setRowHeightOverrides(prev => ({ ...prev, [drag.phaseId]: rowResizePreview.extra }));
+                            }
+                            rowResizeDragRef.current = null;
+                            setRowResizePreview(null);
+                            setRowResizingPhaseId(null);
+                          } : undefined}
                         />
                       </View>
                     );
@@ -3998,9 +4031,13 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   colResizeHandleNative: {
-    width: 20,
-    right: -10,
+    width: 28,
+    right: -14,
     backgroundColor: '#94A3B8',
+    borderRadius: 4,
+  },
+  colResizeHandleActive: {
+    backgroundColor: '#3B82F6',
   },
   rowResizeHandle: {
     position: 'absolute',
@@ -4013,10 +4050,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   rowResizeHandleNative: {
-    height: 18,
-    backgroundColor: 'rgba(148, 163, 184, 0.35)',
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
+    height: 22,
+    backgroundColor: 'rgba(148, 163, 184, 0.5)',
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+  },
+  rowResizeHandleActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.6)',
   },
   dateCellText: {
     fontSize: 10,
