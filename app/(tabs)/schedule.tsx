@@ -1,7 +1,7 @@
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect, startTransition } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Calendar, X, BookOpen, Plus, Trash2, Check, Users, History, Download, Camera, ImageIcon, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Bell, FileText, Shovel, Mountain, Home, Droplets, Hammer, Triangle, DoorOpen, Shield, Wrench, Zap, Wind, Snowflake, Layers, Paintbrush, Bath, Lightbulb, Fan, Trees, Sparkles, ClipboardCheck, Pencil, Share2, Link, Copy, RefreshCw, Eye, EyeOff, Lock, ShieldOff, Printer, CircleCheck } from 'lucide-react-native';
 import { ScheduledTask, DailyLog, DailyLogTask, DailyLogPhoto, DailyTaskReminder } from '@/types';
@@ -1847,7 +1847,7 @@ ${pdfDates.length > 0 ? `
                           const now = Date.now();
                           if (now - colResizeLastUpdateRef.current < 16) return;
                           colResizeLastUpdateRef.current = now;
-                          setColWidthOverrides(prev => ({ ...prev, [drag.colIndex]: clamped }));
+                          startTransition(() => setColWidthOverrides(prev => ({ ...prev, [drag.colIndex]: clamped })));
                         } : undefined}
                         onResponderRelease={Platform.OS !== 'web' ? () => {
                           const drag = colResizeDragRef.current;
@@ -2012,9 +2012,9 @@ ${pdfDates.length > 0 ? `
                             rowResizeCurrentExtraRef.current = clamped;
                             // Throttle to ~30fps to reduce re-render cost while keeping pill in sync
                             const now = Date.now();
-                            if (now - rowResizeLastUpdateRef.current < 33) return;
+                            if (now - rowResizeLastUpdateRef.current < 16) return;
                             rowResizeLastUpdateRef.current = now;
-                            setRowHeightOverrides(prev => ({ ...prev, [drag.phaseId]: clamped }));
+                            startTransition(() => setRowHeightOverrides(prev => ({ ...prev, [drag.phaseId]: clamped })));
                           } : undefined}
                           onResponderRelease={Platform.OS !== 'web' ? () => {
                             const drag = rowResizeDragRef.current;
