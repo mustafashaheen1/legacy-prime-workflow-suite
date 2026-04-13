@@ -1820,6 +1820,8 @@ ${pdfDates.length > 0 ? `
                         onMouseDown={Platform.OS === 'web' ? (e: any) => handleColResizeMouseDown(e, i) : undefined}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         onStartShouldSetResponder={Platform.OS !== 'web' ? () => true : undefined}
+                        onMoveShouldSetResponder={Platform.OS !== 'web' ? () => true : undefined}
+                        onResponderTerminationRequest={Platform.OS !== 'web' ? () => false : undefined}
                         onResponderGrant={Platform.OS !== 'web' ? (e: any) => {
                           const now = Date.now();
                           const last = colResizeLastClickRef.current[i] ?? 0;
@@ -1843,7 +1845,7 @@ ${pdfDates.length > 0 ? `
                           const clamped = Math.min(400, Math.max(30, base + drag.startExtra + delta)) - base;
                           colResizeCurrentExtraRef.current = clamped;
                           const now = Date.now();
-                          if (now - colResizeLastUpdateRef.current < 33) return;
+                          if (now - colResizeLastUpdateRef.current < 16) return;
                           colResizeLastUpdateRef.current = now;
                           setColWidthOverrides(prev => ({ ...prev, [drag.colIndex]: clamped }));
                         } : undefined}
@@ -4012,6 +4014,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRightWidth: 1,
     borderRightColor: '#E2E8F0',
+    overflow: 'visible',
   },
   dateCellToday: {
     backgroundColor: '#DBEAFE',
