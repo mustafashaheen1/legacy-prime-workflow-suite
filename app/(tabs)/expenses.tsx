@@ -474,7 +474,11 @@ export default function ExpensesScreen() {
       console.log('[OCR] Checking for duplicates...');
       const duplicateCheck = await checkForDuplicates(imageData, result);
       // Use the server-computed hash — avoids client-side/server-side encoding mismatch on iOS
-      if (duplicateCheck.imageHash) setServerImageHash(duplicateCheck.imageHash);
+      if (duplicateCheck.imageHash) {
+        setServerImageHash(duplicateCheck.imageHash);
+        console.log('[DuplicateCheck] Server hash received:', duplicateCheck.imageHash.substring(0, 16) + '...');
+      }
+      console.log('[DuplicateCheck] Result:', JSON.stringify({ isDuplicate: duplicateCheck.isDuplicate, duplicateType: duplicateCheck.duplicateType, canOverride: duplicateCheck.canOverride }));
 
       if (duplicateCheck.isDuplicate) {
         if (!duplicateCheck.canOverride) {
