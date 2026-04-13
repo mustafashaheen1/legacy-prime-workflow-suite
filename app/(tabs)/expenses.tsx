@@ -164,8 +164,13 @@ export default function ExpensesScreen() {
         ? await generateImageHash(receiptBase64)
         : undefined;
 
+      // Use OCR-extracted date so fingerprint matches what the server checks against
+      const ocrDate = ocrData?.date
+        ? new Date(ocrData.date).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+
       const ocrFingerprint = store && amount
-        ? generateOCRFingerprint(store, parseFloat(amount), new Date().toISOString())
+        ? generateOCRFingerprint(store, parseFloat(amount), ocrDate)
         : undefined;
 
       const imageSizeBytes = receiptBase64
@@ -224,7 +229,7 @@ export default function ExpensesScreen() {
         subcategory: expenseType === 'Subcontractor' ? category : expenseType,
         amount: parseFloat(amount),
         store,
-        date: new Date().toISOString(),
+        date: ocrDate,
         receiptUrl: uploadedReceiptUrl,
         imageHash,
         ocrFingerprint,
