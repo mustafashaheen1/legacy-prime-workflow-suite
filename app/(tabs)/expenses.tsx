@@ -49,6 +49,7 @@ export default function ExpensesScreen() {
   const [validationError, setValidationError] = useState<string>('');
   const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
   const [ocrData, setOcrData] = useState<any>(null);
+  const [serverImageHash, setServerImageHash] = useState<string | null>(null);
   const [showDocumentScanner, setShowDocumentScanner] = useState<boolean>(false);
 
   // Reload expenses when component mounts
@@ -159,10 +160,9 @@ export default function ExpensesScreen() {
 
     setIsSaving(true);
     try {
-      // Generate duplicate detection fields if we have receipt data
-      const imageHash = receiptBase64
-        ? await generateImageHash(receiptBase64)
-        : undefined;
+      // Use server-computed hash (returned by check-duplicate-receipt) — consistent with what's queried on re-upload
+      // Falls back to client-side hash only if duplicate check was never called (no receipt attached)
+      const imageHash = serverImageHash || (receiptBase64 ? await generateImageHash(receiptBase64) : undefined);
 
       // Use OCR-extracted date so fingerprint matches what the server checks against
       const ocrDate = ocrData?.date
@@ -473,6 +473,8 @@ export default function ExpensesScreen() {
       // Check for duplicates before auto-filling
       console.log('[OCR] Checking for duplicates...');
       const duplicateCheck = await checkForDuplicates(imageData, result);
+      // Use the server-computed hash — avoids client-side/server-side encoding mismatch on iOS
+      if (duplicateCheck.imageHash) setServerImageHash(duplicateCheck.imageHash);
 
       if (duplicateCheck.isDuplicate) {
         if (!duplicateCheck.canOverride) {

@@ -161,6 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           createdAt: exactMatch.created_at,
         },
         canOverride: false,
+        imageHash,
         message: 'This receipt has already been added. You cannot add the same receipt image twice.',
       } as DuplicateCheckResult);
     }
@@ -208,6 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             createdAt: similarMatch.created_at,
           },
           canOverride: true,
+          imageHash,
           message: `A similar receipt was found (${similarMatch.store}, $${Number(similarMatch.amount).toFixed(2)} on ${similarMatch.date}). This might be a duplicate.`,
         } as DuplicateCheckResult);
       }
@@ -243,6 +245,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             createdAt: fuzzyMatch.created_at,
           },
           canOverride: true,
+          imageHash,
           message: `A similar receipt was found (${fuzzyMatch.store}, $${Number(fuzzyMatch.amount).toFixed(2)} on ${fuzzyMatch.date}). This might be a duplicate.`,
         } as DuplicateCheckResult);
       }
@@ -274,6 +277,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               createdAt: sameDayMatch.created_at,
             },
             canOverride: true,
+            imageHash,
             message: `A receipt from ${sameDayMatch.store} was already added today. This might be a duplicate.`,
           } as DuplicateCheckResult);
         }
@@ -289,6 +293,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       isDuplicate: false,
       canOverride: true,
+      imageHash,
       message: 'No duplicate found',
     } as DuplicateCheckResult);
 
