@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const { projectId, type, subcategory, amount, store, date, receiptUrl, imageHash, ocrFingerprint, imageSizeBytes, clockEntryId } = req.body;
+    const { projectId, type, subcategory, amount, store, date, receiptUrl, imageHash, ocrFingerprint, imageSizeBytes, clockEntryId, wasWarned } = req.body;
 
     console.log('[AddExpense] Adding expense:', amount, 'for project:', projectId, 'by user:', authUser.id);
 
@@ -117,6 +117,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[AddExpense] ===== API ROUTE COMPLETED =====');
     console.log('[AddExpense] Expense created:', data.id);
+
+    // Fire-and-forget override audit log — only when user saw a "similar" warning and saved anyway
+    if (wasWarned) {
+      supabase.from('expense_duplicate_logs').insert({
+        company_id: companyId,
+        project_id: projectId,
+        attempted_by: authUser.id,
+        detection_type: 'similar',
+        image_hash: imageHash || null,
+        ocr_fingerprint: ocrFingerprint || null,
+        user_decision: 'overridden',
+      }).then(({ error }) => {
+        if (error) console.warn('[AddExpense] Override audit log failed (non-fatal):', error.message);
+      });
+    }
 
     // Notify admins — must complete BEFORE responding (Vercel freezes after res.json)
     try {

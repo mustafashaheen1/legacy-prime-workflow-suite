@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { companyId, projectId, imageBase64, ocrData } = req.body;
+    const { companyId, projectId, imageBase64, ocrData, userId } = req.body;
 
     console.log('[CheckDuplicate] Checking for duplicates in project:', projectId);
 
@@ -84,6 +84,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Fire-and-forget audit logger — never awaited, never blocks response
+    const logDetection = (params: {
+      detectionType: 'exact' | 'similar' | 'none';
+      userDecision: 'blocked' | 'warned' | 'clean';
+      matchedExpenseId?: string;
+      imageHash?: string;
+      ocrFingerprint?: string;
+    }) => {
+      supabase.from('expense_duplicate_logs').insert({
+        company_id: companyId,
+        project_id: projectId,
+        attempted_by: userId || null,
+        detection_type: params.detectionType,
+        matched_expense_id: params.matchedExpenseId || null,
+        image_hash: params.imageHash || null,
+        ocr_fingerprint: params.ocrFingerprint || null,
+        user_decision: params.userDecision,
+      }).then(({ error }) => {
+        if (error) console.warn('[CheckDuplicate] Audit log failed (non-fatal):', error.message);
+      });
+    };
+
     // Generate image hash
     const imageHash = await generateImageHash(imageBase64);
     console.log('[CheckDuplicate] Generated image hash:', imageHash.substring(0, 16) + '...');
@@ -105,6 +127,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (exactMatch) {
       console.log('[CheckDuplicate] Found exact duplicate:', exactMatch.id);
+      logDetection({ detectionType: 'exact', userDecision: 'blocked', matchedExpenseId: exactMatch.id, imageHash });
       return res.status(200).json({
         isDuplicate: true,
         duplicateType: 'exact',
@@ -151,6 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (similarMatch) {
         console.log('[CheckDuplicate] Found similar duplicate:', similarMatch.id);
+        logDetection({ detectionType: 'similar', userDecision: 'warned', matchedExpenseId: similarMatch.id, imageHash, ocrFingerprint });
         return res.status(200).json({
           isDuplicate: true,
           duplicateType: 'similar',
@@ -171,6 +195,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[CheckDuplicate] No duplicates found');
     console.log('[CheckDuplicate] ===== API ROUTE COMPLETED =====');
+    logDetection({ detectionType: 'none', userDecision: 'clean', imageHash });
 
     return res.status(200).json({
       isDuplicate: false,
