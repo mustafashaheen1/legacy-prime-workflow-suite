@@ -357,8 +357,9 @@ export default function ScheduleScreen() {
   // Column header drag-to-resize (web only — only widens/narrows the dragged column)
   const colResizeDragRef = useRef<{ startX: number; colIndex: number; startExtra: number } | null>(null);
   const colResizeLastClickRef = useRef<Record<number, number>>({});
+  const colResizeLastUpdateRef = useRef(0);
+  const colResizeCurrentExtraRef = useRef(0);
   const [colResizingIndex, setColResizingIndex] = useState<number | null>(null);
-  const [colResizePreview, setColResizePreview] = useState<{ index: number; extra: number } | null>(null);
   const handleColResizeMouseDown = useCallback((e: any, colIndex: number) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1805,11 +1806,8 @@ ${pdfDates.length > 0 ? `
               >
                 <View style={styles.dateHeaderContent}>
                   {dates.map((date, i) => {
-                    const colVisualWidth = (colResizePreview?.index === i)
-                      ? Math.max(30, Math.min(400, Math.round(DAY_WIDTH * zoomLevelRef.current) + colResizePreview.extra))
-                      : (colWidths[i] ?? dayWidth);
                     return (
-                    <View key={i} style={[styles.dateCell, { width: colVisualWidth }, isToday(date) && styles.dateCellToday]}>
+                    <View key={i} style={[styles.dateCell, { width: colWidths[i] ?? dayWidth }, isToday(date) && styles.dateCellToday]}>
                       <Text style={[styles.dateCellText, isToday(date) && styles.dateCellTextToday]}>
                         {formatDate(date)}
                       </Text>
@@ -1834,6 +1832,7 @@ ${pdfDates.length > 0 ? `
                             return;
                           }
                           colResizeLastClickRef.current[i] = now;
+                          colResizeCurrentExtraRef.current = colWidthOverridesRef.current[i] ?? 0;
                           colResizeDragRef.current = { startX: e.nativeEvent.pageX, colIndex: i, startExtra: colWidthOverridesRef.current[i] ?? 0 };
                           setColResizingIndex(i);
                         } : undefined}
@@ -1843,15 +1842,18 @@ ${pdfDates.length > 0 ? `
                           const delta = e.nativeEvent.pageX - drag.startX;
                           const base = Math.round(DAY_WIDTH * zoomLevelRef.current);
                           const clamped = Math.min(400, Math.max(30, base + drag.startExtra + delta)) - base;
-                          setColResizePreview({ index: drag.colIndex, extra: clamped });
+                          colResizeCurrentExtraRef.current = clamped;
+                          const now = Date.now();
+                          if (now - colResizeLastUpdateRef.current < 33) return;
+                          colResizeLastUpdateRef.current = now;
+                          setColWidthOverrides(prev => ({ ...prev, [drag.colIndex]: clamped }));
                         } : undefined}
                         onResponderRelease={Platform.OS !== 'web' ? () => {
                           const drag = colResizeDragRef.current;
-                          if (drag && colResizePreview) {
-                            setColWidthOverrides(prev => ({ ...prev, [drag.colIndex]: colResizePreview.extra }));
+                          if (drag) {
+                            setColWidthOverrides(prev => ({ ...prev, [drag.colIndex]: colResizeCurrentExtraRef.current }));
                           }
                           colResizeDragRef.current = null;
-                          setColResizePreview(null);
                           setColResizingIndex(null);
                         } : undefined}
                       >
