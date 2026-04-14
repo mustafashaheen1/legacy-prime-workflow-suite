@@ -876,7 +876,14 @@ export default function ExpensesScreen() {
                       <Text style={styles.expenseUploaderName} numberOfLines={1}>
                         {expense.uploader ? expense.uploader.name : 'Unknown'}
                       </Text>
-                      <Text style={styles.expenseType}>{expense.type}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.expenseType}>{expense.subcategory || expense.type}</Text>
+                        {expense.isCompanyCost && (
+                          <View style={{ backgroundColor: '#EFF6FF', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 }}>
+                            <Text style={{ fontSize: 10, color: '#2563EB', fontWeight: '600' }}>Business</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                   </View>
 
