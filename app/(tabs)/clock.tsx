@@ -91,15 +91,14 @@ export default function ClockScreen() {
             activeProjects.map((project) => (
               <TouchableOpacity
                 key={project.id}
-                style={[styles.projectItem, alreadyClockedIn && styles.projectItemDisabled]}
-                onPress={() => { if (!alreadyClockedIn) setSelectedProjectId(project.id); }}
-                disabled={alreadyClockedIn}
+                style={styles.projectItem}
+                onPress={() => setSelectedProjectId(project.id)}
               >
                 <View style={styles.projectInfo}>
-                  <Text style={[styles.projectName, alreadyClockedIn && styles.textDisabled]}>{project.name}</Text>
+                  <Text style={styles.projectName}>{project.name}</Text>
                 </View>
                 <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                  <ChevronDown size={20} color={alreadyClockedIn ? '#D1D5DB' : '#6B7280'} />
+                  <ChevronDown size={20} color="#6B7280" />
                 </View>
               </TouchableOpacity>
             ))
@@ -122,15 +121,14 @@ export default function ClockScreen() {
           {OFFICE_ROLES.map((role) => (
             <TouchableOpacity
               key={role}
-              style={[styles.projectItem, alreadyClockedIn && styles.projectItemDisabled]}
-              onPress={() => { if (!alreadyClockedIn) setSelectedOfficeRole(role); }}
-              disabled={alreadyClockedIn}
+              style={styles.projectItem}
+              onPress={() => setSelectedOfficeRole(role)}
             >
               <View style={styles.projectInfo}>
-                <Text style={[styles.projectName, alreadyClockedIn && styles.textDisabled]}>{role}</Text>
+                <Text style={styles.projectName}>{role}</Text>
               </View>
               <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                <ChevronDown size={20} color={alreadyClockedIn ? '#D1D5DB' : '#6B7280'} />
+                <ChevronDown size={20} color="#6B7280" />
               </View>
             </TouchableOpacity>
           ))}
@@ -157,13 +155,12 @@ export default function ClockScreen() {
             {activeProjects.map((project) => (
               <TouchableOpacity
                 key={project.id}
-                style={[styles.projectItem, styles.projectItemWeb, alreadyClockedIn && styles.projectItemDisabled]}
-                onPress={() => { if (!alreadyClockedIn) setSelectedProjectId(project.id); }}
-                disabled={alreadyClockedIn}
+                style={[styles.projectItem, styles.projectItemWeb]}
+                onPress={() => setSelectedProjectId(project.id)}
               >
-                <Text style={[styles.projectName, alreadyClockedIn && styles.textDisabled]}>{project.name}</Text>
+                <Text style={styles.projectName}>{project.name}</Text>
                 <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                  <ChevronDown size={20} color={alreadyClockedIn ? '#D1D5DB' : '#6B7280'} />
+                  <ChevronDown size={20} color="#6B7280" />
                 </View>
               </TouchableOpacity>
             ))}
@@ -182,13 +179,12 @@ export default function ClockScreen() {
             {OFFICE_ROLES.map((role) => (
               <TouchableOpacity
                 key={role}
-                style={[styles.projectItem, styles.projectItemWeb, alreadyClockedIn && styles.projectItemDisabled]}
-                onPress={() => { if (!alreadyClockedIn) setSelectedOfficeRole(role); }}
-                disabled={alreadyClockedIn}
+                style={[styles.projectItem, styles.projectItemWeb]}
+                onPress={() => setSelectedOfficeRole(role)}
               >
-                <Text style={[styles.projectName, alreadyClockedIn && styles.textDisabled]}>{role}</Text>
+                <Text style={styles.projectName}>{role}</Text>
                 <View style={{ transform: [{ rotate: '-90deg' }] }}>
-                  <ChevronDown size={20} color={alreadyClockedIn ? '#D1D5DB' : '#6B7280'} />
+                  <ChevronDown size={20} color="#6B7280" />
                 </View>
               </TouchableOpacity>
             ))}
@@ -320,10 +316,8 @@ const styles = StyleSheet.create({
   projectListTitle: { fontSize: 18, fontWeight: '700' as const, color: '#1F2937', marginBottom: 4 },
   projectItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   projectItemWeb: { paddingVertical: 14, cursor: 'pointer' as any },
-  projectItemDisabled: { opacity: 0.4 },
   projectInfo: { flex: 1 },
   projectName: { fontSize: 16, fontWeight: '600' as const, color: '#1F2937' },
-  textDisabled: { color: '#9CA3AF' },
   noProjectsText: { fontSize: 14, color: '#9CA3AF', fontStyle: 'italic' as const, textAlign: 'center' as const, paddingVertical: 20 },
   clockContent: { padding: 16 },
   officeSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
