@@ -57,21 +57,20 @@ export default function ClockScreen() {
 
   // Check if user already has an open clock entry (any type)
   const activeEntry = clockEntries.find(e => e.employeeId === user?.id && !e.clockOut);
-  const alreadyClockedIn = !!activeEntry;
+
+  // If user is already clocked in and hasn't manually selected something,
+  // auto-route them to the clock-out screen for their active entry
+  const autoProjectId = !selectedProjectId && !selectedOfficeRole && activeEntry?.projectId ? activeEntry.projectId : null;
+  const autoOfficeRole = !selectedProjectId && !selectedOfficeRole && activeEntry?.officeRole ? activeEntry.officeRole : null;
+
+  const effectiveProjectId = selectedProjectId || autoProjectId;
+  const effectiveOfficeRole = selectedOfficeRole || autoOfficeRole;
+  const effectiveProject = effectiveProjectId ? projects.find(p => p.id === effectiveProjectId) : null;
 
   // ─── Project/Role Selection Screen ───────────────────────────────────────────
-  if (!selectedProject && !selectedOfficeRole) {
+  if (!effectiveProject && !effectiveOfficeRole) {
     const mobileContent = (
       <>
-        {alreadyClockedIn && (
-          <View style={styles.conflictBanner}>
-            <Text style={styles.conflictText}>
-              You are already clocked in
-              {activeEntry?.officeRole ? ` as ${activeEntry.officeRole}` : activeEntry?.projectId ? '' : ''}.
-              Clock out first before selecting a new entry.
-            </Text>
-          </View>
-        )}
 
         <View style={styles.employeeCard}>
           <Text style={styles.cardLabel}>Employee</Text>
@@ -153,13 +152,6 @@ export default function ClockScreen() {
 
         {/* Right: lists */}
         <View style={styles.webMain}>
-          {alreadyClockedIn && (
-            <View style={styles.conflictBanner}>
-              <Text style={styles.conflictText}>
-                You are already clocked in. Clock out first before selecting a new entry.
-              </Text>
-            </View>
-          )}
           <View style={styles.projectListCard}>
             <Text style={styles.projectListTitle}>Active Projects</Text>
             {activeProjects.map((project) => (
@@ -228,7 +220,7 @@ export default function ClockScreen() {
   }
 
   // ─── Clock In/Out Screen ─────────────────────────────────────────────────────
-  const contextLabel = selectedOfficeRole ?? selectedProject?.name ?? '';
+  const contextLabel = effectiveOfficeRole ?? effectiveProject?.name ?? '';
   const onChangeSelection = () => {
     setSelectedProjectId(null);
     setSelectedOfficeRole(null);
@@ -270,15 +262,15 @@ export default function ClockScreen() {
                   <Text style={styles.sidebarSectionLabel}>Employee</Text>
                   <Text style={styles.sidebarEmployeeName}>{user?.name || 'Unknown'}</Text>
                   <View style={styles.sidebarDivider} />
-                  <Text style={styles.sidebarSectionLabel}>{selectedOfficeRole ? 'Office Role' : 'Project'}</Text>
+                  <Text style={styles.sidebarSectionLabel}>{effectiveOfficeRole ? 'Office Role' : 'Project'}</Text>
                   <Text style={styles.sidebarProjectName}>{contextLabel}</Text>
                 </View>
               </View>
               <View style={styles.webMain}>
                 <ClockInOutComponent
-                  projectId={selectedProject?.id}
-                  projectName={selectedProject?.name}
-                  officeRole={selectedOfficeRole ?? undefined}
+                  projectId={effectiveProject?.id}
+                  projectName={effectiveProject?.name}
+                  officeRole={effectiveOfficeRole ?? undefined}
                 />
               </View>
             </View>
