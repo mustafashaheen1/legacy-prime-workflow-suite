@@ -763,7 +763,7 @@ export default function FilesNavigationScreen() {
         <View style={styles.categoriesView}>
           <View style={styles.categoriesHeader}>
             <Text style={styles.categoriesTitle}>{folder.name}</Text>
-            {!hasCategories && folder.type !== 'videos' && (
+            {!hasCategories && (
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => { setModalCategory(''); setUploadModalVisible(true); }}
@@ -836,15 +836,13 @@ export default function FilesNavigationScreen() {
                 </TouchableOpacity>
               </View>
             )}
-            {folder.type !== 'videos' && (
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => setUploadModalVisible(true)}
-              >
-                <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.addButtonText}>Add</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setUploadModalVisible(true)}
+            >
+              <Plus size={20} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>Add</Text>
+            </TouchableOpacity>
           </View>
         </View>
         <ScrollView style={styles.filesList} showsVerticalScrollIndicator={false}
