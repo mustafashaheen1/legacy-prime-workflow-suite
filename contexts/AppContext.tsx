@@ -1683,9 +1683,13 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             id: dbId,
             hourlyRate: result.clockEntry.hourlyRate,
           };
-          setClockEntries(prev => prev.map(e =>
-            e.id === entry.id ? updatedEntry : e
-          ));
+          // Remove the temp entry and any Realtime-added duplicate with the real DB ID,
+          // then insert the single authoritative entry. This prevents a phantom 3rd entry
+          // caused by the Realtime INSERT firing before this map runs.
+          setClockEntries(prev => {
+            const deduped = prev.filter(e => e.id !== entry.id && e.id !== dbId);
+            return [updatedEntry, ...deduped];
+          });
           return updatedEntry;
         }
       } catch (error) {
