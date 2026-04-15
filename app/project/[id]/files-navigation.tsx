@@ -650,27 +650,29 @@ export default function FilesNavigationScreen() {
   };
 
   const handleDeleteDocument = (fileId: string) => {
-    Alert.alert('Delete File', 'Are you sure you want to delete this file?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          try {
-            const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-            const res = await fetch(`${apiUrl}/api/delete-project-file?id=${fileId}`, { method: 'DELETE' });
-            if (!res.ok) {
-              const body = await res.json().catch(() => ({}));
-              throw new Error(body.error || 'Failed to delete file');
-            }
-            // Remove from both S3 list and local AppContext state
-            setS3ProjectFiles(prev => prev.filter(f => f.id !== fileId));
-            deleteProjectFile(fileId);
-          } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to delete file');
-          }
-        },
-      },
-    ]);
+    const doDelete = async () => {
+      try {
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+        const res = await fetch(`${apiUrl}/api/delete-project-file?id=${fileId}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || 'Failed to delete file');
+        }
+        setS3ProjectFiles(prev => prev.filter(f => f.id !== fileId));
+        deleteProjectFile(fileId);
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Failed to delete file');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to delete this file?')) doDelete();
+    } else {
+      Alert.alert('Delete File', 'Are you sure you want to delete this file?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
   };
 
   const handleDeleteExpenseFile = (expenseId: string) => {
@@ -986,12 +988,11 @@ export default function FilesNavigationScreen() {
             } else {
               const isImage = file.fileType?.startsWith('image/');
               const isPdf = file.fileType === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
-              // All files now use 'uri' property from database
               const fileUrl = file.uri;
               return (
                 <View key={file.id} style={[styles.documentCard, { position: 'relative' }]}>
                   <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 32 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 40, flex: 1 }}
                     onPress={() => {
                       if (isImage) {
                         setViewingFile({ uri: fileUrl, name: file.name, type: 'image' });
@@ -1005,9 +1006,17 @@ export default function FilesNavigationScreen() {
                     }}
                     activeOpacity={0.8}
                   >
-                    <View style={[styles.documentIcon, { backgroundColor: `${folder.color}20` }]}>
-                      <FileIcon size={24} color={folder.color} />
-                    </View>
+                    {isImage ? (
+                      <Image
+                        source={{ uri: fileUrl }}
+                        style={styles.documentThumbnail}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={[styles.documentIcon, { backgroundColor: `${folder.color}20` }]}>
+                        <FileIcon size={24} color={folder.color} />
+                      </View>
+                    )}
                     <View style={styles.documentInfo}>
                       <Text style={styles.documentName} numberOfLines={1}>{file.name}</Text>
                       <Text style={styles.documentDate}>
@@ -1015,6 +1024,9 @@ export default function FilesNavigationScreen() {
                       </Text>
                       {file.notes && (
                         <Text style={styles.documentNotes} numberOfLines={2}>{file.notes}</Text>
+                      )}
+                      {!isImage && !isPdf && (
+                        <Text style={[styles.documentNotes, { color: '#2563EB' }]}>Tap to open</Text>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -1593,6 +1605,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  documentThumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    marginRight: 12,
+    backgroundColor: '#F3F4F6',
   },
   documentIcon: {
     width: 48,
