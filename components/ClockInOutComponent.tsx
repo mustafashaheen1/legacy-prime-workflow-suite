@@ -497,7 +497,9 @@ export default function ClockInOutComponent({ projectId, projectName, officeRole
   const todayEntries = clockEntries.filter((entry) => {
     const entryDate = new Date(entry.clockIn).toDateString();
     const today = new Date().toDateString();
-    return entryDate === today && entry.projectId === projectId && entry.employeeId === user?.id;
+    if (entryDate !== today || entry.employeeId !== user?.id) return false;
+    if (isOfficeMode) return entry.officeRole === officeRole;
+    return entry.projectId === projectId;
   });
 
   // Today's total earnings: sum per-entry so mixed rates (rate change mid-day) are correct.
