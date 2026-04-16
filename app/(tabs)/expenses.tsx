@@ -269,6 +269,7 @@ export default function ExpensesScreen() {
       setReceiptFileName(null);
       setReceiptBase64(null);
       setOcrData(null);
+      setServerImageHash(null);
       setValidationError('');
 
       // Show success message
@@ -514,6 +515,7 @@ export default function ExpensesScreen() {
           setReceiptType(null);
           setReceiptBase64(null);
           setOcrData(null);
+          setServerImageHash(null);
           return;
         } else {
           // Similar receipt - show warning
@@ -524,6 +526,7 @@ export default function ExpensesScreen() {
               setReceiptType(null);
               setReceiptBase64(null);
               setOcrData(null);
+              setServerImageHash(null);
               return;
             }
             // User chose to proceed - continue with auto-fill below
@@ -540,6 +543,7 @@ export default function ExpensesScreen() {
                     setReceiptType(null);
                     setReceiptBase64(null);
                     setOcrData(null);
+                    setServerImageHash(null);
                   },
                 },
                 {
@@ -707,6 +711,9 @@ export default function ExpensesScreen() {
                   setReceiptImage(null);
                   setReceiptType(null);
                   setReceiptFileName(null);
+                  setReceiptBase64(null);
+                  setOcrData(null);
+                  setServerImageHash(null);
                 }}
               >
                 <X size={16} color="#FFFFFF" />
@@ -729,6 +736,9 @@ export default function ExpensesScreen() {
                   setReceiptImage(null);
                   setReceiptType(null);
                   setReceiptFileName(null);
+                  setReceiptBase64(null);
+                  setOcrData(null);
+                  setServerImageHash(null);
                 }}
               >
                 <X size={20} color="#EF4444" />
