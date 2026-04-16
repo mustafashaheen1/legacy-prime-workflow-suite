@@ -32,13 +32,33 @@ export default async function handler(req: any, res: any) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // 1. Read current user row to check for an already-pending request
+  const { data: existing, error: fetchError } = await supabase
+    .from('users')
+    .select('id, name, company_id, rate_change_request')
+    .eq('id', employeeId)
+    .single();
+
+  if (fetchError) {
+    console.error('[request-rate-change] Fetch error:', fetchError);
+    return res.status(500).json({ error: fetchError.message });
+  }
+
+  // If a pending request already exists for the exact same rate, treat as duplicate
+  // and return success without firing another notification.
+  const pending = existing?.rate_change_request;
+  if (pending?.status === 'pending' && Number(pending.newRate) === Number(newRate)) {
+    console.log('[request-rate-change] Duplicate submission ignored for employee:', employeeId);
+    return res.status(200).json({ success: true, rateChangeRequest: pending, duplicate: true });
+  }
+
   const rateChangeRequest = {
     newRate: Number(newRate),
     requestDate: new Date().toISOString(),
     status: 'pending',
   };
 
-  // 1. Save the request on the user row
+  // 2. Save the request on the user row
   const { data: userRow, error } = await supabase
     .from('users')
     .update({ rate_change_request: rateChangeRequest })
@@ -51,7 +71,7 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: error.message });
   }
 
-  // 2. Notify all admins in the company.
+  // 3. Notify all admins in the company.
   // Must be awaited before res.json() — Vercel freezes the process the moment
   // the response is sent, so fire-and-forget notifications never execute.
   try {

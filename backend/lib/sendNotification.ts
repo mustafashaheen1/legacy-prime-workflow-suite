@@ -103,6 +103,19 @@ export async function sendNotification(
                   channelId: params.type === 'task-reminder' ? 'task-reminders' : 'default',
                 },
               },
+              // Required for web push — without this, Firebase does not include
+              // the notification payload in the Web Push Protocol envelope,
+              // so browsers never show a banner regardless of token validity.
+              webpush: {
+                notification: {
+                  title: params.title,
+                  body:  params.message,
+                  icon:  '/assets/images/app-icon-1024.png',
+                },
+                fcmOptions: {
+                  link: '/notifications',
+                },
+              },
             });
           } catch (err: any) {
             const code = err?.errorInfo?.code || err?.code || '';

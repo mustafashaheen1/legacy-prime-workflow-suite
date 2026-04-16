@@ -95,22 +95,39 @@ async function cleanupS3Files(keys: string[]): Promise<void> {
 }
 
 /**
- * Resolve user name to user UUID
+ * Resolve user identifier to user UUID.
+ * Accepts either a raw UUID (sent by AppContext as user.id) or a display name
+ * (legacy path). UUID input is detected by regex and resolved via id lookup;
+ * name input falls back to the name column for backward compatibility.
  */
 async function resolveUserId(
   supabase: any,
   companyId: string,
-  userName: string
+  userIdentifier: string
 ): Promise<string | null> {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  if (uuidRegex.test(userIdentifier)) {
+    // AppContext sends user.id directly — do a direct id lookup
+    const { data } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', userIdentifier)
+      .eq('company_id', companyId)
+      .single();
+    return data?.id || null;
+  }
+
+  // Legacy path: createdBy was a display name
   const { data, error } = await supabase
     .from('users')
     .select('id')
     .eq('company_id', companyId)
-    .eq('name', userName)
+    .eq('name', userIdentifier)
     .single();
 
   if (error) {
-    console.error('[User Resolve] Error finding user:', userName, error);
+    console.error('[User Resolve] Error finding user by name:', userIdentifier, error);
     return null;
   }
 
@@ -302,12 +319,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[Save Daily Log] Saving daily log for project:', projectId, 'date:', logDate);
 
-    // 1. Resolve user name to UUID
-    const createdByUserId = await resolveUserId(supabase, companyId, createdBy);
+    // 1. Resolve user identifier to UUID (accepts UUID or display name)
+    let createdByUserId = await resolveUserId(supabase, companyId, createdBy);
 
     if (!createdByUserId) {
-      console.warn('[Save Daily Log] User not found:', createdBy, '- using first admin user as fallback');
-      // Fallback: Get first admin user in company
+      console.warn('[Save Daily Log] User not found for identifier:', createdBy, '- using first admin as fallback');
       const { data: adminUser } = await supabase
         .from('users')
         .select('id')
@@ -319,6 +335,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!adminUser) {
         return res.status(400).json({ error: 'Could not resolve user ID for createdBy' });
       }
+
+      createdByUserId = adminUser.id; // was never assigned before — notification block always skipped
     }
 
     // 2. Resolve emails to user IDs for shared_with

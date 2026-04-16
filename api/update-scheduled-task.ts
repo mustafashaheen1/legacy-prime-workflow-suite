@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { sendNotification } from '../backend/lib/sendNotification.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow PUT/PATCH
@@ -50,6 +51,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (proj?.company_id) updateData.company_id = proj.company_id;
     }
 
+    // Snapshot current assigned employees before overwriting (needed for unassign notifications)
+    let oldEmployeeIds: string[] = [];
+    if (updates.assignedEmployeeIds !== undefined) {
+      const { data: existing } = await supabase
+        .from('scheduled_tasks')
+        .select('assigned_employee_ids, category, project_id, company_id')
+        .eq('id', id)
+        .single();
+      oldEmployeeIds = existing?.assigned_employee_ids ?? [];
+    }
+
     // Update in database
     const { data, error } = await supabase
       .from('scheduled_tasks')
@@ -67,6 +79,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('[API] Scheduled task updated successfully:', id);
+
+    // Notify employees who were removed from this task
+    if (updates.assignedEmployeeIds !== undefined && oldEmployeeIds.length > 0) {
+      const newIds: string[] = updates.assignedEmployeeIds ?? [];
+      const removed = oldEmployeeIds.filter(eid => !newIds.includes(eid));
+      const companyId = data.company_id;
+      const category = data.category ?? 'Scheduled Task';
+      if (removed.length > 0 && companyId) {
+        for (const eid of removed) {
+          try {
+            await sendNotification(supabase, {
+              userId: eid,
+              companyId,
+              type: 'general',
+              title: 'Removed from Job Assignment',
+              message: `You have been unassigned from the ${category} task`,
+              data: { taskId: id, projectId: data.project_id },
+            });
+          } catch (e) {
+            console.warn('[UpdateScheduledTask] Unassign notify failed for', eid, ':', e);
+          }
+        }
+      }
+    }
 
     // Return the updated task
     return res.status(200).json({

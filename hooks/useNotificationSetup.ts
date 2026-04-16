@@ -114,6 +114,9 @@ export function useNotificationSetup(
 
     // ─── WEB ──────────────────────────────────────────────────────────────────
     if (Platform.OS === 'web') {
+      // Hold a ref to the foreground unsubscriber so cleanup can call it.
+      let webOnMessageUnsub: (() => void) | undefined;
+
       (async () => {
         try {
           if (typeof window === 'undefined') return;
@@ -147,7 +150,7 @@ export function useNotificationSetup(
 
           // Dynamically import Firebase web SDK (avoids loading on native)
           const { getFirebaseMessagingWeb } = await import('@/lib/firebase');
-          const { getToken }                = await import('firebase/messaging');
+          const { getToken, onMessage }     = await import('firebase/messaging');
 
           const messaging = await getFirebaseMessagingWeb();
           if (!messaging) {
@@ -170,11 +173,51 @@ export function useNotificationSetup(
           if (!mounted) return;
           await registerPushToken(token, 'web', user.id, company.id, 'fcm-web');
           console.log('[Notifications] Web FCM token registered');
+
+          // Foreground message handler — fires when the browser tab is open and focused.
+          // The service worker's onBackgroundMessage handles the background case.
+          // Without this, foreground pushes are silently received but never shown.
+          webOnMessageUnsub = onMessage(messaging, (payload) => {
+            if (!mounted) return;
+            console.log('[Notifications] Web foreground message:', payload);
+
+            const title   = payload.notification?.title ?? (payload.data?.title as string) ?? 'Legacy Prime';
+            const body    = payload.notification?.body  ?? (payload.data?.message as string) ?? '';
+            const pData   = payload.data ?? {};
+
+            // Show a browser notification banner (requires Notification permission, already granted above)
+            try {
+              new (window as any).Notification(title, {
+                body,
+                icon: '/assets/images/app-icon-1024.png',
+                tag:  (pData.type as string) || 'general',
+              });
+            } catch {
+              // Silently skip if the browser blocks it (e.g. Firefox focus mode)
+            }
+
+            // Also push into the in-app notifications list immediately
+            onNotificationReceived?.({
+              id:        payload.messageId ?? String(Date.now()),
+              userId:    user.id,
+              companyId: company.id,
+              type:      ((pData.type as string) ?? 'general') as Notification['type'],
+              title,
+              message:   body,
+              data:      pData as any,
+              read:      false,
+              createdAt: new Date().toISOString(),
+            });
+          });
         } catch (err) {
           console.warn('[Notifications] Web push setup error (non-fatal):', err);
         }
       })();
-      return;
+
+      return () => {
+        mounted = false;
+        webOnMessageUnsub?.();
+      };
     }
 
     // ─── iOS / Android ────────────────────────────────────────────────────────

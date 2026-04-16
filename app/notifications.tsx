@@ -182,6 +182,16 @@ export default function NotificationsScreen() {
             } else {
               router.push('/(tabs)/dashboard');
             }
+          } else if (title === 'Employee Application Rejected') {
+            router.push('/(tabs)/settings');
+          } else if (title === 'Removed from Job Assignment') {
+            if (data?.projectId) {
+              router.push(`/project/${data.projectId}` as any);
+            } else {
+              router.push('/(tabs)/schedule');
+            }
+          } else if (title === 'Account Not Approved') {
+            // No navigation — user has been deleted from the system
           } else {
             router.push('/(tabs)/dashboard');
           }

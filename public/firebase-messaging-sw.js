@@ -37,12 +37,22 @@ self.addEventListener('notificationclick', (event) => {
   let path = '/notifications';
 
   switch (data.type) {
-    case 'chat':               path = '/(tabs)/chat';          break;
-    case 'task-reminder':      path = '/(tabs)/dashboard';     break;
+    case 'chat':               path = '/(tabs)/chat';           break;
+    case 'task-reminder':      path = '/(tabs)/dashboard';      break;
+    case 'task-assigned':      path = '/(tabs)/schedule';       break;
     case 'estimate-received':
     case 'proposal-submitted': path = '/(tabs)/subcontractors'; break;
-    case 'payment-received':   path = data.projectId ? `/project/${data.projectId}` : '/(tabs)/expenses'; break;
+    case 'payment-received':   path = data.projectId ? `/project/${data.projectId}` : '/(tabs)/expenses';  break;
     case 'change-order':       path = data.projectId ? `/project/${data.projectId}` : '/(tabs)/dashboard'; break;
+    case 'general':
+      if (data.title === 'Removed from Job Assignment') {
+        path = data.projectId ? `/project/${data.projectId}` : '/(tabs)/schedule';
+      } else if (data.title === 'Employee Application Rejected') {
+        path = '/(tabs)/settings';
+      } else {
+        path = '/notifications';
+      }
+      break;
     default:                   path = '/notifications';
   }
 

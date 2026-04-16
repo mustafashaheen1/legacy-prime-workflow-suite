@@ -116,6 +116,7 @@ export default function SettingsScreen() {
   }>({});
   const [showRateChangeModal, setShowRateChangeModal] = useState<boolean>(false);
   const [requestedRate, setRequestedRate] = useState<string>('');
+  const [isSubmittingRateChange, setIsSubmittingRateChange] = useState<boolean>(false);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
   const [isUpdatingUser, setIsUpdatingUser] = useState<boolean>(false);
@@ -209,6 +210,8 @@ export default function SettingsScreen() {
   const availableRoles = currentUser ? getAvailableRolesForManagement(currentUser.role) : [];
 
   const handleRequestRateChange = async () => {
+    if (isSubmittingRateChange) return; // block re-entry on every subsequent tap
+
     const rate = parseFloat(requestedRate);
     if (isNaN(rate) || rate < 0) {
       if (Platform.OS === 'web') {
@@ -221,6 +224,7 @@ export default function SettingsScreen() {
 
     if (!currentUser) return;
 
+    setIsSubmittingRateChange(true);
     try {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/request-rate-change`, {
@@ -258,6 +262,8 @@ export default function SettingsScreen() {
       } else {
         Alert.alert('Error', error.message || 'Failed to submit rate change request');
       }
+    } finally {
+      setIsSubmittingRateChange(false);
     }
   };
 
@@ -399,10 +405,15 @@ export default function SettingsScreen() {
                     <Text style={styles.formCancelButtonText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.formSaveButton}
+                    style={[styles.formSaveButton, isSubmittingRateChange && { opacity: 0.6 }]}
                     onPress={handleRequestRateChange}
+                    disabled={isSubmittingRateChange}
                   >
-                    <Text style={styles.formSaveButtonText}>Submit Request</Text>
+                    {isSubmittingRateChange ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.formSaveButtonText}>Submit Request</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -834,7 +845,7 @@ export default function SettingsScreen() {
                                   console.log('[Settings] Deleting user via API:', user.id);
 
                                   const baseUrl = getApiBaseUrl();
-                                  const response = await fetch(`${baseUrl}/api/delete-user`, {
+                                  const response = await fetch(`${baseUrl}/api/reject-user`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ userId: user.id }),
