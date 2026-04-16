@@ -2191,7 +2191,7 @@ export default function CRMScreen() {
                 ))}
               </View>
 
-              {salespersons.length > 0 && (
+              {salespersons.length > 0 && (user?.role === 'admin' || user?.role === 'super-admin') && (
                 <>
                   <Text style={styles.inputLabel}>Assign Rep <Text style={styles.optionalHint}>(optional)</Text></Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.repChipScroll}>
@@ -2340,7 +2340,7 @@ export default function CRMScreen() {
                 ))}
               </View>
 
-              {salespersons.length > 0 && (
+              {salespersons.length > 0 && (user?.role === 'admin' || user?.role === 'super-admin') && (
                 <>
                   <Text style={styles.inputLabel}>Assign Rep <Text style={styles.optionalHint}>(optional)</Text></Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.repChipScroll}>
