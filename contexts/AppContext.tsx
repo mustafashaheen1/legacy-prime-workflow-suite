@@ -1391,6 +1391,40 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     };
   }, [user?.id]);
 
+  // ─── Realtime: force-logout on account rejection ─────────────────────────────
+  // When an admin rejects a pending employee, api/reject-user.ts deletes the
+  // row from the users table. This subscription detects that DELETE event and
+  // immediately calls logout() so the employee is kicked out of the app in
+  // real-time rather than staying logged in until their JWT expires.
+  // Requires users table to be in the supabase_realtime publication
+  // (migration: 20260417_enable_realtime_users.sql).
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`user-deleted:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}`,
+        },
+        () => {
+          console.log('[Realtime] Current user row deleted — forcing logout');
+          logout();
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Realtime] User-deleted channel status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   // ─── Realtime: clock entry sync ──────────────────────────────────────────────
   // Listens for INSERT (clock-in) and UPDATE (clock-out, lunch) on clock_entries
   // scoped to this company so the admin sees live worker status without polling.

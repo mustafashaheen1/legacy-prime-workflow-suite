@@ -60,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Notify admins of meaningful status changes — must complete BEFORE responding
     const notifiableStatuses: Record<string, string> = {
-      accepted: 'Estimate Accepted',
+      approved: 'Estimate Accepted',
       rejected: 'Estimate Rejected',
       paid:     'Estimate Paid',
       sent:     'Estimate Sent',
@@ -68,12 +68,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (notifiableStatuses[status] && data.company_id) {
       try {
-        const projectRes = await supabase
-          .from('projects').select('name').eq('id', data.project_id).single();
-        const projectName = projectRes.data?.name ?? 'a project';
-        const clientName  = data.client_name ?? 'a client';
+        // Resolve project name (project_id may be null for client-only estimates)
+        let projectName = 'a project';
+        if (data.project_id) {
+          const projectRes = await supabase
+            .from('projects').select('name').eq('id', data.project_id).single();
+          projectName = projectRes.data?.name ?? 'a project';
+        }
+
+        // Resolve client name from clients table (estimates store client_id, not client_name)
+        let clientName = 'a client';
+        if (data.client_id) {
+          const clientRes = await supabase
+            .from('clients').select('name').eq('id', data.client_id).single();
+          clientName = clientRes.data?.name ?? 'a client';
+        }
+
         const messages: Record<string, string> = {
-          accepted: `Estimate for ${projectName} was accepted by ${clientName}`,
+          approved: `Estimate for ${projectName} was accepted by ${clientName}`,
           rejected: `Estimate for ${projectName} was rejected by ${clientName}`,
           paid:     `Estimate for ${projectName} has been marked as paid`,
           sent:     `Estimate for ${projectName} was sent to ${clientName}`,

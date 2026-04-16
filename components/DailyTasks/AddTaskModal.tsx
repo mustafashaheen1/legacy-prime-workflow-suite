@@ -99,7 +99,9 @@ export default function AddTaskModal({ visible, onClose, onSubmit }: AddTaskModa
 
     setIsSubmitting(true);
     try {
-      const dueDateTime = `${dateString}T${time}:00`;
+      // Parse as local time (no timezone suffix = local per ECMAScript spec)
+      // then convert to UTC ISO string so the cron's now.toISOString() comparison is correct.
+      const dueDateTime = new Date(`${dateString}T${time}:00`).toISOString();
       await onSubmit({
         title: title.trim(),
         dueDate: dateString,

@@ -143,7 +143,7 @@ export default function EstimateScreen() {
         setIsLoadingDraft(true);
 
         // Fetch estimate from database
-        const response = await fetch(`/api/get-estimate?estimateId=${estimateId}`);
+        const response = await fetch(`${API_BASE}/api/get-estimate?estimateId=${estimateId}`);
         const result = await response.json();
 
         if (!result.success || !result.estimate) {
@@ -879,8 +879,9 @@ export default function EstimateScreen() {
       return;
     }
 
-    // Require clientId for new estimates
-    if (!clientId && !client) {
+    // Resolve clientId from URL param, project context, or client lookup
+    const effectiveClientId = clientId || project?.clientId || client?.id;
+    if (!effectiveClientId) {
       Alert.alert('Error', 'Client information not found. Please select a client first.');
       return;
     }
@@ -917,7 +918,7 @@ export default function EstimateScreen() {
           body: JSON.stringify({
             estimateId: savedEstimateId,
             companyId: company.id,
-            clientId: clientId as string,
+            clientId: effectiveClientId,
             name: estimateName,
             items: itemsData,
             subtotal,
@@ -941,7 +942,7 @@ export default function EstimateScreen() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             companyId: company.id,
-            clientId: clientId as string,
+            clientId: effectiveClientId,
             name: estimateName,
             items: itemsData,
             subtotal,
@@ -970,7 +971,7 @@ export default function EstimateScreen() {
         // Also add/update local state for immediate UI update
         const savedEstimate: Estimate = {
           id: result.estimate.id,
-          clientId: clientId as string,
+          clientId: effectiveClientId,
           name: estimateName,
           items,
           subtotal,
@@ -1041,8 +1042,8 @@ export default function EstimateScreen() {
       return;
     }
 
-    // Determine clientId - use direct clientId param or get from project
-    const effectiveClientId = clientId || project?.clientId;
+    // Determine clientId - use direct clientId param, project context, or client lookup
+    const effectiveClientId = clientId || project?.clientId || client?.id;
     if (!effectiveClientId) {
       Alert.alert('Error', 'Client information not found. Please select a client.');
       return;
@@ -1463,8 +1464,8 @@ export default function EstimateScreen() {
       return;
     }
 
-    // Determine clientId - use direct clientId param or get from project
-    const effectiveClientId = clientId || project?.clientId;
+    // Determine clientId - use direct clientId param, project context, or client lookup
+    const effectiveClientId = clientId || project?.clientId || client?.id;
     if (!effectiveClientId) {
       Alert.alert('Error', 'Client information not found. Please select a client.');
       return;
@@ -2543,6 +2544,7 @@ export default function EstimateScreen() {
               keyExtractor={(item) => item.id}
               renderItem={renderDraggableItem}
               containerStyle={styles.itemsList}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
               showsVerticalScrollIndicator={true}
             />
         </View>
@@ -2653,7 +2655,7 @@ export default function EstimateScreen() {
       </View>
 
       {items.length > 0 && (
-        <View style={styles.fixedBottomSection}>
+        <View style={[styles.fixedBottomSection, { paddingBottom: Math.max(24, insets.bottom + 12) }]}>
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.saveButton, isSaving && styles.buttonDisabled]}
@@ -3086,7 +3088,7 @@ export default function EstimateScreen() {
               </View>
             </ScrollView>
 
-            <View style={styles.previewActionsContainer}>
+            <View style={[styles.previewActionsContainer, { paddingBottom: Math.max(8, insets.bottom) }]}>
               <TouchableOpacity
                 style={styles.exportButton}
                 onPress={handleExportPDF}
@@ -3103,7 +3105,7 @@ export default function EstimateScreen() {
             </View>
 
             <TouchableOpacity
-              style={styles.previewCloseButton}
+              style={[styles.previewCloseButton, { marginBottom: Math.max(16, insets.bottom + 8) }]}
               onPress={() => setShowPreview(false)}
             >
               <Text style={styles.previewCloseButtonText}>Close Preview</Text>

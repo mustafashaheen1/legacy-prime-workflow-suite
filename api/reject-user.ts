@@ -79,5 +79,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: deleteError.message });
   }
 
+  // Delete from Supabase Auth to invalidate the employee's session.
+  // This ensures the client-side Realtime DELETE event fires (users row gone)
+  // and the JWT becomes permanently invalid on next refresh.
+  try {
+    await supabase.auth.admin.deleteUser(userId);
+    console.log('[RejectUser] Auth user deleted:', userId);
+  } catch (e) {
+    console.warn('[RejectUser] Auth deletion failed (non-fatal):', e);
+  }
+
   return res.status(200).json({ success: true, deletedUserId: userId });
 }

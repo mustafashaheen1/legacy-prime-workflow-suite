@@ -299,9 +299,7 @@ export default function SignupScreen() {
 
         // Notify admins of the pending approval — fire-and-forget
         if (result.user && result.company) {
-          const apiBase = process.env.EXPO_PUBLIC_RORK_API_BASE_URL ||
-            (typeof window !== 'undefined' ? window.location.origin : '');
-          void fetch(`${apiBase}/api/notify-approval-request`, {
+          void fetch(`${API_BASE}/api/notify-approval-request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

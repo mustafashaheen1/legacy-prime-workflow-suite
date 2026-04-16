@@ -13,6 +13,8 @@ interface SendEstimateParams {
   customPriceListItems: CustomPriceListItem[];
   updateEstimate: (id: string, updates: Partial<Estimate>) => void;
   clientId?: string; // Optional - if not provided, will use estimate's clientId
+  showUnitsQty?: boolean; // Controls Quantity & Unit Price columns in PDF (default: true)
+  showBudget?: boolean;   // Controls Budget column in PDF (default: true)
 }
 
 export async function sendEstimate(params: SendEstimateParams): Promise<boolean> {
@@ -25,6 +27,8 @@ export async function sendEstimate(params: SendEstimateParams): Promise<boolean>
     customPriceListItems,
     updateEstimate,
     clientId,
+    showUnitsQty = true,
+    showBudget   = true,
   } = params;
 
   const estimate = estimates.find(e => e.id === estimateId);
@@ -46,7 +50,7 @@ export async function sendEstimate(params: SendEstimateParams): Promise<boolean>
 
     // 1. Fetch complete estimate data with items from database
     console.log('[SendEstimate] Fetching complete estimate data...');
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
     const getEstimateResponse = await fetch(`${baseUrl}/api/get-estimate?estimateId=${estimateId}`);
     const getEstimateResult = await getEstimateResponse.json();
 
@@ -135,6 +139,8 @@ export async function sendEstimate(params: SendEstimateParams): Promise<boolean>
       project,
       company,
       groupedItems,
+      showUnitsQty,
+      showBudget,
     });
 
     // 6. Platform-specific PDF handling
@@ -218,10 +224,14 @@ interface GenerateHtmlParams {
   project: Project | undefined;
   company: Company | null;
   groupedItems: { [key: string]: any[] };
+  showUnitsQty?: boolean;
+  showBudget?: boolean;
 }
 
 function generateEstimateHtml(params: GenerateHtmlParams): string {
   const { fullEstimate, client, project, company, groupedItems } = params;
+  const showUnitsQty = params.showUnitsQty ?? true;
+  const showBudget   = params.showBudget   ?? true;
 
   return `
 <!DOCTYPE html>
@@ -510,9 +520,9 @@ function generateEstimateHtml(params: GenerateHtmlParams): string {
           <table>
             <thead>
               <tr>
-                <th style="width: 45%;">Item</th>
-                <th style="width: 15%;">Quantity</th>
-                <th style="width: 15%;">Unit Price</th>
+                <th style="width: ${showUnitsQty ? '45%' : '75%'};">Item</th>
+                ${showUnitsQty ? '<th style="width: 15%;">Quantity</th>' : ''}
+                ${showUnitsQty ? '<th style="width: 15%;">Unit Price</th>' : ''}
                 <th style="width: 25%;">Total</th>
               </tr>
             </thead>
@@ -523,8 +533,8 @@ function generateEstimateHtml(params: GenerateHtmlParams): string {
                     <div class="item-name">${item.name}</div>
                     ${item.notes ? `<div class="item-notes">${item.notes}</div>` : ''}
                   </td>
-                  <td>${item.quantity} ${item.unit}</td>
-                  <td>$${item.unitPrice.toFixed(2)}</td>
+                  ${showUnitsQty ? `<td>${item.quantity} ${item.unit}</td>` : ''}
+                  ${showUnitsQty ? `<td>$${item.unitPrice.toFixed(2)}</td>` : ''}
                   <td>$${item.total.toFixed(2)}</td>
                 </tr>
               `).join('')}
@@ -542,7 +552,7 @@ function generateEstimateHtml(params: GenerateHtmlParams): string {
             <td class="value">$${fullEstimate.subtotal.toFixed(2)}</td>
           </tr>
           <tr>
-            <td class="label">Tax (${((fullEstimate.taxRate || 0) * 100).toFixed(1)}%):</td>
+            <td class="label">Tax (${(fullEstimate.taxRate || 0).toFixed(1)}%):</td>
             <td class="value">$${fullEstimate.taxAmount.toFixed(2)}</td>
           </tr>
           <tr class="total-row">
