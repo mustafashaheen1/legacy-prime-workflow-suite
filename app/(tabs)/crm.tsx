@@ -1467,19 +1467,6 @@ export default function CRMScreen() {
         </View>
 
         <View style={styles.sidebar}>
-          <TouchableOpacity style={styles.sidebarItem}>
-            <Text style={styles.sidebarText}>Dashboard</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.sidebarItem}>
-            <Text style={styles.sidebarText}>Clients</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.sidebarItem}>
-            <Text style={styles.sidebarText}>Projects</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.sidebarItem}>
-            <Text style={styles.sidebarText}>Settings</Text>
-          </TouchableOpacity>
-
           <View style={styles.statsSection}>
             <Text style={styles.statsTitle}>Stats</Text>
             <View style={styles.statItem}>
