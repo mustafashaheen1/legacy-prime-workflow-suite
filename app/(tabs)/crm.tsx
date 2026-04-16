@@ -1590,7 +1590,7 @@ export default function CRMScreen() {
             const linkedProject = projects.find(p => p.clientId === client.id);
             return (
             <View key={client.id} style={[styles.clientRow, client.status === 'Cold Lead' && styles.clientRowCold]}>
-              <View style={styles.clientRowHeader}>
+              <View style={[styles.clientRowHeader, client.status === 'Cold Lead' && styles.clientRowHeaderCold]}>
                 <TouchableOpacity 
                   style={styles.checkbox}
                   onPress={() => toggleClientSelection(client.id)}
@@ -4070,6 +4070,8 @@ const styles = StyleSheet.create({
   clientRowCold: {
     backgroundColor: '#F0F9FF',
     borderLeftColor: '#0284C7',
+  },
+  clientRowHeaderCold: {
     opacity: 0.65,
   },
   clientNameRow: {

@@ -82,7 +82,7 @@ export default function CRMCalendar({ appointments, clients, onAddAppointment, o
             <TouchableOpacity
               key={dateStr}
               style={[styles.cell, isSelected && styles.cellSelected, isToday && !isSelected && styles.cellToday]}
-              onPress={() => setSelectedDate(dateStr)}
+              onPress={() => { setSelectedDate(dateStr); onAddAppointment(dateStr); }}
             >
               <Text style={[styles.cellText, isSelected && styles.cellTextSelected, isToday && !isSelected && styles.cellTextToday]}>
                 {day}
