@@ -2509,7 +2509,7 @@ export default function EstimateScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.selectedItemsContainer}>
+        <View style={[styles.selectedItemsContainer, isNarrow && styles.selectedItemsContainerNarrow]}>
           <View
             style={[
               styles.selectedItemsSection,
@@ -2550,7 +2550,7 @@ export default function EstimateScreen() {
         </View>
 
           {items.length > 0 && (
-            <View style={styles.rightTotalsPanel}>
+            <View style={[styles.rightTotalsPanel, isNarrow && styles.rightTotalsPanelNarrow]}>
               <View style={styles.rightPanelContent}>
                 <View style={styles.rightPanelTotalItem}>
                   <Text style={styles.rightPanelLabel}>Subtotal</Text>
@@ -4518,7 +4518,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderLeftWidth: 1,
     borderLeftColor: '#E5E7EB',
-    minWidth: 450,
   },
   selectedItemsSectionWeb: {
     width: '60%',
@@ -4533,6 +4532,15 @@ const styles = StyleSheet.create({
   selectedItemsContainer: {
     flexDirection: 'row',
     flex: 1,
+  },
+  selectedItemsContainerNarrow: {
+    flexDirection: 'column',
+  },
+  rightTotalsPanelNarrow: {
+    width: '100%' as any,
+    borderLeftWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
   },
   rightTotalsPanel: {
     width: 220,
