@@ -5,7 +5,7 @@ import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
-import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon, Camera, Pencil, PauseCircle, PlayCircle } from 'lucide-react-native';
+import { Plus, Mail, MessageSquare, Send, X, CheckSquare, Square, Paperclip, FileText, Calculator, FileSignature, DollarSign, CheckCircle, CreditCard, ClipboardList, Sparkles, Phone, Settings, PhoneIncoming, PhoneOutgoing, Clock, Trash2, Calendar, ChevronDown, ChevronUp, TrendingUp, Users, FileCheck, DollarSign as DollarSignIcon, Camera, Pencil, PauseCircle, PlayCircle, Snowflake, RotateCcw } from 'lucide-react-native';
 import { Project, Client, CallLog } from '@/types';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
@@ -375,6 +375,7 @@ export default function CRMScreen() {
   const [newClientStatus, setNewClientStatus] = useState<string>('Lead');
   const [newClientAssignedRep, setNewClientAssignedRep] = useState<string | undefined>();
   const [showColdLeads, setShowColdLeads] = useState<boolean>(false);
+  const [activeStatusFilter, setActiveStatusFilter] = useState<string>('All');
   const [showCalendarModal, setShowCalendarModal] = useState<boolean>(false);
   const [appointmentFormVisible, setAppointmentFormVisible] = useState<boolean>(false);
   const [appointmentFormDate, setAppointmentFormDate] = useState<string>('');
@@ -1548,6 +1549,20 @@ export default function CRMScreen() {
             </View>
           </View>
           
+          {/* Status Filter Tabs */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabsRow} contentContainerStyle={{ paddingRight: 16 }}>
+            {['All', 'Lead', 'Project', 'Completed', 'Cold Lead'].map(tab => (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.filterTab, activeStatusFilter === tab && (tab === 'Cold Lead' ? styles.filterTabActiveCold : styles.filterTabActive)]}
+                onPress={() => setActiveStatusFilter(tab)}
+              >
+                {tab === 'Cold Lead' && <Snowflake size={11} color={activeStatusFilter === tab ? '#FFFFFF' : '#6B7280'} style={{ marginRight: 3 }} />}
+                <Text style={[styles.filterTabText, activeStatusFilter === tab && styles.filterTabTextActive]}>{tab}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
           {(isLoading || isCompanyReloading) && clients.length === 0 && (
             <View>
               {[0, 1, 2, 3].map(i => (
@@ -1566,7 +1581,7 @@ export default function CRMScreen() {
           )}
 
           {[...clients]
-            .filter(c => c.status !== 'Cold Lead' && (user?.role !== 'salesperson' || c.assignedRep === user?.id))
+            .filter(c => (activeStatusFilter === 'All' || c.status === activeStatusFilter) && (user?.role !== 'salesperson' || c.assignedRep === user?.id))
             .sort((a, b) => {
               const dateA = new Date(a.createdAt || a.lastContactDate || a.lastContacted).getTime();
               const dateB = new Date(b.createdAt || b.lastContactDate || b.lastContacted).getTime();
@@ -1574,7 +1589,7 @@ export default function CRMScreen() {
             }).map((client) => {
             const linkedProject = projects.find(p => p.clientId === client.id);
             return (
-            <View key={client.id} style={styles.clientRow}>
+            <View key={client.id} style={[styles.clientRow, client.status === 'Cold Lead' && styles.clientRowCold]}>
               <View style={styles.clientRowHeader}>
                 <TouchableOpacity 
                   style={styles.checkbox}
@@ -1624,9 +1639,21 @@ export default function CRMScreen() {
                   {client.assignedRep && (
                     <Text style={styles.clientAssignedRep}>Rep: {companyUsers.find(u => u.id === client.assignedRep)?.name || 'Unknown'}</Text>
                   )}
-                  <View style={[styles.statusBadge, client.status === 'Lead' ? styles.leadBadge : client.status === 'Project' ? styles.projectBadge : client.status === 'Cold Lead' ? styles.coldLeadBadge : styles.completedBadge]}>
-                    <Text style={[styles.statusText, client.status === 'Cold Lead' && styles.statusTextDark]}>{client.status}</Text>
-                  </View>
+                  {(() => {
+                    const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+                      'Lead':      { bg: '#DBEAFE', text: '#2563EB', label: 'Lead' },
+                      'Project':   { bg: '#D1FAE5', text: '#059669', label: 'Active' },
+                      'Completed': { bg: '#F3F4F6', text: '#374151', label: 'Completed' },
+                      'Cold Lead': { bg: '#E0F2FE', text: '#0284C7', label: 'Cold Lead' },
+                    };
+                    const conf = STATUS_BADGE[client.status] ?? STATUS_BADGE['Lead'];
+                    return (
+                      <View style={[styles.statusBadge, { backgroundColor: conf.bg }]}>
+                        {client.status === 'Cold Lead' && <Snowflake size={10} color={conf.text} style={{ marginRight: 3 }} />}
+                        <Text style={[styles.statusText, { color: conf.text }]}>{conf.label}</Text>
+                      </View>
+                    );
+                  })()}
                   {(client.lastContactDate || client.lastContacted) && (
                     <Text style={styles.clientDate}>
                       Last contacted: {
@@ -1830,6 +1857,24 @@ export default function CRMScreen() {
                   <Pencil size={16} color="#6B7280" />
                   <Text style={styles.actionButtonText}>Edit Info</Text>
                 </TouchableOpacity>
+                {client.status === 'Lead' && (
+                  <TouchableOpacity
+                    style={styles.freezeButton}
+                    onPress={() => updateClient(client.id, { status: 'Cold Lead' })}
+                  >
+                    <Snowflake size={14} color="#6B7280" />
+                    <Text style={styles.freezeButtonText}>Mark Cold</Text>
+                  </TouchableOpacity>
+                )}
+                {client.status === 'Cold Lead' && (
+                  <TouchableOpacity
+                    style={styles.restoreButton}
+                    onPress={() => updateClient(client.id, { status: 'Lead' })}
+                  >
+                    <RotateCcw size={14} color="#0284C7" />
+                    <Text style={styles.restoreButtonText}>Re-activate</Text>
+                  </TouchableOpacity>
+                )}
                 {client.status === 'Project' && linkedProject && (
                   <TouchableOpacity
                     style={styles.actionButton}
@@ -1851,40 +1896,6 @@ export default function CRMScreen() {
               </View>
             </View>
           ); })}
-
-          {/* Cold Leads Section */}
-          {(() => {
-            const coldLeads = [...clients]
-              .filter(c => c.status === 'Cold Lead' && (user?.role !== 'salesperson' || c.assignedRep === user?.id))
-              .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
-            if (coldLeads.length === 0) return null;
-            return (
-              <View style={styles.coldLeadsSection}>
-                <TouchableOpacity style={styles.coldLeadsHeader} onPress={() => setShowColdLeads(v => !v)}>
-                  <Text style={styles.coldLeadsTitle}>Cold Leads ({coldLeads.length})</Text>
-                  {showColdLeads ? <ChevronUp size={18} color="#94A3B8" /> : <ChevronDown size={18} color="#94A3B8" />}
-                </TouchableOpacity>
-                {showColdLeads && coldLeads.map(client => (
-                  <View key={client.id} style={styles.coldLeadCard}>
-                    <Text style={styles.coldLeadName}>{client.name}</Text>
-                    <Text style={styles.coldLeadMeta}>{client.phone} · {client.source}</Text>
-                    {client.assignedRep && (
-                      <Text style={styles.coldLeadMeta}>Rep: {companyUsers.find(u => u.id === client.assignedRep)?.name || 'Unknown'}</Text>
-                    )}
-                    <View style={styles.coldLeadActions}>
-                      <TouchableOpacity style={styles.reactivateButton} onPress={() => updateClient(client.id, { status: 'Lead' })}>
-                        <Text style={styles.reactivateButtonText}>Reactivate</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.actionButton} onPress={() => openEditClientModal(client)}>
-                        <Pencil size={14} color="#6B7280" />
-                        <Text style={styles.actionButtonText}>Edit</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            );
-          })()}
 
           {/* Appointment Calendar */}
           <View style={styles.calendarSection}>
@@ -4044,10 +4055,22 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   clientRow: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#FFFFFF',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 10,
     marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2563EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  clientRowCold: {
+    backgroundColor: '#F0F9FF',
+    borderLeftColor: '#0284C7',
+    opacity: 0.65,
   },
   clientNameRow: {
     flexDirection: 'row',
@@ -4123,22 +4146,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
     marginBottom: 8,
   },
-  leadBadge: {
-    backgroundColor: '#2563EB',
-  },
-  projectBadge: {
-    backgroundColor: '#10B981',
-  },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700' as const,
   },
   clientDate: {
     fontSize: 12,
@@ -6046,74 +6064,71 @@ const styles = StyleSheet.create({
   sourceButtonTextActive: {
     color: '#2563EB',
   },
-  coldLeadBadge: {
-    backgroundColor: '#F1F5F9',
+  filterTabsRow: {
+    paddingHorizontal: 0,
+    paddingVertical: 10,
+    marginBottom: 4,
   },
-  completedBadge: {
-    backgroundColor: '#6B7280',
+  filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+    marginRight: 6,
   },
-  statusTextDark: {
-    color: '#64748B',
+  filterTabActive: {
+    backgroundColor: '#2563EB',
+  },
+  filterTabActiveCold: {
+    backgroundColor: '#0284C7',
+  },
+  filterTabText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  filterTabTextActive: {
+    color: '#FFFFFF',
+  },
+  freezeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  freezeButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+  },
+  restoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#E0F2FE',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  restoreButtonText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#0284C7',
   },
   clientAssignedRep: {
     fontSize: 12,
     color: '#2563EB',
     fontWeight: '500' as const,
     marginBottom: 4,
-  },
-  coldLeadsSection: {
-    marginBottom: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    overflow: 'hidden',
-  },
-  coldLeadsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    backgroundColor: '#F8FAFC',
-  },
-  coldLeadsTitle: {
-    fontSize: 14,
-    fontWeight: '700' as const,
-    color: '#94A3B8',
-  },
-  coldLeadCard: {
-    padding: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  coldLeadName: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#9CA3AF',
-    marginBottom: 4,
-  },
-  coldLeadMeta: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginBottom: 2,
-  },
-  coldLeadActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
-  },
-  reactivateButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  reactivateButtonText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#2563EB',
   },
   repChipScroll: {
     marginBottom: 4,
