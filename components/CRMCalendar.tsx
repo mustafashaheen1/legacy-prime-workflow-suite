@@ -75,7 +75,7 @@ export default function CRMCalendar({ appointments, clients, onAddAppointment, o
         {cells.map((day, idx) => {
           if (!day) return <View key={`e-${idx}`} style={styles.cell} />;
           const dateStr = toYMD(viewYear, viewMonth, day);
-          const hasAppts = (apptsByDate[dateStr]?.length ?? 0) > 0;
+          const apptCount = apptsByDate[dateStr]?.length ?? 0;
           const isToday = dateStr === todayStr;
           const isSelected = dateStr === selectedDate;
           return (
@@ -87,7 +87,11 @@ export default function CRMCalendar({ appointments, clients, onAddAppointment, o
               <Text style={[styles.cellText, isSelected && styles.cellTextSelected, isToday && !isSelected && styles.cellTextToday]}>
                 {day}
               </Text>
-              {hasAppts && <View style={[styles.dot, isSelected && styles.dotSelected]} />}
+              {apptCount > 0 && (
+                <View style={[styles.apptCountBadge, isSelected && styles.apptCountBadgeSelected]}>
+                  <Text style={[styles.apptCountText, isSelected && styles.apptCountTextSelected]}>{apptCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -145,8 +149,10 @@ const styles = StyleSheet.create({
   cellText: { fontSize: 13, color: '#1F2937', fontWeight: '500' },
   cellTextSelected: { color: '#FFFFFF', fontWeight: '700' },
   cellTextToday: { color: '#2563EB', fontWeight: '700' },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#2563EB', marginTop: 2 },
-  dotSelected: { backgroundColor: '#FFFFFF' },
+  apptCountBadge: { minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, marginTop: 2 },
+  apptCountBadgeSelected: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  apptCountText: { fontSize: 9, fontWeight: '700', color: '#2563EB' },
+  apptCountTextSelected: { color: '#FFFFFF' },
   daySection: { borderTopWidth: 1, borderTopColor: '#E5E7EB', padding: 16 },
   daySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   daySectionTitle: { fontSize: 14, fontWeight: '700', color: '#1E3A5F' },

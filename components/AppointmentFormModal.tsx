@@ -97,11 +97,16 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
             <Text style={styles.label}>Time <Text style={styles.optional}>(optional)</Text></Text>
             <TextInput
               style={styles.input}
-              placeholder="HH:MM (e.g. 09:30)"
+              placeholder="09:30"
               placeholderTextColor="#9CA3AF"
               value={time}
-              onChangeText={setTime}
-              keyboardType="numbers-and-punctuation"
+              onChangeText={(raw) => {
+                const digits = raw.replace(/\D/g, '').slice(0, 4);
+                if (digits.length <= 2) setTime(digits);
+                else setTime(`${digits.slice(0, 2)}:${digits.slice(2)}`);
+              }}
+              keyboardType="number-pad"
+              maxLength={5}
             />
 
             <Text style={styles.label}>Link to Client <Text style={styles.optional}>(optional)</Text></Text>
