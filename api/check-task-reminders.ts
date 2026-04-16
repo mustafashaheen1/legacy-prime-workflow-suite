@@ -49,11 +49,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // reminder_sent guard prevents double-firing for the same task.
     const now = new Date();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-    const in30Minutes    = new Date(now.getTime() + 30 * 60 * 1000);
 
     console.log('[check-task-reminders] Time range:', {
       from: fiveMinutesAgo.toISOString(),
-      to:   in30Minutes.toISOString(),
+      to:   now.toISOString(),
     });
 
     // Query tasks that need reminders
@@ -67,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('reminder_sent', false)
       .not('due_date_time', 'is', null)
       .gte('due_date_time', fiveMinutesAgo.toISOString())
-      .lte('due_date_time', in30Minutes.toISOString());
+      .lte('due_date_time', now.toISOString());
 
     if (error) {
       console.error('[check-task-reminders] Database error:', error);
