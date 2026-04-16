@@ -2509,7 +2509,7 @@ export default function EstimateScreen() {
           </View>
         </ScrollView>
 
-        <View style={[styles.selectedItemsContainer, isNarrow && styles.selectedItemsContainerNarrow]}>
+        <View style={styles.selectedItemsContainer}>
           <View
             style={[
               styles.selectedItemsSection,
@@ -4533,14 +4533,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flex: 1,
   },
-  selectedItemsContainerNarrow: {
-    flexDirection: 'column',
-  },
   rightTotalsPanelNarrow: {
-    width: '100%' as any,
-    borderLeftWidth: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    display: 'none',
   },
   rightTotalsPanel: {
     width: 220,
