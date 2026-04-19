@@ -1589,6 +1589,23 @@ export default function CRMScreen() {
             </View>
           </View>
           
+          {/* Appointment Calendar */}
+          <View style={styles.calendarSection}>
+            <CRMCalendar
+              appointments={appointments}
+              clients={clients}
+              onAddAppointment={(date) => {
+                setAppointmentFormDate(date);
+                setEditingAppointment(undefined);
+                setAppointmentFormVisible(true);
+              }}
+              onEditAppointment={(appt) => {
+                setEditingAppointment(appt);
+                setAppointmentFormVisible(true);
+              }}
+            />
+          </View>
+
           {/* Status Filter Tabs */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabsRow} contentContainerStyle={{ paddingRight: 16 }}>
             {['All', 'Lead', 'Project', 'Completed'].map(tab => (
@@ -1757,7 +1774,7 @@ export default function CRMScreen() {
                   {(() => {
                     const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
                       'Lead':      { bg: '#DBEAFE', text: '#2563EB', label: 'Lead' },
-                      'Project':   { bg: '#D1FAE5', text: '#059669', label: 'Active' },
+                      'Project':   { bg: '#D1FAE5', text: '#059669', label: 'Project' },
                       'Completed': { bg: '#F3F4F6', text: '#374151', label: 'Completed' },
                       'Cold Lead': { bg: '#E0F2FE', text: '#0284C7', label: 'Cold Lead' },
                     };
@@ -2002,26 +2019,6 @@ export default function CRMScreen() {
               </View>
             </View>
           ); })}
-
-          {/* Appointment Calendar */}
-          <View style={styles.calendarSection}>
-            <View style={styles.calendarSectionHeader}>
-              <Text style={styles.calendarSectionTitle}>Appointment Calendar</Text>
-            </View>
-            <CRMCalendar
-              appointments={appointments}
-              clients={clients}
-              onAddAppointment={(date) => {
-                setAppointmentFormDate(date);
-                setEditingAppointment(undefined);
-                setAppointmentFormVisible(true);
-              }}
-              onEditAppointment={(appt) => {
-                setEditingAppointment(appt);
-                setAppointmentFormVisible(true);
-              }}
-            />
-          </View>
 
           <View style={styles.metricsWidget}>
             <TouchableOpacity 
@@ -4153,6 +4150,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         } : undefined}
         initial={editingAppointment ?? (appointmentFormDate ? { id: '', companyId: company?.id ?? '', title: '', date: appointmentFormDate } as import('@/types').Appointment : undefined)}
         clients={clients}
+        projects={projects}
         companyId={company?.id ?? ''}
         createdBy={user?.id}
       />

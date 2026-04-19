@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { companyId, createdBy, clientId, title, date, time, notes } = req.body;
+    const { companyId, createdBy, clientId, projectId, title, type, date, time, endTime, address, phone, email, notes } = req.body;
 
     if (!companyId) return res.status(400).json({ error: 'companyId is required' });
     if (!title?.trim()) return res.status(400).json({ error: 'title is required' });
@@ -27,9 +27,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         company_id: companyId,
         created_by: createdBy || null,
         client_id: clientId || null,
+        project_id: projectId || null,
         title: title.trim(),
+        type: type || null,
         date,
         time: time || null,
+        end_time: endTime || null,
+        address: address || null,
+        phone: phone || null,
+        email: email || null,
         notes: notes || null,
       })
       .select()
@@ -44,9 +50,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         companyId: data.company_id,
         createdBy: data.created_by,
         clientId: data.client_id,
+        projectId: data.project_id,
         title: data.title,
+        type: data.type,
         date: data.date,
         time: data.time,
+        endTime: data.end_time,
+        address: data.address,
+        phone: data.phone,
+        email: data.email,
         notes: data.notes,
         createdAt: data.created_at,
       },

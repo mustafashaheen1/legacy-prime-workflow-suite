@@ -1012,8 +1012,8 @@ export default function ScheduleScreen() {
       visibleToClient: editClientVisibleNote,
       completed: editCompleted,
       completedAt: editCompleted ? editCompletedDate : (null as any),
-      assignedSubcontractorIds: editWorkType === 'subcontractor' ? editAssignedSubIds : [],
-      assignedEmployeeIds: editWorkType === 'in-house' ? editAssignedEmpIds : [],
+      assignedSubcontractorIds: editAssignedSubIds,
+      assignedEmployeeIds: editAssignedEmpIds,
     };
 
     // Update local state directly — guarantees immediate pill expansion on chart
@@ -1027,7 +1027,7 @@ export default function ScheduleScreen() {
     console.log('[Schedule] Updated task:', editingTask.category, `duration: ${newDuration}d`, editCompleted ? '(completed)' : '');
 
     // SMS + Email newly assigned subcontractors
-    if (editWorkType === 'subcontractor' && editAssignedSubIds.length > 0) {
+    if (editAssignedSubIds.length > 0) {
       const originalSubIds = editingTask.assignedSubcontractorIds ?? [];
       const newlyAdded = editAssignedSubIds.filter(id => !originalSubIds.includes(id));
       const companyName = company?.name || 'Legacy Prime';
@@ -1070,7 +1070,7 @@ export default function ScheduleScreen() {
     }
 
     // Push notification to newly assigned employees
-    if (editWorkType === 'in-house' && editAssignedEmpIds.length > 0) {
+    if (editAssignedEmpIds.length > 0) {
       const originalEmpIds = editingTask.assignedEmployeeIds ?? [];
       const newlyAddedEmps = editAssignedEmpIds.filter(id => !originalEmpIds.includes(id));
       const companyName = company?.name || 'Legacy Prime';
@@ -2391,8 +2391,8 @@ ${pdfDates.length > 0 ? `
                   </TouchableOpacity>
                 </View>
 
-                {/* Employee picker — In-House */}
-                {editWorkType === 'in-house' && (
+                {/* Employee picker */}
+                {(
                   <View style={{ marginTop: 4 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                       <Text style={styles.editLabel}>ASSIGN EMPLOYEES</Text>
@@ -2474,8 +2474,8 @@ ${pdfDates.length > 0 ? `
                   </View>
                 )}
 
-                {/* Subcontractor picker — Sub work type */}
-                {editWorkType === 'subcontractor' && (
+                {/* Subcontractor picker */}
+                {(
                   <View style={{ marginTop: 4 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                       <Users size={16} color="#D97706" />

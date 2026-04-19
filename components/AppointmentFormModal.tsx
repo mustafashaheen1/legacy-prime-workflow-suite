@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { ActivityIndicator, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { X } from 'lucide-react-native';
-import { Appointment, Client } from '@/types';
+import { Appointment, Client, Project } from '@/types';
+
+const APPOINTMENT_TYPES: Appointment['type'][] = ['Estimate', 'Site Visit', 'Follow-Up', 'Client Meeting', 'Project Meeting', 'Other'];
 
 interface Props {
   visible: boolean;
@@ -10,16 +12,23 @@ interface Props {
   onDelete?: () => void;
   initial?: Appointment;
   clients: Client[];
+  projects: Project[];
   companyId: string;
   createdBy?: string;
 }
 
-export default function AppointmentFormModal({ visible, onClose, onSave, onDelete, initial, clients, companyId, createdBy }: Props) {
+export default function AppointmentFormModal({ visible, onClose, onSave, onDelete, initial, clients, projects, companyId, createdBy }: Props) {
   const [title, setTitle] = useState('');
+  const [type, setType] = useState<Appointment['type']>(undefined);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [notes, setNotes] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [clientId, setClientId] = useState<string | undefined>();
+  const [projectId, setProjectId] = useState<string | undefined>();
+  const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [titleError, setTitleError] = useState('');
   const [dateError, setDateError] = useState('');
@@ -27,10 +36,16 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
   useEffect(() => {
     if (visible) {
       setTitle(initial?.title ?? '');
+      setType(initial?.type ?? undefined);
       setDate(initial?.date ?? '');
       setTime(initial?.time ?? '');
-      setNotes(initial?.notes ?? '');
+      setEndTime(initial?.endTime ?? '');
       setClientId(initial?.clientId);
+      setProjectId(initial?.projectId);
+      setAddress(initial?.address ?? '');
+      setPhone(initial?.phone ?? '');
+      setEmail(initial?.email ?? '');
+      setNotes(initial?.notes ?? '');
       setTitleError('');
       setDateError('');
     }
@@ -38,6 +53,12 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
 
   const isValidDate = (val: string) => /^\d{4}-\d{2}-\d{2}$/.test(val);
   const isValidTime = (val: string) => val === '' || /^\d{2}:\d{2}$/.test(val);
+
+  const formatTimeInput = (raw: string): string => {
+    const digits = raw.replace(/\D/g, '').slice(0, 4);
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  };
 
   const handleSave = async () => {
     let valid = true;
@@ -48,7 +69,21 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
 
     setIsSaving(true);
     try {
-      await onSave({ companyId, createdBy, clientId, title: title.trim(), date: date.trim(), time: isValidTime(time.trim()) ? time.trim() : undefined, notes: notes.trim() || undefined });
+      await onSave({
+        companyId,
+        createdBy,
+        clientId,
+        projectId,
+        title: title.trim(),
+        type: type || undefined,
+        date: date.trim(),
+        time: isValidTime(time.trim()) ? time.trim() || undefined : undefined,
+        endTime: isValidTime(endTime.trim()) ? endTime.trim() || undefined : undefined,
+        address: address.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+        notes: notes.trim() || undefined,
+      });
       onClose();
     } finally {
       setIsSaving(false);
@@ -59,6 +94,8 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
     if (onDelete) onDelete();
   };
 
+  const isEdit = !!initial?.id;
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -66,13 +103,14 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{initial ? 'Edit Appointment' : 'New Appointment'}</Text>
+            <Text style={styles.headerTitle}>{isEdit ? 'Edit Appointment' : 'New Appointment'}</Text>
             <TouchableOpacity onPress={onClose}>
               <X size={22} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.body} keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+            {/* Title */}
             <Text style={styles.label}>Title <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={[styles.input, titleError ? styles.inputError : null]}
@@ -83,6 +121,21 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
             />
             {!!titleError && <Text style={styles.errorText}>{titleError}</Text>}
 
+            {/* Type */}
+            <Text style={styles.label}>Type</Text>
+            <View style={styles.chipWrap}>
+              {APPOINTMENT_TYPES.map(t => (
+                <TouchableOpacity
+                  key={t}
+                  style={[styles.chip, type === t && styles.chipActive]}
+                  onPress={() => setType(type === t ? undefined : t)}
+                >
+                  <Text style={[styles.chipText, type === t && styles.chipTextActive]}>{t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Date */}
             <Text style={styles.label}>Date <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={[styles.input, dateError ? styles.inputError : null]}
@@ -94,22 +147,32 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
             />
             {!!dateError && <Text style={styles.errorText}>{dateError}</Text>}
 
+            {/* Time (start to end) */}
             <Text style={styles.label}>Time <Text style={styles.optional}>(optional)</Text></Text>
-            <TextInput
-              style={styles.input}
-              placeholder="09:30"
-              placeholderTextColor="#9CA3AF"
-              value={time}
-              onChangeText={(raw) => {
-                const digits = raw.replace(/\D/g, '').slice(0, 4);
-                if (digits.length <= 2) setTime(digits);
-                else setTime(`${digits.slice(0, 2)}:${digits.slice(2)}`);
-              }}
-              keyboardType="number-pad"
-              maxLength={5}
-            />
+            <View style={styles.timeRow}>
+              <TextInput
+                style={[styles.input, styles.timeInput]}
+                placeholder="09:00"
+                placeholderTextColor="#9CA3AF"
+                value={time}
+                onChangeText={(raw) => setTime(formatTimeInput(raw))}
+                keyboardType="number-pad"
+                maxLength={5}
+              />
+              <Text style={styles.timeSeparator}>to</Text>
+              <TextInput
+                style={[styles.input, styles.timeInput]}
+                placeholder="10:00"
+                placeholderTextColor="#9CA3AF"
+                value={endTime}
+                onChangeText={(raw) => setEndTime(formatTimeInput(raw))}
+                keyboardType="number-pad"
+                maxLength={5}
+              />
+            </View>
 
-            <Text style={styles.label}>Link to Client <Text style={styles.optional}>(optional)</Text></Text>
+            {/* Client */}
+            <Text style={styles.label}>Client <Text style={styles.optional}>(optional)</Text></Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
               <TouchableOpacity
                 style={[styles.chip, !clientId && styles.chipActive]}
@@ -128,6 +191,60 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
               ))}
             </ScrollView>
 
+            {/* Address */}
+            <Text style={styles.label}>Address <Text style={styles.optional}>(optional)</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="123 Main St, City, State"
+              placeholderTextColor="#9CA3AF"
+              value={address}
+              onChangeText={setAddress}
+            />
+
+            {/* Phone */}
+            <Text style={styles.label}>Phone <Text style={styles.optional}>(optional)</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="(555) 123-4567"
+              placeholderTextColor="#9CA3AF"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+
+            {/* Email */}
+            <Text style={styles.label}>Email <Text style={styles.optional}>(optional)</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="client@example.com"
+              placeholderTextColor="#9CA3AF"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            {/* Project */}
+            <Text style={styles.label}>Project <Text style={styles.optional}>(optional)</Text></Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+              <TouchableOpacity
+                style={[styles.chip, !projectId && styles.chipActive]}
+                onPress={() => setProjectId(undefined)}
+              >
+                <Text style={[styles.chipText, !projectId && styles.chipTextActive]}>None</Text>
+              </TouchableOpacity>
+              {projects.filter(p => p.status === 'active').map(p => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={[styles.chip, projectId === p.id && styles.chipActive]}
+                  onPress={() => setProjectId(projectId === p.id ? undefined : p.id)}
+                >
+                  <Text style={[styles.chipText, projectId === p.id && styles.chipTextActive]} numberOfLines={1}>{p.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Notes */}
             <Text style={styles.label}>Notes <Text style={styles.optional}>(optional)</Text></Text>
             <TextInput
               style={[styles.input, styles.notesInput]}
@@ -141,7 +258,7 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
           </ScrollView>
 
           <View style={styles.footer}>
-            {initial && onDelete && (
+            {isEdit && onDelete && (
               <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
                 <Text style={styles.deleteButtonText}>Delete</Text>
               </TouchableOpacity>
@@ -150,7 +267,7 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} onPress={handleSave} disabled={isSaving}>
-              {isSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Save</Text>}
+              {isSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.saveButtonText}>{isEdit ? 'Save' : 'Create'}</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -174,7 +291,11 @@ const styles = StyleSheet.create({
   inputError: { borderColor: '#DC2626' },
   notesInput: { minHeight: 72, textAlignVertical: 'top' },
   errorText: { fontSize: 12, color: '#DC2626', marginTop: 4 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  timeInput: { flex: 1 },
+  timeSeparator: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
   chipScroll: { marginBottom: 4 },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB', marginRight: 8 },
   chipActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
   chipText: { fontSize: 13, fontWeight: '600', color: '#4B5563' },

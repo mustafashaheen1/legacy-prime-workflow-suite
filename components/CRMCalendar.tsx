@@ -119,9 +119,11 @@ export default function CRMCalendar({ appointments, clients, onAddAppointment, o
                 <TouchableOpacity key={appt.id} style={styles.apptRow} onPress={() => onEditAppointment(appt)}>
                   <View style={styles.apptTimeCol}>
                     <Text style={styles.apptTime}>{appt.time ?? '—'}</Text>
+                    {appt.endTime && <Text style={styles.apptEndTime}>{appt.endTime}</Text>}
                   </View>
                   <View style={styles.apptInfo}>
                     <Text style={styles.apptTitle} numberOfLines={1}>{appt.title}</Text>
+                    {appt.type && <Text style={styles.apptType} numberOfLines={1}>{appt.type}</Text>}
                     {client && <Text style={styles.apptClient} numberOfLines={1}>{client.name}</Text>}
                     {appt.notes && <Text style={styles.apptNotes} numberOfLines={1}>{appt.notes}</Text>}
                   </View>
@@ -162,8 +164,10 @@ const styles = StyleSheet.create({
   apptRow: { flexDirection: 'row', backgroundColor: '#F8FAFC', borderRadius: 10, padding: 10, marginBottom: 6 },
   apptTimeCol: { width: 48, marginRight: 10 },
   apptTime: { fontSize: 12, color: '#6B7280', fontWeight: '600' },
+  apptEndTime: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
   apptInfo: { flex: 1 },
   apptTitle: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
+  apptType: { fontSize: 11, color: '#6B7280', marginTop: 2 },
   apptClient: { fontSize: 12, color: '#2563EB', marginTop: 2 },
   apptNotes: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
 });

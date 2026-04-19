@@ -82,10 +82,6 @@ export default function TaskDetailModal({
 
   const handleWorkTypeChange = (value: 'in-house' | 'subcontractor') => {
     setWorkType(value);
-    // Clear subcontractor assignments when switching to in-house
-    if (value === 'in-house') {
-      setAssignedSubIds([]);
-    }
   };
 
   const computedDuration = (): number => {
@@ -143,6 +139,7 @@ export default function TaskDetailModal({
         notes: notes.trim(),
         visibleToClient,
         assignedSubcontractorIds: assignedSubIds,
+        assignedEmployeeIds: task.assignedEmployeeIds ?? [],
       });
       resetForm();
       onClose();
@@ -268,8 +265,8 @@ export default function TaskDetailModal({
               hideNotes={isReadOnly}
             />
 
-            {/* Subcontractor Assignment — visible when workType is subcontractor and not client view */}
-            {workType === 'subcontractor' && !isReadOnly && (
+            {/* Subcontractor Assignment */}
+            {!isReadOnly && (
               <View style={styles.subSection}>
                 <Text style={styles.subSectionHeader}>ASSIGN SUBCONTRACTORS</Text>
                 {subcontractors.length === 0 ? (

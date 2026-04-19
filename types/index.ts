@@ -222,9 +222,15 @@ export interface Appointment {
   companyId: string;
   createdBy?: string;
   clientId?: string;
+  projectId?: string;
   title: string;
+  type?: 'Estimate' | 'Site Visit' | 'Follow-Up' | 'Client Meeting' | 'Project Meeting' | 'Other';
   date: string;
   time?: string;
+  endTime?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
   notes?: string;
   createdAt?: string;
 }
