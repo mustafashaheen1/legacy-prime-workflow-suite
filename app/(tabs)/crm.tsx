@@ -1774,11 +1774,13 @@ export default function CRMScreen() {
                     </View>
                   ) : (
                     <TouchableOpacity style={styles.cardInlineRow} onPress={() => { setJobDetailsClientId(client.id); setJobDetailsText(client.jobDetails ?? ''); }}>
-                      <ClipboardList size={14} color="#D97706" />
-                      <Text style={[styles.cardInlineLabel, { color: client.jobDetails ? '#374151' : '#D97706' }]}>
-                        {client.jobDetails || 'Add Job Details'}
-                      </Text>
-                      {client.jobDetails && <Pencil size={12} color="#9CA3AF" />}
+                      <ClipboardList size={14} color="#D97706" style={{ flexShrink: 0 }} />
+                      <ScrollView style={styles.jobDetailsScroll} nestedScrollEnabled showsVerticalScrollIndicator>
+                        <Text style={[styles.cardInlineLabel, { color: client.jobDetails ? '#374151' : '#D97706' }]}>
+                          {client.jobDetails || 'Add Job Details'}
+                        </Text>
+                      </ScrollView>
+                      {client.jobDetails && <Pencil size={12} color="#9CA3AF" style={{ flexShrink: 0 }} />}
                     </TouchableOpacity>
                   )}
                   {(() => {
@@ -6523,6 +6525,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600' as const,
     color: '#374151',
+  },
+  jobDetailsScroll: {
+    flex: 1,
+    maxHeight: 60,
   },
   jobDetailsEditRow: {
     marginTop: 6,
