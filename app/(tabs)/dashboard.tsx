@@ -1524,7 +1524,7 @@ export default function DashboardScreen() {
           expenses={expenses}
           clockEntries={clockEntries}
           hoursWorked={hoursWorkedThisMonth}
-          onDetails={() => router.push('/(tabs)/expenses?filter=business' as any)}
+          onDetails={() => router.push('/business-costs' as any)}
         />
 
         <View style={styles.statsContainer}>

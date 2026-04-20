@@ -73,6 +73,8 @@ export default function EmployeeManagementScreen() {
     setRefreshing(false);
   }, [fetchUsers]);
 
+  const [employeeFilter, setEmployeeFilter] = useState<'all' | 'field' | 'office'>('all');
+
   const employees = useMemo(() => {
     const allUsers = usersData?.users || [];
     return allUsers.filter((u: User) =>
@@ -80,15 +82,30 @@ export default function EmployeeManagementScreen() {
     );
   }, [usersData]);
 
+  // Classify employees as office or field based on clockEntries
+  const officeEmployeeIds = useMemo(() => {
+    const ids = new Set<string>();
+    clockEntries.forEach((e: ClockEntry) => {
+      if (e.officeRole) ids.add(e.employeeId);
+    });
+    return ids;
+  }, [clockEntries]);
+
+  const classifiedEmployees = useMemo(() => {
+    if (employeeFilter === 'office') return employees.filter((emp: User) => officeEmployeeIds.has(emp.id));
+    if (employeeFilter === 'field') return employees.filter((emp: User) => !officeEmployeeIds.has(emp.id));
+    return employees;
+  }, [employees, employeeFilter, officeEmployeeIds]);
+
   const filteredEmployees = useMemo(() => {
-    if (!searchQuery.trim()) return employees;
+    if (!searchQuery.trim()) return classifiedEmployees;
     const query = searchQuery.toLowerCase();
-    return employees.filter((emp: User) => 
+    return classifiedEmployees.filter((emp: User) =>
       emp.name.toLowerCase().includes(query) ||
       emp.email.toLowerCase().includes(query) ||
       emp.phone?.toLowerCase().includes(query)
     );
-  }, [employees, searchQuery]);
+  }, [classifiedEmployees, searchQuery]);
 
   const employeesWithRateChangeRequests = useMemo(() => {
     return employees.filter((emp: User) => 
@@ -594,8 +611,26 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
           />
         </View>
 
+        <View style={styles.filterRow}>
+          {(['all', 'field', 'office'] as const).map(tab => {
+            const count = tab === 'all' ? employees.length
+              : tab === 'office' ? employees.filter((emp: User) => officeEmployeeIds.has(emp.id)).length
+              : employees.filter((emp: User) => !officeEmployeeIds.has(emp.id)).length;
+            const label = tab === 'all' ? 'All' : tab === 'field' ? 'Field' : 'Office';
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.filterTab, employeeFilter === tab && styles.filterTabActive]}
+                onPress={() => setEmployeeFilter(tab)}
+              >
+                <Text style={[styles.filterTabText, employeeFilter === tab && styles.filterTabTextActive]}>{label} ({count})</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <View style={styles.employeesSection}>
-          <Text style={styles.sectionTitle}>All Employees ({filteredEmployees.length})</Text>
+          <Text style={styles.sectionTitle}>{employeeFilter === 'all' ? 'All' : employeeFilter === 'field' ? 'Field' : 'Office'} Employees ({filteredEmployees.length})</Text>
           
           {filteredEmployees.map((employee: User) => {
             const stats = getEmployeeStats(employee.id);
@@ -1008,6 +1043,36 @@ const styles = StyleSheet.create({
   searchInput: {
     fontSize: 16,
     color: '#1F2937',
+  },
+  filterRow: {
+    flexDirection: 'row' as const,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 16,
+  },
+  filterTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center' as const,
+  },
+  filterTabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  filterTabText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: '#64748B',
+  },
+  filterTabTextActive: {
+    color: '#2563EB',
+    fontWeight: '600' as const,
   },
   employeesSection: {
     marginBottom: 24,

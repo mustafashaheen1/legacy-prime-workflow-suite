@@ -105,18 +105,16 @@ export default function ExpensesScreen() {
     [projects]
   );
 
-  const { filter } = useLocalSearchParams<{ filter?: string }>();
-  const [listFilter, setListFilter] = useState<'project' | 'business'>(filter === 'business' ? 'business' : 'project');
+  const { companyExpense } = useLocalSearchParams<{ companyExpense?: string }>();
 
-  // Sync when navigated from dashboard Details button
+  // Pre-check Company/Office checkbox when navigated from Business Running Costs screen
   useEffect(() => {
-    if (filter === 'business') setListFilter('business');
-  }, [filter]);
+    if (companyExpense === 'true') setIsCompanyExpense(true);
+  }, [companyExpense]);
 
   const filteredExpenses = useMemo(() => {
-    if (listFilter === 'business') return expenses.filter(e => e.isCompanyCost);
     return expenses.filter(e => e.projectId === selectedProjectId);
-  }, [expenses, selectedProjectId, listFilter]);
+  }, [expenses, selectedProjectId]);
 
   const projectExpenseTotal = useMemo(() => 
     filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
@@ -838,21 +836,7 @@ export default function ExpensesScreen() {
         </View>
 
         <View style={styles.expensesList}>
-          <View style={styles.listFilterRow}>
-            <TouchableOpacity
-              style={[styles.listFilterTab, listFilter === 'project' && styles.listFilterTabActive]}
-              onPress={() => setListFilter('project')}
-            >
-              <Text style={[styles.listFilterTabText, listFilter === 'project' && styles.listFilterTabTextActive]}>Project</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.listFilterTab, listFilter === 'business' && styles.listFilterTabActive]}
-              onPress={() => setListFilter('business')}
-            >
-              <Text style={[styles.listFilterTabText, listFilter === 'business' && styles.listFilterTabTextActive]}>Business</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.sectionTitle}>{listFilter === 'business' ? 'Business & Overhead Expenses' : 'Recent Expenses'}</Text>
+          <Text style={styles.sectionTitle}>Recent Expenses</Text>
           {(isLoading || isCompanyReloading) && expenses.length === 0 ? (
             <View>
               {[0, 1, 2, 3].map(i => (
@@ -868,7 +852,7 @@ export default function ExpensesScreen() {
             </View>
           ) : filteredExpenses.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>{listFilter === 'business' ? 'No business expenses recorded yet' : 'No expenses recorded for this project'}</Text>
+              <Text style={styles.emptyStateText}>No expenses recorded for this project</Text>
             </View>
           ) : (
             filteredExpenses.map((expense) => (
@@ -1183,36 +1167,6 @@ const styles = StyleSheet.create({
   },
   expensesList: {
     padding: 16,
-  },
-  listFilterRow: {
-    flexDirection: 'row' as const,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 14,
-  },
-  listFilterTab: {
-    flex: 1,
-    paddingVertical: 7,
-    borderRadius: 8,
-    alignItems: 'center' as const,
-  },
-  listFilterTabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  listFilterTabText: {
-    fontSize: 13,
-    fontWeight: '500' as const,
-    color: '#64748B',
-  },
-  listFilterTabTextActive: {
-    color: '#2563EB',
-    fontWeight: '600' as const,
   },
   sectionTitle: {
     fontSize: 18,
