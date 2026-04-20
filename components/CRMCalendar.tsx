@@ -187,6 +187,10 @@ export default function CRMCalendar({ appointments, clients, onAddAppointment, o
                 </TouchableOpacity>
               );
             })}
+            <TouchableOpacity style={styles.addAppointmentBtn} onPress={() => onAddAppointment(selectedDate)}>
+              <Plus size={14} color="#2563EB" />
+              <Text style={styles.addAppointmentBtnText}>Add Appointment</Text>
+            </TouchableOpacity>
           </ScrollView>
         )}
       </View>
