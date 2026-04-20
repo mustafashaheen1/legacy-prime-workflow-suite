@@ -4236,6 +4236,7 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
   };
 
   return (
+    <>
     <Modal
       visible={visible}
       transparent
@@ -4345,6 +4346,7 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
         </View>
       </View>
     </Modal>
+    </>
   );
 }
 

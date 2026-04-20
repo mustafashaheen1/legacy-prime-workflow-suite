@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
-import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File } from 'lucide-react-native';
+import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Package, Wrench, Truck, HardHat, Fuel, Building, Shield, ShieldCheck, FileCheck, FileText, Layers, Car, Monitor, Paperclip, Zap, Phone, Megaphone, Check } from 'lucide-react-native';
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
 import UploaderBadge from '@/components/UploaderBadge';
 import DocumentScannerModal, { DocumentScanResult } from '@/components/DocumentScannerModal';
@@ -54,8 +54,32 @@ export default function ExpensesScreen() {
   const [isCompanyExpense, setIsCompanyExpense] = useState<boolean>(false);
   const [overheadCategory, setOverheadCategory] = useState<string>('');
   const [showOverheadPicker, setShowOverheadPicker] = useState<boolean>(false);
+  const [notes, setNotes] = useState<string>('');
+  const [showCategoryPicker, setShowCategoryPicker] = useState<boolean>(false);
 
   const OVERHEAD_CATEGORIES = ['Rent', 'Utilities', 'Insurance', 'Permits & Licenses', 'Office Supplies', 'Tools & Equipment', 'Vehicle & Fuel', 'Accounting & Legal', 'Marketing', 'Miscellaneous'];
+
+  const EXPENSE_CATEGORIES = [
+    { name: 'Materials', icon: Package, color: '#0D9488', bg: '#F0FDFA' },
+    { name: 'Labor', icon: Wrench, color: '#7C3AED', bg: '#F5F3FF' },
+    { name: 'Equipment', icon: Truck, color: '#D97706', bg: '#FFFBEB' },
+    { name: 'Subcontractor', icon: HardHat, color: '#B45309', bg: '#FEF3C7' },
+    { name: 'Gas / Fuel', icon: Fuel, color: '#DC2626', bg: '#FEF2F2' },
+    { name: 'Office', icon: Building, color: '#2563EB', bg: '#EFF6FF' },
+    { name: 'Insurance', icon: Shield, color: '#E11D48', bg: '#FFF1F2' },
+    { name: 'Workers Comp', icon: ShieldCheck, color: '#DB2777', bg: '#FDF2F8' },
+    { name: 'Bond', icon: FileCheck, color: '#6366F1', bg: '#EEF2FF' },
+    { name: 'Permit', icon: FileText, color: '#2563EB', bg: '#EFF6FF' },
+    { name: 'Overhead', icon: Layers, color: '#7C3AED', bg: '#F5F3FF' },
+    { name: 'Rent / Lease', icon: Building, color: '#4B5563', bg: '#F3F4F6' },
+    { name: 'Vehicle / Car Payment', icon: Car, color: '#DC2626', bg: '#FEF2F2' },
+    { name: 'Electronics / Tech', icon: Monitor, color: '#4B5563', bg: '#F3F4F6' },
+    { name: 'Office Supplies', icon: Paperclip, color: '#059669', bg: '#ECFDF5' },
+    { name: 'Utilities', icon: Zap, color: '#16A34A', bg: '#F0FDF4' },
+    { name: 'Phone / Internet', icon: Phone, color: '#2563EB', bg: '#EFF6FF' },
+    { name: 'Software / Subscriptions', icon: Monitor, color: '#2563EB', bg: '#EFF6FF' },
+    { name: 'Marketing / Advertising', icon: Megaphone, color: '#E11D48', bg: '#FFF1F2' },
+  ];
 
   // Reload expenses when component mounts
   useEffect(() => {
@@ -143,16 +167,8 @@ export default function ExpensesScreen() {
 
     const missingFields: string[] = [];
 
-    if (!expenseType) {
-      missingFields.push('Expense Type');
-    }
-
-    if (expenseType === 'Subcontractor' && !category) {
+    if (!category) {
       missingFields.push('Category');
-    }
-
-    if (isCompanyExpense && !overheadCategory) {
-      missingFields.push('Overhead Category');
     }
 
     if (!amount || amount.trim() === '') {
@@ -242,12 +258,13 @@ export default function ExpensesScreen() {
       await addExpense({
         id: Date.now().toString(),
         projectId: isCompanyExpense ? undefined : selectedProjectId,
-        type: expenseType,
-        subcategory: isCompanyExpense ? overheadCategory : (expenseType === 'Subcontractor' ? category : expenseType),
+        type: category,
+        subcategory: category,
         isCompanyCost: isCompanyExpense,
         isOverhead: isCompanyExpense,
         amount: parseFloat(amount),
         store,
+        notes: notes.trim() || undefined,
         date: ocrDate,
         receiptUrl: uploadedReceiptUrl,
         imageHash,
@@ -260,6 +277,7 @@ export default function ExpensesScreen() {
 
       setAmount('');
       setStore('');
+      setNotes('');
       setExpenseType('');
       setCategory('');
       setIsCompanyExpense(false);
@@ -626,30 +644,21 @@ export default function ExpensesScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1, marginRight: 12 }}>
             <Text style={styles.title}>Expenses</Text>
-            {selectedProject && (
-              <Text style={styles.subtitle} numberOfLines={1}>{selectedProject.name}</Text>
-            )}
           </View>
           <View style={styles.headerButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.iconButton}
               onPress={handleScanReceipt}
             >
               <Scan size={20} color="#2563EB" />
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.iconButton}
-              onPress={handleScanReceipt}
-            >
-              <Receipt size={20} color="#2563EB" />
-            </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.iconButton}
               onPress={handleUploadReceipt}
             >
               <Upload size={20} color="#2563EB" />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.iconButton}
               onPress={handleUploadFile}
             >
@@ -658,7 +667,12 @@ export default function ExpensesScreen() {
           </View>
         </View>
 
-        {!isCompanyExpense ? (
+        <View style={styles.addExpenseHeader}>
+          <Text style={styles.addExpenseTitle}>Add Expense</Text>
+          <Text style={styles.addExpenseSubtitle}>Submit a new expense entry</Text>
+        </View>
+
+        {!isCompanyExpense && (
           <TouchableOpacity
             style={styles.projectSelector}
             onPress={() => setShowProjectPicker(true)}
@@ -671,14 +685,22 @@ export default function ExpensesScreen() {
             </View>
             <ChevronDown size={20} color="#6B7280" />
           </TouchableOpacity>
-        ) : (
-          <View style={[styles.projectSelector, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.projectSelectorLabel, { color: '#2563EB' }]}>Business / Company Expense</Text>
-              <Text style={[styles.projectSelectorValue, { color: '#1D4ED8', fontSize: 13 }]}>Not linked to any project</Text>
-            </View>
-          </View>
         )}
+
+        {/* Company / Office Expense checkbox */}
+        <TouchableOpacity
+          style={styles.companyExpenseRow}
+          onPress={() => setIsCompanyExpense(!isCompanyExpense)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, isCompanyExpense && styles.checkboxChecked]}>
+            {isCompanyExpense && <Check size={16} color="#FFFFFF" />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.companyExpenseLabel}>Company / Office Expense</Text>
+            <Text style={styles.companyExpenseDesc}>Not tied to a specific project</Text>
+          </View>
+        </TouchableOpacity>
 
 
 
@@ -746,58 +768,54 @@ export default function ExpensesScreen() {
             </View>
           )}
 
-          <Text style={styles.label}>Expense Type</Text>
-          <TouchableOpacity 
+          <Text style={styles.label}>Category</Text>
+          <TouchableOpacity
             style={styles.categoryPicker}
-            onPress={() => setShowExpenseTypePicker(true)}
+            onPress={() => setShowCategoryPicker(true)}
           >
-            <Text style={[styles.pickerText, !expenseType && { color: '#9CA3AF' }]}>{expenseType || 'Select expense type...'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              {category ? (
+                <>
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#2563EB', marginRight: 10 }} />
+                  <Text style={styles.pickerText}>{category}</Text>
+                </>
+              ) : (
+                <Text style={[styles.pickerText, { color: '#9CA3AF' }]}>Select category...</Text>
+              )}
+            </View>
             <ChevronDown size={16} color="#6B7280" />
           </TouchableOpacity>
 
-          {expenseType === 'Subcontractor' && (
-            <>
-              <Text style={styles.label}>Category</Text>
-              <TouchableOpacity
-                style={styles.categoryPicker}
-                onPress={() => setShowSubcategoryPicker(true)}
-              >
-                <Text style={[styles.pickerText, !category && { color: '#9CA3AF' }]}>{category || 'Select category...'}</Text>
-                <ChevronDown size={16} color="#6B7280" />
-              </TouchableOpacity>
-            </>
-          )}
-
-          {isCompanyExpense && (
-            <>
-              <Text style={styles.label}>Overhead Category</Text>
-              <TouchableOpacity
-                style={styles.categoryPicker}
-                onPress={() => setShowOverheadPicker(true)}
-              >
-                <Text style={[styles.pickerText, !overheadCategory && { color: '#9CA3AF' }]}>{overheadCategory || 'Select overhead category...'}</Text>
-                <ChevronDown size={16} color="#6B7280" />
-              </TouchableOpacity>
-            </>
-          )}
-
           <Text style={styles.label}>Amount</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="138"
-            placeholderTextColor="#9CA3AF"
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="numeric"
-          />
+          <View style={styles.amountInputRow}>
+            <Text style={styles.amountPrefix}>$</Text>
+            <TextInput
+              style={styles.amountInput}
+              placeholder="0.00"
+              placeholderTextColor="#9CA3AF"
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="numeric"
+            />
+          </View>
 
-          <Text style={styles.label}>Store/Invoice</Text>
+          <Text style={styles.label}>Store / Invoice</Text>
           <TextInput
             style={styles.input}
             placeholder="Enter store or invoice details"
             placeholderTextColor="#9CA3AF"
             value={store}
             onChangeText={setStore}
+          />
+
+          <Text style={styles.label}>Notes (optional)</Text>
+          <TextInput
+            style={[styles.input, { minHeight: 60, textAlignVertical: 'top' }]}
+            placeholder="Add any notes about this expense..."
+            placeholderTextColor="#9CA3AF"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
           />
 
           {validationError && (
@@ -814,7 +832,7 @@ export default function ExpensesScreen() {
             {isSaving ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.saveButtonText}>Save</Text>
+              <Text style={styles.saveButtonText}>Save Expense</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -956,158 +974,50 @@ export default function ExpensesScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Unified Category Picker */}
       <Modal
-        visible={showExpenseTypePicker}
+        visible={showCategoryPicker}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowExpenseTypePicker(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowExpenseTypePicker(false)}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle} numberOfLines={1}>Select Expense Type</Text>
-              <TouchableOpacity onPress={() => setShowExpenseTypePicker(false)}>
-                <X size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.categoryList}
-          keyboardDismissMode="on-drag"
-        >
-              {['Subcontractor', 'Labor', 'Material', 'Office', 'Others', 'Business / Company'].map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.pickerOption,
-                    expenseType === type && styles.pickerOptionSelected,
-                    type === 'Business / Company' && { borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 4 },
-                  ]}
-                  onPress={() => {
-                    setExpenseType(type);
-                    setIsCompanyExpense(type === 'Business / Company');
-                    if (type !== 'Business / Company') setOverheadCategory('');
-                    setShowExpenseTypePicker(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.pickerOptionText,
-                      expenseType === type && styles.pickerOptionTextSelected,
-                    ]}
-                  >
-                    {type}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      <Modal
-        visible={showSubcategoryPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowSubcategoryPicker(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSubcategoryPicker(false)}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle} numberOfLines={1}>Select Category</Text>
-              <TouchableOpacity onPress={() => setShowSubcategoryPicker(false)}>
-                <X size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.customCategoryInput}>
-              <TextInput
-                style={styles.input}
-                placeholder="Or type custom category..."
-                placeholderTextColor="#9CA3AF"
-                value={customCategory}
-                onChangeText={setCustomCategory}
-              />
-              {customCategory.trim() !== '' && (
-                <TouchableOpacity
-                  style={styles.addCustomButton}
-                  onPress={() => {
-                    setCategory(customCategory.trim());
-                    setCustomCategory('');
-                    setShowSubcategoryPicker(false);
-                  }}
-                >
-                  <Text style={styles.addCustomButtonText} numberOfLines={1}>Add &quot;{customCategory.trim()}&quot;</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <ScrollView style={styles.categoryList}
-          keyboardDismissMode="on-drag"
-        >
-              {priceListCategories.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[
-                    styles.pickerOption,
-                    category === cat && styles.pickerOptionSelected,
-                  ]}
-                  onPress={() => {
-                    setCategory(cat);
-                    setCustomCategory('');
-                    setShowSubcategoryPicker(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.pickerOptionText,
-                      category === cat && styles.pickerOptionTextSelected,
-                    ]}
-                  >
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Overhead Category Picker */}
-      <Modal
-        visible={showOverheadPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowOverheadPicker(false)}
+        onRequestClose={() => setShowCategoryPicker(false)}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setShowOverheadPicker(false)}
+          onPress={() => setShowCategoryPicker(false)}
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Overhead Category</Text>
-              <TouchableOpacity onPress={() => setShowOverheadPicker(false)}>
+              <Text style={styles.modalTitle}>Select Category</Text>
+              <TouchableOpacity onPress={() => setShowCategoryPicker(false)}>
                 <X size={24} color="#1F2937" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.categoryList} keyboardDismissMode="on-drag">
-              {OVERHEAD_CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[styles.pickerOption, overheadCategory === cat && styles.pickerOptionSelected]}
-                  onPress={() => { setOverheadCategory(cat); setShowOverheadPicker(false); }}
-                >
-                  <Text style={[styles.pickerOptionText, overheadCategory === cat && styles.pickerOptionTextSelected]}>
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <ScrollView style={{ maxHeight: 500 }} keyboardDismissMode="on-drag">
+              {EXPENSE_CATEGORIES.map((cat) => {
+                const IconComponent = cat.icon;
+                const isSelected = category === cat.name;
+                return (
+                  <TouchableOpacity
+                    key={cat.name}
+                    style={[styles.categoryOptionRow, isSelected && styles.pickerOptionSelected]}
+                    onPress={() => {
+                      setCategory(cat.name);
+                      setShowCategoryPicker(false);
+                    }}
+                  >
+                    <View style={[styles.categoryIconCircle, { backgroundColor: cat.bg }]}>
+                      <IconComponent size={20} color={cat.color} />
+                    </View>
+                    <Text style={[styles.categoryOptionText, isSelected && styles.pickerOptionTextSelected]}>
+                      {cat.name}
+                    </Text>
+                    {isSelected && (
+                      <Check size={20} color="#2563EB" style={{ marginLeft: 'auto' }} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </View>
         </TouchableOpacity>
@@ -1435,6 +1345,97 @@ const styles = StyleSheet.create({
   formDividerText: {
     fontSize: 12,
     color: '#9CA3AF',
+    fontWeight: '500' as const,
+  },
+  addExpenseHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  addExpenseTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#1F2937',
+  },
+  addExpenseSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  companyExpenseRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  checkbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: '#FFFFFF',
+  },
+  checkboxChecked: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  companyExpenseLabel: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+  },
+  companyExpenseDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  amountInputRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  amountPrefix: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginRight: 4,
+  },
+  amountInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#1F2937',
+  },
+  categoryOptionRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    gap: 14,
+  },
+  categoryIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  categoryOptionText: {
+    fontSize: 16,
+    color: '#1F2937',
     fontWeight: '500' as const,
   },
   emptyState: {

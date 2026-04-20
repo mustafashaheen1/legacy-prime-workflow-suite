@@ -1680,6 +1680,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             clockEntryId: expense.clockEntryId,
             isCompanyCost: expense.isCompanyCost,
             isOverhead: expense.isOverhead,
+            notes: expense.notes,
           }),
         });
 
