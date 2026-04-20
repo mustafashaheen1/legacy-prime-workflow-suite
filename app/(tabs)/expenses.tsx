@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
-import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Package, Wrench, Truck, HardHat, Fuel, Building, Shield, ShieldCheck, FileCheck, FileText, Layers, Car, Monitor, Paperclip, Zap, Phone, Megaphone, Check } from 'lucide-react-native';
+import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Package, Wrench, Truck, HardHat, Fuel, Building, Shield, ShieldCheck, FileCheck, FileText, Layers, Car, Monitor, Paperclip, Zap, Phone, Megaphone, Check, Calculator, Scale, BadgeDollarSign, GraduationCap, Hammer, PlaneTakeoff, Coffee, Shirt, Trash2, Warehouse, MoreHorizontal } from 'lucide-react-native';
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
 import UploaderBadge from '@/components/UploaderBadge';
 import DocumentScannerModal, { DocumentScanResult } from '@/components/DocumentScannerModal';
@@ -79,6 +79,18 @@ export default function ExpensesScreen() {
     { name: 'Phone / Internet', icon: Phone, color: '#2563EB', bg: '#EFF6FF' },
     { name: 'Software / Subscriptions', icon: Monitor, color: '#2563EB', bg: '#EFF6FF' },
     { name: 'Marketing / Advertising', icon: Megaphone, color: '#E11D48', bg: '#FFF1F2' },
+    { name: 'Accounting / CPA', icon: Calculator, color: '#0D9488', bg: '#F0FDFA' },
+    { name: 'Legal Fee', icon: Scale, color: '#7C3AED', bg: '#F5F3FF' },
+    { name: 'Payroll Taxes', icon: BadgeDollarSign, color: '#DC2626', bg: '#FEF2F2' },
+    { name: 'Training / Certifications', icon: GraduationCap, color: '#2563EB', bg: '#EFF6FF' },
+    { name: 'Tools', icon: Wrench, color: '#D97706', bg: '#FFFBEB' },
+    { name: 'Maintenance / Repairs', icon: Hammer, color: '#B45309', bg: '#FEF3C7' },
+    { name: 'Travel / Lodging', icon: PlaneTakeoff, color: '#6366F1', bg: '#EEF2FF' },
+    { name: 'Meals / Coffee', icon: Coffee, color: '#059669', bg: '#ECFDF5' },
+    { name: 'Uniform / Safety Gear', icon: Shirt, color: '#E11D48', bg: '#FFF1F2' },
+    { name: 'Waste / Dumpster', icon: Trash2, color: '#4B5563', bg: '#F3F4F6' },
+    { name: 'Storage', icon: Warehouse, color: '#0D9488', bg: '#F0FDFA' },
+    { name: 'Miscellaneous', icon: MoreHorizontal, color: '#6B7280', bg: '#F3F4F6' },
   ];
 
   // Reload expenses when component mounts
