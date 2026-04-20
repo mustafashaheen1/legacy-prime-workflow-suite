@@ -1495,6 +1495,14 @@ export default function CRMScreen() {
           <Text style={styles.title}>Legacy Prime CRM</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
+              style={styles.coldLeadsButton}
+              onPress={() => setShowColdLeadsModal(true)}
+            >
+              <Snowflake size={20} color="#FFFFFF" />
+              <Text style={styles.coldLeadsButtonText}>Cold Leads ({coldLeadCount})</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={styles.callLogsButton}
               onPress={handleOpenCallLogs}
             >
@@ -1510,14 +1518,6 @@ export default function CRMScreen() {
                 <Text style={styles.callAssistantButtonText}>Call Assistant</Text>
               </TouchableOpacity>
             )}
-
-            <TouchableOpacity
-              style={styles.coldLeadsButton}
-              onPress={() => setShowColdLeadsModal(true)}
-            >
-              <Snowflake size={20} color="#FFFFFF" />
-              <Text style={styles.coldLeadsButtonText}>Cold Leads ({coldLeadCount})</Text>
-            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.addButton}

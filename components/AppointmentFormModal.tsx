@@ -97,11 +97,10 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
   const isEdit = !!initial?.id;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={Keyboard.dismiss} />
+        <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={styles.sheet}>
-          <View style={styles.handle} />
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{isEdit ? 'Edit Appointment' : 'New Appointment'}</Text>
             <TouchableOpacity onPress={onClose}>
@@ -277,10 +276,9 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 20 },
   backdrop: { ...StyleSheet.absoluteFillObject },
-  sheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', alignSelf: 'center', marginTop: 10, marginBottom: 4 },
+  sheet: { backgroundColor: '#FFFFFF', borderRadius: 16, maxHeight: '85%', width: '100%', maxWidth: 540 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   headerTitle: { fontSize: 17, fontWeight: '600', color: '#1E3A5F' },
   body: { paddingHorizontal: 20, paddingTop: 4 },
