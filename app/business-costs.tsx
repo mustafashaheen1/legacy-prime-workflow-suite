@@ -1,15 +1,14 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import {
   DollarSign, Layers, TrendingUp, Grid3X3, Users, BarChart3,
-  Clock, ChevronDown, ChevronUp, Plus, ArrowLeft, Building,
+  Clock, ChevronDown, ChevronUp, ArrowLeft
 } from 'lucide-react-native';
-import type { Expense } from '@/types';
 
 interface RateCalcSettings {
   desiredSalary: number;
@@ -34,52 +33,19 @@ export default function BusinessCostsScreen() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggle = (key: string) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 
-  // Rate calculator
+  // Rate calculator settings (loaded for recommended rate summary card)
   const [settings, setSettings] = useState<RateCalcSettings>(DEFAULT_SETTINGS);
-  const [settingsInputs, setSettingsInputs] = useState({
-    desiredSalary: String(DEFAULT_SETTINGS.desiredSalary),
-    billableHoursPerWeek: String(DEFAULT_SETTINGS.billableHoursPerWeek),
-    workingWeeksPerYear: String(DEFAULT_SETTINGS.workingWeeksPerYear),
-    profitMargin: String(DEFAULT_SETTINGS.profitMargin),
-  });
-  const [rateTab, setRateTab] = useState<'expenses' | 'calculator'>('expenses');
   const [overheadPeriod, setOverheadPeriod] = useState<'monthly' | 'yearly'>('monthly');
-  const [calcOverheadPeriod, setCalcOverheadPeriod] = useState<'monthly' | 'yearly'>('monthly');
 
   // Load rate settings from AsyncStorage
   useEffect(() => {
     if (!company?.id) return;
     AsyncStorage.getItem(`rate_calc_${company.id}`).then(raw => {
       if (raw) {
-        const parsed = JSON.parse(raw);
-        setSettings(parsed);
-        setSettingsInputs({
-          desiredSalary: String(parsed.desiredSalary),
-          billableHoursPerWeek: String(parsed.billableHoursPerWeek),
-          workingWeeksPerYear: String(parsed.workingWeeksPerYear),
-          profitMargin: String(parsed.profitMargin),
-        });
+        setSettings(JSON.parse(raw));
       }
     });
   }, [company?.id]);
-
-  const saveSettings = useCallback(async () => {
-    const parsed: RateCalcSettings = {
-      desiredSalary: parseFloat(settingsInputs.desiredSalary) || DEFAULT_SETTINGS.desiredSalary,
-      billableHoursPerWeek: parseFloat(settingsInputs.billableHoursPerWeek) || DEFAULT_SETTINGS.billableHoursPerWeek,
-      workingWeeksPerYear: parseFloat(settingsInputs.workingWeeksPerYear) || DEFAULT_SETTINGS.workingWeeksPerYear,
-      profitMargin: parseFloat(settingsInputs.profitMargin) || DEFAULT_SETTINGS.profitMargin,
-    };
-    setSettings(parsed);
-    if (company?.id) {
-      await AsyncStorage.setItem(`rate_calc_${company.id}`, JSON.stringify(parsed));
-    }
-    if (Platform.OS === 'web') {
-      window.alert('Settings saved!');
-    } else {
-      Alert.alert('Saved', 'Rate calculator settings saved.');
-    }
-  }, [settingsInputs, company?.id]);
 
   // ─── Data calculations (reused from CompactBusinessCosts) ───
   const businessExpenses = useMemo(() => expenses.filter(e => e.isCompanyCost), [expenses]);
@@ -141,10 +107,6 @@ export default function BusinessCostsScreen() {
     const baseRate = totalAnnualCost / billableHoursPerYear;
     return baseRate * (1 + settings.profitMargin / 100);
   }, [settings, overheadPerMonth]);
-
-  const dailyRate = useMemo(() => recommendedRate * (settings.billableHoursPerWeek / 5), [recommendedRate, settings]);
-  const weeklyRate = useMemo(() => recommendedRate * settings.billableHoursPerWeek, [recommendedRate, settings]);
-  const yearlyRate = useMemo(() => recommendedRate * settings.billableHoursPerWeek * settings.workingWeeksPerYear, [recommendedRate, settings]);
 
   // Averages
   const avg3mo = useMemo(() => {
@@ -455,194 +417,16 @@ export default function BusinessCostsScreen() {
 
         {/* ─── Section 5: Overhead & Rate Calculator ─── */}
         <View style={styles.accordionCard}>
-          {renderSection('rateCalc',
-            <Grid3X3 size={22} color="#7C3AED" style={{ marginRight: 12 }} />,
-            'Overhead & Rate Calculator',
-            null
-          )}
-          {expanded['rateCalc'] && (
-            <View style={styles.darkSection}>
-              {/* Dark header */}
-              <Text style={styles.darkLabel}>TOTAL BUSINESS OVERHEAD</Text>
-              <Text style={styles.darkBigValue}>
-                ${Math.round(calcOverheadPeriod === 'monthly' ? overheadPerMonth : overheadPerMonth * 12).toLocaleString()}
-                <Text style={styles.darkBigUnit}> /{calcOverheadPeriod === 'monthly' ? 'mo' : 'yr'}</Text>
-              </Text>
-              <View style={[styles.periodToggle, { marginVertical: 12 }]}>
-                <TouchableOpacity
-                  style={[styles.darkPeriodTab, calcOverheadPeriod === 'monthly' && styles.darkPeriodTabActive]}
-                  onPress={() => setCalcOverheadPeriod('monthly')}
-                >
-                  <Text style={[styles.darkPeriodText, calcOverheadPeriod === 'monthly' && styles.darkPeriodTextActive]}>Monthly</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.darkPeriodTab, calcOverheadPeriod === 'yearly' && styles.darkPeriodTabActive]}
-                  onPress={() => setCalcOverheadPeriod('yearly')}
-                >
-                  <Text style={[styles.darkPeriodText, calcOverheadPeriod === 'yearly' && styles.darkPeriodTextActive]}>Yearly</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Sub-tabs */}
-              <View style={styles.subTabRow}>
-                <TouchableOpacity
-                  style={[styles.subTab, rateTab === 'expenses' && styles.subTabActive]}
-                  onPress={() => setRateTab('expenses')}
-                >
-                  <Building size={14} color={rateTab === 'expenses' ? '#1F2937' : '#9CA3AF'} />
-                  <Text style={[styles.subTabText, rateTab === 'expenses' && styles.subTabTextActive]}>Expenses</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.subTab, rateTab === 'calculator' && styles.subTabActive]}
-                  onPress={() => setRateTab('calculator')}
-                >
-                  <Grid3X3 size={14} color={rateTab === 'calculator' ? '#1F2937' : '#9CA3AF'} />
-                  <Text style={[styles.subTabText, rateTab === 'calculator' && styles.subTabTextActive]}>Rate Calculator</Text>
-                </TouchableOpacity>
-              </View>
-
-              {rateTab === 'expenses' ? (
-                <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <Text style={styles.darkSectionTitle}>All Overhead Expenses</Text>
-                    <TouchableOpacity
-                      style={styles.addBtn}
-                      onPress={() => router.push('/(tabs)/expenses?companyExpense=true' as any)}
-                    >
-                      <Plus size={14} color="#FFFFFF" />
-                      <Text style={styles.addBtnText}>Add</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {overheadExpenses.length === 0 ? (
-                    <View style={styles.darkEmpty}>
-                      <Building size={48} color="#6B7280" />
-                      <Text style={styles.darkEmptyTitle}>No Overhead Expenses Yet</Text>
-                      <Text style={styles.darkEmptyDesc}>
-                        Add your business expenses like rent, insurance, vehicle payments, and more to calculate your ideal hourly rate.
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.addFirstBtn}
-                        onPress={() => router.push('/(tabs)/expenses?companyExpense=true' as any)}
-                      >
-                        <Plus size={16} color="#FFFFFF" />
-                        <Text style={styles.addFirstBtnText}>Add First Expense</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    overheadExpenses.map(e => (
-                      <View key={e.id} style={styles.darkExpenseRow}>
-                        <Text style={styles.darkExpenseCat}>{e.subcategory || e.type}</Text>
-                        <Text style={styles.darkExpenseAmount}>{fmt(e.amount)}</Text>
-                      </View>
-                    ))
-                  )}
-                </View>
-              ) : (
-                <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
-                  {/* Rate Hero */}
-                  <View style={styles.rateHero}>
-                    <TrendingUp size={20} color="#10B981" />
-                    <Text style={styles.rateHeroLabel}>Recommended Hourly Rate</Text>
-                    <Text style={styles.rateHeroValue}>{fmtDec(recommendedRate)}</Text>
-                    <Text style={styles.rateHeroSub}>per billable hour</Text>
-                  </View>
-
-                  {/* Daily / Weekly / Yearly */}
-                  <View style={styles.rateBreakdownRow}>
-                    <View style={styles.rateBreakdownItem}>
-                      <Text style={styles.rateBreakdownValue}>{fmt(Math.round(dailyRate))}</Text>
-                      <Text style={styles.rateBreakdownLabel}>Daily</Text>
-                    </View>
-                    <View style={styles.rateBreakdownDivider} />
-                    <View style={styles.rateBreakdownItem}>
-                      <Text style={styles.rateBreakdownValue}>{fmt(Math.round(weeklyRate))}</Text>
-                      <Text style={styles.rateBreakdownLabel}>Weekly</Text>
-                    </View>
-                    <View style={styles.rateBreakdownDivider} />
-                    <View style={styles.rateBreakdownItem}>
-                      <Text style={styles.rateBreakdownValue}>{fmt(Math.round(yearlyRate))}</Text>
-                      <Text style={styles.rateBreakdownLabel}>Yearly</Text>
-                    </View>
-                  </View>
-
-                  {/* How it's calculated */}
-                  <View style={styles.calcCard}>
-                    <Text style={styles.calcCardTitle}>How it's calculated</Text>
-                    <View style={styles.calcRow}>
-                      <View style={[styles.calcDot, { backgroundColor: '#2563EB' }]} />
-                      <Text style={styles.calcLabel}>Desired Salary</Text>
-                      <Text style={styles.calcValue}>{fmt(settings.desiredSalary)}</Text>
-                    </View>
-                    <Text style={styles.calcOperator}>+</Text>
-                    <View style={styles.calcRow}>
-                      <View style={[styles.calcDot, { backgroundColor: '#EF4444' }]} />
-                      <Text style={styles.calcLabel}>Annual Overhead</Text>
-                      <Text style={styles.calcValue}>{fmt(Math.round(overheadPerMonth * 12))}</Text>
-                    </View>
-                    <Text style={styles.calcOperator}>=</Text>
-                    <View style={styles.calcRow}>
-                      <View style={[styles.calcDot, { backgroundColor: '#F59E0B' }]} />
-                      <Text style={styles.calcLabel}>Total Annual Cost</Text>
-                      <Text style={styles.calcValue}>{fmt(Math.round(settings.desiredSalary + overheadPerMonth * 12))}</Text>
-                    </View>
-                    <Text style={styles.calcOperator}>÷</Text>
-                    <View style={styles.calcRow}>
-                      <View style={[styles.calcDot, { backgroundColor: '#3B82F6' }]} />
-                      <Text style={styles.calcLabel}>Billable Hours/Year</Text>
-                      <Text style={styles.calcValue}>{(settings.billableHoursPerWeek * settings.workingWeeksPerYear).toLocaleString()}</Text>
-                    </View>
-                    <Text style={styles.calcOperator}>→</Text>
-                    <View style={styles.calcRow}>
-                      <View style={[styles.calcDot, { backgroundColor: '#10B981' }]} />
-                      <Text style={[styles.calcLabel, { color: '#10B981' }]}>+ {settings.profitMargin}% Profit Margin</Text>
-                      <Text style={[styles.calcValue, { color: '#10B981' }]}>{fmtDec(recommendedRate)}/hr</Text>
-                    </View>
-                  </View>
-
-                  {/* Your Settings */}
-                  <View style={styles.settingsCard}>
-                    <Text style={styles.settingsTitle}>Your Settings</Text>
-                    <Text style={styles.settingsLabel}>Desired Annual Salary ($)</Text>
-                    <TextInput
-                      style={styles.settingsInput}
-                      value={settingsInputs.desiredSalary}
-                      onChangeText={v => setSettingsInputs(p => ({ ...p, desiredSalary: v }))}
-                      keyboardType="numeric"
-                      placeholderTextColor="#6B7280"
-                    />
-                    <Text style={styles.settingsLabel}>Billable Hours per Week</Text>
-                    <TextInput
-                      style={styles.settingsInput}
-                      value={settingsInputs.billableHoursPerWeek}
-                      onChangeText={v => setSettingsInputs(p => ({ ...p, billableHoursPerWeek: v }))}
-                      keyboardType="numeric"
-                      placeholderTextColor="#6B7280"
-                    />
-                    <Text style={styles.settingsLabel}>Working Weeks per Year</Text>
-                    <TextInput
-                      style={styles.settingsInput}
-                      value={settingsInputs.workingWeeksPerYear}
-                      onChangeText={v => setSettingsInputs(p => ({ ...p, workingWeeksPerYear: v }))}
-                      keyboardType="numeric"
-                      placeholderTextColor="#6B7280"
-                    />
-                    <Text style={styles.settingsLabel}>Profit Margin (%)</Text>
-                    <TextInput
-                      style={styles.settingsInput}
-                      value={settingsInputs.profitMargin}
-                      onChangeText={v => setSettingsInputs(p => ({ ...p, profitMargin: v }))}
-                      keyboardType="numeric"
-                      placeholderTextColor="#6B7280"
-                    />
-                    <TouchableOpacity style={styles.saveSettingsBtn} onPress={saveSettings}>
-                      <Text style={styles.saveSettingsBtnText}>Save Settings</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
+          <View style={styles.accordionHeader}>
+            <Grid3X3 size={22} color="#7C3AED" style={{ marginRight: 12 }} />
+            <Text style={styles.accordionTitle}>Overhead & Rate Calculator</Text>
+            <TouchableOpacity
+              style={styles.openBtn}
+              onPress={() => router.push('/rate-calculator' as any)}
+            >
+              <Text style={styles.openBtnText}>Open</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={{ height: insets.bottom + 40 }} />
@@ -815,148 +599,12 @@ const styles = StyleSheet.create({
   recentEntryAmount: { fontSize: 14, fontWeight: '700', color: '#EF4444' },
   recentEntryDate: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
 
-  // Dark section (Rate Calculator)
-  darkSection: { backgroundColor: '#1E293B', borderBottomLeftRadius: 12, borderBottomRightRadius: 12, paddingTop: 20 },
-  darkLabel: { fontSize: 12, color: '#94A3B8', letterSpacing: 1, paddingHorizontal: 16 },
-  darkBigValue: { fontSize: 36, fontWeight: '700', color: '#FFFFFF', paddingHorizontal: 16, marginTop: 4 },
-  darkBigUnit: { fontSize: 16, fontWeight: '400', color: '#94A3B8' },
-
-  darkPeriodTab: {
-    flex: 1,
-    paddingVertical: 8,
+  // Open button
+  openBtn: {
+    backgroundColor: '#7C3AED',
     borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  darkPeriodTabActive: { backgroundColor: '#334155' },
-  darkPeriodText: { fontSize: 13, color: '#94A3B8', fontWeight: '500' },
-  darkPeriodTextActive: { color: '#FFFFFF' },
-
-  subTabRow: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginBottom: 20,
-    backgroundColor: '#334155',
-    borderRadius: 10,
-    padding: 3,
-  },
-  subTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-  },
-  subTabActive: { backgroundColor: '#FFFFFF' },
-  subTabText: { fontSize: 13, fontWeight: '500', color: '#9CA3AF' },
-  subTabTextActive: { color: '#1F2937', fontWeight: '600' },
-
-  darkSectionTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3B82F6',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    gap: 4,
-  },
-  addBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
-
-  darkEmpty: { alignItems: 'center', paddingVertical: 40 },
-  darkEmptyTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', marginTop: 16 },
-  darkEmptyDesc: { fontSize: 14, color: '#94A3B8', textAlign: 'center', marginTop: 8, paddingHorizontal: 20, lineHeight: 20 },
-  addFirstBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3B82F6',
-    borderRadius: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 8,
-    marginTop: 20,
-  },
-  addFirstBtnText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
-
-  darkExpenseRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#334155',
-  },
-  darkExpenseCat: { fontSize: 14, color: '#CBD5E1' },
-  darkExpenseAmount: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
-
-  // Rate hero
-  rateHero: {
-    backgroundColor: '#334155',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  rateHeroLabel: { fontSize: 13, color: '#10B981', fontWeight: '600', marginTop: 8 },
-  rateHeroValue: { fontSize: 42, fontWeight: '700', color: '#FFFFFF', marginTop: 4 },
-  rateHeroSub: { fontSize: 14, color: '#94A3B8', marginTop: 2 },
-
-  rateBreakdownRow: {
-    flexDirection: 'row',
-    backgroundColor: '#334155',
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginBottom: 16,
-  },
-  rateBreakdownItem: { flex: 1, alignItems: 'center' },
-  rateBreakdownValue: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-  rateBreakdownLabel: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
-  rateBreakdownDivider: { width: 1, backgroundColor: '#475569' },
-
-  // Calc card
-  calcCard: {
-    backgroundColor: '#334155',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-  },
-  calcCardTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', marginBottom: 16 },
-  calcRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#475569',
-  },
-  calcDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  calcLabel: { flex: 1, fontSize: 13, color: '#CBD5E1' },
-  calcValue: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
-  calcOperator: { fontSize: 14, color: '#64748B', textAlign: 'center', paddingVertical: 4 },
-
-  // Settings
-  settingsCard: {
-    backgroundColor: '#334155',
-    borderRadius: 12,
-    padding: 20,
-  },
-  settingsTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', marginBottom: 16 },
-  settingsLabel: { fontSize: 13, color: '#94A3B8', marginBottom: 6, marginTop: 12 },
-  settingsInput: {
-    backgroundColor: '#1E293B',
-    borderRadius: 8,
-    paddingVertical: 12,
     paddingHorizontal: 16,
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    paddingVertical: 8,
   },
-  saveSettingsBtn: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  saveSettingsBtnText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  openBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
 });
