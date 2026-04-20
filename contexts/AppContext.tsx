@@ -1508,6 +1508,31 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     };
   }, [user?.id]);
 
+  // ─── Realtime: company users sync ─────────────────────────────────────────────
+  // Listens for role changes, new team members, etc. so salesperson list updates
+  // instantly without reopening the app.
+  useEffect(() => {
+    if (!company?.id) return;
+
+    const channel = supabase
+      .channel(`company-users:${company.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'users', filter: `company_id=eq.${company.id}` }, (payload) => {
+        const incoming = mapUser(payload.new);
+        setCompanyUsers(prev => prev.some(u => u.id === incoming.id) ? prev : [...prev, incoming]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `company_id=eq.${company.id}` }, (payload) => {
+        const updated = mapUser(payload.new);
+        setCompanyUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'users', filter: `company_id=eq.${company.id}` }, (payload) => {
+        const deletedId = (payload.old as any)?.id;
+        if (deletedId) setCompanyUsers(prev => prev.filter(u => u.id !== deletedId));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [company?.id]);
+
   // ─── Realtime: clock entry sync ──────────────────────────────────────────────
   // Listens for INSERT (clock-in) and UPDATE (clock-out, lunch) on clock_entries
   // scoped to this company so the admin sees live worker status without polling.
