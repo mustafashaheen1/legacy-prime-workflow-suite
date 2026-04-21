@@ -2,7 +2,6 @@ import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platfo
 import { useApp } from '@/contexts/AppContext';
 import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, AlertTriangle, Camera, MoreHorizontal, Pencil, PauseCircle, PlayCircle, Coffee } from 'lucide-react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -1411,21 +1410,7 @@ export default function DashboardScreen() {
                   }}
                   activeOpacity={0.92}
                 >
-                  {/* Full-bleed background image */}
-                  <Image
-                    source={{ uri: project.image }}
-                    style={StyleSheet.absoluteFill}
-                    contentFit="cover"
-                  />
-
-                  {/* Gradient overlay — bottom-heavy dark fade */}
-                  <LinearGradient
-                    colors={['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.28)', 'rgba(0,0,0,0.80)']}
-                    locations={[0, 0.4, 1]}
-                    style={StyleSheet.absoluteFill}
-                  />
-
-                  {/* TOP ROW: badges left, menu/checkbox right */}
+                  {/* TOP: badges + menu/checkbox */}
                   <View style={styles.cardTopRow}>
                     <View style={styles.cardBadges}>
                       {(!project.contractAmount || project.contractAmount === 0) && (
@@ -1442,7 +1427,7 @@ export default function DashboardScreen() {
                       )}
                       {project.status === 'completed' && (
                         <View style={styles.cardBadgeDone}>
-                          <Text style={[styles.cardBadgeText, { color: '#059669' }]}>✓ Completed</Text>
+                          <Text style={[styles.cardBadgeText, { color: '#059669' }]}>Completed</Text>
                         </View>
                       )}
                     </View>
@@ -1463,20 +1448,27 @@ export default function DashboardScreen() {
                           setShowProjectActionsModal(true);
                         }}
                       >
-                        <MoreHorizontal size={16} color="#FFFFFF" />
+                        <MoreHorizontal size={16} color="rgba(255,255,255,0.85)" />
                       </TouchableOpacity>
                     )}
                   </View>
 
-                  {/* BOTTOM CONTENT: name, budget, avatars */}
+                  {/* Project name + budget */}
+                  <Text style={styles.projectName} numberOfLines={1}>{project.name}</Text>
+                  <Text style={styles.cardBudgetText}>Budget: ${project.budget.toLocaleString()}</Text>
+
+                  {/* Embedded cover photo */}
+                  <View style={styles.cardPhotoWrap}>
+                    <Image
+                      source={{ uri: project.image }}
+                      style={styles.cardPhoto}
+                      contentFit="cover"
+                    />
+                  </View>
+
+                  {/* Bottom: avatars + on site */}
                   <View style={styles.cardBottom}>
-                    <Text style={styles.projectName} numberOfLines={2}>{project.name}</Text>
-
-                    {/* Budget */}
-                    <Text style={styles.cardBudgetText}>${project.budget.toLocaleString()}</Text>
-
-                    {/* Clocked-in avatars */}
-                    {activeEntries.length > 0 && (
+                    {activeEntries.length > 0 ? (
                       <View style={styles.cardAvatarRow}>
                         {visibleAvatars.map((entry, idx) => {
                           const userData = usersMap.get(entry.employeeId);
@@ -1501,10 +1493,12 @@ export default function DashboardScreen() {
                                   <Text style={styles.cardAvatarInitials}>{initials}</Text>
                                 )}
                               </View>
-                              {onLunch && (
+                              {onLunch ? (
                                 <View style={styles.cardLunchBadge}>
                                   <Coffee size={8} color="#FFFFFF" />
                                 </View>
+                              ) : (
+                                <View style={styles.cardOnlineDot} />
                               )}
                             </View>
                           );
@@ -1514,10 +1508,11 @@ export default function DashboardScreen() {
                             <Text style={styles.cardAvatarExtraText}>+{extraCount}</Text>
                           </View>
                         )}
-                        <View style={styles.cardLivePill}>
-                          <View style={styles.cardLiveDot} />
-                          <Text style={styles.cardLiveText}>{activeEntries.length} live</Text>
-                        </View>
+                        <Text style={styles.cardOnSiteText}>{activeEntries.length} on site</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.cardAvatarRow}>
+                        <Text style={styles.cardNoWorkers}>No workers on site</Text>
                       </View>
                     )}
                   </View>
@@ -1532,6 +1527,7 @@ export default function DashboardScreen() {
           clockEntries={clockEntries}
           hoursWorked={hoursWorkedThisMonth}
           onDetails={() => router.push('/business-costs' as any)}
+          usersMap={usersMap}
         />
 
         <View style={styles.statsContainer}>
@@ -2720,7 +2716,7 @@ const styles = StyleSheet.create({
   },
 
   projectsCarouselContainer: {
-    height: 272,
+    height: 292,
   },
   projectsCarouselWeb: {
     // @ts-ignore - Web-only CSS properties
@@ -2769,12 +2765,13 @@ const styles = StyleSheet.create({
   projectCard: {
     width: 247,
     borderRadius: 20,
-    height: 240,
-    position: 'relative' as const,
-    overflow: 'hidden',
-    shadowColor: '#000',
+    height: 260,
+    backgroundColor: '#3366FF',
+    overflow: 'hidden' as const,
+    padding: 14,
+    shadowColor: '#1a3dcc',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
+    shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 10,
   },
@@ -2787,14 +2784,10 @@ const styles = StyleSheet.create({
   },
   // card layout
   cardTopRow: {
-    position: 'absolute' as const,
-    top: 12,
-    left: 12,
-    right: 12,
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
     alignItems: 'flex-start' as const,
-    zIndex: 10,
+    marginBottom: 6,
   },
   cardBadges: {
     flexDirection: 'row' as const,
@@ -2807,68 +2800,65 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 4,
-    backgroundColor: 'rgba(255,247,237,0.93)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: '#FED7AA',
   },
   cardBadgeHold: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 4,
-    backgroundColor: 'rgba(255,243,199,0.93)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: '#FCD34D',
   },
   cardBadgeDone: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 4,
-    backgroundColor: 'rgba(240,253,244,0.93)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: '#6EE7B7',
   },
   cardBadgeText: {
     fontSize: 10,
     fontWeight: '700' as const,
-    color: '#F97316',
+    color: '#FFFFFF',
   },
   cardMoreBtn: {
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 14,
     padding: 5,
   },
+  cardPhotoWrap: {
+    borderRadius: 12,
+    overflow: 'hidden' as const,
+    flex: 1,
+    marginBottom: 10,
+  },
+  cardPhoto: {
+    width: '100%' as const,
+    height: '100%' as const,
+    borderRadius: 12,
+  },
   cardBottom: {
-    position: 'absolute' as const,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 14,
-    paddingTop: 18,
+    marginTop: 'auto' as any,
   },
   projectName: {
     fontSize: 16,
     fontWeight: '700' as const,
     color: '#FFFFFF',
-    marginBottom: 8,
-    lineHeight: 22,
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    marginBottom: 2,
+    lineHeight: 20,
   },
   cardBudgetText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: 'rgba(255,255,255,0.9)',
-    marginBottom: 10,
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: 'rgba(255,255,255,0.75)',
+    marginBottom: 8,
   },
   cardAvatarRow: {
     flexDirection: 'row' as const,
@@ -2878,12 +2868,12 @@ const styles = StyleSheet.create({
     position: 'relative' as const,
   },
   cardAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#3B82F6',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#5B8DEF',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.85)',
+    borderColor: '#3366FF',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     overflow: 'hidden' as const,
@@ -2903,12 +2893,24 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.3)',
+    borderColor: '#3366FF',
+    zIndex: 5,
+  },
+  cardOnlineDot: {
+    position: 'absolute' as const,
+    bottom: -1,
+    right: -1,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#3366FF',
     zIndex: 5,
   },
   cardAvatarImg: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
   },
   cardAvatarInitials: {
     fontSize: 10,
@@ -2923,38 +2925,16 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#FFFFFF',
   },
-  cardLivePill: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    backgroundColor: 'rgba(16,185,129,0.2)',
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    marginLeft: 8,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(16,185,129,0.4)',
-  },
-  cardLiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  cardLiveText: {
+  cardOnSiteText: {
     fontSize: 11,
-    fontWeight: '700' as const,
-    color: '#10B981',
-  },
-  // keep legacy - may be referenced elsewhere
-  projectCardContent: {
-    padding: 14,
-    paddingBottom: 8,
-  },
-  projectBudget: {
-    fontSize: 13,
+    fontWeight: '600' as const,
     color: 'rgba(255,255,255,0.85)',
-    marginBottom: 0,
+    marginLeft: 8,
+  },
+  cardNoWorkers: {
+    fontSize: 11,
+    fontWeight: '500' as const,
+    color: 'rgba(255,255,255,0.5)',
   },
   projectImage: {
     width: '100%',
