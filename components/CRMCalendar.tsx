@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ChevronLeft, ChevronRight, MapPin, Plus } from 'lucide-react-native';
-import { Appointment, Client } from '@/types';
+import { ChevronLeft, ChevronRight, Clock, MapPin, Plus, Trash2, User, Building2 } from 'lucide-react-native';
+import { Appointment, Client, Project } from '@/types';
 
 interface Props {
   appointments: Appointment[];
   clients: Client[];
+  projects?: Project[];
   onAddAppointment: (date: string, time?: string) => void;
   onEditAppointment: (appointment: Appointment) => void;
+  onDeleteAppointment?: (id: string) => void;
+  onUpdateAppointment?: (id: string, updates: Partial<Appointment>) => void;
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -60,7 +63,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> 
   'Other': { bg: '#F3F4F6', text: '#6B7280', border: '#E5E7EB' },
 };
 
-export default function CRMCalendar({ appointments, clients, onAddAppointment, onEditAppointment }: Props) {
+export default function CRMCalendar({ appointments, clients, projects = [], onAddAppointment, onEditAppointment, onDeleteAppointment, onUpdateAppointment }: Props) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -120,35 +123,97 @@ export default function CRMCalendar({ appointments, clients, onAddAppointment, o
 
   const unscheduledAppts = selectedAppts.filter(a => getApptHour(a) === null);
 
+  const selectedProject = (appt: Appointment) => projects.find(p => p.id === appt.projectId);
+
   const renderApptCard = (appt: Appointment) => {
     const client = selectedClient(appt);
+    const project = selectedProject(appt);
     const typeColor = TYPE_COLORS[appt.type ?? 'Other'] ?? TYPE_COLORS['Other'];
+    const timeRange = appt.time
+      ? appt.endTime
+        ? `${formatTime12(appt.time)} - ${formatTime12(appt.endTime)}`
+        : formatTime12(appt.time)
+      : null;
+
     return (
-      <TouchableOpacity key={appt.id} style={styles.blockApptRow} onPress={() => onEditAppointment(appt)} activeOpacity={0.7}>
+      <TouchableOpacity key={appt.id} style={[styles.blockApptRow, { backgroundColor: typeColor.bg }]} onPress={() => onEditAppointment(appt)} activeOpacity={0.7}>
         <View style={[styles.blockApptBar, { backgroundColor: typeColor.text }]} />
         <View style={styles.blockApptInfo}>
-          <Text style={styles.blockApptTime}>{appt.time ? formatTime12(appt.time) : '—'}</Text>
+          {/* Type badge */}
+          {appt.type && (
+            <View style={[styles.blockApptTypeBadge, { backgroundColor: typeColor.text }]}>
+              <Text style={styles.blockApptTypeBadgeText}>{appt.type}</Text>
+            </View>
+          )}
+          {/* Title */}
           <Text style={styles.blockApptTitle} numberOfLines={1}>{appt.title}</Text>
-          {client && <Text style={styles.blockApptClient} numberOfLines={1}>{client.name}</Text>}
+          {/* Time range */}
+          {timeRange && (
+            <View style={styles.blockApptDetailRow}>
+              <Clock size={13} color="#6B7280" />
+              <Text style={styles.blockApptDetailText}>{timeRange}</Text>
+            </View>
+          )}
+          {/* Client */}
+          {client && (
+            <View style={styles.blockApptDetailRow}>
+              <User size={13} color="#6B7280" />
+              <Text style={styles.blockApptDetailText}>{client.name}</Text>
+            </View>
+          )}
+          {/* Project */}
+          {project && (
+            <View style={styles.blockApptDetailRow}>
+              <Building2 size={13} color="#6B7280" />
+              <Text style={styles.blockApptDetailText}>{project.name}</Text>
+            </View>
+          )}
+          {/* Address */}
           {appt.address ? (
             <TouchableOpacity
-              style={styles.blockApptAddressRow}
+              style={styles.blockApptDetailRow}
               onPress={(e) => {
                 e.stopPropagation?.();
                 Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(appt.address!)}`);
               }}
               activeOpacity={0.6}
             >
-              <MapPin size={12} color="#2563EB" />
-              <Text style={styles.blockApptAddress} numberOfLines={1}>{appt.address}</Text>
+              <MapPin size={13} color="#2563EB" />
+              <Text style={styles.blockApptAddress}>{appt.address}</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
-        {appt.type && (
-          <View style={[styles.blockApptTypeBadge, { backgroundColor: typeColor.bg, borderColor: typeColor.border }]}>
-            <Text style={[styles.blockApptTypeBadgeText, { color: typeColor.text }]}>{appt.type}</Text>
+          {/* Action buttons */}
+          <View style={styles.blockApptActions}>
+            <View style={styles.blockApptActionsLeft}>
+              {onUpdateAppointment && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.blockApptActionBtn, { backgroundColor: typeColor.text }]}
+                    onPress={(e) => { e.stopPropagation?.(); onUpdateAppointment(appt.id, { status: 'completed' } as any); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.blockApptActionBtnText}>Complete</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); onUpdateAppointment(appt.id, { status: 'cancelled' } as any); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.blockApptCancelText, { color: typeColor.text }]}>Cancel</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+            {onDeleteAppointment && (
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation?.(); onDeleteAppointment(appt.id); }}
+                activeOpacity={0.6}
+                style={styles.blockApptTrashBtn}
+              >
+                <Trash2 size={16} color="#EF4444" />
+              </TouchableOpacity>
+            )}
           </View>
-        )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -493,61 +558,78 @@ const styles = StyleSheet.create({
   // Block appointment cards
   blockApptRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FFFFFF',
+    alignItems: 'stretch',
     borderRadius: 10,
-    padding: 12,
+    overflow: 'hidden',
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   blockApptBar: {
-    width: 3,
-    borderRadius: 2,
+    width: 4,
     alignSelf: 'stretch',
-    marginRight: 10,
-    minHeight: 32,
   },
   blockApptInfo: {
     flex: 1,
-  },
-  blockApptTime: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '600',
-    marginBottom: 2,
+    padding: 12,
   },
   blockApptTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: '#1F2937',
+    marginBottom: 4,
   },
-  blockApptClient: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  blockApptAddressRow: {
+  blockApptDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     marginTop: 3,
   },
+  blockApptDetailText: {
+    fontSize: 13,
+    color: '#4B5563',
+  },
   blockApptAddress: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#2563EB',
     textDecorationLine: 'underline',
   },
+  blockApptActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  blockApptActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  blockApptActionBtn: {
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  blockApptActionBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  blockApptCancelText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  blockApptTrashBtn: {
+    padding: 4,
+  },
   blockApptTypeBadge: {
-    borderWidth: 1,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
     alignSelf: 'flex-start',
-    marginLeft: 8,
+    marginBottom: 6,
   },
   blockApptTypeBadgeText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

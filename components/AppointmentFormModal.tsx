@@ -28,11 +28,12 @@ interface Props {
   initial?: Appointment;
   clients: Client[];
   projects: Project[];
+  appointments?: Appointment[];
   companyId: string;
   createdBy?: string;
 }
 
-export default function AppointmentFormModal({ visible, onClose, onSave, onDelete, initial, clients, projects, companyId, createdBy }: Props) {
+export default function AppointmentFormModal({ visible, onClose, onSave, onDelete, initial, clients, projects, appointments = [], companyId, createdBy }: Props) {
   const [title, setTitle] = useState('');
   const [type, setType] = useState<Appointment['type']>(undefined);
   const [date, setDate] = useState('');
@@ -90,6 +91,21 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
     if (time && endTime) {
       if (time === endTime) { setTimeError('Start and end time cannot be the same'); errors.push('Start and end time cannot be the same'); }
       else if (time > endTime) { setTimeError('End time must be after start time'); errors.push('End time must be after start time'); }
+      else {
+        // Check for time conflict with existing appointments on the same date
+        const conflict = appointments.find(a => {
+          if (a.id === initial?.id) return false; // skip self when editing
+          if (a.date !== date.trim()) return false;
+          if (!a.time || !a.endTime) return false;
+          // Overlap: newStart < existingEnd AND newEnd > existingStart
+          return time < a.endTime && endTime > a.time;
+        });
+        if (conflict) {
+          const conflictRange = `${formatTime12(conflict.time!)} - ${formatTime12(conflict.endTime!)}`;
+          setTimeError(`Time conflicts with "${conflict.title}" (${conflictRange})`);
+          errors.push(`This time slot overlaps with "${conflict.title}" (${conflictRange})`);
+        }
+      }
     } else if (time && !endTime) {
       setTimeError('Please select an end time'); errors.push('Please select an end time');
     } else if (!time && endTime) {

@@ -383,6 +383,7 @@ export default function CRMScreen() {
   const [appointmentFormDate, setAppointmentFormDate] = useState<string>('');
   const [appointmentFormTime, setAppointmentFormTime] = useState<string>('');
   const [showApptSuccessModal, setShowApptSuccessModal] = useState<boolean>(false);
+  const [apptSuccessMessage, setApptSuccessMessage] = useState<string>('Appointment created!');
   const [editingAppointment, setEditingAppointment] = useState<import('@/types').Appointment | undefined>();
 
   const salespersons = companyUsers.filter(u => u.role === 'salesperson');
@@ -1565,6 +1566,7 @@ export default function CRMScreen() {
               <CRMCalendar
                 appointments={appointments}
                 clients={clients}
+                projects={projects}
                 onAddAppointment={(date, time) => {
                   setAppointmentFormDate(date);
                   setAppointmentFormTime(time || '');
@@ -1575,6 +1577,8 @@ export default function CRMScreen() {
                   setEditingAppointment(appt);
                   setAppointmentFormVisible(true);
                 }}
+                onDeleteAppointment={(id) => deleteAppointment(id)}
+                onUpdateAppointment={(id, updates) => updateAppointment(id, updates)}
               />
             )}
           </View>
@@ -4181,6 +4185,34 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
             await updateAppointment(editingAppointment.id, data);
           } else {
             await addAppointment(data);
+            // Auto-add client to CRM if email is provided and no existing client selected
+            if (data.email && !data.clientId) {
+              const existingClient = clients.find(c => c.email.toLowerCase() === data.email!.toLowerCase());
+              if (!existingClient) {
+                const { generateUUID } = await import('@/utils/uuid');
+                const newClient: import('@/types').Client = {
+                  id: generateUUID(),
+                  name: data.title || data.email,
+                  email: data.email,
+                  phone: data.phone || '',
+                  address: data.address || '',
+                  source: 'Phone Call',
+                  status: 'Lead',
+                  lastContacted: new Date().toISOString().split('T')[0],
+                  lastContactDate: new Date().toISOString(),
+                };
+                try {
+                  await addClient(newClient);
+                  setApptSuccessMessage('Appointment created!\nClient added to CRM automatically.');
+                } catch {
+                  setApptSuccessMessage('Appointment created!');
+                }
+              } else {
+                setApptSuccessMessage('Appointment created!');
+              }
+            } else {
+              setApptSuccessMessage('Appointment created!');
+            }
             setShowApptSuccessModal(true);
           }
         }}
@@ -4192,6 +4224,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         initial={editingAppointment ?? (appointmentFormDate ? { id: '', companyId: company?.id ?? '', title: '', date: appointmentFormDate, time: appointmentFormTime || undefined } as import('@/types').Appointment : undefined)}
         clients={clients}
         projects={projects}
+        appointments={appointments}
         companyId={company?.id ?? ''}
         createdBy={user?.id}
       />
@@ -4201,7 +4234,7 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
         <View style={styles.successModalOverlay}>
           <View style={styles.successModalCard}>
             <Text style={styles.successModalTitle}>Success</Text>
-            <Text style={styles.successModalMessage}>Appointment created!</Text>
+            <Text style={styles.successModalMessage}>{apptSuccessMessage}</Text>
             <View style={styles.successModalDivider} />
             <TouchableOpacity style={styles.successModalBtn} onPress={() => setShowApptSuccessModal(false)}>
               <Text style={styles.successModalBtnText}>OK</Text>
