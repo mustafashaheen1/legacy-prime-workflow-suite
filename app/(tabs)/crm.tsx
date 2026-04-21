@@ -2535,7 +2535,7 @@ export default function CRMScreen() {
         >
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { overflow: 'hidden' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {messageType === 'email' ? 'Send Email' : 'Send SMS'}
@@ -2545,10 +2545,11 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
 
+            <ScrollView showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag" style={{ flex: 1 }}>
             <View style={styles.recipientInfo}>
               <Text style={styles.recipientLabel}>Recipients:</Text>
               <Text style={styles.recipientText}>
-                {singleRecipient 
+                {singleRecipient
                   ? clients.find(c => c.id === singleRecipient)?.name
                   : `${selectedClients.size} client${selectedClients.size > 1 ? 's' : ''} selected`}
               </Text>
@@ -2595,7 +2596,7 @@ export default function CRMScreen() {
             <View style={styles.attachmentSection}>
               <View style={styles.attachmentHeader}>
                 <Text style={styles.attachmentLabel}>Attachments</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.addAttachmentButton}
                   onPress={pickDocument}
                 >
@@ -2603,7 +2604,7 @@ export default function CRMScreen() {
                   <Text style={styles.addAttachmentText}>Add Files</Text>
                 </TouchableOpacity>
               </View>
-              
+
               {attachments.length > 0 && (
                 <View style={styles.attachmentList}>
                   {attachments.map((attachment, index) => (
@@ -2612,7 +2613,7 @@ export default function CRMScreen() {
                       <Text style={styles.attachmentName} numberOfLines={1}>
                         {attachment.name}
                       </Text>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         onPress={() => removeAttachment(index)}
                         style={styles.removeAttachment}
                       >
@@ -2637,15 +2638,16 @@ export default function CRMScreen() {
                 ⚠️ Note: SMS typically doesn&apos;t support file attachments. Consider using email instead.
               </Text>
             )}
+            </ScrollView>
 
             <View style={styles.modalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setShowMessageModal(false)}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.sendButton}
                 onPress={sendMessage}
               >
