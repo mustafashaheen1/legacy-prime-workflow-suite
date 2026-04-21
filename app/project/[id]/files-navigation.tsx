@@ -442,9 +442,7 @@ export default function FilesNavigationScreen() {
         }
 
         try {
-          const apiUrl = Platform.OS === 'web' && typeof window !== 'undefined'
-            ? window.location.origin
-            : process.env.EXPO_PUBLIC_API_URL || '';
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
           console.log('[Files] Getting presigned URL for:', asset.name);
 
