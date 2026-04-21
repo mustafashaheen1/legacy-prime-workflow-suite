@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function Section({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
   return (
@@ -52,11 +53,12 @@ function DataRow({ category, examples, source }: { category: string; examples: s
 }
 
 export default function PrivacyScreen() {
+  const insets = useSafeAreaInsets();
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
         <View style={styles.headerInner}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <ArrowLeft size={22} color="#1E3A5F" />

@@ -376,12 +376,7 @@ export default function FilesNavigationScreen() {
       quality: 1,
     });
     if (!result.canceled) {
-      setIsUploading(true);
-      try {
-        await uploadPhotoToS3AndSave(result.assets[0].uri);
-      } finally {
-        setIsUploading(false);
-      }
+      await uploadPhotoToS3AndSave(result.assets[0].uri);
     }
   };
 
@@ -402,12 +397,7 @@ export default function FilesNavigationScreen() {
       quality: 1,
     });
     if (!result.canceled) {
-      setIsUploading(true);
-      try {
-        await uploadPhotoToS3AndSave(result.assets[0].uri);
-      } finally {
-        setIsUploading(false);
-      }
+      await uploadPhotoToS3AndSave(result.assets[0].uri);
     }
   };
 
@@ -1162,15 +1152,17 @@ export default function FilesNavigationScreen() {
                 {selectedFolder === 'photos' ? (
                   <>
                     <TouchableOpacity
-                      style={styles.modalActionButton}
+                      style={[styles.modalActionButton, (!selectedCategory && !modalCategory.trim()) && styles.modalActionButtonDisabled]}
                       onPress={handleTakePhoto}
+                      disabled={!selectedCategory && !modalCategory.trim()}
                     >
                       <Camera size={20} color="#FFFFFF" />
                       <Text style={styles.modalActionButtonText}>Take Photo</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.modalActionButton}
+                      style={[styles.modalActionButton, (!selectedCategory && !modalCategory.trim()) && styles.modalActionButtonDisabled]}
                       onPress={handlePickPhoto}
+                      disabled={!selectedCategory && !modalCategory.trim()}
                     >
                       <Upload size={20} color="#FFFFFF" />
                       <Text style={styles.modalActionButtonText}>Upload Photo</Text>
@@ -1293,14 +1285,14 @@ export default function FilesNavigationScreen() {
         </Modal>
       </View>
 
-      <Modal visible={isUploading} transparent animationType="fade">
-        <View style={styles.uploadingOverlay}>
+      {isUploading && (
+        <View style={[StyleSheet.absoluteFill, styles.uploadingOverlay]} pointerEvents="auto">
           <View style={styles.uploadingCard}>
             <ActivityIndicator size="large" color="#2563EB" />
             <Text style={styles.uploadingText}>Uploading...</Text>
           </View>
         </View>
-      </Modal>
+      )}
     </>
   );
 }
@@ -1938,10 +1930,10 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   uploadingOverlay: {
-    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
+    zIndex: 9999,
   },
   uploadingCard: {
     backgroundColor: '#FFFFFF',
