@@ -52,6 +52,7 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [errorModalMessage, setErrorModalMessage] = useState('');
+  const [activeTimePicker, setActiveTimePicker] = useState<'start' | 'end' | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -71,6 +72,7 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
     setTimeError('');
     setEmailError('');
     setPhoneError('');
+    setActiveTimePicker(null);
     // Only reset when modal opens — not on `initial` reference changes,
     // which would wipe user input mid-typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,10 +217,8 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
             <Text style={styles.label}>Time <Text style={styles.optional}>(optional)</Text></Text>
             <View style={styles.timeRow}>
               <TouchableOpacity
-                style={[styles.timeDisplay, time && styles.timeDisplayActive]}
-                onPress={() => {
-                  if (!time) setTime('09:00');
-                }}
+                style={[styles.timeDisplay, time && styles.timeDisplayActive, activeTimePicker === 'start' && styles.timeDisplayFocused]}
+                onPress={() => setActiveTimePicker(activeTimePicker === 'start' ? null : 'start')}
               >
                 <Clock size={16} color={time ? '#2563EB' : '#9CA3AF'} />
                 <Text style={[styles.timeDisplayText, time && styles.timeDisplayTextActive]}>
@@ -227,18 +227,8 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
               </TouchableOpacity>
               <Text style={styles.timeSeparator}>to</Text>
               <TouchableOpacity
-                style={[styles.timeDisplay, endTime && styles.timeDisplayActive]}
-                onPress={() => {
-                  if (!endTime) {
-                    // Default to 1 hour after start
-                    if (time) {
-                      const [h, m] = time.split(':').map(Number);
-                      setEndTime(`${String(h + 1).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-                    } else {
-                      setEndTime('10:00');
-                    }
-                  }
-                }}
+                style={[styles.timeDisplay, endTime && styles.timeDisplayActive, activeTimePicker === 'end' && styles.timeDisplayFocused]}
+                onPress={() => setActiveTimePicker(activeTimePicker === 'end' ? null : 'end')}
               >
                 <Clock size={16} color={endTime ? '#2563EB' : '#9CA3AF'} />
                 <Text style={[styles.timeDisplayText, endTime && styles.timeDisplayTextActive]}>
@@ -246,32 +236,45 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
                 </Text>
               </TouchableOpacity>
               {(time || endTime) && (
-                <TouchableOpacity onPress={() => { setTime(''); setEndTime(''); }} style={styles.timeClearBtn}>
+                <TouchableOpacity onPress={() => { setTime(''); setEndTime(''); setActiveTimePicker(null); }} style={styles.timeClearBtn}>
                   <X size={14} color="#9CA3AF" />
                 </TouchableOpacity>
               )}
             </View>
-            <Text style={styles.timeChipsLabel}>Select start time:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeChipsScroll}>
-              {TIME_SLOTS.map(slot => (
-                <TouchableOpacity
-                  key={slot}
-                  style={[styles.timeChip, time === slot && styles.timeChipActive]}
-                  onPress={() => {
-                    setTime(slot);
-                    // Auto-set end time to 1 hour after
-                    const [h, m] = slot.split(':').map(Number);
-                    const endH = Math.min(h + 1, 18);
-                    setEndTime(`${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-                    if (timeError) setTimeError('');
-                  }}
-                >
-                  <Text style={[styles.timeChipText, time === slot && styles.timeChipTextActive]}>
-                    {formatTime12(slot)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            {activeTimePicker && (
+              <>
+                <Text style={styles.timeChipsLabel}>
+                  {activeTimePicker === 'start' ? 'Select start time:' : 'Select end time:'}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeChipsScroll}>
+                  {TIME_SLOTS.map(slot => {
+                    const isSelected = activeTimePicker === 'start' ? time === slot : endTime === slot;
+                    return (
+                      <TouchableOpacity
+                        key={slot}
+                        style={[styles.timeChip, isSelected && styles.timeChipActive]}
+                        onPress={() => {
+                          if (activeTimePicker === 'start') {
+                            setTime(slot);
+                            const [h, m] = slot.split(':').map(Number);
+                            const endH = Math.min(h + 1, 18);
+                            setEndTime(`${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+                          } else {
+                            setEndTime(slot);
+                          }
+                          setActiveTimePicker(null);
+                          if (timeError) setTimeError('');
+                        }}
+                      >
+                        <Text style={[styles.timeChipText, isSelected && styles.timeChipTextActive]}>
+                          {formatTime12(slot)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
             {!!timeError && <Text style={styles.errorText}>{timeError}</Text>}
 
             {/* Client */}
@@ -431,6 +434,10 @@ const styles = StyleSheet.create({
   timeDisplayActive: {
     borderColor: '#BFDBFE',
     backgroundColor: '#F0F7FF',
+  },
+  timeDisplayFocused: {
+    borderColor: '#2563EB',
+    borderWidth: 2,
   },
   timeDisplayText: {
     fontSize: 14,
