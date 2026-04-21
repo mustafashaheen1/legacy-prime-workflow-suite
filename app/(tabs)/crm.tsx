@@ -4180,6 +4180,11 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
             await updateAppointment(editingAppointment.id, data);
           } else {
             await addAppointment(data);
+            if (Platform.OS === 'web') {
+              window.alert('Appointment created!');
+            } else {
+              Alert.alert('Success', 'Appointment created!');
+            }
           }
         }}
         onDelete={editingAppointment ? () => {

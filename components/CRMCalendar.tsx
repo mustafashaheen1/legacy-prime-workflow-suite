@@ -213,7 +213,7 @@ export default function CRMCalendar({ appointments, clients, onAddAppointment, o
               return (
                 <TouchableOpacity
                   key={dateStr}
-                  style={[styles.cell, isSelected && styles.cellSelectedBorder]}
+                  style={[styles.cell, dayAppts.length > 0 && styles.cellHasAppts, isSelected && styles.cellSelectedBorder]}
                   onPress={() => {
                     setSelectedDate(dateStr);
                     setCalendarView('day');
@@ -393,6 +393,7 @@ const styles = StyleSheet.create({
   dayHeader: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', color: '#94A3B8', paddingBottom: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 0, borderTopWidth: 1, borderLeftWidth: 1, borderColor: '#E5E7EB' },
   cell: { width: `${100 / 7}%` as any, minHeight: 70, borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#E5E7EB', padding: 3 },
+  cellHasAppts: { backgroundColor: '#FFFBEB' },
   cellSelectedBorder: { backgroundColor: '#F0F5FF' },
   cellDayRow: { alignItems: 'flex-start', marginBottom: 2 },
   todayCircle: { backgroundColor: '#2563EB', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
