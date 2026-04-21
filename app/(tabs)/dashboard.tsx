@@ -1439,18 +1439,7 @@ export default function DashboardScreen() {
                           fill={isSelected ? '#10B981' : 'transparent'}
                         />
                       </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.cardMoreBtn}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setSelectedProjectForActions(project);
-                          setShowProjectActionsModal(true);
-                        }}
-                      >
-                        <MoreHorizontal size={16} color="rgba(255,255,255,0.85)" />
-                      </TouchableOpacity>
-                    )}
+                    ) : null}
                   </View>
 
                   {/* Project name + budget */}
