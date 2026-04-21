@@ -4185,8 +4185,8 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
             await updateAppointment(editingAppointment.id, data);
           } else {
             await addAppointment(data);
-            // Auto-add client to CRM if email is provided and no existing client selected
-            if (data.email && !data.clientId) {
+            // Auto-add client to CRM if email is provided and not already in CRM
+            if (data.email) {
               const existingClient = clients.find(c => c.email?.toLowerCase() === data.email!.toLowerCase());
               if (!existingClient) {
                 const { generateUUID } = await import('@/utils/uuid');
