@@ -328,7 +328,7 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
               autoCapitalize="none"
             />
             {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
-            {!emailError && email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && !clientId && !clients.find(c => c.email?.toLowerCase() === email.trim().toLowerCase()) && (
+            {!emailError && email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && !clients.find(c => c.email?.toLowerCase() === email.trim().toLowerCase()) && (
               <Text style={styles.crmHintText}>This customer will be automatically added to your CRM</Text>
             )}
 
