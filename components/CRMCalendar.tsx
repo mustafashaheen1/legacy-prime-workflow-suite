@@ -297,7 +297,7 @@ export default function CRMCalendar({ appointments, clients, projects = [], onAd
                   const client = selectedClient(appt);
                   const typeColor = TYPE_COLORS[appt.type ?? 'Other'] ?? TYPE_COLORS['Other'];
                   return (
-                    <TouchableOpacity key={appt.id} style={styles.apptRow} onPress={() => onEditAppointment(appt)} activeOpacity={0.7}>
+                    <TouchableOpacity key={appt.id} style={styles.apptRow} onPress={() => setDetailAppt(appt)} activeOpacity={0.7}>
                       <View style={[styles.apptBar, { backgroundColor: typeColor.text }]} />
                       <View style={styles.apptTimeCol}>
                         <Text style={styles.apptTime}>{appt.time ? formatTime12(appt.time) : '—'}</Text>
