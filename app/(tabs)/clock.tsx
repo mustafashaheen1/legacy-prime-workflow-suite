@@ -3,27 +3,27 @@ import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
-import { ArrowLeft, Briefcase, Building2, ChevronDown, ChevronRight, ClipboardList, Clock, FileText, HardHat, Megaphone, Monitor, MoreHorizontal, Phone, Send, Truck, Users } from 'lucide-react-native';
+import { ArrowLeft, Briefcase, Building2, ChevronRight, ClipboardList, Clock, FileText, HardHat, Megaphone, Monitor, MoreHorizontal, Phone, Send, Truck, Users } from 'lucide-react-native';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 
 const isWeb = Platform.OS === 'web';
 
-const OFFICE_ROLES: { name: string; icon: React.ComponentType<any> }[] = [
-  { name: 'Project Manager', icon: ClipboardList },
-  { name: 'Bookkeeper', icon: ClipboardList },
-  { name: 'Accountant', icon: ClipboardList },
-  { name: 'Sales', icon: Send },
-  { name: 'Marketing', icon: Megaphone },
-  { name: 'Office Assistant', icon: ClipboardList },
-  { name: 'Receptionist', icon: Phone },
-  { name: 'Project Coordinator', icon: ClipboardList },
-  { name: 'HR / Payroll Admin', icon: Users },
-  { name: 'Estimator', icon: FileText },
-  { name: 'Office Manager', icon: Building2 },
-  { name: 'IT Support', icon: Monitor },
-  { name: 'Dispatcher', icon: Truck },
-  { name: 'Other', icon: MoreHorizontal },
+const OFFICE_ROLES: { name: string; icon: React.ComponentType<any>; color: string; bg: string }[] = [
+  { name: 'Project Manager', icon: ClipboardList, color: '#4F46E5', bg: '#EEF2FF' },
+  { name: 'Bookkeeper', icon: ClipboardList, color: '#4F46E5', bg: '#EEF2FF' },
+  { name: 'Accountant', icon: ClipboardList, color: '#4F46E5', bg: '#EEF2FF' },
+  { name: 'Sales', icon: Send, color: '#16A34A', bg: '#F0FDF4' },
+  { name: 'Marketing', icon: Megaphone, color: '#DC2626', bg: '#FEF2F2' },
+  { name: 'Office Assistant', icon: ClipboardList, color: '#4F46E5', bg: '#EEF2FF' },
+  { name: 'Receptionist', icon: Phone, color: '#16A34A', bg: '#F0FDF4' },
+  { name: 'Project Coordinator', icon: ClipboardList, color: '#EA580C', bg: '#FFF7ED' },
+  { name: 'HR / Payroll Admin', icon: Users, color: '#DC2626', bg: '#FEF2F2' },
+  { name: 'Estimator', icon: FileText, color: '#4F46E5', bg: '#EEF2FF' },
+  { name: 'Office Manager', icon: Building2, color: '#4F46E5', bg: '#EEF2FF' },
+  { name: 'IT Support', icon: Monitor, color: '#0891B2', bg: '#ECFEFF' },
+  { name: 'Dispatcher', icon: Truck, color: '#EA580C', bg: '#FFF7ED' },
+  { name: 'Other', icon: MoreHorizontal, color: '#6B7280', bg: '#F3F4F6' },
 ];
 
 export default function ClockScreen() {
@@ -88,7 +88,7 @@ export default function ClockScreen() {
   const effectiveProject = effectiveProjectId ? projects.find(p => p.id === effectiveProjectId) : null;
 
   // ─── Render a single office role row ──────────────────────────────────────────
-  const renderRoleRow = (role: { name: string; icon: React.ComponentType<any> }, webStyle?: boolean) => {
+  const renderRoleRow = (role: typeof OFFICE_ROLES[number], webStyle?: boolean) => {
     const RoleIcon = role.icon;
     return (
       <TouchableOpacity
@@ -97,12 +97,12 @@ export default function ClockScreen() {
         onPress={() => handleSelectOfficeRole(role.name)}
       >
         <View style={styles.roleRow}>
-          <View style={styles.roleIconWrap}>
-            <RoleIcon size={18} color="#6B7280" />
+          <View style={[styles.roleIconWrap, { backgroundColor: role.bg }]}>
+            <RoleIcon size={18} color={role.color} />
           </View>
           <Text style={styles.projectName}>{role.name}</Text>
         </View>
-        <ChevronRight size={20} color="#6B7280" />
+        <ChevronRight size={20} color="#D1D5DB" />
       </TouchableOpacity>
     );
   };
@@ -119,13 +119,9 @@ export default function ClockScreen() {
 
         {/* Active Projects */}
         <View style={styles.projectListCard}>
-          <View style={styles.officeSectionHeader}>
-            <View style={[styles.officeIconWrap, { backgroundColor: '#FEF3C7' }]}>
-              <HardHat size={16} color="#D97706" />
-            </View>
-            <View>
-              <Text style={styles.projectListTitle}>Active Projects</Text>
-            </View>
+          <View style={styles.sectionHeaderInline}>
+            <HardHat size={20} color="#1F2937" />
+            <Text style={styles.projectListTitle}>Active Projects</Text>
           </View>
           {(isLoading || isCompanyReloading) && activeProjects.length === 0 ? (
             [0, 1, 2, 3].map(i => (
@@ -144,7 +140,7 @@ export default function ClockScreen() {
                 <View style={styles.projectInfo}>
                   <Text style={styles.projectName}>{project.name}</Text>
                 </View>
-                <ChevronRight size={20} color="#6B7280" />
+                <ChevronRight size={20} color="#D1D5DB" />
               </TouchableOpacity>
             ))
           ) : (
@@ -154,10 +150,8 @@ export default function ClockScreen() {
 
         {/* Office / Business Operations */}
         <View style={styles.projectListCard}>
-          <View style={styles.officeSectionHeader}>
-            <View style={styles.officeIconWrap}>
-              <Briefcase size={16} color="#2563EB" />
-            </View>
+          <View style={styles.sectionHeaderInline}>
+            <Briefcase size={20} color="#1F2937" />
             <View>
               <Text style={styles.projectListTitle}>Office / Business Operations</Text>
               <Text style={styles.officeSectionSubtitle}>Clock in as office staff</Text>
@@ -183,13 +177,9 @@ export default function ClockScreen() {
         {/* Right: lists */}
         <View style={styles.webMain}>
           <View style={styles.projectListCard}>
-            <View style={styles.officeSectionHeader}>
-              <View style={[styles.officeIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                <HardHat size={16} color="#D97706" />
-              </View>
-              <View>
-                <Text style={styles.projectListTitle}>Active Projects</Text>
-              </View>
+            <View style={styles.sectionHeaderInline}>
+              <HardHat size={20} color="#1F2937" />
+              <Text style={styles.projectListTitle}>Active Projects</Text>
             </View>
             {activeProjects.map((project) => (
               <TouchableOpacity
@@ -198,16 +188,14 @@ export default function ClockScreen() {
                 onPress={() => handleSelectProject(project.id)}
               >
                 <Text style={styles.projectName}>{project.name}</Text>
-                <ChevronRight size={20} color="#6B7280" />
+                <ChevronRight size={20} color="#D1D5DB" />
               </TouchableOpacity>
             ))}
           </View>
 
           <View style={styles.projectListCard}>
-            <View style={styles.officeSectionHeader}>
-              <View style={styles.officeIconWrap}>
-                <Briefcase size={16} color="#2563EB" />
-              </View>
+            <View style={styles.sectionHeaderInline}>
+              <Briefcase size={20} color="#1F2937" />
               <View>
                 <Text style={styles.projectListTitle}>Office / Business Operations</Text>
                 <Text style={styles.officeSectionSubtitle}>Clock in as office staff</Text>
@@ -336,7 +324,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700' as const, color: '#1F2937', marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#6B7280' },
   backBtn: { padding: 8, marginRight: 8, borderRadius: 8, backgroundColor: '#EFF6FF' },
-  employeeCard: { backgroundColor: '#FFFFFF', margin: 16, padding: 20, borderRadius: 12 },
+  employeeCard: { backgroundColor: '#FFFFFF', margin: 16, padding: 20, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' },
   cardLabel: { fontSize: 14, fontWeight: '600' as const, color: '#6B7280', marginBottom: 8 },
   cardValue: { fontSize: 18, fontWeight: '600' as const, color: '#1F2937' },
   projectListCard: { backgroundColor: '#FFFFFF', marginHorizontal: 16, marginBottom: 16, padding: 20, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' },
@@ -347,11 +335,10 @@ const styles = StyleSheet.create({
   projectName: { fontSize: 16, fontWeight: '600' as const, color: '#1F2937' },
   noProjectsText: { fontSize: 14, color: '#9CA3AF', fontStyle: 'italic' as const, textAlign: 'center' as const, paddingVertical: 20 },
   clockContent: { padding: 16 },
-  officeSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
-  officeIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
+  sectionHeaderInline: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
   officeSectionSubtitle: { fontSize: 13, color: '#6B7280' },
   roleRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 },
-  roleIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  roleIconWrap: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   conflictBanner: { backgroundColor: '#FEF2F2', borderRadius: 10, padding: 14, marginHorizontal: 16, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: '#EF4444' },
   conflictText: { fontSize: 13, color: '#991B1B', lineHeight: 20 },
 });
