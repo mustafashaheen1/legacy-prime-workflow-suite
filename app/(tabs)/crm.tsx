@@ -4013,11 +4013,11 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
       {/* Cold Leads Modal */}
       <Modal
         visible={showColdLeadsModal}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         onRequestClose={() => setShowColdLeadsModal(false)}
       >
-        <View style={[styles.modalOverlay, { justifyContent: 'flex-end', padding: 0 }]}>
+        <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowColdLeadsModal(false)} />
           <View style={styles.coldLeadsModalContent}>
             <View style={styles.modalHeader}>
@@ -4226,10 +4226,10 @@ const styles = StyleSheet.create({
   },
   coldLeadsModalContent: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 16,
     padding: 24,
     width: '100%' as any,
+    maxWidth: 540,
     maxHeight: '85%' as any,
     minHeight: '50%' as any,
   },
