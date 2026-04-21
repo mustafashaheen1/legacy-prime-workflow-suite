@@ -50,6 +50,7 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
   const [timeError, setTimeError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [errorModalMessage, setErrorModalMessage] = useState('');
 
   useEffect(() => {
     if (!visible) return;
@@ -78,34 +79,37 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
   const isValidTime = (val: string) => val === '' || /^\d{2}:\d{2}$/.test(val);
 
   const handleSave = async () => {
-    let valid = true;
+    const errors: string[] = [];
     setTitleError(''); setDateError(''); setTimeError(''); setEmailError(''); setPhoneError('');
 
-    if (!title.trim()) { setTitleError('Title is required'); valid = false; }
-    if (!date.trim()) { setDateError('Date is required (YYYY-MM-DD)'); valid = false; }
-    else if (!isValidDate(date.trim())) { setDateError('Use format YYYY-MM-DD'); valid = false; }
+    if (!title.trim()) { setTitleError('Title is required'); errors.push('Please enter a title'); }
+    if (!date.trim()) { setDateError('Date is required (YYYY-MM-DD)'); errors.push('Please enter a date'); }
+    else if (!isValidDate(date.trim())) { setDateError('Use format YYYY-MM-DD'); errors.push('Please enter a valid date'); }
 
     // Time validations
     if (time && endTime) {
-      if (time === endTime) { setTimeError('Start and end time cannot be the same'); valid = false; }
-      else if (time > endTime) { setTimeError('End time must be after start time'); valid = false; }
+      if (time === endTime) { setTimeError('Start and end time cannot be the same'); errors.push('Start and end time cannot be the same'); }
+      else if (time > endTime) { setTimeError('End time must be after start time'); errors.push('End time must be after start time'); }
     } else if (time && !endTime) {
-      setTimeError('Please select an end time'); valid = false;
+      setTimeError('Please select an end time'); errors.push('Please select an end time');
     } else if (!time && endTime) {
-      setTimeError('Please select a start time'); valid = false;
+      setTimeError('Please select a start time'); errors.push('Please select a start time');
     }
 
     // Email validation
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setEmailError('Please enter a valid email address'); valid = false;
+      setEmailError('Please enter a valid email address'); errors.push('Please enter a valid email');
     }
 
     // Phone validation (at least 7 digits)
     if (phone.trim() && phone.replace(/\D/g, '').length < 7) {
-      setPhoneError('Please enter a valid phone number'); valid = false;
+      setPhoneError('Please enter a valid phone number'); errors.push('Please enter a valid phone number');
     }
 
-    if (!valid) return;
+    if (errors.length > 0) {
+      setErrorModalMessage(errors[0]);
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -137,6 +141,7 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
   const isEdit = !!initial?.id;
 
   return (
+    <>
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -358,6 +363,21 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
       </View>
       </KeyboardAvoidingView>
     </Modal>
+
+    {/* Error Modal */}
+    <Modal visible={!!errorModalMessage} animationType="fade" transparent onRequestClose={() => setErrorModalMessage('')}>
+      <View style={styles.errorModalOverlay}>
+        <View style={styles.errorModalCard}>
+          <Text style={styles.errorModalTitle}>Error</Text>
+          <Text style={styles.errorModalMessage}>{errorModalMessage}</Text>
+          <View style={styles.errorModalDivider} />
+          <TouchableOpacity style={styles.errorModalBtn} onPress={() => setErrorModalMessage('')}>
+            <Text style={styles.errorModalBtnText}>OK</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -450,4 +470,50 @@ const styles = StyleSheet.create({
   saveButton: { flex: 1, backgroundColor: '#2563EB', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
   saveButtonDisabled: { opacity: 0.6 },
   saveButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  errorModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 40,
+  },
+  errorModalCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 400,
+    paddingTop: 24,
+    paddingHorizontal: 24,
+  },
+  errorModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 6,
+  },
+  errorModalMessage: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginBottom: 20,
+  },
+  errorModalDivider: {
+    height: 1,
+    backgroundColor: '#334155',
+  },
+  errorModalBtn: {
+    alignSelf: 'flex-end',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+  },
+  errorModalBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    overflow: 'hidden',
+  },
 });
