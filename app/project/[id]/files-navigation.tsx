@@ -322,6 +322,7 @@ export default function FilesNavigationScreen() {
       return;
     }
     const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+    setUploadModalVisible(false);
     setIsUploading(true);
     try {
       const compressed = await compressImage(localUri, { quality: 0.8 });
@@ -360,7 +361,6 @@ export default function FilesNavigationScreen() {
       });
 
       setFileNotes('');
-      setUploadModalVisible(false);
       Alert.alert('Success', 'Photo uploaded successfully!');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to upload photo');
