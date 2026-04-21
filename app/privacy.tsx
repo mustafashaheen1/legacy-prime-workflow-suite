@@ -237,18 +237,45 @@ export default function PrivacyScreen() {
           <Text style={styles.p}>We may send transactional communications (billing, password resets, service alerts) which cannot be opted out of while you have an active account. Marketing emails include an unsubscribe link. Opting out of marketing does not affect transactional messages.</Text>
         </Section>
 
-        {/* Section 13 */}
-        <Section number="13" title="Children's Privacy">
-          <Text style={styles.p}>The Services are designed for business use and are not directed to individuals under 18. We do not knowingly collect personal information from minors. Contact us immediately if you believe we have inadvertently collected such information.</Text>
+        {/* Section 13 — SMS */}
+        <Section number="13" title="SMS / Text Messaging Privacy">
+          <Text style={styles.p}>When you provide your phone number during account registration or subcontractor onboarding, you consent to receive automated SMS/text messages related to your use of the platform.</Text>
+          <SubSection title="Types of Messages">
+            <Text style={styles.p}>SMS messages are limited to transactional and operational notifications, including:</Text>
+            <Bullet>Account verification codes</Bullet>
+            <Bullet>Job assignment and schedule notifications</Bullet>
+            <Bullet>Subcontractor registration invitations</Bullet>
+            <Bullet>Project updates and task reminders</Bullet>
+          </SubSection>
+          <SubSection title="How We Use Your Phone Number">
+            <Text style={styles.p}>Your phone number is used solely to deliver SMS messages related to the Legacy Prime platform. We do <Text style={styles.bold}>not</Text> sell, rent, or share your phone number or opt-in data with third parties for marketing or promotional purposes.</Text>
+          </SubSection>
+          <SubSection title="Message Frequency &amp; Rates">
+            <Text style={styles.p}>Message frequency varies based on account activity (approximately up to 10 messages per month). <Text style={styles.bold}>Msg &amp; Data rates may apply</Text> based on your mobile carrier plan.</Text>
+          </SubSection>
+          <SubSection title="Opt-Out">
+            <Text style={styles.p}>You may opt out of SMS messages at any time by replying <Text style={styles.bold}>STOP</Text> to any message. For help, reply <Text style={styles.bold}>HELP</Text> or contact support@legacyprime.com.</Text>
+          </SubSection>
+          <SubSection title="Third-Party Messaging Provider">
+            <Text style={styles.p}>SMS messages are delivered via Twilio. Your phone number is shared with Twilio solely for message delivery. See Twilio's privacy policy at twilio.com/legal/privacy.</Text>
+          </SubSection>
+          <Text style={styles.p}>For full SMS terms, see Section 7 of our{' '}
+            <Text style={styles.link} onPress={() => router.push('/terms')}>Terms &amp; Conditions</Text>.
+          </Text>
         </Section>
 
         {/* Section 14 */}
-        <Section number="14" title="Changes to This Policy">
-          <Text style={styles.p}>We may update this Privacy Policy from time to time. When we make material changes, we will update the effective date and notify account administrators via email or in-app notification. Continued use of the Services after the effective date constitutes acceptance of the changes.</Text>
+        <Section number="14" title="Children's Privacy">
+          <Text style={styles.p}>The Services are designed for business use and are not directed to individuals under 18. We do not knowingly collect personal information from minors. Contact us immediately if you believe we have inadvertently collected such information.</Text>
         </Section>
 
         {/* Section 15 */}
-        <Section number="15" title="Contact Us">
+        <Section number="15" title="Changes to This Policy">
+          <Text style={styles.p}>We may update this Privacy Policy from time to time. When we make material changes, we will update the effective date and notify account administrators via email or in-app notification. Continued use of the Services after the effective date constitutes acceptance of the changes.</Text>
+        </Section>
+
+        {/* Section 16 */}
+        <Section number="16" title="Contact Us">
           <Text style={styles.p}>For questions, requests, or concerns related to this Privacy Policy:</Text>
           <Callout>
             <Text style={styles.calloutText}>
