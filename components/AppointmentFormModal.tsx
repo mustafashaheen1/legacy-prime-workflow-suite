@@ -328,6 +328,9 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
               autoCapitalize="none"
             />
             {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
+            {!emailError && email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && !clientId && !clients.find(c => c.email.toLowerCase() === email.trim().toLowerCase()) && (
+              <Text style={styles.crmHintText}>This customer will be automatically added to your CRM</Text>
+            )}
 
             {/* Project */}
             <Text style={styles.label}>Project <Text style={styles.optional}>(optional)</Text></Text>
@@ -411,6 +414,7 @@ const styles = StyleSheet.create({
   inputError: { borderColor: '#DC2626' },
   notesInput: { minHeight: 72, textAlignVertical: 'top' },
   errorText: { fontSize: 12, color: '#DC2626', marginTop: 4 },
+  crmHintText: { fontSize: 13, color: '#2563EB', marginTop: 4 },
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   timeDisplay: {
     flex: 1,
