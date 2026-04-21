@@ -47,14 +47,17 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
   const [isSaving, setIsSaving] = useState(false);
   const [titleError, setTitleError] = useState('');
   const [dateError, setDateError] = useState('');
+  const [timeError, setTimeError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     setTitle(initial?.title ?? '');
     setType(initial?.type ?? undefined);
     setDate(initial?.date ?? '');
-    setTime(initial?.time ?? '');
-    setEndTime(initial?.endTime ?? '');
+    setTime(initial?.time ?? '09:00');
+    setEndTime(initial?.endTime ?? '10:00');
     setClientId(initial?.clientId);
     setProjectId(initial?.projectId);
     setAddress(initial?.address ?? '');
@@ -63,6 +66,9 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
     setNotes(initial?.notes ?? '');
     setTitleError('');
     setDateError('');
+    setTimeError('');
+    setEmailError('');
+    setPhoneError('');
     // Only reset when modal opens — not on `initial` reference changes,
     // which would wipe user input mid-typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,9 +79,32 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
 
   const handleSave = async () => {
     let valid = true;
+    setTitleError(''); setDateError(''); setTimeError(''); setEmailError(''); setPhoneError('');
+
     if (!title.trim()) { setTitleError('Title is required'); valid = false; }
     if (!date.trim()) { setDateError('Date is required (YYYY-MM-DD)'); valid = false; }
     else if (!isValidDate(date.trim())) { setDateError('Use format YYYY-MM-DD'); valid = false; }
+
+    // Time validations
+    if (time && endTime) {
+      if (time === endTime) { setTimeError('Start and end time cannot be the same'); valid = false; }
+      else if (time > endTime) { setTimeError('End time must be after start time'); valid = false; }
+    } else if (time && !endTime) {
+      setTimeError('Please select an end time'); valid = false;
+    } else if (!time && endTime) {
+      setTimeError('Please select a start time'); valid = false;
+    }
+
+    // Email validation
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setEmailError('Please enter a valid email address'); valid = false;
+    }
+
+    // Phone validation (at least 7 digits)
+    if (phone.trim() && phone.replace(/\D/g, '').length < 7) {
+      setPhoneError('Please enter a valid phone number'); valid = false;
+    }
+
     if (!valid) return;
 
     setIsSaving(true);
@@ -213,6 +242,7 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
                     const [h, m] = slot.split(':').map(Number);
                     const endH = Math.min(h + 1, 18);
                     setEndTime(`${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+                    if (timeError) setTimeError('');
                   }}
                 >
                   <Text style={[styles.timeChipText, time === slot && styles.timeChipTextActive]}>
@@ -221,6 +251,7 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
                 </TouchableOpacity>
               ))}
             </ScrollView>
+            {!!timeError && <Text style={styles.errorText}>{timeError}</Text>}
 
             {/* Client */}
             <Text style={styles.label}>Client <Text style={styles.optional}>(optional)</Text></Text>
@@ -255,25 +286,27 @@ export default function AppointmentFormModal({ visible, onClose, onSave, onDelet
             {/* Phone */}
             <Text style={styles.label}>Phone <Text style={styles.optional}>(optional)</Text></Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, phoneError ? styles.inputError : null]}
               placeholder="(555) 123-4567"
               placeholderTextColor="#9CA3AF"
               value={phone}
-              onChangeText={setPhone}
+              onChangeText={v => { setPhone(v); if (phoneError) setPhoneError(''); }}
               keyboardType="phone-pad"
             />
+            {!!phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
 
             {/* Email */}
             <Text style={styles.label}>Email <Text style={styles.optional}>(optional)</Text></Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, emailError ? styles.inputError : null]}
               placeholder="client@example.com"
               placeholderTextColor="#9CA3AF"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={v => { setEmail(v); if (emailError) setEmailError(''); }}
               keyboardType="email-address"
               autoCapitalize="none"
             />
+            {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
 
             {/* Project */}
             <Text style={styles.label}>Project <Text style={styles.optional}>(optional)</Text></Text>
