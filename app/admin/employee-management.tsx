@@ -841,21 +841,21 @@ ${processedRows.some(r => r.isEstimatedRate) ? `<p style="font-size:10px;color:#
                   )}
                 </View>
 
-                {/* Actions: Timecard + Classify only */}
+                {/* Actions: Timecard + Classify */}
                 <View style={styles.employeeActions}>
                   <TouchableOpacity
-                    style={styles.greenActionButton}
+                    style={styles.blueActionButton}
                     onPress={() => openTimecardModal(employee)}
                   >
-                    <FileText size={15} color="#16A34A" />
-                    <Text style={styles.greenActionText}>Timecard</Text>
+                    <FileText size={15} color="#2563EB" />
+                    <Text style={styles.blueActionText}>Timecard</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.greenActionButton}
+                    style={styles.purpleActionButton}
                     onPress={() => openClassifyModal(employee)}
                   >
-                    <Building2 size={15} color="#16A34A" />
-                    <Text style={styles.greenActionText}>Classify</Text>
+                    <Building2 size={15} color="#7C3AED" />
+                    <Text style={styles.purpleActionText}>Classify</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1808,20 +1808,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4B5563',
   },
-  // Green action buttons (Timecard, Classify)
-  greenActionButton: {
+  // Blue action button (Timecard)
+  blueActionButton: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
   },
-  greenActionText: {
+  blueActionText: {
     fontSize: 14,
     fontWeight: '600' as const,
-    color: '#16A34A',
+    color: '#2563EB',
+  },
+  // Purple action button (Classify)
+  purpleActionButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    backgroundColor: '#F5F3FF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  purpleActionText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#7C3AED',
   },
   // Classify modal
   classifySectionLabel: {
