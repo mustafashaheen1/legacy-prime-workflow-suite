@@ -1423,32 +1423,28 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     flexDirection: 'row' as const,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    padding: 3,
+    gap: 0,
     marginBottom: 16,
   },
   filterTab: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center' as const,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   filterTabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
   },
   filterTabText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500' as const,
     color: '#64748B',
   },
   filterTabTextActive: {
-    color: '#2563EB',
+    color: '#FFFFFF',
     fontWeight: '600' as const,
   },
   employeesSection: {
@@ -1469,8 +1465,8 @@ const styles = StyleSheet.create({
     borderColor: '#F3F4F6',
   },
   employeeCardActive: {
-    borderColor: '#6EE7B7',
-    borderWidth: 1.5,
+    borderLeftColor: '#22C55E',
+    borderLeftWidth: 3,
   },
   employeeHeader: {
     flexDirection: 'row',
@@ -1816,8 +1812,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
   },
   greenActionText: {
     fontSize: 14,
