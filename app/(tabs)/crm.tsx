@@ -1,6 +1,7 @@
-import { ActivityIndicator, Alert, Dimensions, Keyboard, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, InputAccessoryView, Keyboard, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+const KEYBOARD_ACCESSORY_ID = 'crm-keyboard-done';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/contexts/AppContext';
@@ -1505,7 +1506,7 @@ export default function CRMScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        keyboardDismissMode="none"
+        keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="always"
         automaticallyAdjustKeyboardInsets={true}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -2161,28 +2162,31 @@ export default function CRMScreen() {
           {showAddForm && (
             <View style={styles.addForm}>
               <Text style={styles.formTitle}>Add New Client</Text>
-              <TextInput 
-                style={styles.input} 
-                placeholder="Name" 
+              <TextInput
+                style={styles.input}
+                placeholder="Name"
                 placeholderTextColor="#9CA3AF"
                 value={newClientName}
                 onChangeText={setNewClientName}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Address" 
+              <TextInput
+                style={styles.input}
+                placeholder="Address"
                 placeholderTextColor="#9CA3AF"
                 value={newClientAddress}
                 onChangeText={setNewClientAddress}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Email" 
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
                 placeholderTextColor="#9CA3AF"
                 value={newClientEmail}
                 onChangeText={setNewClientEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
               <TextInput
                 style={styles.input}
@@ -2192,6 +2196,7 @@ export default function CRMScreen() {
                 onChangeText={(text) => setNewClientPhone(filterPhoneInput(text))}
                 keyboardType="number-pad"
                 maxLength={10}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
               <TextInput
                 style={styles.input}
@@ -2199,6 +2204,7 @@ export default function CRMScreen() {
                 placeholderTextColor="#9CA3AF"
                 value={newClientSource}
                 onChangeText={setNewClientSource}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
               <TextInput
                 style={[styles.input, { height: 70, textAlignVertical: 'top' }]}
@@ -2207,6 +2213,7 @@ export default function CRMScreen() {
                 value={newClientJobDetails}
                 onChangeText={setNewClientJobDetails}
                 multiline
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
 
               <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E3A5F', marginTop: 10, marginBottom: 6 }}>Assign Sales Rep</Text>
@@ -2261,7 +2268,7 @@ export default function CRMScreen() {
             </View>
 
             <ScrollView ref={addClientScrollRef} style={styles.modalBody}
-          keyboardDismissMode="none"
+          keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="always"
           automaticallyAdjustKeyboardInsets={true}
           contentContainerStyle={{ paddingBottom: 20 }}
@@ -2276,6 +2283,7 @@ export default function CRMScreen() {
                   setNewClientName(text);
                   if (clientFieldErrors.name) setClientFieldErrors(e => ({ ...e, name: undefined }));
                 }}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
               {clientFieldErrors.name && (
                 <Text style={styles.fieldErrorText}>{clientFieldErrors.name}</Text>
@@ -2293,6 +2301,7 @@ export default function CRMScreen() {
                   setNewClientEmail(text);
                   if (clientFieldErrors.email) setClientFieldErrors(e => ({ ...e, email: undefined }));
                 }}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
               {clientFieldErrors.email && (
                 <Text style={styles.fieldErrorText}>{clientFieldErrors.email}</Text>
@@ -2310,6 +2319,7 @@ export default function CRMScreen() {
                   setNewClientPhone(filterPhoneInput(text));
                   if (clientFieldErrors.phone) setClientFieldErrors(e => ({ ...e, phone: undefined }));
                 }}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
               {clientFieldErrors.phone && (
                 <Text style={styles.fieldErrorText}>{clientFieldErrors.phone}</Text>
@@ -2322,6 +2332,7 @@ export default function CRMScreen() {
                 placeholderTextColor="#9CA3AF"
                 value={newClientAddress}
                 onChangeText={setNewClientAddress}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
 
               <Text style={styles.inputLabel}>How did they find you? <Text style={styles.requiredStar}>*</Text></Text>
@@ -2369,6 +2380,7 @@ export default function CRMScreen() {
                 value={newClientJobDetails}
                 onChangeText={setNewClientJobDetails}
                 multiline
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
 
               <Text style={[styles.inputLabel, { marginTop: 16 }]}>Assign Sales Rep</Text>
@@ -2432,7 +2444,7 @@ export default function CRMScreen() {
             </View>
 
             <ScrollView style={styles.modalBody}
-          keyboardDismissMode="none"
+          keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="always"
           automaticallyAdjustKeyboardInsets={true}
           contentContainerStyle={{ paddingBottom: 20 }}
@@ -2447,6 +2459,7 @@ export default function CRMScreen() {
                   setEditClientName(text);
                   if (editClientFieldErrors.name) setEditClientFieldErrors(e => ({ ...e, name: undefined }));
                 }}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
               {editClientFieldErrors.name && <Text style={styles.fieldErrorText}>{editClientFieldErrors.name}</Text>}
 
@@ -2462,6 +2475,7 @@ export default function CRMScreen() {
                   setEditClientEmail(text);
                   if (editClientFieldErrors.email) setEditClientFieldErrors(e => ({ ...e, email: undefined }));
                 }}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
               {editClientFieldErrors.email && <Text style={styles.fieldErrorText}>{editClientFieldErrors.email}</Text>}
 
@@ -2477,6 +2491,7 @@ export default function CRMScreen() {
                   setEditClientPhone(filterPhoneInput(text));
                   if (editClientFieldErrors.phone) setEditClientFieldErrors(e => ({ ...e, phone: undefined }));
                 }}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
               {editClientFieldErrors.phone && <Text style={styles.fieldErrorText}>{editClientFieldErrors.phone}</Text>}
 
@@ -2487,6 +2502,7 @@ export default function CRMScreen() {
                 placeholderTextColor="#9CA3AF"
                 value={editClientAddress}
                 onChangeText={setEditClientAddress}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
 
               <Text style={styles.inputLabel}>How did they find you? <Text style={styles.requiredStar}>*</Text></Text>
@@ -2558,7 +2574,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardDismissMode="none" style={styles.modalBody} keyboardShouldPersistTaps="always" automaticallyAdjustKeyboardInsets={true} contentContainerStyle={{ paddingBottom: 20 }}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" style={styles.modalBody} keyboardShouldPersistTaps="always" automaticallyAdjustKeyboardInsets={true} contentContainerStyle={{ paddingBottom: 20 }}>
             <View style={styles.recipientInfo}>
               <Text style={styles.recipientLabel}>Recipients:</Text>
               <Text style={styles.recipientText}>
@@ -2592,6 +2608,7 @@ export default function CRMScreen() {
                 placeholderTextColor="#9CA3AF"
                 value={messageSubject}
                 onChangeText={setMessageSubject}
+                inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
               />
             )}
 
@@ -2604,6 +2621,7 @@ export default function CRMScreen() {
               value={messageBody}
               onChangeText={setMessageBody}
               textAlignVertical="top"
+              inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
             />
 
             <View style={styles.attachmentSection}>
@@ -4343,6 +4361,16 @@ AI: Wonderful, John! I'm excited about your kitchen remodel project. One of our 
           </View>
         </View>
       </Modal>
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={KEYBOARD_ACCESSORY_ID}>
+          <View style={styles.keyboardToolbar}>
+            <View style={{ flex: 1 }} />
+            <TouchableOpacity onPress={Keyboard.dismiss} style={styles.keyboardDoneBtn}>
+              <Text style={styles.keyboardDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
     </View>
   );
 }
@@ -6838,5 +6866,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     overflow: 'hidden',
+  },
+  keyboardToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F1F1',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#C8C8C8',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  keyboardDoneBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  keyboardDoneText: {
+    color: '#2563EB',
+    fontSize: 16,
+    fontWeight: '600' as const,
   },
 });

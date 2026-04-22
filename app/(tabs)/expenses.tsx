@@ -1,4 +1,4 @@
-import { ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, InputAccessoryView, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -12,6 +12,8 @@ import { X, Scan, Image as ImageIcon, ChevronDown, Receipt, Upload, File, Packag
 import { generateImageHash, generateOCRFingerprint, getBase64ByteSize } from '@/lib/receipt-duplicate-detection';
 import UploaderBadge from '@/components/UploaderBadge';
 import DocumentScannerModal, { DocumentScanResult } from '@/components/DocumentScannerModal';
+
+const KEYBOARD_ACCESSORY_ID = 'expenses-keyboard-done';
 
 export default function ExpensesScreen() {
   const { expenses, addExpense, projects, user, refreshExpenses, priceListCategories, isLoading, isCompanyReloading } = useApp();
@@ -657,7 +659,7 @@ export default function ExpensesScreen() {
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        keyboardDismissMode="none"
+        keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="always"
         automaticallyAdjustKeyboardInsets={true}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -829,6 +831,7 @@ export default function ExpensesScreen() {
               value={amount}
               onChangeText={setAmount}
               keyboardType="numeric"
+              inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
             />
           </View>
 
@@ -839,6 +842,7 @@ export default function ExpensesScreen() {
             placeholderTextColor="#9CA3AF"
             value={store}
             onChangeText={setStore}
+            inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
           />
 
           <Text style={styles.label}>Notes (optional)</Text>
@@ -849,6 +853,7 @@ export default function ExpensesScreen() {
             value={notes}
             onChangeText={setNotes}
             multiline
+            inputAccessoryViewID={Platform.OS === 'ios' ? KEYBOARD_ACCESSORY_ID : undefined}
           />
 
           {validationError && (
@@ -1057,6 +1062,17 @@ export default function ExpensesScreen() {
         onClose={() => setShowDocumentScanner(false)}
         title="Scan Receipt"
       />
+
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={KEYBOARD_ACCESSORY_ID}>
+          <View style={styles.keyboardToolbar}>
+            <View style={{ flex: 1 }} />
+            <TouchableOpacity onPress={Keyboard.dismiss} style={styles.keyboardDoneBtn}>
+              <Text style={styles.keyboardDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
     </View>
   );
 }
@@ -1588,5 +1604,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#3B82F6',
     lineHeight: 18,
+  },
+  keyboardToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F1F1',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#C8C8C8',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  keyboardDoneBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  keyboardDoneText: {
+    color: '#2563EB',
+    fontSize: 16,
+    fontWeight: '600' as const,
   },
 });
