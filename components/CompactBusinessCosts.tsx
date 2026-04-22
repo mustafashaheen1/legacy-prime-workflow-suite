@@ -70,7 +70,7 @@ export default function CompactBusinessCosts({ expenses, clockEntries = [], hour
   const extraAvatarCount = Math.max(0, inOfficeCount - 3);
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onDetails} disabled={!onDetails}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -170,7 +170,7 @@ export default function CompactBusinessCosts({ expenses, clockEntries = [], hour
           <Text style={styles.yearText}>{now.getFullYear()}</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

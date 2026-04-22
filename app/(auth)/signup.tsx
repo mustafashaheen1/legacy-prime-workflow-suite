@@ -645,6 +645,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
+    flexGrow: 1,
+    paddingBottom: 40,
   },
   backButton: {
     paddingHorizontal: 24,

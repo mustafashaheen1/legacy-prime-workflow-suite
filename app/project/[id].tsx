@@ -5,7 +5,7 @@ import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
 import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment, ScheduledTask } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon, PlayCircle, PauseCircle } from 'lucide-react-native';
+import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon, PlayCircle, PauseCircle, Monitor } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
 import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import { generateUUID } from '@/utils/uuid';
@@ -133,6 +133,7 @@ export default function ProjectDetailScreen() {
   const [photoCategory, setPhotoCategory] = useState<string>('Foundation');
   const [showAIReportModal, setShowAIReportModal] = useState<boolean>(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  const [showWebCameraBanner, setShowWebCameraBanner] = useState<boolean>(false);
   const isUploadingPhotoRef = useRef(false);
   const [viewingPhoto, setViewingPhoto] = useState<{ url: string; category: string; notes?: string; date: string } | null>(null);
   const [showBudgetModal, setShowBudgetModal] = useState(false);
@@ -2364,7 +2365,8 @@ export default function ProjectDetailScreen() {
 
         const takePhotoImage = async () => {
           if (Platform.OS === 'web') {
-            console.log('Camera not available on web');
+            setShowWebCameraBanner(true);
+            setTimeout(() => setShowWebCameraBanner(false), 4000);
             return;
           }
 
@@ -2481,6 +2483,19 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {showWebCameraBanner && (
+                <View style={styles.webCameraBanner}>
+                  <Monitor size={18} color="#2563EB" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.webCameraBannerTitle}>Camera not available on web</Text>
+                    <Text style={styles.webCameraBannerText}>To take photos, please use the mobile app on your phone or tablet.</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setShowWebCameraBanner(false)}>
+                    <X size={16} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <View style={styles.photosForm}>
                 <Text style={styles.photosLabel}>Category</Text>
@@ -5407,6 +5422,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600' as const,
+  },
+  webCameraBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 10,
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 12,
+  },
+  webCameraBannerTitle: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#1E40AF',
+    marginBottom: 2,
+  },
+  webCameraBannerText: {
+    fontSize: 13,
+    color: '#3B82F6',
+    lineHeight: 18,
   },
   photosForm: {
     backgroundColor: '#FFFFFF',

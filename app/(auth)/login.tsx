@@ -1,4 +1,4 @@
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
@@ -358,7 +358,12 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      <View style={[styles.container, { paddingTop: insets.top + 64, paddingBottom: insets.bottom + 20 }]}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 64, paddingBottom: insets.bottom + 40 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <Logo size={100} />
           <Text style={styles.title}>Legacy Prime</Text>
@@ -482,7 +487,7 @@ export default function LoginScreen() {
           </View>
 
         </View>
-      </View>
+      </ScrollView>
 
       {!isKeyboardVisible && (
         <View style={[styles.languageSwitcherContainer, { top: insets.top + 12 }]}>
@@ -497,8 +502,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    justifyContent: 'center',
+    justifyContent: 'center' as const,
   },
   languageSwitcherContainer: {
     position: 'absolute',
