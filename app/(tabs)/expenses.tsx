@@ -650,12 +650,11 @@ export default function ExpensesScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
-      >
+    <KeyboardAvoidingView
+      style={[styles.container, { flex: 1 }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+    >
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 200 }}
@@ -946,7 +945,6 @@ export default function ExpensesScreen() {
           )}
         </View>
       </ScrollView>
-      </KeyboardAvoidingView>
 
       <Modal
         visible={showProjectPicker}
@@ -1060,7 +1058,7 @@ export default function ExpensesScreen() {
         onClose={() => setShowDocumentScanner(false)}
         title="Scan Receipt"
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
