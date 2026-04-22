@@ -1505,10 +1505,10 @@ export default function CRMScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
+        keyboardShouldPersistTaps="always"
         automaticallyAdjustKeyboardInsets={true}
-        contentContainerStyle={{ paddingBottom: 500 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -2252,7 +2252,6 @@ export default function CRMScreen() {
         onRequestClose={() => setShowAddClientModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add New Client</Text>
@@ -2262,10 +2261,10 @@ export default function CRMScreen() {
             </View>
 
             <ScrollView ref={addClientScrollRef} style={styles.modalBody}
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="none"
+          keyboardShouldPersistTaps="always"
           automaticallyAdjustKeyboardInsets={true}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
         >
               <Text style={styles.inputLabel}>Full Name <Text style={styles.requiredStar}>*</Text></Text>
               <TextInput
@@ -2424,7 +2423,6 @@ export default function CRMScreen() {
         onRequestClose={() => setShowEditClientModal(false)}
         >
         <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Client Info</Text>
@@ -2434,10 +2432,10 @@ export default function CRMScreen() {
             </View>
 
             <ScrollView style={styles.modalBody}
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="none"
+          keyboardShouldPersistTaps="always"
           automaticallyAdjustKeyboardInsets={true}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
         >
               <Text style={styles.inputLabel}>Full Name <Text style={styles.requiredStar}>*</Text></Text>
               <TextInput
@@ -2550,7 +2548,6 @@ export default function CRMScreen() {
         onRequestClose={() => setShowMessageModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           <View style={[styles.modalContent, { overflow: 'hidden' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -2561,7 +2558,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag" style={styles.modalBody} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={true} contentContainerStyle={{ paddingBottom: 100 }}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardDismissMode="none" style={styles.modalBody} keyboardShouldPersistTaps="always" automaticallyAdjustKeyboardInsets={true} contentContainerStyle={{ paddingBottom: 20 }}>
             <View style={styles.recipientInfo}>
               <Text style={styles.recipientLabel}>Recipients:</Text>
               <Text style={styles.recipientText}>

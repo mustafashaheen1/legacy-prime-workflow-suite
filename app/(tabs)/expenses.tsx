@@ -655,10 +655,10 @@ export default function ExpensesScreen() {
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 300 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
+        keyboardShouldPersistTaps="always"
         automaticallyAdjustKeyboardInsets={true}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
