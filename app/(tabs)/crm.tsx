@@ -1506,6 +1506,7 @@ export default function CRMScreen() {
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
         contentContainerStyle={{ paddingBottom: 500 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -2262,6 +2263,7 @@ export default function CRMScreen() {
             <ScrollView style={styles.modalBody}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
           contentContainerStyle={{ paddingBottom: 300 }}
         >
               <Text style={styles.inputLabel}>Full Name <Text style={styles.requiredStar}>*</Text></Text>
@@ -2433,6 +2435,7 @@ export default function CRMScreen() {
             <ScrollView style={styles.modalBody}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
           contentContainerStyle={{ paddingBottom: 300 }}
         >
               <Text style={styles.inputLabel}>Full Name <Text style={styles.requiredStar}>*</Text></Text>
@@ -2557,7 +2560,7 @@ export default function CRMScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag" style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 300 }}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag" style={{ flex: 1 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={true} contentContainerStyle={{ paddingBottom: 300 }}>
             <View style={styles.recipientInfo}>
               <Text style={styles.recipientLabel}>Recipients:</Text>
               <Text style={styles.recipientText}>
@@ -2927,6 +2930,7 @@ export default function CRMScreen() {
 
             <ScrollView style={styles.aiMessagesContainer} showsVerticalScrollIndicator={false}
           keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={true}
           contentContainerStyle={{ paddingBottom: 300 }}
         >
               {messages.length === 0 && (
@@ -3046,6 +3050,7 @@ export default function CRMScreen() {
 
             <ScrollView style={styles.callAssistantScroll} showsVerticalScrollIndicator={false}
           keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={true}
           contentContainerStyle={{ paddingBottom: 300 }}
         >
               <View style={styles.callAssistantDescription}>
