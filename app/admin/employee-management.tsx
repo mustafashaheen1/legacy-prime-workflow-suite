@@ -257,6 +257,11 @@ export default function EmployeeManagementScreen() {
   };
 
   const getEmployeeBadge = (emp: User): { label: string; color: string; bg: string } => {
+    // Check user role first — salesperson shows SALES
+    if (emp.role === 'salesperson') {
+      return { label: 'SALES', color: '#4F46E5', bg: '#EEF2FF' };
+    }
+    // Check if classified as office staff via clock entries
     if (officeEmployeeIds.has(emp.id)) {
       const entry = clockEntries.find((e: ClockEntry) => e.employeeId === emp.id && e.officeRole);
       const roleName = entry?.officeRole || 'Office';
