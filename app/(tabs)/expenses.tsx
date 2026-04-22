@@ -1,4 +1,4 @@
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -651,11 +651,6 @@ export default function ExpensesScreen() {
 
   return (
     <View style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
-      >
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 140 }}
@@ -947,7 +942,6 @@ export default function ExpensesScreen() {
           )}
         </View>
       </ScrollView>
-      </KeyboardAvoidingView>
 
       <Modal
         visible={showProjectPicker}
