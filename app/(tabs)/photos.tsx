@@ -2,13 +2,15 @@ import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platfo
 import SkeletonBox from '@/components/SkeletonBox';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Camera, Upload, Edit2, X, Check, Plus, Trash2, Settings, LayoutGrid, LayoutList, Monitor, Info } from 'lucide-react-native';
+import { Camera, Upload, Edit2, X, Check, Plus, Trash2, Settings, LayoutGrid, LayoutList, Monitor, Info, Download, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Photo } from '@/types';
 import { compressImage, getFileSize, validateFileForUpload, getMimeType } from '@/lib/upload-utils';
 import { useUploadProgress } from '@/hooks/useUploadProgress';
 import { supabase } from '@/lib/supabase';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 export default function PhotosScreen() {
   const { user, photos, addPhoto, updatePhoto, deletePhoto, photoCategories, priceListCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company, projects, refreshPhotos, isLoading, isCompanyReloading } = useApp();
@@ -28,6 +30,7 @@ export default function PhotosScreen() {
     }
     return merged;
   }, [priceListCategories, photoCategories]);
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     if (refreshing) return;
@@ -51,6 +54,19 @@ export default function PhotosScreen() {
   const [showProjectPickerModal, setShowProjectPickerModal] = useState<boolean>(false);
   const [isPickingMedia, setIsPickingMedia] = useState<boolean>(false);
   const [showWebCameraBanner, setShowWebCameraBanner] = useState<boolean>(false);
+
+  // Full-screen photo preview
+  const [fullScreenPhoto, setFullScreenPhoto] = useState<Photo | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const filteredPhotos = useMemo(() => {
+    return photos.filter(photo => !selectedProjectId || photo.projectId === selectedProjectId);
+  }, [photos, selectedProjectId]);
+
+  const fullScreenIndex = useMemo(() => {
+    if (!fullScreenPhoto) return -1;
+    return filteredPhotos.findIndex(p => p.id === fullScreenPhoto.id);
+  }, [fullScreenPhoto, filteredPhotos]);
 
   // Upload progress state
   const uploadProgress = useUploadProgress();
@@ -343,6 +359,72 @@ export default function PhotosScreen() {
     setTempCategory('');
   };
 
+  const handlePhotoPress = useCallback((photo: Photo) => {
+    setFullScreenPhoto(photo);
+  }, []);
+
+  const handleCloseFullScreen = useCallback(() => {
+    setFullScreenPhoto(null);
+  }, []);
+
+  const handleNextPhoto = useCallback(() => {
+    if (fullScreenIndex < 0 || fullScreenIndex >= filteredPhotos.length - 1) return;
+    setFullScreenPhoto(filteredPhotos[fullScreenIndex + 1]);
+  }, [fullScreenIndex, filteredPhotos]);
+
+  const handlePrevPhoto = useCallback(() => {
+    if (fullScreenIndex <= 0) return;
+    setFullScreenPhoto(filteredPhotos[fullScreenIndex - 1]);
+  }, [fullScreenIndex, filteredPhotos]);
+
+  const handleDownloadPhoto = useCallback(async () => {
+    if (!fullScreenPhoto?.url || isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const urlParts = fullScreenPhoto.url.split('/');
+      const fileName = urlParts[urlParts.length - 1]?.split('?')[0] || `photo-${Date.now()}.jpg`;
+
+      if (Platform.OS === 'web') {
+        const response = await fetch(fullScreenPhoto.url);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+      } else {
+        const file = new File(Paths.cache, fileName);
+        const response = await fetch(fullScreenPhoto.url);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        file.write(base64, { encoding: 'base64' });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(file.uri);
+        } else {
+          Alert.alert('Downloaded', `Photo saved to: ${file.uri}`);
+        }
+      }
+    } catch (error: any) {
+      console.error('[Photos] Download error:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to download photo. Please try again.');
+      } else {
+        Alert.alert('Download Failed', 'Could not download the photo. Please try again.');
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [fullScreenPhoto, isDownloading]);
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -458,11 +540,11 @@ export default function PhotosScreen() {
             </View>
           ) : photoViewMode === 'grid' ? (
           <View style={styles.galleryGrid}>
-            {photos
-              .filter(photo => !selectedProjectId || photo.projectId === selectedProjectId)
-              .map((photo) => (
+            {filteredPhotos.map((photo) => (
               <View key={photo.id} style={styles.galleryItem}>
-                <Image source={{ uri: photo.url }} style={styles.thumbnail} contentFit="cover" />
+                <TouchableOpacity activeOpacity={0.8} onPress={() => handlePhotoPress(photo)}>
+                  <Image source={{ uri: photo.url }} style={styles.thumbnail} contentFit="cover" />
+                </TouchableOpacity>
 
                 <View style={styles.thumbnailFooter}>
                   <View style={styles.uploaderRow}>
@@ -540,10 +622,8 @@ export default function PhotosScreen() {
           </View>
           ) : (
           <View>
-            {photos
-              .filter(photo => !selectedProjectId || photo.projectId === selectedProjectId)
-              .map((photo) => (
-              <View key={photo.id} style={styles.listRow}>
+            {filteredPhotos.map((photo) => (
+              <TouchableOpacity key={photo.id} style={styles.listRow} activeOpacity={0.7} onPress={() => handlePhotoPress(photo)}>
                 <Image source={{ uri: photo.url }} style={styles.listThumbnail} contentFit="cover" />
                 <View style={styles.listInfo}>
                   <Text style={styles.listCategory} numberOfLines={1}>{photo.category}</Text>
@@ -580,7 +660,7 @@ export default function PhotosScreen() {
                     <Trash2 size={14} color="#EF4444" />
                   </TouchableOpacity>}
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
           )}
@@ -963,6 +1043,126 @@ export default function PhotosScreen() {
             </ScrollView>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Full-Screen Photo Preview Modal */}
+      <Modal
+        visible={!!fullScreenPhoto}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseFullScreen}
+        statusBarTranslucent
+      >
+        <View style={styles.fsOverlay}>
+          {/* Background dismiss */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseFullScreen} />
+
+          {/* Header */}
+          <View style={styles.fsHeader}>
+            <TouchableOpacity style={styles.fsHeaderBtn} onPress={handleCloseFullScreen}>
+              <X size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+            {filteredPhotos.length > 1 && (
+              <Text style={styles.fsCounter}>
+                {fullScreenIndex + 1} / {filteredPhotos.length}
+              </Text>
+            )}
+            <TouchableOpacity
+              style={[styles.fsHeaderBtn, isDownloading && { opacity: 0.5 }]}
+              onPress={handleDownloadPhoto}
+              disabled={isDownloading}
+            >
+              {isDownloading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Download size={22} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Image */}
+          {fullScreenPhoto && (
+            <View style={styles.fsImageContainer}>
+              <Image
+                source={{ uri: fullScreenPhoto.url }}
+                style={styles.fsImage}
+                contentFit="contain"
+                transition={200}
+              />
+            </View>
+          )}
+
+          {/* Prev arrow */}
+          {filteredPhotos.length > 1 && fullScreenIndex > 0 && (
+            <TouchableOpacity style={styles.fsNavLeft} onPress={handlePrevPhoto}>
+              <View style={styles.fsNavCircle}>
+                <ChevronLeft size={28} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Next arrow */}
+          {filteredPhotos.length > 1 && fullScreenIndex < filteredPhotos.length - 1 && (
+            <TouchableOpacity style={styles.fsNavRight} onPress={handleNextPhoto}>
+              <View style={styles.fsNavCircle}>
+                <ChevronRight size={28} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Metadata panel */}
+          {fullScreenPhoto && (
+            <View style={styles.fsMetadata}>
+              {/* Uploader info */}
+              <View style={styles.fsUploaderRow}>
+                {fullScreenPhoto.uploader?.avatar ? (
+                  <Image
+                    source={{ uri: fullScreenPhoto.uploader.avatar }}
+                    style={styles.fsAvatar}
+                  />
+                ) : (
+                  <View style={styles.fsAvatarFallback}>
+                    <Text style={styles.fsAvatarText}>
+                      {(fullScreenPhoto.uploader?.name || '?')[0].toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.fsUploaderName} numberOfLines={1}>
+                  {fullScreenPhoto.uploader?.name || 'Unknown uploader'}
+                </Text>
+              </View>
+
+              {/* Date / Time */}
+              <Text style={styles.fsDate}>
+                {new Date(fullScreenPhoto.date).toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+                {' at '}
+                {new Date(fullScreenPhoto.date).toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </Text>
+
+              {/* Category badge */}
+              {fullScreenPhoto.category && (
+                <View style={styles.fsCategoryBadge}>
+                  <Text style={styles.fsCategoryText}>{fullScreenPhoto.category}</Text>
+                </View>
+              )}
+
+              {/* Notes */}
+              {fullScreenPhoto.notes ? (
+                <Text style={styles.fsNotes} numberOfLines={3}>
+                  {fullScreenPhoto.notes}
+                </Text>
+              ) : null}
+            </View>
+          )}
+        </View>
       </Modal>
     </View>
   );
@@ -1756,6 +1956,134 @@ const styles = StyleSheet.create({
   webCameraBannerText: {
     fontSize: 13,
     color: '#3B82F6',
+    lineHeight: 18,
+  },
+  // Full-Screen Preview
+  fsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  fsHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 54 : 16,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    zIndex: 10,
+  },
+  fsHeaderBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsCounter: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  fsImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 100 : 70,
+    paddingBottom: 180,
+  },
+  fsImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fsNavLeft: {
+    position: 'absolute',
+    left: 12,
+    top: '50%',
+    marginTop: -24,
+    zIndex: 10,
+  },
+  fsNavRight: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    marginTop: -24,
+    zIndex: 10,
+  },
+  fsNavCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsMetadata: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+  },
+  fsUploaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  fsAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+  fsAvatarFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  fsAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  fsUploaderName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600' as const,
+    flex: 1,
+  },
+  fsDate: {
+    color: '#D1D5DB',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  fsCategoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(37, 99, 235, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  fsCategoryText: {
+    color: '#93C5FD',
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
+  fsNotes: {
+    color: '#E5E7EB',
+    fontSize: 13,
     lineHeight: 18,
   },
 });
