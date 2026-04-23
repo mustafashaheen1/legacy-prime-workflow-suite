@@ -1,8 +1,8 @@
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import SkeletonBox from '@/components/SkeletonBox';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Camera, Upload, Edit2, X, Check, Plus, Trash2, Settings, LayoutGrid, LayoutList, Monitor, Info, Download, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Camera, Upload, Edit2, X, Check, Plus, Trash2, Settings, LayoutGrid, LayoutList, Monitor, Info, Download, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Photo } from '@/types';
@@ -11,6 +11,8 @@ import { useUploadProgress } from '@/hooks/useUploadProgress';
 import { supabase } from '@/lib/supabase';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 
 export default function PhotosScreen() {
   const { user, photos, addPhoto, updatePhoto, deletePhoto, photoCategories, priceListCategories, addPhotoCategory, updatePhotoCategory, deletePhotoCategory, company, projects, refreshPhotos, isLoading, isCompanyReloading } = useApp();
@@ -58,6 +60,18 @@ export default function PhotosScreen() {
   // Full-screen photo preview
   const [fullScreenPhoto, setFullScreenPhoto] = useState<Photo | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Zoom state
+  const [zoomPercent, setZoomPercent] = useState(100);
+  const scale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedScale = useSharedValue(1);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+  const containerWidth = useSharedValue(0);
+  const containerHeight = useSharedValue(0);
+  const fsImageWebRef = useRef<View>(null);
 
   const filteredPhotos = useMemo(() => {
     return photos.filter(photo => !selectedProjectId || photo.projectId === selectedProjectId);
@@ -359,23 +373,197 @@ export default function PhotosScreen() {
     setTempCategory('');
   };
 
+  // Zoom helpers
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+  const ZOOM_STEP = 0.5;
+
+  const resetZoomImmediate = useCallback(() => {
+    scale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedScale.value = 1;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+    setZoomPercent(100);
+  }, []);
+
+  const updateZoomPercent = useCallback((val: number) => {
+    setZoomPercent(Math.round(val * 100));
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    const next = Math.min(MAX_ZOOM, scale.value + ZOOM_STEP);
+    scale.value = withSpring(next, { damping: 20, stiffness: 200 });
+    savedScale.value = next;
+    setZoomPercent(Math.round(next * 100));
+    if (next <= 1) {
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+    }
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    const next = Math.max(MIN_ZOOM, scale.value - ZOOM_STEP);
+    scale.value = withSpring(next, { damping: 20, stiffness: 200 });
+    savedScale.value = next;
+    setZoomPercent(Math.round(next * 100));
+    if (next <= 1) {
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+    }
+  }, []);
+
+  const onImageContainerLayout = useCallback((e: any) => {
+    containerWidth.value = e.nativeEvent.layout.width;
+    containerHeight.value = e.nativeEvent.layout.height;
+  }, []);
+
+  const pinchGesture = useMemo(() =>
+    Gesture.Pinch()
+      .onStart(() => {
+        'worklet';
+        savedScale.value = scale.value;
+      })
+      .onUpdate((e) => {
+        'worklet';
+        scale.value = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, savedScale.value * e.scale));
+      })
+      .onEnd(() => {
+        'worklet';
+        savedScale.value = scale.value;
+        const maxTx = containerWidth.value * (scale.value - 1) / 2;
+        const maxTy = containerHeight.value * (scale.value - 1) / 2;
+        if (Math.abs(translateX.value) > maxTx) {
+          translateX.value = withSpring(Math.sign(translateX.value) * maxTx);
+        }
+        if (Math.abs(translateY.value) > maxTy) {
+          translateY.value = withSpring(Math.sign(translateY.value) * maxTy);
+        }
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+        runOnJS(updateZoomPercent)(scale.value);
+      }),
+    []
+  );
+
+  const panGesture = useMemo(() =>
+    Gesture.Pan()
+      .minPointers(1)
+      .maxPointers(2)
+      .onStart(() => {
+        'worklet';
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+      })
+      .onUpdate((e) => {
+        'worklet';
+        if (scale.value <= 1) return;
+        translateX.value = savedTranslateX.value + e.translationX;
+        translateY.value = savedTranslateY.value + e.translationY;
+      })
+      .onEnd(() => {
+        'worklet';
+        const maxTx = containerWidth.value * (scale.value - 1) / 2;
+        const maxTy = containerHeight.value * (scale.value - 1) / 2;
+        if (Math.abs(translateX.value) > maxTx) {
+          translateX.value = withSpring(Math.sign(translateX.value) * maxTx);
+        }
+        if (Math.abs(translateY.value) > maxTy) {
+          translateY.value = withSpring(Math.sign(translateY.value) * maxTy);
+        }
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+      }),
+    []
+  );
+
+  const doubleTapGesture = useMemo(() =>
+    Gesture.Tap()
+      .numberOfTaps(2)
+      .onEnd(() => {
+        'worklet';
+        if (scale.value > 1) {
+          scale.value = withSpring(1, { damping: 20, stiffness: 200 });
+          translateX.value = withSpring(0, { damping: 20, stiffness: 200 });
+          translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
+          savedScale.value = 1;
+          savedTranslateX.value = 0;
+          savedTranslateY.value = 0;
+          runOnJS(updateZoomPercent)(1);
+        } else {
+          scale.value = withSpring(2, { damping: 20, stiffness: 200 });
+          savedScale.value = 2;
+          runOnJS(updateZoomPercent)(2);
+        }
+      }),
+    []
+  );
+
+  const composedGesture = useMemo(() =>
+    Gesture.Race(
+      doubleTapGesture,
+      Gesture.Simultaneous(pinchGesture, panGesture)
+    ),
+    [doubleTapGesture, pinchGesture, panGesture]
+  );
+
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: scale.value },
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+    ],
+  }));
+
+  // Scroll wheel zoom (web)
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !fullScreenPhoto) return;
+    const node = fsImageWebRef.current as unknown as HTMLElement;
+    if (!node) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+      const current = scale.value;
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, current + delta));
+      scale.value = withSpring(next, { damping: 20, stiffness: 200 });
+      savedScale.value = next;
+      setZoomPercent(Math.round(next * 100));
+      if (next <= 1) {
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      }
+    };
+    node.addEventListener('wheel', handleWheel, { passive: false });
+    return () => { node.removeEventListener('wheel', handleWheel); };
+  }, [fullScreenPhoto]);
+
   const handlePhotoPress = useCallback((photo: Photo) => {
     setFullScreenPhoto(photo);
   }, []);
 
   const handleCloseFullScreen = useCallback(() => {
+    resetZoomImmediate();
     setFullScreenPhoto(null);
-  }, []);
+  }, [resetZoomImmediate]);
 
   const handleNextPhoto = useCallback(() => {
     if (fullScreenIndex < 0 || fullScreenIndex >= filteredPhotos.length - 1) return;
+    resetZoomImmediate();
     setFullScreenPhoto(filteredPhotos[fullScreenIndex + 1]);
-  }, [fullScreenIndex, filteredPhotos]);
+  }, [fullScreenIndex, filteredPhotos, resetZoomImmediate]);
 
   const handlePrevPhoto = useCallback(() => {
     if (fullScreenIndex <= 0) return;
+    resetZoomImmediate();
     setFullScreenPhoto(filteredPhotos[fullScreenIndex - 1]);
-  }, [fullScreenIndex, filteredPhotos]);
+  }, [fullScreenIndex, filteredPhotos, resetZoomImmediate]);
 
   const handleDownloadPhoto = useCallback(async () => {
     if (!fullScreenPhoto?.url || isDownloading) return;
@@ -1053,8 +1241,8 @@ export default function PhotosScreen() {
         statusBarTranslucent
       >
         <View style={styles.fsOverlay}>
-          {/* Background dismiss */}
-          <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseFullScreen} />
+          {/* Background dismiss — disabled when zoomed to prevent accidental close */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={zoomPercent > 100 ? undefined : handleCloseFullScreen} />
 
           {/* Header */}
           <View style={styles.fsHeader}>
@@ -1079,16 +1267,47 @@ export default function PhotosScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Image */}
-          {fullScreenPhoto && (
-            <View style={styles.fsImageContainer}>
-              <Image
-                source={{ uri: fullScreenPhoto.url }}
-                style={styles.fsImage}
-                contentFit="contain"
-                transition={200}
-              />
+          {/* Zoom Controls */}
+          <View style={styles.fsZoomControls}>
+            <TouchableOpacity
+              style={[styles.fsZoomBtn, zoomPercent <= 100 && styles.fsZoomBtnDisabled]}
+              onPress={handleZoomOut}
+              disabled={zoomPercent <= 100}
+            >
+              <ZoomOut size={18} color={zoomPercent <= 100 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
+            </TouchableOpacity>
+            <View style={styles.fsZoomBadge}>
+              <Text style={styles.fsZoomText}>{zoomPercent}%</Text>
             </View>
+            <TouchableOpacity
+              style={[styles.fsZoomBtn, zoomPercent >= 400 && styles.fsZoomBtnDisabled]}
+              onPress={handleZoomIn}
+              disabled={zoomPercent >= 400}
+            >
+              <ZoomIn size={18} color={zoomPercent >= 400 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Image with zoom */}
+          {fullScreenPhoto && (
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <GestureDetector gesture={composedGesture}>
+                <View
+                  style={styles.fsImageContainer}
+                  ref={fsImageWebRef}
+                  onLayout={onImageContainerLayout}
+                >
+                  <Animated.View style={[styles.fsImage, animatedImageStyle]}>
+                    <Image
+                      source={{ uri: fullScreenPhoto.url }}
+                      style={{ width: '100%', height: '100%' }}
+                      contentFit="contain"
+                      transition={200}
+                    />
+                  </Animated.View>
+                </View>
+              </GestureDetector>
+            </GestureHandlerRootView>
           )}
 
           {/* Prev arrow */}
@@ -2084,5 +2303,39 @@ const styles = StyleSheet.create({
     color: '#E5E7EB',
     fontSize: 13,
     lineHeight: 18,
+  },
+  fsZoomControls: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 100 : 62,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 20,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    zIndex: 10,
+    gap: 2,
+  },
+  fsZoomBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsZoomBtnDisabled: {
+    opacity: 0.4,
+  },
+  fsZoomBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 52,
+    alignItems: 'center',
+  },
+  fsZoomText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600' as const,
   },
 });

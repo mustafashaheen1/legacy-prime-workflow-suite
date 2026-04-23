@@ -5,7 +5,7 @@ import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
 import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment, ScheduledTask, Photo } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon, PlayCircle, PauseCircle, Monitor, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon, PlayCircle, PauseCircle, Monitor, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
 import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import { generateUUID } from '@/utils/uuid';
@@ -23,6 +23,8 @@ import { compressImage, uriToBase64 } from '@/lib/upload-utils';
 import * as FileSystem from 'expo-file-system/legacy';
 import { File as FSFile, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 
 type TabType = 'overview' | 'schedule' | 'estimate' | 'change-orders' | 'clock' | 'expenses' | 'photos' | 'videos' | 'files' | 'reports';
 
@@ -139,6 +141,16 @@ export default function ProjectDetailScreen() {
   const isUploadingPhotoRef = useRef(false);
   const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
   const [isPhotoDownloading, setIsPhotoDownloading] = useState(false);
+  const [zoomPercent, setZoomPercent] = useState(100);
+  const zScale = useSharedValue(1);
+  const zTranslateX = useSharedValue(0);
+  const zTranslateY = useSharedValue(0);
+  const zSavedScale = useSharedValue(1);
+  const zSavedTranslateX = useSharedValue(0);
+  const zSavedTranslateY = useSharedValue(0);
+  const zContainerWidth = useSharedValue(0);
+  const zContainerHeight = useSharedValue(0);
+  const fsImageWebRef = useRef<View>(null);
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [budgetInput, setBudgetInput] = useState('');
   const [contractAmountInput, setContractAmountInput] = useState('');
@@ -649,19 +661,106 @@ export default function ProjectDetailScreen() {
     );
   }
 
-  const handleClosePhotoViewer = useCallback(() => {
-    setViewingPhoto(null);
+  // Zoom helpers
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+  const ZOOM_STEP = 0.5;
+
+  const resetZoomImmediate = useCallback(() => {
+    zScale.value = 1; zTranslateX.value = 0; zTranslateY.value = 0;
+    zSavedScale.value = 1; zSavedTranslateX.value = 0; zSavedTranslateY.value = 0;
+    setZoomPercent(100);
   }, []);
+
+  const updateZoomPercent = useCallback((val: number) => { setZoomPercent(Math.round(val * 100)); }, []);
+
+  const handleZoomIn = useCallback(() => {
+    const next = Math.min(MAX_ZOOM, zScale.value + ZOOM_STEP);
+    zScale.value = withSpring(next, { damping: 20, stiffness: 200 });
+    zSavedScale.value = next;
+    setZoomPercent(Math.round(next * 100));
+    if (next <= 1) { zTranslateX.value = withSpring(0); zTranslateY.value = withSpring(0); zSavedTranslateX.value = 0; zSavedTranslateY.value = 0; }
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    const next = Math.max(MIN_ZOOM, zScale.value - ZOOM_STEP);
+    zScale.value = withSpring(next, { damping: 20, stiffness: 200 });
+    zSavedScale.value = next;
+    setZoomPercent(Math.round(next * 100));
+    if (next <= 1) { zTranslateX.value = withSpring(0); zTranslateY.value = withSpring(0); zSavedTranslateX.value = 0; zSavedTranslateY.value = 0; }
+  }, []);
+
+  const onImageContainerLayout = useCallback((e: any) => { zContainerWidth.value = e.nativeEvent.layout.width; zContainerHeight.value = e.nativeEvent.layout.height; }, []);
+
+  const pinchGesture = useMemo(() => Gesture.Pinch()
+    .onStart(() => { 'worklet'; zSavedScale.value = zScale.value; })
+    .onUpdate((e) => { 'worklet'; zScale.value = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zSavedScale.value * e.scale)); })
+    .onEnd(() => { 'worklet'; zSavedScale.value = zScale.value;
+      const maxTx = zContainerWidth.value * (zScale.value - 1) / 2;
+      const maxTy = zContainerHeight.value * (zScale.value - 1) / 2;
+      if (Math.abs(zTranslateX.value) > maxTx) zTranslateX.value = withSpring(Math.sign(zTranslateX.value) * maxTx);
+      if (Math.abs(zTranslateY.value) > maxTy) zTranslateY.value = withSpring(Math.sign(zTranslateY.value) * maxTy);
+      zSavedTranslateX.value = zTranslateX.value; zSavedTranslateY.value = zTranslateY.value;
+      runOnJS(updateZoomPercent)(zScale.value);
+    }), []);
+
+  const panGesture = useMemo(() => Gesture.Pan().minPointers(1).maxPointers(2)
+    .onStart(() => { 'worklet'; zSavedTranslateX.value = zTranslateX.value; zSavedTranslateY.value = zTranslateY.value; })
+    .onUpdate((e) => { 'worklet'; if (zScale.value <= 1) return; zTranslateX.value = zSavedTranslateX.value + e.translationX; zTranslateY.value = zSavedTranslateY.value + e.translationY; })
+    .onEnd(() => { 'worklet';
+      const maxTx = zContainerWidth.value * (zScale.value - 1) / 2;
+      const maxTy = zContainerHeight.value * (zScale.value - 1) / 2;
+      if (Math.abs(zTranslateX.value) > maxTx) zTranslateX.value = withSpring(Math.sign(zTranslateX.value) * maxTx);
+      if (Math.abs(zTranslateY.value) > maxTy) zTranslateY.value = withSpring(Math.sign(zTranslateY.value) * maxTy);
+      zSavedTranslateX.value = zTranslateX.value; zSavedTranslateY.value = zTranslateY.value;
+    }), []);
+
+  const doubleTapGesture = useMemo(() => Gesture.Tap().numberOfTaps(2)
+    .onEnd(() => { 'worklet';
+      if (zScale.value > 1) {
+        zScale.value = withSpring(1, { damping: 20, stiffness: 200 }); zTranslateX.value = withSpring(0, { damping: 20, stiffness: 200 }); zTranslateY.value = withSpring(0, { damping: 20, stiffness: 200 });
+        zSavedScale.value = 1; zSavedTranslateX.value = 0; zSavedTranslateY.value = 0; runOnJS(updateZoomPercent)(1);
+      } else { zScale.value = withSpring(2, { damping: 20, stiffness: 200 }); zSavedScale.value = 2; runOnJS(updateZoomPercent)(2); }
+    }), []);
+
+  const composedGesture = useMemo(() => Gesture.Race(doubleTapGesture, Gesture.Simultaneous(pinchGesture, panGesture)), [doubleTapGesture, pinchGesture, panGesture]);
+
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: zScale.value }, { translateX: zTranslateX.value }, { translateY: zTranslateY.value }],
+  }));
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !viewingPhoto) return;
+    const node = fsImageWebRef.current as unknown as HTMLElement;
+    if (!node) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zScale.value + delta));
+      zScale.value = withSpring(next, { damping: 20, stiffness: 200 }); zSavedScale.value = next;
+      setZoomPercent(Math.round(next * 100));
+      if (next <= 1) { zTranslateX.value = withSpring(0); zTranslateY.value = withSpring(0); zSavedTranslateX.value = 0; zSavedTranslateY.value = 0; }
+    };
+    node.addEventListener('wheel', handleWheel, { passive: false });
+    return () => { node.removeEventListener('wheel', handleWheel); };
+  }, [viewingPhoto]);
+
+  const handleClosePhotoViewer = useCallback(() => {
+    resetZoomImmediate();
+    setViewingPhoto(null);
+  }, [resetZoomImmediate]);
 
   const handleNextPhoto = useCallback(() => {
     if (viewingPhotoIndex < 0 || viewingPhotoIndex >= projectPhotos.length - 1) return;
+    resetZoomImmediate();
     setViewingPhoto(projectPhotos[viewingPhotoIndex + 1]);
-  }, [viewingPhotoIndex, projectPhotos]);
+  }, [viewingPhotoIndex, projectPhotos, resetZoomImmediate]);
 
   const handlePrevPhoto = useCallback(() => {
     if (viewingPhotoIndex <= 0) return;
+    resetZoomImmediate();
     setViewingPhoto(projectPhotos[viewingPhotoIndex - 1]);
-  }, [viewingPhotoIndex, projectPhotos]);
+  }, [viewingPhotoIndex, projectPhotos, resetZoomImmediate]);
 
   const handleDownloadPhoto = useCallback(async () => {
     if (!viewingPhoto?.url || isPhotoDownloading) return;
@@ -3866,7 +3965,7 @@ export default function ProjectDetailScreen() {
         statusBarTranslucent
       >
         <View style={styles.fsOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={handleClosePhotoViewer} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={zoomPercent > 100 ? undefined : handleClosePhotoViewer} />
 
           {/* Header */}
           <View style={styles.fsHeader}>
@@ -3891,16 +3990,47 @@ export default function ProjectDetailScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Image */}
-          {viewingPhoto && (
-            <View style={styles.fsImageContainer}>
-              <Image
-                source={{ uri: viewingPhoto.url }}
-                style={styles.fsImage}
-                contentFit="contain"
-                transition={200}
-              />
+          {/* Zoom Controls */}
+          <View style={styles.fsZoomControls}>
+            <TouchableOpacity
+              style={[styles.fsZoomBtn, zoomPercent <= 100 && styles.fsZoomBtnDisabled]}
+              onPress={handleZoomOut}
+              disabled={zoomPercent <= 100}
+            >
+              <ZoomOut size={18} color={zoomPercent <= 100 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
+            </TouchableOpacity>
+            <View style={styles.fsZoomBadge}>
+              <Text style={styles.fsZoomText}>{zoomPercent}%</Text>
             </View>
+            <TouchableOpacity
+              style={[styles.fsZoomBtn, zoomPercent >= 400 && styles.fsZoomBtnDisabled]}
+              onPress={handleZoomIn}
+              disabled={zoomPercent >= 400}
+            >
+              <ZoomIn size={18} color={zoomPercent >= 400 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Image with zoom */}
+          {viewingPhoto && (
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <GestureDetector gesture={composedGesture}>
+                <View
+                  style={styles.fsImageContainer}
+                  ref={fsImageWebRef}
+                  onLayout={onImageContainerLayout}
+                >
+                  <Animated.View style={[styles.fsImage, animatedImageStyle]}>
+                    <Image
+                      source={{ uri: viewingPhoto.url }}
+                      style={{ width: '100%', height: '100%' }}
+                      contentFit="contain"
+                      transition={200}
+                    />
+                  </Animated.View>
+                </View>
+              </GestureDetector>
+            </GestureHandlerRootView>
           )}
 
           {/* Prev arrow */}
@@ -6349,6 +6479,40 @@ const styles = StyleSheet.create({
     color: '#E5E7EB',
     fontSize: 13,
     lineHeight: 18,
+  },
+  fsZoomControls: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 100 : 62,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 20,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    zIndex: 10,
+    gap: 2,
+  },
+  fsZoomBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsZoomBtnDisabled: {
+    opacity: 0.4,
+  },
+  fsZoomBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 52,
+    alignItems: 'center',
+  },
+  fsZoomText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600' as const,
   },
   costBreakdownSection: {
     marginTop: 16,

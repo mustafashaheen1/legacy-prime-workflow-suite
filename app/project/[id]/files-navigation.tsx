@@ -1,8 +1,8 @@
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2, ChevronRight, ChevronLeft, LayoutGrid, LayoutList, Monitor, Download } from 'lucide-react-native';
+import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2, ChevronRight, ChevronLeft, LayoutGrid, LayoutList, Monitor, Download, ZoomIn, ZoomOut } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -15,6 +15,8 @@ import { File as FSFile, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { compressImage } from '@/lib/upload-utils';
 import { generateUUID } from '@/utils/uuid';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 
 type FolderType = 'photos' | 'receipts' | 'permit-files' | 'inspections' | 'agreements' | 'videos';
 
@@ -112,6 +114,21 @@ export default function FilesNavigationScreen() {
   const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
   const [showWebCameraBanner, setShowWebCameraBanner] = useState<boolean>(false);
 
+  // Zoom state
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+  const ZOOM_STEP = 0.5;
+  const [zoomPercent, setZoomPercent] = useState(100);
+  const zScale = useSharedValue(1);
+  const zTranslateX = useSharedValue(0);
+  const zTranslateY = useSharedValue(0);
+  const zSavedScale = useSharedValue(1);
+  const zSavedTranslateX = useSharedValue(0);
+  const zSavedTranslateY = useSharedValue(0);
+  const zContainerWidth = useSharedValue(0);
+  const zContainerHeight = useSharedValue(0);
+  const fsImageWebRef = useRef<View>(null);
+
   const project = projects.find(p => p.id === id);
 
   // Full-screen image viewer helpers
@@ -156,19 +173,22 @@ export default function FilesNavigationScreen() {
   }, []);
 
   const handleCloseFullScreenImage = useCallback(() => {
+    resetZoomImmediate();
     setFullScreenImage(null);
     setFullScreenImageList([]);
-  }, []);
+  }, [resetZoomImmediate]);
 
   const handleNextImage = useCallback(() => {
     if (fullScreenImageIndex < 0 || fullScreenImageIndex >= fullScreenImageList.length - 1) return;
+    resetZoomImmediate();
     setFullScreenImage(fullScreenImageList[fullScreenImageIndex + 1]);
-  }, [fullScreenImageIndex, fullScreenImageList]);
+  }, [fullScreenImageIndex, fullScreenImageList, resetZoomImmediate]);
 
   const handlePrevImage = useCallback(() => {
     if (fullScreenImageIndex <= 0) return;
+    resetZoomImmediate();
     setFullScreenImage(fullScreenImageList[fullScreenImageIndex - 1]);
-  }, [fullScreenImageIndex, fullScreenImageList]);
+  }, [fullScreenImageIndex, fullScreenImageList, resetZoomImmediate]);
 
   const handleDownloadImage = useCallback(async () => {
     if (!fullScreenImage?.uri || isDownloading) return;
@@ -214,6 +234,79 @@ export default function FilesNavigationScreen() {
       setIsDownloading(false);
     }
   }, [fullScreenImage, isDownloading]);
+
+  // Zoom handlers
+  const updateZoomPercent = useCallback((s: number) => { setZoomPercent(Math.round(s * 100)); }, []);
+  const resetZoomImmediate = useCallback(() => {
+    zScale.value = 1; zTranslateX.value = 0; zTranslateY.value = 0;
+    zSavedScale.value = 1; zSavedTranslateX.value = 0; zSavedTranslateY.value = 0;
+    setZoomPercent(100);
+  }, []);
+  const handleZoomIn = useCallback(() => {
+    const next = Math.min(MAX_ZOOM, zScale.value + ZOOM_STEP);
+    zScale.value = withSpring(next, { damping: 20, stiffness: 200 });
+    zSavedScale.value = next; updateZoomPercent(next);
+    if (next <= 1) { zTranslateX.value = withSpring(0); zTranslateY.value = withSpring(0); zSavedTranslateX.value = 0; zSavedTranslateY.value = 0; }
+  }, [updateZoomPercent]);
+  const handleZoomOut = useCallback(() => {
+    const next = Math.max(MIN_ZOOM, zScale.value - ZOOM_STEP);
+    zScale.value = withSpring(next, { damping: 20, stiffness: 200 });
+    zSavedScale.value = next; updateZoomPercent(next);
+    if (next <= 1) { zTranslateX.value = withSpring(0); zTranslateY.value = withSpring(0); zSavedTranslateX.value = 0; zSavedTranslateY.value = 0; }
+  }, [updateZoomPercent]);
+  const onImageContainerLayout = useCallback((e: any) => { zContainerWidth.value = e.nativeEvent.layout.width; zContainerHeight.value = e.nativeEvent.layout.height; }, []);
+
+  // Gestures
+  const pinchGesture = useMemo(() => Gesture.Pinch()
+    .onStart(() => { 'worklet'; zSavedScale.value = zScale.value; })
+    .onUpdate((e) => { 'worklet'; zScale.value = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zSavedScale.value * e.scale)); })
+    .onEnd(() => { 'worklet'; zSavedScale.value = zScale.value;
+      const maxTx = zContainerWidth.value * (zScale.value - 1) / 2;
+      const maxTy = zContainerHeight.value * (zScale.value - 1) / 2;
+      if (Math.abs(zTranslateX.value) > maxTx) zTranslateX.value = withSpring(Math.sign(zTranslateX.value) * maxTx);
+      if (Math.abs(zTranslateY.value) > maxTy) zTranslateY.value = withSpring(Math.sign(zTranslateY.value) * maxTy);
+      zSavedTranslateX.value = zTranslateX.value; zSavedTranslateY.value = zTranslateY.value;
+      runOnJS(updateZoomPercent)(zScale.value);
+    }), [updateZoomPercent]);
+  const panGesture = useMemo(() => Gesture.Pan()
+    .onStart(() => { 'worklet'; zSavedTranslateX.value = zTranslateX.value; zSavedTranslateY.value = zTranslateY.value; })
+    .onUpdate((e) => { 'worklet'; if (zScale.value <= 1) return; zTranslateX.value = zSavedTranslateX.value + e.translationX; zTranslateY.value = zSavedTranslateY.value + e.translationY; })
+    .onEnd(() => { 'worklet';
+      const maxTx = zContainerWidth.value * (zScale.value - 1) / 2;
+      const maxTy = zContainerHeight.value * (zScale.value - 1) / 2;
+      if (Math.abs(zTranslateX.value) > maxTx) zTranslateX.value = withSpring(Math.sign(zTranslateX.value) * maxTx);
+      if (Math.abs(zTranslateY.value) > maxTy) zTranslateY.value = withSpring(Math.sign(zTranslateY.value) * maxTy);
+      zSavedTranslateX.value = zTranslateX.value; zSavedTranslateY.value = zTranslateY.value;
+    }), []);
+  const doubleTapGesture = useMemo(() => Gesture.Tap().numberOfTaps(2).onEnd(() => {
+    'worklet';
+    if (zScale.value > 1) {
+      zScale.value = withSpring(1, { damping: 20, stiffness: 200 }); zTranslateX.value = withSpring(0, { damping: 20, stiffness: 200 }); zTranslateY.value = withSpring(0, { damping: 20, stiffness: 200 });
+      zSavedScale.value = 1; zSavedTranslateX.value = 0; zSavedTranslateY.value = 0; runOnJS(updateZoomPercent)(1);
+    } else { zScale.value = withSpring(2, { damping: 20, stiffness: 200 }); zSavedScale.value = 2; runOnJS(updateZoomPercent)(2); }
+  }), [updateZoomPercent]);
+  const composedGesture = useMemo(() => Gesture.Race(doubleTapGesture, Gesture.Simultaneous(pinchGesture, panGesture)), [doubleTapGesture, pinchGesture, panGesture]);
+
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: zScale.value }, { translateX: zTranslateX.value }, { translateY: zTranslateY.value }],
+  }));
+
+  // Web scroll-wheel zoom
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !fullScreenImage) return;
+    const node = fsImageWebRef.current as unknown as HTMLElement;
+    if (!node) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zScale.value + delta));
+      zScale.value = withSpring(next, { damping: 20, stiffness: 200 }); zSavedScale.value = next;
+      updateZoomPercent(next);
+      if (next <= 1) { zTranslateX.value = withSpring(0); zTranslateY.value = withSpring(0); zSavedTranslateX.value = 0; zSavedTranslateY.value = 0; }
+    };
+    node.addEventListener('wheel', handler, { passive: false });
+    return () => node.removeEventListener('wheel', handler);
+  }, [fullScreenImage]);
 
   const [customFoldersList, setCustomFoldersList] = useState<FolderConfig[]>([]);
 
@@ -1436,7 +1529,7 @@ export default function FilesNavigationScreen() {
           statusBarTranslucent
         >
           <View style={styles.fsOverlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseFullScreenImage} />
+            <Pressable style={StyleSheet.absoluteFill} onPress={zoomPercent > 100 ? undefined : handleCloseFullScreenImage} />
 
             {/* Header */}
             <View style={styles.fsHeader}>
@@ -1461,16 +1554,47 @@ export default function FilesNavigationScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Image */}
-            {fullScreenImage && (
-              <View style={styles.fsImageContainer}>
-                <Image
-                  source={{ uri: fullScreenImage.uri }}
-                  style={styles.fsImage}
-                  contentFit="contain"
-                  transition={200}
-                />
+            {/* Zoom Controls */}
+            <View style={styles.fsZoomControls}>
+              <TouchableOpacity
+                style={[styles.fsZoomBtn, zoomPercent <= 100 && styles.fsZoomBtnDisabled]}
+                onPress={handleZoomOut}
+                disabled={zoomPercent <= 100}
+              >
+                <ZoomOut size={18} color={zoomPercent <= 100 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
+              </TouchableOpacity>
+              <View style={styles.fsZoomBadge}>
+                <Text style={styles.fsZoomText}>{zoomPercent}%</Text>
               </View>
+              <TouchableOpacity
+                style={[styles.fsZoomBtn, zoomPercent >= 400 && styles.fsZoomBtnDisabled]}
+                onPress={handleZoomIn}
+                disabled={zoomPercent >= 400}
+              >
+                <ZoomIn size={18} color={zoomPercent >= 400 ? 'rgba(255,255,255,0.3)' : '#FFFFFF'} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Image with zoom */}
+            {fullScreenImage && (
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <GestureDetector gesture={composedGesture}>
+                  <View
+                    style={styles.fsImageContainer}
+                    ref={fsImageWebRef}
+                    onLayout={onImageContainerLayout}
+                  >
+                    <Animated.View style={[styles.fsImage, animatedImageStyle]}>
+                      <Image
+                        source={{ uri: fullScreenImage.uri }}
+                        style={{ width: '100%', height: '100%' }}
+                        contentFit="contain"
+                        transition={200}
+                      />
+                    </Animated.View>
+                  </View>
+                </GestureDetector>
+              </GestureHandlerRootView>
             )}
 
             {/* Prev arrow */}
@@ -2344,5 +2468,39 @@ const styles = StyleSheet.create({
     color: '#E5E7EB',
     fontSize: 13,
     lineHeight: 18,
+  },
+  fsZoomControls: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 100 : 62,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 20,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    zIndex: 10,
+    gap: 2,
+  },
+  fsZoomBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsZoomBtnDisabled: {
+    opacity: 0.4,
+  },
+  fsZoomBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 52,
+    alignItems: 'center',
+  },
+  fsZoomText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600' as const,
   },
 });
