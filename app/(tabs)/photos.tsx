@@ -52,7 +52,7 @@ export default function PhotosScreen() {
   const [previewNotes, setPreviewNotes] = useState<string>('');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showProjectPickerModal, setShowProjectPickerModal] = useState<boolean>(false);
-  const [isPickingMedia, setIsPickingMedia] = useState<boolean>(false);
+  const [isPickingMedia, setIsPickingMedia] = useState<'camera' | 'gallery' | false>(false);
   const [showWebCameraBanner, setShowWebCameraBanner] = useState<boolean>(false);
 
   // Full-screen photo preview
@@ -87,7 +87,7 @@ export default function PhotosScreen() {
       return;
     }
 
-    setIsPickingMedia(true);
+    setIsPickingMedia('gallery');
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -124,7 +124,7 @@ export default function PhotosScreen() {
       return;
     }
 
-    setIsPickingMedia(true);
+    setIsPickingMedia('camera');
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -436,21 +436,21 @@ export default function PhotosScreen() {
           <Text style={styles.title}>Photos</Text>
           <View style={styles.headerButtons}>
             <TouchableOpacity
-              style={[styles.headerButton, isPickingMedia && styles.headerButtonDisabled]}
+              style={[styles.headerButton, !!isPickingMedia && styles.headerButtonDisabled]}
               onPress={takePhoto}
-              disabled={isPickingMedia}
+              disabled={!!isPickingMedia}
             >
-              {isPickingMedia
+              {isPickingMedia === 'camera'
                 ? <ActivityIndicator size="small" color="#FFFFFF" />
                 : <Camera size={20} color="#FFFFFF" />}
               <Text style={styles.headerButtonText}>Take Photo</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.headerButton, isPickingMedia && styles.headerButtonDisabled]}
+              style={[styles.headerButton, !!isPickingMedia && styles.headerButtonDisabled]}
               onPress={pickImage}
-              disabled={isPickingMedia}
+              disabled={!!isPickingMedia}
             >
-              {isPickingMedia
+              {isPickingMedia === 'gallery'
                 ? <ActivityIndicator size="small" color="#FFFFFF" />
                 : <Upload size={20} color="#FFFFFF" />}
               <Text style={styles.headerButtonText}>Upload Photo</Text>
@@ -958,36 +958,6 @@ export default function PhotosScreen() {
           </View>
         </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Upload Progress Modal */}
-      <Modal
-        visible={uploadProgress.isUploading}
-        transparent
-        animationType="fade"
-      >
-        <View style={styles.uploadOverlay}>
-          <View style={styles.uploadModal}>
-            <ActivityIndicator size="large" color="#2563EB" />
-            <Text style={styles.uploadTitle}>
-              {uploadProgress.phase === 'compressing' && 'Compressing image...'}
-              {uploadProgress.phase === 'uploading' && 'Uploading to cloud...'}
-              {uploadProgress.phase === 'complete' && 'Upload complete!'}
-            </Text>
-            <Text style={styles.uploadProgress}>{uploadProgress.progress}%</Text>
-            <View style={styles.progressBarContainer}>
-              <View
-                style={[
-                  styles.progressBar,
-                  { width: `${uploadProgress.progress}%` }
-                ]}
-              />
-            </View>
-            {uploadProgress.error && (
-              <Text style={styles.uploadError}>{uploadProgress.error}</Text>
-            )}
-          </View>
-        </View>
       </Modal>
 
       {/* Project Picker Modal */}
