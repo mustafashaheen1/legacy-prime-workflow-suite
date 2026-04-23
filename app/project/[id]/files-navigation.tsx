@@ -2,15 +2,17 @@ import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platfo
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2, ChevronRight, LayoutGrid, LayoutList, Monitor } from 'lucide-react-native';
+import { Folder, Image as ImageIcon, Receipt, FileText, FileCheck, FileSignature, File as FileIcon, ArrowLeft, Plus, Upload, X, Camera, Trash2, ChevronRight, ChevronLeft, LayoutGrid, LayoutList, Monitor, Download } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { FileCategory, ProjectFile } from '@/types';
+import { FileCategory, ProjectFile, Photo } from '@/types';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabase';
 import { Linking } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import { File as FSFile, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { compressImage } from '@/lib/upload-utils';
 import { generateUUID } from '@/utils/uuid';
 
@@ -74,6 +76,16 @@ interface FolderWithData extends FolderConfig {
   categories: string[];
 }
 
+type ViewableImageItem = {
+  id: string;
+  uri: string;
+  name: string;
+  date: string;
+  category?: string;
+  notes?: string;
+  uploader?: { name: string; avatar?: string } | null;
+};
+
 export default function FilesNavigationScreen() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams();
@@ -89,6 +101,9 @@ export default function FilesNavigationScreen() {
   const [newFolderModalVisible, setNewFolderModalVisible] = useState<boolean>(false);
   const [newFolderName, setNewFolderName] = useState<string>('');
   const [viewingFile, setViewingFile] = useState<{ uri: string; name: string; type: string } | null>(null);
+  const [fullScreenImage, setFullScreenImage] = useState<ViewableImageItem | null>(null);
+  const [fullScreenImageList, setFullScreenImageList] = useState<ViewableImageItem[]>([]);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [modalCategory, setModalCategory] = useState<string>('');
   const [photoViewMode, setPhotoViewMode] = useState<'grid' | 'list'>('grid');
@@ -98,6 +113,107 @@ export default function FilesNavigationScreen() {
   const [showWebCameraBanner, setShowWebCameraBanner] = useState<boolean>(false);
 
   const project = projects.find(p => p.id === id);
+
+  // Full-screen image viewer helpers
+  const fullScreenImageIndex = useMemo(() => {
+    if (!fullScreenImage) return -1;
+    return fullScreenImageList.findIndex(item => item.id === fullScreenImage.id);
+  }, [fullScreenImage, fullScreenImageList]);
+
+  const photoToViewable = useCallback((photo: any): ViewableImageItem => ({
+    id: photo.id,
+    uri: photo.url,
+    name: photo.category,
+    date: photo.date,
+    category: photo.category,
+    notes: photo.notes,
+    uploader: photo.uploader || null,
+  }), []);
+
+  const expenseToViewable = useCallback((expense: any): ViewableImageItem => ({
+    id: expense.id,
+    uri: expense.receiptUrl,
+    name: `${expense.store} - $${expense.amount.toFixed(2)}`,
+    date: expense.date,
+    category: expense.subcategory || expense.type,
+    notes: expense.notes,
+    uploader: expense.uploader || null,
+  }), []);
+
+  const projectFileToViewable = useCallback((file: ProjectFile): ViewableImageItem => ({
+    id: file.id,
+    uri: file.uri,
+    name: file.name,
+    date: file.uploadDate,
+    category: file.category,
+    notes: file.notes,
+    uploader: null,
+  }), []);
+
+  const openImageFullScreen = useCallback((item: ViewableImageItem, list: ViewableImageItem[]) => {
+    setFullScreenImageList(list);
+    setFullScreenImage(item);
+  }, []);
+
+  const handleCloseFullScreenImage = useCallback(() => {
+    setFullScreenImage(null);
+    setFullScreenImageList([]);
+  }, []);
+
+  const handleNextImage = useCallback(() => {
+    if (fullScreenImageIndex < 0 || fullScreenImageIndex >= fullScreenImageList.length - 1) return;
+    setFullScreenImage(fullScreenImageList[fullScreenImageIndex + 1]);
+  }, [fullScreenImageIndex, fullScreenImageList]);
+
+  const handlePrevImage = useCallback(() => {
+    if (fullScreenImageIndex <= 0) return;
+    setFullScreenImage(fullScreenImageList[fullScreenImageIndex - 1]);
+  }, [fullScreenImageIndex, fullScreenImageList]);
+
+  const handleDownloadImage = useCallback(async () => {
+    if (!fullScreenImage?.uri || isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const urlParts = fullScreenImage.uri.split('/');
+      const fileName = urlParts[urlParts.length - 1]?.split('?')[0] || `file-${Date.now()}.jpg`;
+      if (Platform.OS === 'web') {
+        const link = document.createElement('a');
+        link.href = fullScreenImage.uri;
+        link.download = fileName;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const file = new FSFile(Paths.cache, fileName);
+        const response = await fetch(fullScreenImage.uri);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        file.write(base64, { encoding: 'base64' });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(file.uri);
+        } else {
+          Alert.alert('Downloaded', `File saved to: ${file.uri}`);
+        }
+      }
+    } catch (error: any) {
+      console.error('[FilesNav] Download error:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to download file. Please try again.');
+      } else {
+        Alert.alert('Download Failed', 'Could not download the file. Please try again.');
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [fullScreenImage, isDownloading]);
 
   const [customFoldersList, setCustomFoldersList] = useState<FolderConfig[]>([]);
 
@@ -853,7 +969,7 @@ export default function FilesNavigationScreen() {
                 <View key={file.id} style={styles.photoGridItem}>
                   <TouchableOpacity
                     activeOpacity={0.85}
-                    onPress={() => setViewingFile({ uri: file.url, name: file.category, type: 'image' })}
+                    onPress={() => openImageFullScreen(photoToViewable(file), files.map(photoToViewable))}
                     style={styles.photoGridCard}
                   >
                     <Image source={{ uri: file.url }} style={styles.photoGridImage} contentFit="cover" />
@@ -875,7 +991,7 @@ export default function FilesNavigationScreen() {
                 <View key={file.id} style={[styles.photoCard, { position: 'relative' }]}>
                   <TouchableOpacity
                     style={{ flexDirection: 'row', flex: 1, paddingRight: 40 }}
-                    onPress={() => setViewingFile({ uri: file.url, name: file.category, type: 'image' })}
+                    onPress={() => openImageFullScreen(photoToViewable(file), files.map(photoToViewable))}
                     activeOpacity={0.8}
                   >
                     <Image source={{ uri: file.url }} style={styles.photoThumbnail} contentFit="cover" />
@@ -906,11 +1022,19 @@ export default function FilesNavigationScreen() {
                       if (file.receiptUrl) {
                         const isPdf = file.receiptUrl.toLowerCase().includes('.pdf') ||
                                      file.receiptUrl.toLowerCase().includes('application/pdf');
-                        setViewingFile({
-                          uri: file.receiptUrl,
-                          name: `${file.store} - $${file.amount.toFixed(2)}`,
-                          type: isPdf ? 'pdf' : 'image'
-                        });
+                        if (isPdf) {
+                          setViewingFile({
+                            uri: file.receiptUrl,
+                            name: `${file.store} - $${file.amount.toFixed(2)}`,
+                            type: 'pdf'
+                          });
+                        } else {
+                          const imageReceipts = files.filter((e: any) => {
+                            const url = (e.receiptUrl || '').toLowerCase();
+                            return e.receiptUrl && !url.includes('.pdf') && !url.includes('application/pdf');
+                          });
+                          openImageFullScreen(expenseToViewable(file), imageReceipts.map(expenseToViewable));
+                        }
                       } else {
                         Alert.alert('No Receipt', 'This expense does not have a receipt image attached.');
                       }
@@ -990,7 +1114,8 @@ export default function FilesNavigationScreen() {
                     style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 40, flex: 1 }}
                     onPress={() => {
                       if (isImage) {
-                        setViewingFile({ uri: fileUrl, name: file.name, type: 'image' });
+                        const imageFiles = files.filter((f: any) => f.fileType?.startsWith('image/'));
+                        openImageFullScreen(projectFileToViewable(file), imageFiles.map(projectFileToViewable));
                       } else if (isPdf && Platform.OS === 'web') {
                         window.open(fileUrl, '_blank');
                       } else {
@@ -1282,13 +1407,6 @@ export default function FilesNavigationScreen() {
                   <X size={24} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
-              {viewingFile?.type === 'image' && (
-                <Image
-                  source={{ uri: viewingFile.uri }}
-                  style={styles.fileViewerImage}
-                  contentFit="contain"
-                />
-              )}
               {viewingFile?.type === 'pdf' && (
                 <View style={styles.pdfViewerContainer}>
                   <FileIcon size={64} color="#9CA3AF" />
@@ -1306,6 +1424,111 @@ export default function FilesNavigationScreen() {
                 </View>
               )}
             </View>
+          </View>
+        </Modal>
+
+        {/* Full-Screen Image Preview Modal */}
+        <Modal
+          visible={!!fullScreenImage}
+          transparent
+          animationType="fade"
+          onRequestClose={handleCloseFullScreenImage}
+          statusBarTranslucent
+        >
+          <View style={styles.fsOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseFullScreenImage} />
+
+            {/* Header */}
+            <View style={styles.fsHeader}>
+              <TouchableOpacity style={styles.fsHeaderBtn} onPress={handleCloseFullScreenImage}>
+                <X size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+              {fullScreenImageList.length > 1 && (
+                <Text style={styles.fsCounter}>
+                  {fullScreenImageIndex + 1} / {fullScreenImageList.length}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.fsHeaderBtn, isDownloading && { opacity: 0.5 }]}
+                onPress={handleDownloadImage}
+                disabled={isDownloading}
+              >
+                {isDownloading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Download size={22} color="#FFFFFF" />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Image */}
+            {fullScreenImage && (
+              <View style={styles.fsImageContainer}>
+                <Image
+                  source={{ uri: fullScreenImage.uri }}
+                  style={styles.fsImage}
+                  contentFit="contain"
+                  transition={200}
+                />
+              </View>
+            )}
+
+            {/* Prev arrow */}
+            {fullScreenImageList.length > 1 && fullScreenImageIndex > 0 && (
+              <TouchableOpacity style={styles.fsNavLeft} onPress={handlePrevImage}>
+                <View style={styles.fsNavCircle}>
+                  <ChevronLeft size={28} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* Next arrow */}
+            {fullScreenImageList.length > 1 && fullScreenImageIndex < fullScreenImageList.length - 1 && (
+              <TouchableOpacity style={styles.fsNavRight} onPress={handleNextImage}>
+                <View style={styles.fsNavCircle}>
+                  <ChevronRight size={28} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* Metadata panel */}
+            {fullScreenImage && (
+              <View style={styles.fsMetadata}>
+                {fullScreenImage.uploader && (
+                  <View style={styles.fsUploaderRow}>
+                    {fullScreenImage.uploader.avatar ? (
+                      <Image source={{ uri: fullScreenImage.uploader.avatar }} style={styles.fsAvatar} />
+                    ) : (
+                      <View style={styles.fsAvatarFallback}>
+                        <Text style={styles.fsAvatarText}>
+                          {(fullScreenImage.uploader.name || '?')[0].toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={styles.fsUploaderName} numberOfLines={1}>
+                      {fullScreenImage.uploader.name || 'Unknown'}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.fsDate}>
+                  {new Date(fullScreenImage.date).toLocaleDateString('en-US', {
+                    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+                  })}
+                  {' at '}
+                  {new Date(fullScreenImage.date).toLocaleTimeString('en-US', {
+                    hour: 'numeric', minute: '2-digit',
+                  })}
+                </Text>
+                {fullScreenImage.category && (
+                  <View style={styles.fsCategoryBadge}>
+                    <Text style={styles.fsCategoryText}>{fullScreenImage.category}</Text>
+                  </View>
+                )}
+                {fullScreenImage.notes ? (
+                  <Text style={styles.fsNotes} numberOfLines={3}>{fullScreenImage.notes}</Text>
+                ) : null}
+              </View>
+            )}
           </View>
         </Modal>
       </View>
@@ -1992,6 +2215,134 @@ const styles = StyleSheet.create({
   webCameraBannerText: {
     fontSize: 13,
     color: '#3B82F6',
+    lineHeight: 18,
+  },
+  // Full-Screen Preview
+  fsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  fsHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 54 : 16,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    zIndex: 10,
+  },
+  fsHeaderBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsCounter: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  fsImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 100 : 70,
+    paddingBottom: 180,
+  },
+  fsImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fsNavLeft: {
+    position: 'absolute',
+    left: 12,
+    top: '50%',
+    marginTop: -24,
+    zIndex: 10,
+  },
+  fsNavRight: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    marginTop: -24,
+    zIndex: 10,
+  },
+  fsNavCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsMetadata: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+  },
+  fsUploaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  fsAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+  fsAvatarFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  fsAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  fsUploaderName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600' as const,
+    flex: 1,
+  },
+  fsDate: {
+    color: '#D1D5DB',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  fsCategoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(37, 99, 235, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  fsCategoryText: {
+    color: '#93C5FD',
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
+  fsNotes: {
+    color: '#E5E7EB',
+    fontSize: 13,
     lineHeight: 18,
   },
 });

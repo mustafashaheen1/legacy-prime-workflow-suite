@@ -3,9 +3,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/contexts/AppContext';
 import DailyTasksButton from '@/components/DailyTasksButton';
-import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment, ScheduledTask } from '@/types';
+import { Report, ProjectReportData, DailyLog, ChangeOrder, Payment, ScheduledTask, Photo } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon, PlayCircle, PauseCircle, Monitor } from 'lucide-react-native';
+import { ArrowLeft, FileText, Clock, DollarSign, Camera, Ruler, Plus, Archive, TrendingUp, Calendar, Users, AlertCircle, UserCheck, CreditCard, Wallet, Coffee, File, FolderOpen, Upload, Folder, Download, Trash2, X, Search, Image as ImageIcon, PlayCircle, PauseCircle, Monitor, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import ClockInOutComponent from '@/components/ClockInOutComponent';
 import CustomDatePicker from '@/components/DailyTasks/CustomDatePicker';
 import { generateUUID } from '@/utils/uuid';
@@ -21,6 +21,8 @@ import { ProjectFile, FileCategory } from '@/types';
 import { photoCategories } from '@/mocks/data';
 import { compressImage, uriToBase64 } from '@/lib/upload-utils';
 import * as FileSystem from 'expo-file-system/legacy';
+import { File as FSFile, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 type TabType = 'overview' | 'schedule' | 'estimate' | 'change-orders' | 'clock' | 'expenses' | 'photos' | 'videos' | 'files' | 'reports';
 
@@ -135,7 +137,8 @@ export default function ProjectDetailScreen() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
   const [showWebCameraBanner, setShowWebCameraBanner] = useState<boolean>(false);
   const isUploadingPhotoRef = useRef(false);
-  const [viewingPhoto, setViewingPhoto] = useState<{ url: string; category: string; notes?: string; date: string } | null>(null);
+  const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
+  const [isPhotoDownloading, setIsPhotoDownloading] = useState(false);
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [budgetInput, setBudgetInput] = useState('');
   const [contractAmountInput, setContractAmountInput] = useState('');
@@ -256,6 +259,10 @@ export default function ProjectDetailScreen() {
     return photos.filter(p => p.projectId === id);
   }, [photos, id]);
 
+  const viewingPhotoIndex = useMemo(() => {
+    if (!viewingPhoto) return -1;
+    return projectPhotos.findIndex(p => p.id === viewingPhoto.id);
+  }, [viewingPhoto, projectPhotos]);
 
   const projectReports = useMemo(() => {
     return reports.filter(r => r.projectIds.includes(id as string));
@@ -641,6 +648,65 @@ export default function ProjectDetailScreen() {
       </View>
     );
   }
+
+  const handleClosePhotoViewer = useCallback(() => {
+    setViewingPhoto(null);
+  }, []);
+
+  const handleNextPhoto = useCallback(() => {
+    if (viewingPhotoIndex < 0 || viewingPhotoIndex >= projectPhotos.length - 1) return;
+    setViewingPhoto(projectPhotos[viewingPhotoIndex + 1]);
+  }, [viewingPhotoIndex, projectPhotos]);
+
+  const handlePrevPhoto = useCallback(() => {
+    if (viewingPhotoIndex <= 0) return;
+    setViewingPhoto(projectPhotos[viewingPhotoIndex - 1]);
+  }, [viewingPhotoIndex, projectPhotos]);
+
+  const handleDownloadPhoto = useCallback(async () => {
+    if (!viewingPhoto?.url || isPhotoDownloading) return;
+    setIsPhotoDownloading(true);
+    try {
+      const urlParts = viewingPhoto.url.split('/');
+      const fileName = urlParts[urlParts.length - 1]?.split('?')[0] || `photo-${Date.now()}.jpg`;
+      if (Platform.OS === 'web') {
+        const link = document.createElement('a');
+        link.href = viewingPhoto.url;
+        link.download = fileName;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const file = new FSFile(Paths.cache, fileName);
+        const response = await fetch(viewingPhoto.url);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        file.write(base64, { encoding: 'base64' });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(file.uri);
+        } else {
+          Alert.alert('Downloaded', `Photo saved to: ${file.uri}`);
+        }
+      }
+    } catch (error: any) {
+      console.error('[ProjectDetail] Download error:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to download photo. Please try again.');
+      } else {
+        Alert.alert('Download Failed', 'Could not download the photo. Please try again.');
+      }
+    } finally {
+      setIsPhotoDownloading(false);
+    }
+  }, [viewingPhoto, isPhotoDownloading]);
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -2574,7 +2640,7 @@ export default function ProjectDetailScreen() {
                       <View key={photo.id} style={[styles.photosGalleryItem, { position: 'relative' }]}>
                         <TouchableOpacity
                           style={{ flex: 1 }}
-                          onPress={() => setViewingPhoto({ url: photo.url, category: photo.category, notes: photo.notes, date: photo.date })}
+                          onPress={() => setViewingPhoto(photo)}
                           activeOpacity={0.8}
                         >
                           <Image source={{ uri: photo.url }} style={styles.photosThumbnail} contentFit="cover" />
@@ -3791,54 +3857,106 @@ export default function ProjectDetailScreen() {
         </View>
       </Modal>
 
-      {/* Photo Viewer Modal */}
+      {/* Full-Screen Photo Preview Modal */}
       <Modal
         visible={!!viewingPhoto}
+        transparent
         animationType="fade"
-        transparent={true}
-        onRequestClose={() => setViewingPhoto(null)}
+        onRequestClose={handleClosePhotoViewer}
+        statusBarTranslucent
       >
-        <View style={styles.photoViewerOverlay}>
-          <TouchableOpacity
-            style={styles.photoViewerCloseArea}
-            activeOpacity={1}
-            onPress={() => setViewingPhoto(null)}
-          />
-          <View style={styles.photoViewerContainer}>
-            <View style={styles.photoViewerHeader}>
-              <View style={styles.photoViewerHeaderInfo}>
-                <View style={styles.photosCategoryBadge}>
-                  <Text style={styles.photosCategoryBadgeText}>{viewingPhoto?.category}</Text>
-                </View>
-                <Text style={styles.photoViewerDate}>
-                  {viewingPhoto?.date ? new Date(viewingPhoto.date).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  }) : ''}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.photoViewerCloseButton}
-                onPress={() => setViewingPhoto(null)}
-              >
-                <X size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-            {viewingPhoto && (
+        <View style={styles.fsOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleClosePhotoViewer} />
+
+          {/* Header */}
+          <View style={styles.fsHeader}>
+            <TouchableOpacity style={styles.fsHeaderBtn} onPress={handleClosePhotoViewer}>
+              <X size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+            {projectPhotos.length > 1 && (
+              <Text style={styles.fsCounter}>
+                {viewingPhotoIndex + 1} / {projectPhotos.length}
+              </Text>
+            )}
+            <TouchableOpacity
+              style={[styles.fsHeaderBtn, isPhotoDownloading && { opacity: 0.5 }]}
+              onPress={handleDownloadPhoto}
+              disabled={isPhotoDownloading}
+            >
+              {isPhotoDownloading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Download size={22} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Image */}
+          {viewingPhoto && (
+            <View style={styles.fsImageContainer}>
               <Image
                 source={{ uri: viewingPhoto.url }}
-                style={styles.photoViewerImage}
+                style={styles.fsImage}
                 contentFit="contain"
+                transition={200}
               />
-            )}
-            {viewingPhoto?.notes && (
-              <View style={styles.photoViewerNotes}>
-                <Text style={styles.photoViewerNotesText}>{viewingPhoto.notes}</Text>
+            </View>
+          )}
+
+          {/* Prev arrow */}
+          {projectPhotos.length > 1 && viewingPhotoIndex > 0 && (
+            <TouchableOpacity style={styles.fsNavLeft} onPress={handlePrevPhoto}>
+              <View style={styles.fsNavCircle}>
+                <ChevronLeft size={28} color="#FFFFFF" />
               </View>
-            )}
-          </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Next arrow */}
+          {projectPhotos.length > 1 && viewingPhotoIndex < projectPhotos.length - 1 && (
+            <TouchableOpacity style={styles.fsNavRight} onPress={handleNextPhoto}>
+              <View style={styles.fsNavCircle}>
+                <ChevronRight size={28} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Metadata panel */}
+          {viewingPhoto && (
+            <View style={styles.fsMetadata}>
+              <View style={styles.fsUploaderRow}>
+                {viewingPhoto.uploader?.avatar ? (
+                  <Image source={{ uri: viewingPhoto.uploader.avatar }} style={styles.fsAvatar} />
+                ) : (
+                  <View style={styles.fsAvatarFallback}>
+                    <Text style={styles.fsAvatarText}>
+                      {(viewingPhoto.uploader?.name || '?')[0].toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.fsUploaderName} numberOfLines={1}>
+                  {viewingPhoto.uploader?.name || 'Unknown uploader'}
+                </Text>
+              </View>
+              <Text style={styles.fsDate}>
+                {new Date(viewingPhoto.date).toLocaleDateString('en-US', {
+                  weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+                })}
+                {' at '}
+                {new Date(viewingPhoto.date).toLocaleTimeString('en-US', {
+                  hour: 'numeric', minute: '2-digit',
+                })}
+              </Text>
+              {viewingPhoto.category && (
+                <View style={styles.fsCategoryBadge}>
+                  <Text style={styles.fsCategoryText}>{viewingPhoto.category}</Text>
+                </View>
+              )}
+              {viewingPhoto.notes ? (
+                <Text style={styles.fsNotes} numberOfLines={3}>{viewingPhoto.notes}</Text>
+              ) : null}
+            </View>
+          )}
         </View>
       </Modal>
     </>
@@ -6104,66 +6222,133 @@ const styles = StyleSheet.create({
     color: '#2563EB',
   },
   // Photo Viewer Modal Styles
-  photoViewerOverlay: {
+  // Full-Screen Preview
+  fsOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
   },
-  photoViewerCloseArea: {
+  fsHeader: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-  },
-  photoViewerContainer: {
-    width: '95%',
-    maxWidth: 900,
-    maxHeight: '90%',
-    backgroundColor: '#1F2937',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  photoViewerHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#111827',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 54 : 16,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    zIndex: 10,
   },
-  photoViewerHeaderInfo: {
+  fsHeaderBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsCounter: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  fsImageContainer: {
     flex: 1,
-    gap: 4,
-  },
-  photoViewerDate: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginTop: 4,
-  },
-  photoViewerCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 100 : 70,
+    paddingBottom: 180,
   },
-  photoViewerImage: {
+  fsImage: {
     width: '100%',
-    height: 500,
-    backgroundColor: '#000000',
+    height: '100%',
   },
-  photoViewerNotes: {
-    padding: 16,
-    backgroundColor: '#111827',
-    borderTopWidth: 1,
-    borderTopColor: '#374151',
+  fsNavLeft: {
+    position: 'absolute',
+    left: 12,
+    top: '50%',
+    marginTop: -24,
+    zIndex: 10,
   },
-  photoViewerNotesText: {
+  fsNavRight: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    marginTop: -24,
+    zIndex: 10,
+  },
+  fsNavCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsMetadata: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+  },
+  fsUploaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  fsAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+  fsAvatarFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  fsAvatarText: {
+    color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  fsUploaderName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600' as const,
+    flex: 1,
+  },
+  fsDate: {
     color: '#D1D5DB',
-    lineHeight: 20,
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  fsCategoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(37, 99, 235, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  fsCategoryText: {
+    color: '#93C5FD',
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
+  fsNotes: {
+    color: '#E5E7EB',
+    fontSize: 13,
+    lineHeight: 18,
   },
   costBreakdownSection: {
     marginTop: 16,
