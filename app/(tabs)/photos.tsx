@@ -677,9 +677,9 @@ export default function PhotosScreen() {
           <Text style={styles.title}>Photos</Text>
           <View style={styles.headerButtons}>
             <TouchableOpacity
-              style={[styles.headerButton, isPickingMedia !== false && styles.headerButtonDisabled]}
+              style={[styles.headerButton, !!isPickingMedia && styles.headerButtonDisabled]}
               onPress={takePhoto}
-              disabled={isPickingMedia !== false}
+              disabled={!!isPickingMedia}
             >
               {isPickingMedia === 'camera'
                 ? <ActivityIndicator size="small" color="#FFFFFF" />
@@ -687,9 +687,9 @@ export default function PhotosScreen() {
               <Text style={styles.headerButtonText}>Take Photo</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.headerButton, isPickingMedia !== false && styles.headerButtonDisabled]}
+              style={[styles.headerButton, !!isPickingMedia && styles.headerButtonDisabled]}
               onPress={pickImage}
-              disabled={isPickingMedia !== false}
+              disabled={!!isPickingMedia}
             >
               {isPickingMedia === 'gallery'
                 ? <ActivityIndicator size="small" color="#FFFFFF" />
