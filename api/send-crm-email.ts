@@ -37,6 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.warn('[CRM Email] Using restricted test sender onboarding@resend.dev — emails will only reach the Resend account owner. Set EMAIL_FROM_ADDRESS to a verified domain email.');
   }
 
+
   const results = await Promise.allSettled(
     recipients.map(async (recipient) => {
       const firstName = recipient.name?.split(' ')[0] || 'there';
