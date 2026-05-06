@@ -317,10 +317,9 @@ function fmtHM(h: number, m: number): string {
 function entryToSession(e: ClockEntry, jobName: string, rate: number): Session {
   const out = e.clockOut;
   const clockInMs = new Date(e.clockIn).getTime();
-  const clockOutMs = out ? new Date(out).getTime() : 0;
-  const gross = clockOutMs > 0
-    ? Math.max(0, (clockOutMs - clockInMs) / 3_600_000)
-    : 0;
+  // Fix 1: active sessions use current time instead of 0 so they appear in totals
+  const clockOutMs = out ? new Date(out).getTime() : Date.now();
+  const gross = Math.max(0, (clockOutMs - clockInMs) / 3_600_000);
 
   // Build all lunch break slots — supports unlimited breaks
   let totalBreakMs = 0;
@@ -340,11 +339,17 @@ function entryToSession(e: ClockEntry, jobName: string, rate: number): Session {
     };
   });
 
-  const net = Math.max(0, gross - totalBreakMs / 3_600_000);
-  const pay = net * rate;
+  const grossMs = Math.max(0, clockOutMs - clockInMs);
+  const netMs = Math.max(0, grossMs - totalBreakMs);
+  // Round to nearest minute then divide — identical to clock screen todayEarnings
+  const grossMin = Math.round(grossMs / 60_000);
+  const netMin = Math.round(netMs / 60_000);
+  const net = netMin / 60;
+
+  // Use rate snapshotted at clock-in; fall back to current employee rate
+  const effectiveRate = e.hourlyRate ?? rate;
+  const pay = parseFloat((net * effectiveRate).toFixed(2));
   const lunchMinutes = Math.round(totalBreakMs / 60_000);
-  const grossMin = Math.round(gross * 60);
-  const netMin = Math.round(net * 60);
 
   const getAddr = (loc: GeoPoint): string => {
     const key = `${loc.latitude.toFixed(4)},${loc.longitude.toFixed(4)}`;

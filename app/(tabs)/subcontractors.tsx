@@ -3,7 +3,7 @@ import React, { useState, useCallback } from 'react';
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 import SkeletonBox from '@/components/SkeletonBox';
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp, Check, Loader } from 'lucide-react-native';
+import { Users, Plus, Search, Mail, Phone, Star, X, FileText, UserPlus, FolderOpen, File, Send, CheckSquare, Square, MessageSquare, Building2, FileCheck, TrendingUp, Check, Loader, Paperclip } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Subcontractor, Project, ProjectFile, EstimateRequest } from '@/types';
 import { useApp } from '@/contexts/AppContext';
@@ -12,8 +12,49 @@ import { Stack, router } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { compressImage } from '@/lib/upload-utils';
+import { compressImage, uriToBase64 } from '@/lib/upload-utils';
 import { generateUUID } from '@/utils/uuid';
+
+type MessageTemplate = { id: string; title: string; subject?: string; body: string };
+
+const subTemplates: MessageTemplate[] = [
+  {
+    id: '1',
+    title: 'New Project Opportunity',
+    subject: 'New Project Opportunity — We\'d Like Your Bid',
+    body: 'Hi {name}, we have an upcoming project that matches your trade and would love to invite you to submit a bid. Please reply to this email or call us to discuss the details.',
+  },
+  {
+    id: '2',
+    title: 'Schedule Confirmation',
+    subject: 'Please Confirm Your Schedule',
+    body: 'Hi {name}, we\'d like to confirm your availability and schedule for the upcoming project. Please reply with your confirmed start date and estimated duration so we can coordinate the site accordingly.',
+  },
+  {
+    id: '3',
+    title: 'Payment Processed',
+    subject: 'Payment Has Been Processed',
+    body: 'Hi {name}, we\'re reaching out to let you know that your payment has been processed. Please allow 1–3 business days for it to reflect in your account. Thank you for your continued partnership.',
+  },
+  {
+    id: '4',
+    title: 'Document Request',
+    subject: 'Documents Needed — Please Submit at Your Earliest Convenience',
+    body: 'Hi {name}, we need a few documents to keep your file up to date (e.g., updated insurance certificate, license renewal, or W-9). Please reply to this email with the required documents at your earliest convenience.',
+  },
+  {
+    id: '5',
+    title: 'Work Quality Follow-Up',
+    subject: 'Follow-Up on Recent Work',
+    body: 'Hi {name}, thank you for the work completed on our recent project. We wanted to follow up with any feedback and discuss opportunities for continued collaboration. Please let us know your availability for a quick call.',
+  },
+  {
+    id: '6',
+    title: 'General Check-In',
+    subject: 'Checking In — Future Project Availability',
+    body: 'Hi {name}, hope you\'re doing well! We\'re planning upcoming projects and wanted to check in on your current availability. Please let us know your schedule over the next few weeks so we can plan accordingly.',
+  },
+];
 
 export default function SubcontractorsScreen() {
   const { subcontractors = [], addSubcontractor, projects, addProjectFile, addNotification, user, company, refreshSubcontractors, isLoading, isCompanyReloading } = useApp();
@@ -55,6 +96,7 @@ export default function SubcontractorsScreen() {
   const [emailSubject, setEmailSubject] = useState<string>('');
   const [emailMessage, setEmailMessage] = useState<string>('');
   const [sendingEmail, setSendingEmail] = useState<boolean>(false);
+  const [emailAttachments, setEmailAttachments] = useState<{ uri: string; name: string; type: string }[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -745,44 +787,11 @@ export default function SubcontractorsScreen() {
     }
 
     if (type === 'email') {
-      const emails = recipients.map(r => r.email).join(',');
-
-      // Create email template
-      const recipientNames = recipients.map(r => r.name).join(', ');
-      const subject = recipients.length === 1
-        ? `Message from ${company?.name || 'Legacy Prime Workflow Suite'}`
-        : `Group Message from ${company?.name || 'Legacy Prime Workflow Suite'}`;
-
-      const body = `Hi ${recipientNames},
-
-[Your message here]
-
-Best regards,
-${user?.name || 'Team'}
-${company?.name || 'Legacy Prime Workflow Suite'}
-${user?.email || ''}
-${company?.officePhone || ''}`;
-
-      const emailUrl = `mailto:${emails}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
-      console.log('[Email] Opening email client with URL:', emailUrl.substring(0, 100) + '...');
-
-      try {
-        if (Platform.OS === 'web') {
-          // Try multiple methods to handle mailto: on web
-          const link = document.createElement('a');
-          link.href = emailUrl;
-          link.click();
-        } else {
-          Linking.openURL(emailUrl);
-        }
-      } catch (error) {
-        console.error('[Email] Error opening email client:', error);
-        Alert.alert(
-          'Email Client Required',
-          'Please configure your default email application or copy the email address:\n\n' + emails
-        );
-      }
+      setEmailRecipient(recipients[0]);
+      setEmailSubject('');
+      setEmailMessage('');
+      setEmailAttachments([]);
+      setShowEmailModal(true);
     } else {
       recipients.forEach(recipient => {
         const smsUrl = `sms:${recipient.phone}`;
@@ -793,54 +802,87 @@ ${company?.officePhone || ''}`;
     }
   };
 
+  const applySubTemplate = (template: MessageTemplate) => {
+    if (template.subject) setEmailSubject(template.subject);
+    const firstName = emailRecipient ? emailRecipient.name.split(' ')[0] : '';
+    const body = firstName
+      ? template.body.replace(/\{name\}/gi, firstName)
+      : template.body;
+    setEmailMessage(body);
+  };
+
+  const pickSubDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+        multiple: true,
+      });
+      if (!result.canceled && result.assets) {
+        const newAttachments = result.assets.map((asset) => ({
+          uri: asset.uri,
+          name: asset.name,
+          type: asset.mimeType || 'application/octet-stream',
+        }));
+        setEmailAttachments(prev => [...prev, ...newAttachments]);
+      }
+    } catch (error) {
+      console.error('[Email] Error picking document:', error);
+      Alert.alert('Error', 'Failed to pick document');
+    }
+  };
+
+  const removeSubAttachment = (index: number) => {
+    setEmailAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSendEmail = async () => {
-    if (!emailRecipient || !emailSubject.trim() || !emailMessage.trim()) {
-      Alert.alert('Missing Information', 'Please fill in subject and message.');
+    if (!emailRecipient) return;
+    if (!emailSubject.trim()) {
+      Alert.alert('Missing Subject', 'Please enter a subject line.');
+      return;
+    }
+    if (!emailMessage.trim()) {
+      Alert.alert('Missing Message', 'Please enter a message.');
       return;
     }
 
     setSendingEmail(true);
-
     try {
-      const response = await fetch(`${API_BASE}/api/send-email`, {
+      const encodedAttachments = await Promise.all(
+        emailAttachments.map(async (file) => {
+          const content = await uriToBase64(file.uri);
+          return { filename: file.name, content, type: file.type };
+        })
+      );
+
+      const payload = {
+        recipients: [{ email: emailRecipient.email, name: emailRecipient.name }],
+        subject: emailSubject,
+        body: emailMessage,
+        companyName: company?.name,
+        attachments: encodedAttachments.length > 0 ? encodedAttachments : undefined,
+      };
+
+      const response = await fetch(`${API_BASE}/api/send-crm-email`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: emailRecipient.email,
-          subject: emailSubject,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <p>Hi ${emailRecipient.name},</p>
-              <div style="margin: 20px 0; white-space: pre-wrap;">${emailMessage}</div>
-              <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;" />
-              <p style="color: #666; font-size: 12px;">
-                Sent from ${company?.name || 'Legacy Prime Workflow Suite'}<br/>
-                ${user?.email || ''}
-              </p>
-            </div>
-          `,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send email');
-      }
-
-      console.log('[Email] Sent successfully:', data.id);
+      if (!response.ok) throw new Error(data.error || 'Failed to send email');
 
       setShowEmailModal(false);
       setEmailRecipient(null);
       setEmailSubject('');
       setEmailMessage('');
+      setEmailAttachments([]);
 
-      Alert.alert(
-        'Email Sent!',
-        `Your email has been sent to ${emailRecipient.name} (${emailRecipient.email}).`
-      );
+      if (data.senderWarning) {
+        Alert.alert('Email Accepted', `Queued for delivery.\n\n⚠️ ${data.senderWarning}`);
+      } else {
+        Alert.alert('Email Sent!', `Your email has been sent to ${emailRecipient.name}.`);
+      }
     } catch (error: any) {
       console.error('[Email] Error:', error);
       Alert.alert('Error', error.message || 'Failed to send email. Please try again.');
@@ -1886,33 +1928,85 @@ ${company?.officePhone || ''}`;
               </TouchableOpacity>
             </View>
 
-            <View style={styles.emailFormContainer}>
-              {/* Subject */}
-              <View style={styles.emailInputGroup}>
-                <Text style={styles.emailLabel}>Subject</Text>
-                <TextInput
-                  style={styles.emailInput}
-                  value={emailSubject}
-                  onChangeText={setEmailSubject}
-                  placeholder="Enter email subject..."
-                  placeholderTextColor="#9CA3AF"
-                />
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="always"
+              automaticallyAdjustKeyboardInsets={true}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
+              {/* Quick Templates */}
+              <View style={styles.emailTemplateSection}>
+                <Text style={styles.emailLabel}>Quick Templates:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardDismissMode="on-drag">
+                  {subTemplates.map(template => (
+                    <TouchableOpacity
+                      key={template.id}
+                      style={styles.emailTemplateBtn}
+                      onPress={() => applySubTemplate(template)}
+                    >
+                      <Text style={styles.emailTemplateBtnText}>{template.title}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
 
+              {/* Subject */}
+              <TextInput
+                style={styles.emailInput}
+                value={emailSubject}
+                onChangeText={setEmailSubject}
+                placeholder="Subject"
+                placeholderTextColor="#9CA3AF"
+              />
+
               {/* Message */}
-              <View style={[styles.emailInputGroup, { flex: 1 }]}>
-                <Text style={styles.emailLabel}>Message</Text>
-                <TextInput
-                  style={[styles.emailInput, styles.emailTextArea]}
-                  value={emailMessage}
-                  onChangeText={setEmailMessage}
-                  placeholder="Type your message here..."
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  textAlignVertical="top"
-                />
+              <TextInput
+                style={[styles.emailInput, styles.emailTextArea]}
+                value={emailMessage}
+                onChangeText={setEmailMessage}
+                placeholder="Message body (use {name} for personalization)"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={8}
+                textAlignVertical="top"
+              />
+
+              {/* Attachments */}
+              <View style={styles.emailAttachSection}>
+                <View style={styles.emailAttachHeader}>
+                  <Text style={styles.emailLabel}>Attachments</Text>
+                  <TouchableOpacity style={styles.emailAttachAddBtn} onPress={pickSubDocument}>
+                    <Paperclip size={16} color="#2563EB" />
+                    <Text style={styles.emailAttachAddText}>Add Files</Text>
+                  </TouchableOpacity>
+                </View>
+                {emailAttachments.length > 0 && (
+                  <View style={styles.emailAttachList}>
+                    {emailAttachments.map((attachment, index) => (
+                      <View key={index} style={styles.emailAttachItem}>
+                        <FileText size={16} color="#6B7280" />
+                        <Text style={styles.emailAttachName} numberOfLines={1}>
+                          {attachment.name}
+                        </Text>
+                        <TouchableOpacity onPress={() => removeSubAttachment(index)} style={{ padding: 4 }}>
+                          <X size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
-            </View>
+
+              <Text style={styles.emailTipText}>
+                💡 Tip: Use {'{name}'} in your message to personalize with first name
+              </Text>
+              {emailAttachments.length > 0 && (
+                <Text style={[styles.emailTipText, { color: '#059669' }]}>
+                  ✓ {emailAttachments.length} file{emailAttachments.length !== 1 ? 's' : ''} will be attached
+                </Text>
+              )}
+            </ScrollView>
 
             {/* Action Buttons */}
             <View style={styles.emailActions}>
@@ -1922,6 +2016,7 @@ ${company?.officePhone || ''}`;
                   setShowEmailModal(false);
                   setEmailSubject('');
                   setEmailMessage('');
+                  setEmailAttachments([]);
                 }}
               >
                 <Text style={styles.emailCancelText}>Cancel</Text>
@@ -2539,24 +2634,6 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#FFFFFF',
   },
-  inviteButton: {
-    flex: 1,
-    flexDirection: 'row' as const,
-    backgroundColor: '#059669',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    gap: 8,
-  },
-  inviteButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  inviteButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
   detailSection: {
     marginBottom: 20,
   },
@@ -2956,6 +3033,12 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#FFFFFF',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
   // Email Modal Styles
   emailModal: {
     backgroundColor: '#FFFFFF',
@@ -3051,5 +3134,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  emailTemplateSection: {
+    marginBottom: 12,
+    gap: 8,
+  },
+  emailTemplateBtn: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  emailTemplateBtnText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: '#2563EB',
+  },
+  emailAttachSection: {
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  emailAttachHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 8,
+  },
+  emailAttachAddBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  emailAttachAddText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: '#2563EB',
+  },
+  emailAttachList: {
+    gap: 6,
+  },
+  emailAttachItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emailAttachName: {
+    flex: 1,
+    fontSize: 13,
+    color: '#374151',
+  },
+  emailTipText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 8,
+    fontStyle: 'italic' as const,
   },
 });
