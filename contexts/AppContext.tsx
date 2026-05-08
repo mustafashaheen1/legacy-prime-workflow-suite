@@ -1421,10 +1421,19 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           filter: `company_id=eq.${company.id}`,
         },
         (payload) => {
+
+          console.log("Real Time Supabase Clock Entry Payload:", payload);
           const incoming = mapClockEntry(payload.new);
           console.log('[Realtime] Clock entry INSERT:', incoming.id);
           setClockEntries(prev => {
             if (prev.some(e => e.id === incoming.id)) return prev;
+            // Realtime INSERT lacks the employee JOIN — backfill name from
+            // any existing entry for the same employee so Labor Costs shows
+            // the correct name immediately without a manual refresh.
+            if (!incoming.employeeName) {
+              const match = prev.find(e => e.employeeId === incoming.employeeId && e.employeeName);
+              if (match) incoming.employeeName = match.employeeName;
+            }
             return [incoming, ...prev];
           });
         }
@@ -1463,6 +1472,51 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       supabase.removeChannel(channel);
     };
   }, [company?.id, clockEntryChannelRetry]);
+
+  // ─── Realtime: expenses sync ──────────────────────────────────────────────
+  // Listens for INSERT and UPDATE on expenses scoped to this company so the
+  // Business Costs card and detail screen reflect new entries immediately.
+  useEffect(() => {
+    if (!company?.id) return;
+
+    const channel = supabase
+      .channel(`expenses:${company.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'expenses', filter: `company_id=eq.${company.id}` },
+        (payload) => {
+          const incoming = mapExpense(payload.new);
+          setExpenses(prev => {
+            if (prev.some(e => e.id === incoming.id)) return prev;
+            return [incoming, ...prev];
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'expenses', filter: `company_id=eq.${company.id}` },
+        (payload) => {
+          const updated = mapExpense(payload.new);
+          setExpenses(prev => prev.map(e => e.id === updated.id ? updated : e));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'expenses', filter: `company_id=eq.${company.id}` },
+        (payload) => {
+          setExpenses(prev => prev.filter(e => e.id !== payload.old.id));
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          supabase.removeChannel(channel);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [company?.id]);
 
   // ─── Realtime: clients sync ───────────────────────────────────────────────
   // Listens for INSERT, UPDATE, DELETE on clients scoped to this company so

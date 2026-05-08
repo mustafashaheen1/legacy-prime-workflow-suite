@@ -19,7 +19,7 @@ import { supabase } from '@/lib/supabase';
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
-  const { projects, expenses, clockEntries, addProject, updateProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate, dailyTasks = [], loadDailyTasks, addDailyTask, updateDailyTask, deleteDailyTask, user, refreshReports, isLoading, isCompanyReloading } = useApp();
+  const { projects, expenses, clockEntries, addProject, updateProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate, dailyTasks = [], loadDailyTasks, addDailyTask, updateDailyTask, deleteDailyTask, user, refreshReports, isLoading, isCompanyReloading, refreshClockEntries } = useApp();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -136,6 +136,14 @@ export default function DashboardScreen() {
   }, [company?.id]);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super-admin';
+
+  // Poll clock entries every 10 seconds so the Business Costs card reflects
+  // employee clock-in/out events in real time without a manual refresh.
+  useEffect(() => {
+    if (!company?.id) return;
+    const id = setInterval(() => refreshClockEntries(), 10_000);
+    return () => clearInterval(id);
+  }, [company?.id, refreshClockEntries]);
 
   // Live worker locations across all active projects (admin-only)
   const [workerLocations, setWorkerLocations] = useState<any[]>([]);

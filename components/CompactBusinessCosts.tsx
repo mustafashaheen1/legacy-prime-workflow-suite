@@ -1,7 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Briefcase, TrendingUp, Calendar } from 'lucide-react-native';
 import { Image } from 'expo-image';
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import type { ClockEntry, Expense } from '@/types';
 
 interface Props {
@@ -13,6 +13,13 @@ interface Props {
 }
 
 export default function CompactBusinessCosts({ expenses, clockEntries = [], hoursWorked = 0, onDetails, usersMap }: Props) {
+  // Tick every 60s so live (clocked-in) labor costs update without a refresh
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const inOfficeEntries = useMemo(
     () => clockEntries.filter(e => e.officeRole && !e.clockOut),
     [clockEntries]
@@ -25,7 +32,30 @@ export default function CompactBusinessCosts({ expenses, clockEntries = [], hour
   );
 
   const now = new Date();
-  const thisMonthTotal = useMemo(() => {
+
+  // Labor cost this month (hours × hourlyRate per clock entry)
+  const laborThisMonth = useMemo(() => {
+    return clockEntries
+      .filter(e => {
+        const d = new Date(e.clockIn);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      })
+      .reduce((sum, e) => {
+        if (!e.hourlyRate) return sum;
+        const start = new Date(e.clockIn).getTime();
+        const end = e.clockOut ? new Date(e.clockOut).getTime() : Date.now();
+        let ms = end - start;
+        (e.lunchBreaks ?? []).forEach(lb => {
+          const ls = new Date(lb.startTime).getTime();
+          const le = lb.endTime ? new Date(lb.endTime).getTime() : (e.clockOut ? new Date(e.clockOut).getTime() : Date.now());
+          if (!isNaN(ls) && !isNaN(le)) ms -= (le - ls);
+        });
+        return sum + Math.max(0, ms / 3_600_000) * e.hourlyRate;
+      }, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clockEntries]);
+
+  const thisMonthExpenseTotal = useMemo(() => {
     return businessExpenses
       .filter(e => {
         const d = new Date(e.date);
@@ -33,6 +63,8 @@ export default function CompactBusinessCosts({ expenses, clockEntries = [], hour
       })
       .reduce((sum, e) => sum + e.amount, 0);
   }, [businessExpenses]);
+
+  const thisMonthTotal = thisMonthExpenseTotal + laborThisMonth;
 
   // Rolling 6-month average
   const overheadPerMonth = useMemo(() => {

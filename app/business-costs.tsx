@@ -1,14 +1,17 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Pressable, Platform } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useMemo, useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
+import { Image } from 'expo-image';
 import {
   DollarSign, Layers, TrendingUp, Grid3X3, Users, BarChart3,
-  Clock, ChevronDown, ChevronUp, ArrowLeft
+  Clock, ChevronDown, ChevronUp, ArrowLeft, X, Image as ImageIcon, File, ChevronRight
 } from 'lucide-react-native';
+import type { Expense } from '@/types';
 
 interface RateCalcSettings {
   desiredSalary: number;
@@ -25,7 +28,7 @@ const DEFAULT_SETTINGS: RateCalcSettings = {
 };
 
 export default function BusinessCostsScreen() {
-  const { expenses, clockEntries, company } = useApp();
+  const { expenses, clockEntries, company, refreshClockEntries, refreshExpenses } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -36,6 +39,38 @@ export default function BusinessCostsScreen() {
   // Rate calculator settings (loaded for recommended rate summary card)
   const [settings, setSettings] = useState<RateCalcSettings>(DEFAULT_SETTINGS);
   const [overheadPeriod, setOverheadPeriod] = useState<'monthly' | 'yearly'>('monthly');
+
+  // Expense detail modal
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [showExpenseDetail, setShowExpenseDetail] = useState(false);
+
+  // Receipt viewer
+  const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
+  const [showReceiptViewer, setShowReceiptViewer] = useState(false);
+
+  const handleViewReceipt = (url: string) => {
+    setViewingReceiptUrl(url);
+    setShowReceiptViewer(true);
+  };
+
+  // When screen comes into focus: immediate refresh + start a 10-second
+  // polling interval so clock-in/out events appear without any manual refresh.
+  // Interval is cleared automatically when the screen loses focus.
+  useFocusEffect(useCallback(() => {
+    refreshClockEntries();
+    refreshExpenses();
+    const id = setInterval(() => {
+      refreshClockEntries();
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [refreshClockEntries, refreshExpenses]));
+
+  // Tick every 10s so live labor costs (active sessions) update their hours
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Load rate settings from AsyncStorage
   useEffect(() => {
@@ -48,7 +83,11 @@ export default function BusinessCostsScreen() {
   }, [company?.id]);
 
   // ─── Data calculations (reused from CompactBusinessCosts) ───
-  const businessExpenses = useMemo(() => expenses.filter(e => e.isCompanyCost), [expenses]);
+  // Show all expenses for the company — not filtered by isCompanyCost so
+  // expenses added from the expenses tab (project or office) all appear here.
+  const businessExpenses = useMemo(() => [...expenses].sort((a, b) =>
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  ), [expenses]);
   const overheadExpenses = useMemo(() => expenses.filter(e => e.isOverhead), [expenses]);
 
   const now = new Date();
@@ -62,12 +101,8 @@ export default function BusinessCostsScreen() {
       .reduce((sum, e) => sum + e.amount, 0);
   }, [businessExpenses]);
 
-  const thisMonthExpenses = useMemo(() => {
-    return businessExpenses.filter(e => {
-      const d = new Date(e.date);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    });
-  }, [businessExpenses]);
+  // All expenses sorted newest first — businessExpenses is already sorted
+  const thisMonthExpenses = businessExpenses;
 
   // 6-month rolling average
   const overheadPerMonth = useMemo(() => {
@@ -98,6 +133,68 @@ export default function BusinessCostsScreen() {
     clockEntries.forEach(e => { if (e.officeRole) ids.add(e.employeeId); });
     return ids.size;
   }, [clockEntries]);
+
+  // ─── Labor cost calculations ───────────────────────────────────────────────
+
+  const calcNetMs = (e: typeof clockEntries[0]): number => {
+    const start = new Date(e.clockIn).getTime();
+    const end = e.clockOut ? new Date(e.clockOut).getTime() : Date.now();
+    let ms = end - start;
+    (e.lunchBreaks ?? []).forEach(lb => {
+      const ls = new Date(lb.startTime).getTime();
+      const le = lb.endTime ? new Date(lb.endTime).getTime() : (e.clockOut ? new Date(e.clockOut).getTime() : Date.now());
+      if (!isNaN(ls) && !isNaN(le)) ms -= (le - ls);
+    });
+    return Math.max(0, ms);
+  };
+
+  interface EmployeeLaborRow {
+    employeeId: string;
+    name: string;
+    totalHours: number;
+    totalCost: number;
+    rate: number | null;
+    isActive: boolean;
+  }
+
+  const laborRows = useMemo((): EmployeeLaborRow[] => {
+    const map = new Map<string, EmployeeLaborRow>();
+    const twentyFourHoursAgo = Date.now() - 24 * 3_600_000;
+    clockEntries
+      .forEach(e => {
+        const netHours = calcNetMs(e) / 3_600_000;
+        const rate = e.hourlyRate ?? null;
+        const cost = rate != null ? netHours * rate : 0;
+        const isActive = !e.clockOut && new Date(e.clockIn).getTime() > twentyFourHoursAgo;
+        const existing = map.get(e.employeeId);
+        if (existing) {
+          existing.totalHours += netHours;
+          existing.totalCost += cost;
+          if (isActive) existing.isActive = true;
+          if (existing.rate !== rate && existing.rate !== -1) existing.rate = -1;
+        } else {
+          map.set(e.employeeId, {
+            employeeId: e.employeeId,
+            name: e.employeeName || 'Unknown',
+            totalHours: netHours,
+            totalCost: cost,
+            rate,
+            isActive,
+          });
+        }
+      });
+    return Array.from(map.values()).sort((a, b) => b.totalCost - a.totalCost);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clockEntries]);
+
+  const laborTotalThisMonth = useMemo(
+    () => laborRows.reduce((s, r) => s + r.totalCost, 0),
+    [laborRows]
+  );
+  const laborHoursThisMonth = useMemo(
+    () => laborRows.reduce((s, r) => s + r.totalHours, 0),
+    [laborRows]
+  );
 
   // Rate calculator
   const recommendedRate = useMemo(() => {
@@ -150,8 +247,11 @@ export default function BusinessCostsScreen() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [thisMonthExpenses]);
 
-  const fmt = (n: number) =>
-    n === 0 ? '$0' : `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const fmt = (n: number) => {
+    if (n === 0) return '$0';
+    if (n < 1) return `$${n.toFixed(2)}`;
+    return `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  };
 
   const fmtDec = (n: number) =>
     `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -193,8 +293,8 @@ export default function BusinessCostsScreen() {
             <View style={[styles.cardIcon, { backgroundColor: '#2563EB' }]}>
               <DollarSign size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.cardLabel}>This Month (Expenses)</Text>
-            <Text style={[styles.cardValue, { color: '#2563EB' }]}>{fmt(thisMonthTotal)}</Text>
+            <Text style={styles.cardLabel}>This Month (Total)</Text>
+            <Text style={[styles.cardValue, { color: '#2563EB' }]}>{fmt(thisMonthTotal + laborTotalThisMonth)}</Text>
           </View>
           <View style={[styles.summaryCard, { borderLeftColor: '#10B981' }]}>
             <View style={[styles.cardIcon, { backgroundColor: '#10B981' }]}>
@@ -264,7 +364,69 @@ export default function BusinessCostsScreen() {
           )}
         </View>
 
-        {/* ─── Section 2: Averages & Trends ─── */}
+        {/* ─── Section 2: Labor Costs ─── */}
+        <View style={styles.accordionCard}>
+          {renderSection('labor',
+            <Users size={22} color="#10B981" style={{ marginRight: 12 }} />,
+            'Labor Costs (All Employees)',
+            null
+          )}
+          {expanded['labor'] && (
+            <View style={styles.accordionContent}>
+              {/* Summary strip */}
+              <View style={styles.laborSummary}>
+                <View style={styles.laborSummaryItem}>
+                  <Text style={styles.laborSummaryValue}>{laborRows.length}</Text>
+                  <Text style={styles.laborSummaryLabel}>Employees</Text>
+                </View>
+                <View style={styles.laborSummaryDivider} />
+                <View style={styles.laborSummaryItem}>
+                  <Text style={styles.laborSummaryValue}>
+                    {laborHoursThisMonth < 1
+                      ? `${Math.round(laborHoursThisMonth * 60)}m`
+                      : `${laborHoursThisMonth.toFixed(1)}h`}
+                  </Text>
+                  <Text style={styles.laborSummaryLabel}>Total Hours</Text>
+                </View>
+                <View style={styles.laborSummaryDivider} />
+                <View style={styles.laborSummaryItem}>
+                  <Text style={[styles.laborSummaryValue, { color: '#10B981' }]}>${laborTotalThisMonth.toFixed(2)}</Text>
+                  <Text style={styles.laborSummaryLabel}>Total Cost</Text>
+                </View>
+              </View>
+
+              {laborRows.length === 0 ? (
+                <View style={styles.emptySection}>
+                  <Text style={styles.emptyText}>No clock entries found.</Text>
+                </View>
+              ) : (
+                laborRows.map(row => (
+                  <View key={row.employeeId} style={styles.laborRow}>
+                    <View style={[styles.laborAvatar, row.isActive && styles.laborAvatarActive]}>
+                      <Text style={styles.laborAvatarText}>{row.name.charAt(0).toUpperCase()}</Text>
+                      {row.isActive && <View style={styles.laborActiveDot} />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.laborName}>{row.name}</Text>
+                      <Text style={styles.laborMeta}>
+                        {row.totalHours < 1
+                          ? `${Math.round(row.totalHours * 60)}m`
+                          : `${row.totalHours.toFixed(1)}h`}
+                        {row.rate != null && row.rate !== -1 ? ` · $${(row.rate as number).toFixed(2)}/hr` : ''}
+                        {row.rate === -1 ? ' · Varies' : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.laborCost}>
+                      {row.rate != null ? `$${row.totalCost.toFixed(2)}` : 'No rate'}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* ─── Section 3: Averages & Trends ─── */}
         <View style={styles.accordionCard}>
           {renderSection('trends',
             <BarChart3 size={22} color="#2563EB" style={{ marginRight: 12 }} />,
@@ -358,10 +520,20 @@ export default function BusinessCostsScreen() {
               ) : (
                 <View>
                   {overheadExpenses.slice(0, 10).map(e => (
-                    <View key={e.id} style={styles.expenseRow}>
+                    <TouchableOpacity
+                      key={e.id}
+                      style={styles.expenseRow}
+                      activeOpacity={0.7}
+                      onPress={() => { setSelectedExpense(e); setShowExpenseDetail(true); }}
+                    >
                       <Text style={styles.expenseRowCat}>{e.subcategory || e.type}</Text>
                       <Text style={styles.expenseRowAmount}>{fmt(e.amount)}</Text>
-                    </View>
+                      {e.receiptUrl ? (
+                        <ImageIcon size={14} color="#10B981" style={{ marginLeft: 8 }} />
+                      ) : (
+                        <ChevronRight size={14} color="#D1D5DB" style={{ marginLeft: 8 }} />
+                      )}
+                    </TouchableOpacity>
                   ))}
                 </View>
               )}
@@ -373,14 +545,14 @@ export default function BusinessCostsScreen() {
         <View style={styles.accordionCard}>
           {renderSection('monthExpenses',
             <DollarSign size={22} color="#2563EB" style={{ marginRight: 12 }} />,
-            "This Month's Company Expenses",
+            'Company Expenses',
             null
           )}
           {expanded['monthExpenses'] && (
             <View style={styles.accordionContent}>
               {categoryBreakdown.length === 0 ? (
                 <View style={styles.emptySection}>
-                  <Text style={styles.emptyText}>No company expenses this month.</Text>
+                  <Text style={styles.emptyText}>No company expenses found.</Text>
                 </View>
               ) : (
                 <>
@@ -396,7 +568,12 @@ export default function BusinessCostsScreen() {
 
                   <Text style={styles.recentEntriesTitle}>Recent Entries</Text>
                   {thisMonthExpenses.slice(0, 20).map(e => (
-                    <View key={e.id} style={styles.recentEntry}>
+                    <TouchableOpacity
+                      key={e.id}
+                      style={styles.recentEntry}
+                      activeOpacity={0.7}
+                      onPress={() => { setSelectedExpense(e); setShowExpenseDetail(true); }}
+                    >
                       <View style={{ flex: 1 }}>
                         <Text style={styles.recentEntryCat}>{e.subcategory || e.type}</Text>
                         <Text style={styles.recentEntryStore}>{e.store}</Text>
@@ -407,7 +584,12 @@ export default function BusinessCostsScreen() {
                           {new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                         </Text>
                       </View>
-                    </View>
+                      {e.receiptUrl ? (
+                        <ImageIcon size={14} color="#10B981" style={{ marginLeft: 8 }} />
+                      ) : (
+                        <ChevronRight size={14} color="#D1D5DB" style={{ marginLeft: 8 }} />
+                      )}
+                    </TouchableOpacity>
                   ))}
                 </>
               )}
@@ -431,6 +613,169 @@ export default function BusinessCostsScreen() {
 
         <View style={{ height: insets.bottom + 40 }} />
       </ScrollView>
+
+      {/* ─── Expense Detail Modal ─── */}
+      <Modal
+        visible={showExpenseDetail}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowExpenseDetail(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowExpenseDetail(false)} />
+          <View style={styles.detailSheet}>
+            <View style={styles.detailHeader}>
+              <Text style={styles.detailTitle}>Expense Details</Text>
+              <TouchableOpacity onPress={() => setShowExpenseDetail(false)} style={styles.iconBtn}>
+                <X size={22} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedExpense && (
+              <ScrollView style={styles.detailBody} showsVerticalScrollIndicator={false}>
+                {/* Amount + receipt button */}
+                <View style={styles.detailAmountRow}>
+                  <Text style={styles.detailAmount}>${Number(selectedExpense.amount).toLocaleString()}</Text>
+                  {selectedExpense.receiptUrl && (
+                    <TouchableOpacity
+                      style={styles.detailReceiptBtn}
+                      onPress={() => { setShowExpenseDetail(false); handleViewReceipt(selectedExpense.receiptUrl!); }}
+                    >
+                      <ImageIcon size={14} color="#10B981" />
+                      <Text style={styles.detailReceiptBtnText}>View Receipt</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Added by */}
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Added by</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {selectedExpense.uploader?.avatar ? (
+                      <Image source={{ uri: selectedExpense.uploader.avatar }} style={styles.detailAvatar} contentFit="cover" />
+                    ) : selectedExpense.uploader ? (
+                      <View style={[styles.detailAvatar, { backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center' }]}>
+                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>
+                          {selectedExpense.uploader.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                        </Text>
+                      </View>
+                    ) : null}
+                    <Text style={styles.detailValue}>{selectedExpense.uploader?.name ?? 'Unknown'}</Text>
+                  </View>
+                </View>
+
+                {/* Store */}
+                {!!selectedExpense.store && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Store / Invoice</Text>
+                    <Text style={styles.detailValue}>{selectedExpense.store}</Text>
+                  </View>
+                )}
+
+                {/* Date */}
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Date</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedExpense.date
+                      ? new Date(selectedExpense.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                      : '—'}
+                  </Text>
+                </View>
+
+                {/* Type */}
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Type</Text>
+                  <Text style={styles.detailValue}>{selectedExpense.type}</Text>
+                </View>
+
+                {/* Category */}
+                {selectedExpense.subcategory && selectedExpense.subcategory !== selectedExpense.type && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Category</Text>
+                    <Text style={styles.detailValue}>{selectedExpense.subcategory}</Text>
+                  </View>
+                )}
+
+                {/* Notes */}
+                {!!selectedExpense.notes && (
+                  <View style={[styles.detailRow, { alignItems: 'flex-start' }]}>
+                    <Text style={styles.detailLabel}>Notes</Text>
+                    <Text style={[styles.detailValue, { flex: 1 }]}>{selectedExpense.notes}</Text>
+                  </View>
+                )}
+
+                {/* Receipt image thumbnail */}
+                {selectedExpense.receiptUrl &&
+                  !selectedExpense.receiptUrl.startsWith('blob:') &&
+                  !selectedExpense.receiptUrl.toLowerCase().includes('.pdf') && (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => { setShowExpenseDetail(false); handleViewReceipt(selectedExpense.receiptUrl!); }}
+                  >
+                    <Image
+                      source={{ uri: selectedExpense.receiptUrl }}
+                      style={styles.detailReceiptPreview}
+                      contentFit="cover"
+                    />
+                  </TouchableOpacity>
+                )}
+
+                {/* No receipt message */}
+                {!selectedExpense.receiptUrl && (
+                  <View style={styles.noReceiptRow}>
+                    <File size={16} color="#9CA3AF" />
+                    <Text style={styles.noReceiptText}>No receipt attached</Text>
+                  </View>
+                )}
+
+                <View style={{ height: 32 }} />
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Receipt Viewer Modal ─── */}
+      <Modal
+        visible={showReceiptViewer}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowReceiptViewer(false)}
+      >
+        <View style={styles.receiptViewerOverlay}>
+          <View style={styles.receiptViewerContent}>
+            <View style={styles.receiptViewerHeader}>
+              <Text style={styles.receiptViewerTitle}>Receipt</Text>
+              <TouchableOpacity style={styles.receiptViewerClose} onPress={() => setShowReceiptViewer(false)}>
+                <X size={24} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+            {viewingReceiptUrl && (
+              viewingReceiptUrl.toLowerCase().includes('.pdf') ? (
+                <View style={styles.pdfViewerContainer}>
+                  <File size={60} color="#2563EB" />
+                  <Text style={styles.pdfViewerText}>PDF Document</Text>
+                  <TouchableOpacity
+                    style={styles.openPdfButton}
+                    onPress={() => {
+                      if (Platform.OS === 'web') window.open(viewingReceiptUrl, '_blank');
+                      setShowReceiptViewer(false);
+                    }}
+                  >
+                    <Text style={styles.openPdfButtonText}>Open PDF</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Image
+                  source={{ uri: viewingReceiptUrl }}
+                  style={styles.receiptViewerImage}
+                  contentFit="contain"
+                />
+              )
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -607,4 +952,150 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   openBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
+
+  // Labor section
+  laborSummary: {
+    flexDirection: 'row',
+    backgroundColor: '#F0FDF4',
+    borderRadius: 10,
+    paddingVertical: 14,
+    marginBottom: 16,
+  },
+  laborSummaryItem: { flex: 1, alignItems: 'center' },
+  laborSummaryDivider: { width: 1, backgroundColor: '#D1FAE5', marginVertical: 4 },
+  laborSummaryValue: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  laborSummaryLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  laborRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    gap: 12,
+  },
+  laborAvatar: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  laborAvatarActive: {
+    backgroundColor: '#D1FAE5',
+    borderWidth: 2, borderColor: '#10B981',
+  },
+  laborActiveDot: {
+    position: 'absolute', top: 0, right: 0,
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: '#10B981',
+    borderWidth: 2, borderColor: '#FFFFFF',
+  },
+  laborAvatarText: { fontSize: 16, fontWeight: '700', color: '#2563EB' },
+  laborName: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
+  laborMeta: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  laborCost: { fontSize: 15, fontWeight: '700', color: '#10B981' },
+
+  // Expense detail modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  detailSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  detailTitle: { fontSize: 17, fontWeight: '700', color: '#1F2937' },
+  iconBtn: { padding: 4 },
+  detailBody: { paddingHorizontal: 18 },
+  detailAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  detailAmount: { fontSize: 28, fontWeight: '700', color: '#1F2937' },
+  detailReceiptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  detailReceiptBtnText: { fontSize: 13, fontWeight: '600', color: '#10B981' },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F9FAFB',
+  },
+  detailLabel: { fontSize: 13, color: '#9CA3AF', fontWeight: '500' },
+  detailValue: { fontSize: 14, color: '#1F2937', fontWeight: '600', textAlign: 'right', flex: 1, marginLeft: 12 },
+  detailAvatar: { width: 26, height: 26, borderRadius: 13 },
+  detailReceiptPreview: {
+    width: '100%', height: 220,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  noReceiptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 16,
+  },
+  noReceiptText: { fontSize: 13, color: '#9CA3AF' },
+
+  // Receipt viewer modal
+  receiptViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  receiptViewerContent: {
+    width: '95%',
+    maxHeight: '90%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  receiptViewerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  receiptViewerTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
+  receiptViewerClose: { padding: 4 },
+  receiptViewerImage: { width: '100%', height: 500 },
+  pdfViewerContainer: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    gap: 12,
+  },
+  pdfViewerText: { fontSize: 16, color: '#374151', fontWeight: '600' },
+  openPdfButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  openPdfButtonText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
 });
