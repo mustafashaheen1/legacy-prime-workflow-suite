@@ -3247,6 +3247,15 @@ export default function EstimateScreen() {
         </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
+
+    <Modal visible={uploadingImageItemId !== null} transparent animationType="fade">
+      <View style={styles.uploadingModalOverlay}>
+        <View style={styles.uploadingCard}>
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text style={styles.uploadingText}>Uploading photos...</Text>
+        </View>
+      </View>
+    </Modal>
     </>
   );
 }
@@ -4317,15 +4326,6 @@ NEVER respond with plain text. ALWAYS use JSON format above.`;
         </View>
       </View>
       </KeyboardAvoidingView>
-    </Modal>
-
-    <Modal visible={uploadingImageItemId !== null} transparent animationType="fade">
-      <View style={styles.uploadingOverlay}>
-        <View style={styles.uploadingCard}>
-          <ActivityIndicator size="large" color="#2563EB" />
-          <Text style={styles.uploadingText}>Uploading photos...</Text>
-        </View>
-      </View>
     </Modal>
     </>
   );
@@ -6034,7 +6034,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontStyle: 'italic',
   },
-  uploadingOverlay: {
+  uploadingModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center' as const,
