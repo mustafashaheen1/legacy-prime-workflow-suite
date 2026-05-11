@@ -24,7 +24,9 @@ const ALLOWED_ORIGINS = [
   'http://192.168.20.149:8081',
   'http://192.168.20.149:19006',
   'https://legacy-prime-workflow-suite.vercel.app',
-];
+  // ngrok tunnel — update this URL each time ngrok restarts
+  process.env.NGROK_URL,
+].filter(Boolean) as string[];
 
 // ─── Minimal VercelResponse shim ──────────────────────────────────────────────
 // Implements the subset of http.ServerResponse that Vercel handlers use.

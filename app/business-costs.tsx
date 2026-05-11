@@ -9,7 +9,7 @@ import { useCallback } from 'react';
 import { Image } from 'expo-image';
 import {
   DollarSign, Layers, TrendingUp, Grid3X3, Users, BarChart3,
-  Clock, ChevronDown, ChevronUp, ArrowLeft, X, Image as ImageIcon, File, ChevronRight
+  Clock, ChevronDown, ChevronUp, ArrowLeft, X, Image as ImageIcon, File, ChevronRight, ChevronLeft
 } from 'lucide-react-native';
 import type { Expense } from '@/types';
 
@@ -26,6 +26,17 @@ const DEFAULT_SETTINGS: RateCalcSettings = {
   workingWeeksPerYear: 50,
   profitMargin: 20,
 };
+
+function getWeekBounds(d: Date): [Date, Date] {
+  const start = new Date(d);
+  const day = start.getDay();
+  start.setDate(start.getDate() + (day === 0 ? -6 : 1 - day));
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return [start, end];
+}
 
 export default function BusinessCostsScreen() {
   const { expenses, clockEntries, company, refreshClockEntries, refreshExpenses } = useApp();
@@ -47,6 +58,12 @@ export default function BusinessCostsScreen() {
   // Receipt viewer
   const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
   const [showReceiptViewer, setShowReceiptViewer] = useState(false);
+
+  // Labor detail modal
+  const [selectedLaborRow, setSelectedLaborRow] = useState<EmployeeLaborRow | null>(null);
+  const [showLaborDetail, setShowLaborDetail] = useState(false);
+  const [laborFilter, setLaborFilter] = useState<'all' | 'month' | 'week'>('all');
+  const [laborFilterDate, setLaborFilterDate] = useState<Date>(new Date());
 
   const handleViewReceipt = (url: string) => {
     setViewingReceiptUrl(url);
@@ -157,6 +174,14 @@ export default function BusinessCostsScreen() {
     isActive: boolean;
   }
 
+  interface DailyLaborRow {
+    date: string;      // YYYY-MM-DD
+    hours: number;
+    rate: number | null; // -1 = varies
+    cost: number;
+    sessions: number;
+  }
+
   const laborRows = useMemo((): EmployeeLaborRow[] => {
     const map = new Map<string, EmployeeLaborRow>();
     const twentyFourHoursAgo = Date.now() - 24 * 3_600_000;
@@ -191,6 +216,43 @@ export default function BusinessCostsScreen() {
     () => laborRows.reduce((s, r) => s + r.totalCost, 0),
     [laborRows]
   );
+
+  // Daily breakdown for the selected employee filtered by laborFilter + laborFilterDate
+  const selectedEmployeeDailyRows = useMemo((): DailyLaborRow[] => {
+    if (!selectedLaborRow) return [];
+    const [weekStart, weekEnd] = laborFilter === 'week' ? getWeekBounds(laborFilterDate) : [null, null];
+    const map = new Map<string, DailyLaborRow>();
+    clockEntries
+      .filter(e => {
+        if (e.employeeId !== selectedLaborRow.employeeId) return false;
+        if (laborFilter === 'month') {
+          const d = new Date(e.clockIn);
+          return d.getFullYear() === laborFilterDate.getFullYear() && d.getMonth() === laborFilterDate.getMonth();
+        }
+        if (laborFilter === 'week') {
+          const d = new Date(e.clockIn);
+          return d >= weekStart! && d <= weekEnd!;
+        }
+        return true;
+      })
+      .forEach(e => {
+        const dateKey = e.clockIn.slice(0, 10);
+        const netHours = calcNetMs(e) / 3_600_000;
+        const rate = e.hourlyRate ?? null;
+        const cost = rate != null ? netHours * rate : 0;
+        const existing = map.get(dateKey);
+        if (existing) {
+          existing.hours += netHours;
+          existing.cost += cost;
+          existing.sessions += 1;
+          if (existing.rate !== rate && existing.rate !== -1) existing.rate = -1;
+        } else {
+          map.set(dateKey, { date: dateKey, hours: netHours, rate, cost, sessions: 1 });
+        }
+      });
+    return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLaborRow, clockEntries, laborFilter, laborFilterDate]);
   const laborHoursThisMonth = useMemo(
     () => laborRows.reduce((s, r) => s + r.totalHours, 0),
     [laborRows]
@@ -401,7 +463,12 @@ export default function BusinessCostsScreen() {
                 </View>
               ) : (
                 laborRows.map(row => (
-                  <View key={row.employeeId} style={styles.laborRow}>
+                  <TouchableOpacity
+                    key={row.employeeId}
+                    style={styles.laborRow}
+                    activeOpacity={0.7}
+                    onPress={() => { setSelectedLaborRow(row); setShowLaborDetail(true); }}
+                  >
                     <View style={[styles.laborAvatar, row.isActive && styles.laborAvatarActive]}>
                       <Text style={styles.laborAvatarText}>{row.name.charAt(0).toUpperCase()}</Text>
                       {row.isActive && <View style={styles.laborActiveDot} />}
@@ -419,7 +486,8 @@ export default function BusinessCostsScreen() {
                     <Text style={styles.laborCost}>
                       {row.rate != null ? `$${row.totalCost.toFixed(2)}` : 'No rate'}
                     </Text>
-                  </View>
+                    <ChevronRight size={16} color="#D1D5DB" />
+                  </TouchableOpacity>
                 ))
               )}
             </View>
@@ -735,6 +803,177 @@ export default function BusinessCostsScreen() {
         </View>
       </Modal>
 
+      {/* ─── Employee Labor Detail Modal ─── */}
+      <Modal
+        visible={showLaborDetail}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowLaborDetail(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowLaborDetail(false)} />
+          <View style={styles.detailSheet}>
+            {/* Header */}
+            <View style={styles.detailHeader}>
+              <Text style={styles.detailTitle}>{selectedLaborRow?.name}</Text>
+              <TouchableOpacity onPress={() => setShowLaborDetail(false)} style={styles.iconBtn}>
+                <X size={22} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Filter tabs */}
+            <View style={styles.laborFilterRow}>
+              {(['all', 'month', 'week'] as const).map(f => (
+                <TouchableOpacity
+                  key={f}
+                  style={[styles.laborFilterTab, laborFilter === f && styles.laborFilterTabActive]}
+                  onPress={() => { setLaborFilter(f); setLaborFilterDate(new Date()); }}
+                >
+                  <Text style={[styles.laborFilterTabText, laborFilter === f && styles.laborFilterTabTextActive]}>
+                    {f === 'all' ? 'All Time' : f === 'month' ? 'Monthly' : 'Weekly'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Date navigator (monthly / weekly) */}
+            {laborFilter !== 'all' && (() => {
+              let label = '';
+              if (laborFilter === 'month') {
+                label = laborFilterDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+              } else {
+                const [ws, we] = getWeekBounds(laborFilterDate);
+                const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                label = `${fmt(ws)} – ${fmt(we)}`;
+              }
+              return (
+                <View style={styles.laborDateNav}>
+                  <TouchableOpacity
+                    style={styles.laborDateNavBtn}
+                    onPress={() => setLaborFilterDate(prev => {
+                      const next = new Date(prev);
+                      if (laborFilter === 'month') next.setMonth(next.getMonth() - 1);
+                      else next.setDate(next.getDate() - 7);
+                      return next;
+                    })}
+                  >
+                    <ChevronLeft size={18} color="#6B7280" />
+                  </TouchableOpacity>
+                  <Text style={styles.laborDateNavLabel}>{label}</Text>
+                  <TouchableOpacity
+                    style={styles.laborDateNavBtn}
+                    onPress={() => setLaborFilterDate(prev => {
+                      const next = new Date(prev);
+                      if (laborFilter === 'month') next.setMonth(next.getMonth() + 1);
+                      else next.setDate(next.getDate() + 7);
+                      return next;
+                    })}
+                  >
+                    <ChevronRight size={18} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+
+            {selectedLaborRow && (
+              <ScrollView style={styles.detailBody} showsVerticalScrollIndicator={false}>
+                {/* Summary strip */}
+                {(() => {
+                  const totalH = selectedEmployeeDailyRows.reduce((s, d) => s + d.hours, 0);
+                  const totalCost = selectedEmployeeDailyRows.reduce((s, d) => s + d.cost, 0);
+                  return (
+                    <View style={styles.laborSummary}>
+                      <View style={styles.laborSummaryItem}>
+                        <Text style={styles.laborSummaryValue}>
+                          {totalH < 1 ? `${Math.round(totalH * 60)}m` : `${totalH.toFixed(1)}h`}
+                        </Text>
+                        <Text style={styles.laborSummaryLabel}>Total Hours</Text>
+                      </View>
+                      <View style={styles.laborSummaryDivider} />
+                      <View style={styles.laborSummaryItem}>
+                        <Text style={[styles.laborSummaryValue, { color: '#10B981' }]}>
+                          {selectedLaborRow.rate != null ? `$${totalCost.toFixed(2)}` : '—'}
+                        </Text>
+                        <Text style={styles.laborSummaryLabel}>Total Cost</Text>
+                      </View>
+                      <View style={styles.laborSummaryDivider} />
+                      <View style={styles.laborSummaryItem}>
+                        <Text style={styles.laborSummaryValue}>{selectedEmployeeDailyRows.length}</Text>
+                        <Text style={styles.laborSummaryLabel}>Days Worked</Text>
+                      </View>
+                    </View>
+                  );
+                })()}
+
+                {/* Column headers */}
+                {selectedEmployeeDailyRows.length > 0 && (
+                  <View style={styles.laborDailyHeader}>
+                    <Text style={[styles.laborDailyHeaderText, { flex: 2 }]}>Date</Text>
+                    <Text style={[styles.laborDailyHeaderText, { flex: 1, textAlign: 'center' }]}>Hours</Text>
+                    <Text style={[styles.laborDailyHeaderText, { flex: 1, textAlign: 'center' }]}>Rate</Text>
+                    <Text style={[styles.laborDailyHeaderText, { flex: 1, textAlign: 'right' }]}>Cost</Text>
+                  </View>
+                )}
+
+                {selectedEmployeeDailyRows.length === 0 ? (
+                  <View style={styles.emptySection}>
+                    <Text style={styles.emptyText}>
+                      {laborFilter === 'all'
+                        ? 'No clock entries found.'
+                        : laborFilter === 'month'
+                        ? `No entries for ${laborFilterDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.`
+                        : 'No entries for this week.'}
+                    </Text>
+                  </View>
+                ) : (
+                  selectedEmployeeDailyRows.map(day => (
+                    <View key={day.date} style={styles.laborDailyRow}>
+                      <View style={{ flex: 2 }}>
+                        <Text style={styles.laborDailyDate}>
+                          {new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </Text>
+                        {day.sessions > 1 && (
+                          <Text style={styles.laborDailySessions}>{day.sessions} sessions</Text>
+                        )}
+                      </View>
+                      <Text style={[styles.laborDailyCell, { flex: 1, textAlign: 'center' }]}>
+                        {day.hours < 1 ? `${Math.round(day.hours * 60)}m` : `${day.hours.toFixed(1)}h`}
+                      </Text>
+                      <Text style={[styles.laborDailyCell, { flex: 1, textAlign: 'center' }]}>
+                        {day.rate === -1 ? 'Varies' : day.rate != null ? `$${day.rate.toFixed(0)}/hr` : '—'}
+                      </Text>
+                      <Text style={[styles.laborDailyCost, { flex: 1, textAlign: 'right' }]}>
+                        {day.rate != null ? `$${day.cost.toFixed(2)}` : '—'}
+                      </Text>
+                    </View>
+                  ))
+                )}
+
+                {/* Total row */}
+                {selectedEmployeeDailyRows.length > 0 && (() => {
+                  const totalH = selectedEmployeeDailyRows.reduce((s, d) => s + d.hours, 0);
+                  const totalCost = selectedEmployeeDailyRows.reduce((s, d) => s + d.cost, 0);
+                  return (
+                    <View style={styles.laborDetailTotalRow}>
+                      <Text style={[styles.laborDetailTotalLabel, { flex: 2 }]}>Total</Text>
+                      <Text style={[styles.laborDetailTotalLabel, { flex: 1, textAlign: 'center' }]}>
+                        {totalH < 1 ? `${Math.round(totalH * 60)}m` : `${totalH.toFixed(1)}h`}
+                      </Text>
+                      <Text style={[styles.laborDetailTotalLabel, { flex: 1, textAlign: 'center' }]}></Text>
+                      <Text style={[styles.laborDetailTotalCost, { flex: 1, textAlign: 'right' }]}>
+                        {selectedLaborRow.rate != null ? `$${totalCost.toFixed(2)}` : '—'}
+                      </Text>
+                    </View>
+                  );
+                })()}
+
+                <View style={{ height: 32 }} />
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {/* ─── Receipt Viewer Modal ─── */}
       <Modal
         visible={showReceiptViewer}
@@ -992,6 +1231,43 @@ const styles = StyleSheet.create({
   laborName: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
   laborMeta: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   laborCost: { fontSize: 15, fontWeight: '700', color: '#10B981' },
+
+  // Employee labor detail modal
+  laborDetailMonth: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+  laborDailyHeader: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    marginBottom: 2,
+  },
+  laborDailyHeaderText: { fontSize: 11, fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase' },
+  laborDailyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  laborDailyDate: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
+  laborDailySessions: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  laborDailyCell: { fontSize: 13, color: '#4B5563' },
+  laborDailyCost: { fontSize: 13, fontWeight: '700', color: '#10B981' },
+  laborDetailTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    marginTop: 4,
+    borderTopWidth: 2,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+  },
+  laborDetailTotalLabel: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+  laborDetailTotalCost: { fontSize: 15, fontWeight: '700', color: '#10B981' },
 
   // Expense detail modal
   modalOverlay: {
