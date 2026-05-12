@@ -21,6 +21,8 @@ export async function PATCH(request: ExpoRequest): Promise<ExpoResponse> {
   return app.fetch(request as any);
 }
 
+
+
 export async function OPTIONS(request: ExpoRequest): Promise<ExpoResponse> {
   return app.fetch(request as any);
 }
