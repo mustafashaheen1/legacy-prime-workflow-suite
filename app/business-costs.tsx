@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Pressable, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Pressable, Platform, Linking } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -99,60 +99,13 @@ export default function BusinessCostsScreen() {
     });
   }, [company?.id]);
 
-  // ─── Data calculations (reused from CompactBusinessCosts) ───
-  // Show all expenses for the company — not filtered by isCompanyCost so
-  // expenses added from the expenses tab (project or office) all appear here.
-  const businessExpenses = useMemo(() => [...expenses].sort((a, b) =>
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  ), [expenses]);
-  const overheadExpenses = useMemo(() => expenses.filter(e => e.isOverhead), [expenses]);
+  // ─── Data calculations ───────────────────────────────────────────────────
+  // Business Costs = ONLY indirect company overhead.
+  // Project labor and project expenses must NEVER be included here.
 
   const now = new Date();
 
-  const thisMonthTotal = useMemo(() => {
-    return businessExpenses
-      .filter(e => {
-        const d = new Date(e.date);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-      })
-      .reduce((sum, e) => sum + e.amount, 0);
-  }, [businessExpenses]);
-
-  // All expenses sorted newest first — businessExpenses is already sorted
-  const thisMonthExpenses = businessExpenses;
-
-  // 6-month rolling average
-  const overheadPerMonth = useMemo(() => {
-    if (businessExpenses.length === 0) return 0;
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const recent = businessExpenses.filter(e => new Date(e.date) >= sixMonthsAgo);
-    if (recent.length === 0) return 0;
-    return recent.reduce((sum, e) => sum + e.amount, 0) / 6;
-  }, [businessExpenses]);
-
-  // Minimum monthly spend
-  const minMonthly = useMemo(() => {
-    if (businessExpenses.length === 0) return 0;
-    const byMonth: Record<string, number> = {};
-    businessExpenses.forEach(e => {
-      const d = new Date(e.date);
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
-      byMonth[key] = (byMonth[key] || 0) + e.amount;
-    });
-    const months = Object.values(byMonth);
-    return months.length > 0 ? Math.min(...months) : 0;
-  }, [businessExpenses]);
-
-  // Office staff count
-  const officeStaffCount = useMemo(() => {
-    const ids = new Set<string>();
-    clockEntries.forEach(e => { if (e.officeRole) ids.add(e.employeeId); });
-    return ids.size;
-  }, [clockEntries]);
-
-  // ─── Labor cost calculations ───────────────────────────────────────────────
-
+  // Net milliseconds for a clock entry (subtracting lunch breaks)
   const calcNetMs = (e: typeof clockEntries[0]): number => {
     const start = new Date(e.clockIn).getTime();
     const end = e.clockOut ? new Date(e.clockOut).getTime() : Date.now();
@@ -164,6 +117,112 @@ export default function BusinessCostsScreen() {
     });
     return Math.max(0, ms);
   };
+
+  // Company/office expenses only — those marked "not tied to a project"
+  const businessExpenses = useMemo(() =>
+    [...expenses]
+      .filter(e => e.isCompanyCost === true)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  , [expenses]);
+
+  // Recurring overhead expenses (for Overhead Breakdown accordion)
+  const overheadExpenses = useMemo(() => expenses.filter(e => e.isOverhead), [expenses]);
+
+  // Office clock-ins only — entries NOT tied to any project
+  const officeClockEntries = useMemo(
+    () => clockEntries.filter(e => !e.projectId),
+    [clockEntries]
+  );
+
+  // This month: company expenses total
+  const thisMonthExpenseTotal = useMemo(() => {
+    return businessExpenses
+      .filter(e => {
+        const d = new Date(e.date);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      })
+      .reduce((sum, e) => sum + e.amount, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessExpenses]);
+
+  // This month: office labor cost (hours × rate, no project entries)
+  const officeLaborThisMonth = useMemo(() => {
+    return officeClockEntries
+      .filter(e => {
+        const d = new Date(e.clockIn);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      })
+      .reduce((sum, e) => {
+        if (!e.hourlyRate) return sum;
+        return sum + calcNetMs(e) / 3_600_000 * e.hourlyRate;
+      }, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [officeClockEntries]);
+
+  // This month combined total (used for summary card + yearly forecast)
+  const thisMonthTotal = thisMonthExpenseTotal + officeLaborThisMonth;
+
+  // Yearly forecast = This Month × 12
+  const yearlyForecast = thisMonthTotal * 12;
+
+  // Company expenses list for display (all time, newest first)
+  const thisMonthExpenses = businessExpenses;
+
+  // 6-month rolling average (expenses + office labor combined per month)
+  const overheadPerMonth = useMemo(() => {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const monthMap: Record<string, number> = {};
+    businessExpenses
+      .filter(e => new Date(e.date) >= sixMonthsAgo)
+      .forEach(e => {
+        const d = new Date(e.date);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        monthMap[key] = (monthMap[key] || 0) + e.amount;
+      });
+    officeClockEntries
+      .filter(e => e.clockOut && new Date(e.clockIn) >= sixMonthsAgo)
+      .forEach(e => {
+        if (!e.hourlyRate) return;
+        const cost = calcNetMs(e) / 3_600_000 * e.hourlyRate;
+        const d = new Date(e.clockIn);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        monthMap[key] = (monthMap[key] || 0) + cost;
+      });
+    const totals = Object.values(monthMap);
+    if (totals.length === 0) return 0;
+    return totals.reduce((s, v) => s + v, 0) / 6;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessExpenses, officeClockEntries]);
+
+  // Minimum monthly spend (expenses + office labor)
+  const minMonthly = useMemo(() => {
+    const byMonth: Record<string, number> = {};
+    businessExpenses.forEach(e => {
+      const d = new Date(e.date);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      byMonth[key] = (byMonth[key] || 0) + e.amount;
+    });
+    officeClockEntries.filter(e => e.clockOut).forEach(e => {
+      if (!e.hourlyRate) return;
+      const cost = calcNetMs(e) / 3_600_000 * e.hourlyRate;
+      const d = new Date(e.clockIn);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      byMonth[key] = (byMonth[key] || 0) + cost;
+    });
+    const months = Object.values(byMonth);
+    return months.length > 0 ? Math.min(...months) : 0;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessExpenses, officeClockEntries]);
+
+  // Office staff count (employees who have any office clock-in)
+  const officeStaffCount = useMemo(() => {
+    const ids = new Set<string>();
+    officeClockEntries.forEach(e => ids.add(e.employeeId));
+    return ids.size;
+  }, [officeClockEntries]);
+
+  // ─── Labor cost calculations (office-only) ──────────────────────────────
 
   interface EmployeeLaborRow {
     employeeId: string;
@@ -182,11 +241,11 @@ export default function BusinessCostsScreen() {
     sessions: number;
   }
 
+  // Aggregate office clock entries by employee (all time, for history accordion)
   const laborRows = useMemo((): EmployeeLaborRow[] => {
     const map = new Map<string, EmployeeLaborRow>();
     const twentyFourHoursAgo = Date.now() - 24 * 3_600_000;
-    clockEntries
-      .forEach(e => {
+    officeClockEntries.forEach(e => {
         const netHours = calcNetMs(e) / 3_600_000;
         const rate = e.hourlyRate ?? null;
         const cost = rate != null ? netHours * rate : 0;
@@ -210,19 +269,19 @@ export default function BusinessCostsScreen() {
       });
     return Array.from(map.values()).sort((a, b) => b.totalCost - a.totalCost);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clockEntries]);
+  }, [officeClockEntries]);
 
-  const laborTotalThisMonth = useMemo(
+  const laborTotalAllTime = useMemo(
     () => laborRows.reduce((s, r) => s + r.totalCost, 0),
     [laborRows]
   );
 
-  // Daily breakdown for the selected employee filtered by laborFilter + laborFilterDate
+  // Daily breakdown for the selected employee (office entries only)
   const selectedEmployeeDailyRows = useMemo((): DailyLaborRow[] => {
     if (!selectedLaborRow) return [];
     const [weekStart, weekEnd] = laborFilter === 'week' ? getWeekBounds(laborFilterDate) : [null, null];
     const map = new Map<string, DailyLaborRow>();
-    clockEntries
+    officeClockEntries
       .filter(e => {
         if (e.employeeId !== selectedLaborRow.employeeId) return false;
         if (laborFilter === 'month') {
@@ -252,8 +311,9 @@ export default function BusinessCostsScreen() {
       });
     return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLaborRow, clockEntries, laborFilter, laborFilterDate]);
-  const laborHoursThisMonth = useMemo(
+  }, [selectedLaborRow, officeClockEntries, laborFilter, laborFilterDate]);
+
+  const laborHoursAllTime = useMemo(
     () => laborRows.reduce((s, r) => s + r.totalHours, 0),
     [laborRows]
   );
@@ -267,13 +327,22 @@ export default function BusinessCostsScreen() {
     return baseRate * (1 + settings.profitMargin / 100);
   }, [settings, overheadPerMonth]);
 
-  // Averages
+  // 3-month average (expenses + office labor)
   const avg3mo = useMemo(() => {
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const recent = businessExpenses.filter(e => new Date(e.date) >= threeMonthsAgo);
-    return recent.length > 0 ? recent.reduce((s, e) => s + e.amount, 0) / 3 : 0;
-  }, [businessExpenses]);
+    const expenseTotal = businessExpenses
+      .filter(e => new Date(e.date) >= threeMonthsAgo)
+      .reduce((s, e) => s + e.amount, 0);
+    const laborTotal = officeClockEntries
+      .filter(e => e.clockOut && new Date(e.clockIn) >= threeMonthsAgo)
+      .reduce((sum, e) => {
+        if (!e.hourlyRate) return sum;
+        return sum + calcNetMs(e) / 3_600_000 * e.hourlyRate;
+      }, 0);
+    return (expenseTotal + laborTotal) / 3;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessExpenses, officeClockEntries]);
 
   const avg6mo = overheadPerMonth;
   const fixedMonthlyOverhead = useMemo(() => overheadExpenses.reduce((s, e) => s + e.amount, 0) / Math.max(1, (() => {
@@ -283,23 +352,33 @@ export default function BusinessCostsScreen() {
   })()), [overheadExpenses]);
   const annualFixedOverhead = fixedMonthlyOverhead * 12;
 
-  // Monthly totals for bar chart (6 months)
+  // Monthly totals for bar chart (6 months) — expenses + office labor combined
   const monthlyTotals = useMemo(() => {
     const months: { label: string; total: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const total = businessExpenses
+      const expenseTotal = businessExpenses
         .filter(e => {
           const ed = new Date(e.date);
           return ed.getFullYear() === d.getFullYear() && ed.getMonth() === d.getMonth();
         })
         .reduce((sum, e) => sum + e.amount, 0);
-      months.push({ label: d.toLocaleDateString('en-US', { month: 'short' }), total });
+      const laborTotal = officeClockEntries
+        .filter(e => {
+          const ed = new Date(e.clockIn);
+          return ed.getFullYear() === d.getFullYear() && ed.getMonth() === d.getMonth() && !!e.clockOut;
+        })
+        .reduce((sum, e) => {
+          if (!e.hourlyRate) return sum;
+          return sum + calcNetMs(e) / 3_600_000 * e.hourlyRate;
+        }, 0);
+      months.push({ label: d.toLocaleDateString('en-US', { month: 'short' }), total: expenseTotal + laborTotal });
     }
     return months;
-  }, [businessExpenses]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessExpenses, officeClockEntries]);
 
-  // Category breakdown for this month
+  // Category breakdown for company expenses
   const categoryBreakdown = useMemo(() => {
     const map: Record<string, number> = {};
     thisMonthExpenses.forEach(e => {
@@ -356,7 +435,7 @@ export default function BusinessCostsScreen() {
               <DollarSign size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.cardLabel}>This Month (Total)</Text>
-            <Text style={[styles.cardValue, { color: '#2563EB' }]}>{fmt(thisMonthTotal + laborTotalThisMonth)}</Text>
+            <Text style={[styles.cardValue, { color: '#2563EB' }]}>{fmt(thisMonthTotal)}</Text>
           </View>
           <View style={[styles.summaryCard, { borderLeftColor: '#10B981' }]}>
             <View style={[styles.cardIcon, { backgroundColor: '#10B981' }]}>
@@ -369,8 +448,8 @@ export default function BusinessCostsScreen() {
             <View style={[styles.cardIcon, { backgroundColor: '#F59E0B' }]}>
               <TrendingUp size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.cardLabel}>Est. Min. Monthly</Text>
-            <Text style={[styles.cardValue, { color: '#F59E0B' }]}>{fmt(minMonthly)}</Text>
+            <Text style={styles.cardLabel}>Yearly Forecast</Text>
+            <Text style={[styles.cardValue, { color: '#F59E0B' }]}>{fmt(yearlyForecast)}</Text>
           </View>
           <View style={[styles.summaryCard, { borderLeftColor: '#7C3AED' }]}>
             <View style={[styles.cardIcon, { backgroundColor: '#7C3AED' }]}>
@@ -426,11 +505,11 @@ export default function BusinessCostsScreen() {
           )}
         </View>
 
-        {/* ─── Section 2: Labor Costs ─── */}
+        {/* ─── Section 2: Office Labor Costs ─── */}
         <View style={styles.accordionCard}>
           {renderSection('labor',
             <Users size={22} color="#10B981" style={{ marginRight: 12 }} />,
-            'Labor Costs (All Employees)',
+            'Office Labor Costs',
             null
           )}
           {expanded['labor'] && (
@@ -444,22 +523,22 @@ export default function BusinessCostsScreen() {
                 <View style={styles.laborSummaryDivider} />
                 <View style={styles.laborSummaryItem}>
                   <Text style={styles.laborSummaryValue}>
-                    {laborHoursThisMonth < 1
-                      ? `${Math.round(laborHoursThisMonth * 60)}m`
-                      : `${laborHoursThisMonth.toFixed(1)}h`}
+                    {laborHoursAllTime < 1
+                      ? `${Math.round(laborHoursAllTime * 60)}m`
+                      : `${laborHoursAllTime.toFixed(1)}h`}
                   </Text>
                   <Text style={styles.laborSummaryLabel}>Total Hours</Text>
                 </View>
                 <View style={styles.laborSummaryDivider} />
                 <View style={styles.laborSummaryItem}>
-                  <Text style={[styles.laborSummaryValue, { color: '#10B981' }]}>${laborTotalThisMonth.toFixed(2)}</Text>
+                  <Text style={[styles.laborSummaryValue, { color: '#10B981' }]}>${laborTotalAllTime.toFixed(2)}</Text>
                   <Text style={styles.laborSummaryLabel}>Total Cost</Text>
                 </View>
               </View>
 
               {laborRows.length === 0 ? (
                 <View style={styles.emptySection}>
-                  <Text style={styles.emptyText}>No clock entries found.</Text>
+                  <Text style={styles.emptyText}>No office clock entries found.</Text>
                 </View>
               ) : (
                 laborRows.map(row => (
@@ -991,19 +1070,26 @@ export default function BusinessCostsScreen() {
             </View>
             {viewingReceiptUrl && (
               viewingReceiptUrl.toLowerCase().includes('.pdf') ? (
-                <View style={styles.pdfViewerContainer}>
-                  <File size={60} color="#2563EB" />
-                  <Text style={styles.pdfViewerText}>PDF Document</Text>
-                  <TouchableOpacity
-                    style={styles.openPdfButton}
-                    onPress={() => {
-                      if (Platform.OS === 'web') window.open(viewingReceiptUrl, '_blank');
-                      setShowReceiptViewer(false);
-                    }}
-                  >
-                    <Text style={styles.openPdfButtonText}>Open PDF</Text>
-                  </TouchableOpacity>
-                </View>
+                Platform.OS === 'web' ? (
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore — iframe is valid on web
+                  <iframe
+                    src={viewingReceiptUrl}
+                    style={{ width: '100%', height: 500, border: 'none' }}
+                    title="PDF Receipt"
+                  />
+                ) : (
+                  <View style={styles.pdfViewerContainer}>
+                    <File size={60} color="#2563EB" />
+                    <Text style={styles.pdfViewerText}>PDF Document</Text>
+                    <TouchableOpacity
+                      style={styles.openPdfButton}
+                      onPress={() => Linking.openURL(viewingReceiptUrl!).catch(() => {})}
+                    >
+                      <Text style={styles.openPdfButtonText}>Open PDF</Text>
+                    </TouchableOpacity>
+                  </View>
+                )
               ) : (
                 <Image
                   source={{ uri: viewingReceiptUrl }}
@@ -1234,6 +1320,35 @@ const styles = StyleSheet.create({
 
   // Employee labor detail modal
   laborDetailMonth: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+  laborFilterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  laborFilterTab: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  laborFilterTabActive: { backgroundColor: '#1F2937' },
+  laborFilterTabText: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
+  laborFilterTabTextActive: { color: '#FFFFFF' },
+  laborDateNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  laborDateNavBtn: { padding: 6, borderRadius: 8, backgroundColor: '#F3F4F6' },
+  laborDateNavLabel: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
   laborDailyHeader: {
     flexDirection: 'row',
     paddingVertical: 8,
