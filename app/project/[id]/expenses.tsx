@@ -1,4 +1,4 @@
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useState, useMemo, useEffect } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
@@ -648,13 +648,21 @@ export default function ProjectExpensesScreen() {
 
   // View receipt handler
   const handleViewReceipt = (receiptUrl: string) => {
-    const isPdf = receiptUrl.toLowerCase().includes('.pdf');
+    const lower = receiptUrl.toLowerCase();
+    const isPdf = lower.includes('.pdf');
+    const isDoc = lower.includes('.docx') || lower.includes('.doc');
 
-    if (isPdf && Platform.OS === 'web') {
-      // Open PDF in new tab on web
-      window.open(receiptUrl, '_blank');
+    if (isPdf || isDoc) {
+      if (Platform.OS === 'web') {
+        window.open(receiptUrl, '_blank');
+      } else {
+        // iOS/iPad: open S3 URL in Safari — handles PDF natively, prompts app for DOCX
+        Linking.openURL(receiptUrl).catch(() =>
+          Alert.alert('Cannot Open File', 'Unable to open this file. Please try on a desktop browser.')
+        );
+      }
     } else {
-      // Show image in modal
+      // Image — show inline modal
       setViewingReceiptUrl(receiptUrl);
       setShowReceiptViewer(true);
     }
@@ -1140,29 +1148,11 @@ export default function ProjectExpensesScreen() {
                 </TouchableOpacity>
               </View>
               {viewingReceiptUrl && (
-                viewingReceiptUrl.toLowerCase().includes('.pdf') ? (
-                  <View style={styles.pdfViewerContainer}>
-                    <File size={60} color="#2563EB" />
-                    <Text style={styles.pdfViewerText}>PDF Document</Text>
-                    <TouchableOpacity
-                      style={styles.openPdfButton}
-                      onPress={() => {
-                        if (Platform.OS === 'web') {
-                          window.open(viewingReceiptUrl, '_blank');
-                        }
-                        setShowReceiptViewer(false);
-                      }}
-                    >
-                      <Text style={styles.openPdfButtonText}>Open PDF</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <Image
-                    source={{ uri: viewingReceiptUrl }}
-                    style={styles.receiptViewerImage}
-                    contentFit="contain"
-                  />
-                )
+                <Image
+                  source={{ uri: viewingReceiptUrl }}
+                  style={styles.receiptViewerImage}
+                  contentFit="contain"
+                />
               )}
             </View>
           </View>
@@ -1206,20 +1196,20 @@ export default function ProjectExpensesScreen() {
 
                   {/* Added by */}
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Added by</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={[styles.detailLabel, { flexShrink: 0 }]}>Added by</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
                       {selectedExpense.uploader ? (
                         selectedExpense.uploader.avatar ? (
                           <Image source={{ uri: selectedExpense.uploader.avatar }} style={styles.detailAvatar} contentFit="cover" />
                         ) : (
-                          <View style={[styles.detailAvatar, { backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center' }]}>
+                          <View style={[styles.detailAvatar, { backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }]}>
                             <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>
                               {selectedExpense.uploader.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                             </Text>
                           </View>
                         )
                       ) : null}
-                      <Text style={styles.detailValue}>
+                      <Text style={[styles.detailValue, { flexShrink: 1 }]} numberOfLines={2}>
                         {selectedExpense.uploader?.name ?? 'Unknown'}
                       </Text>
                     </View>

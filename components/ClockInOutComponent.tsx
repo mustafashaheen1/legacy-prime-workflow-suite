@@ -720,7 +720,7 @@ export default function ClockInOutComponent({ projectId, projectName, officeRole
       });
     }
     const netMs = isNaN(totalMs) ? 0 : Math.max(0, totalMs);
-    const hours = Math.round(netMs / 60_000) / 60;
+    const hours = netMs / 3_600_000;
     const rate = entry.hourlyRate ?? user?.hourlyRate ?? 0;
     return sum + rate * hours;
   }, 0);
@@ -739,7 +739,7 @@ export default function ClockInOutComponent({ projectId, projectName, officeRole
     }
 
     const netMs = isNaN(totalMs) ? 0 : Math.max(0, totalMs);
-    return sum + Math.round(netMs / 60_000) / 60;
+    return sum + netMs / 3_600_000;
   }, 0);
 
   // Shift to display in the Top Summary Card + Time Log section.
@@ -1191,9 +1191,8 @@ export default function ClockInOutComponent({ projectId, projectName, officeRole
             }, 0);
             const lunchMinutes = lunchMs / (1000 * 60);
 
-            // Net hours = gross − lunch, rounded to nearest minute (matches time-cards)
             const netHours = end
-              ? Math.round((end.getTime() - start.getTime() - lunchMs) / 60_000) / 60
+              ? (end.getTime() - start.getTime() - lunchMs) / 3_600_000
               : 0;
 
             const breakCountLabel =

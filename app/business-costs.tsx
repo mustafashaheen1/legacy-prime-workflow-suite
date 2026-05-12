@@ -390,11 +390,8 @@ export default function BusinessCostsScreen() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [thisMonthExpenses]);
 
-  const fmt = (n: number) => {
-    if (n === 0) return '$0';
-    if (n < 1) return `$${n.toFixed(2)}`;
-    return `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-  };
+  const fmt = (n: number) =>
+    n === 0 ? '$0.00' : `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const fmtDec = (n: number) =>
     `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -444,7 +441,7 @@ export default function BusinessCostsScreen() {
               <Layers size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.cardLabel}>Fixed Overhead / mo</Text>
-            <Text style={[styles.cardValue, { color: '#10B981' }]}>{fmt(overheadPerMonth)}</Text>
+            <Text style={[styles.cardValue, { color: '#10B981' }]}>{fmtDec(overheadPerMonth)}</Text>
           </View>
           <View style={[styles.summaryCard, { borderLeftColor: '#F59E0B' }]}>
             <View style={[styles.cardIcon, { backgroundColor: '#F59E0B' }]}>
@@ -770,9 +767,23 @@ export default function BusinessCostsScreen() {
         animationType="slide"
         onRequestClose={() => setShowExpenseDetail(false)}
       >
-        <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowExpenseDetail(false)} />
-          <View style={styles.detailSheet}>
+        <Pressable
+          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
+          onPress={() => setShowExpenseDetail(false)}
+        />
+        <View
+          style={[styles.modalOverlay, { backgroundColor: 'transparent' }, isTablet && styles.modalOverlayTablet]}
+          pointerEvents="box-none"
+        >
+          <View style={[
+            styles.detailSheet,
+            isTablet && {
+              alignSelf: 'center',
+              width: Math.min(screenWidth * 0.65, 680),
+              maxHeight: '80%',
+              borderRadius: 20,
+            }
+          ]}>
             <View style={styles.detailHeader}>
               <Text style={styles.detailTitle}>Expense Details</Text>
               <TouchableOpacity onPress={() => setShowExpenseDetail(false)} style={styles.iconBtn}>
@@ -798,18 +809,20 @@ export default function BusinessCostsScreen() {
 
                 {/* Added by */}
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Added by</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={[styles.detailLabel, { flexShrink: 0 }]}>Added by</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
                     {selectedExpense.uploader?.avatar ? (
                       <Image source={{ uri: selectedExpense.uploader.avatar }} style={styles.detailAvatar} contentFit="cover" />
                     ) : selectedExpense.uploader ? (
-                      <View style={[styles.detailAvatar, { backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center' }]}>
+                      <View style={[styles.detailAvatar, { backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }]}>
                         <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>
                           {selectedExpense.uploader.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                         </Text>
                       </View>
                     ) : null}
-                    <Text style={styles.detailValue}>{selectedExpense.uploader?.name ?? 'Unknown'}</Text>
+                    <Text style={[styles.detailValue, { flexShrink: 1 }]} numberOfLines={2}>
+                      {selectedExpense.uploader?.name ?? 'Unknown'}
+                    </Text>
                   </View>
                 </View>
 
@@ -908,8 +921,14 @@ export default function BusinessCostsScreen() {
         animationType="slide"
         onRequestClose={() => setShowLaborDetail(false)}
       >
-        <View style={[styles.modalOverlay, isTablet && styles.modalOverlayTablet]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowLaborDetail(false)} />
+        <Pressable
+          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
+          onPress={() => setShowLaborDetail(false)}
+        />
+        <View
+          style={[styles.modalOverlay, { backgroundColor: 'transparent' }, isTablet && styles.modalOverlayTablet]}
+          pointerEvents="box-none"
+        >
           <View style={[
             styles.detailSheet,
             isTablet && {

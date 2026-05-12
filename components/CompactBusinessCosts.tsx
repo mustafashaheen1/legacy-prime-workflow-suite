@@ -123,7 +123,7 @@ export default function CompactBusinessCosts({ expenses, clockEntries = [], hour
   }, [thisMonthTotal, overheadPerMonth]);
 
   const fmt = (n: number) =>
-    n === 0 ? '$0' : `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    n === 0 ? '$0.00' : `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const visibleAvatars = inOfficeEntries.slice(0, 3);
   const extraAvatarCount = Math.max(0, inOfficeCount - 3);
