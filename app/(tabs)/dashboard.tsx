@@ -1,25 +1,82 @@
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useApp } from '@/contexts/AppContext';
-import { Search, Plus, X, Archive, FileText, CheckSquare, FolderOpen, Sparkles, AlertTriangle, Camera, MoreHorizontal, Pencil, PauseCircle, PlayCircle, Coffee } from 'lucide-react-native';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
-import Svg, { Circle, G } from 'react-native-svg';
-import { Project, Report, ProjectReportData } from '@/types';
-import DailyTaskCard from '@/components/DailyTasks/DailyTaskCard';
-import AddTaskModal from '@/components/DailyTasks/AddTaskModal';
-import DashboardSkeleton from '@/components/DashboardSkeleton';
-import CompactBusinessCosts from '@/components/CompactBusinessCosts';
-import WorkerLocationMap, { type WorkerPin } from '@/components/WorkerLocationMap';
-import * as ImagePicker from 'expo-image-picker';
-import { compressImage } from '@/lib/upload-utils';
-import { supabase } from '@/lib/supabase';
-
+import {
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useApp } from "@/contexts/AppContext";
+import {
+  Search,
+  Plus,
+  X,
+  Archive,
+  FileText,
+  CheckSquare,
+  FolderOpen,
+  Sparkles,
+  AlertTriangle,
+  Camera,
+  MoreHorizontal,
+  Pencil,
+  PauseCircle,
+  PlayCircle,
+  Coffee,
+} from "lucide-react-native";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import Svg, { Circle, G } from "react-native-svg";
+import { Project, Report, ProjectReportData } from "@/types";
+import DailyTaskCard from "@/components/DailyTasks/DailyTaskCard";
+import AddTaskModal from "@/components/DailyTasks/AddTaskModal";
+import DashboardSkeleton from "@/components/DashboardSkeleton";
+import CompactBusinessCosts from "@/components/CompactBusinessCosts";
+import WorkerLocationMap, {
+  type WorkerPin,
+} from "@/components/WorkerLocationMap";
+import * as ImagePicker from "expo-image-picker";
+import { compressImage } from "@/lib/upload-utils";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
-  const { projects, expenses, clockEntries, addProject, updateProject, addReport, reports, clients, updateClient, addClient, dailyLogs = [], company, estimates, updateEstimate, dailyTasks = [], loadDailyTasks, addDailyTask, updateDailyTask, deleteDailyTask, user, refreshReports, isLoading, isCompanyReloading, refreshClockEntries } = useApp();
+  const {
+    projects,
+    expenses,
+    clockEntries,
+    addProject,
+    updateProject,
+    addReport,
+    reports,
+    clients,
+    updateClient,
+    addClient,
+    dailyLogs = [],
+    company,
+    estimates,
+    updateEstimate,
+    dailyTasks = [],
+    loadDailyTasks,
+    addDailyTask,
+    updateDailyTask,
+    deleteDailyTask,
+    user,
+    refreshReports,
+    isLoading,
+    isCompanyReloading,
+    refreshClockEntries,
+  } = useApp();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -29,93 +86,125 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [refreshing, refreshReports, loadDailyTasks]);
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
-  const [projectFilter, setProjectFilter] = useState<'active' | 'delayed' | 'completed' | 'archived'>('active');
+  const [projectFilter, setProjectFilter] = useState<
+    "active" | "delayed" | "completed" | "archived"
+  >("active");
   const [showImportOptions, setShowImportOptions] = useState<boolean>(false);
-  const [projectName, setProjectName] = useState<string>('');
-  const [projectAddress, setProjectAddress] = useState<string>('');
-  const [projectBudget, setProjectBudget] = useState<string>('');
-  const [projectEmail, setProjectEmail] = useState<string>('');
-  const [projectPhone, setProjectPhone] = useState<string>('');
-  const [projectSource, setProjectSource] = useState<string>('');
+  const [projectName, setProjectName] = useState<string>("");
+  const [projectAddress, setProjectAddress] = useState<string>("");
+  const [projectBudget, setProjectBudget] = useState<string>("");
+  const [projectEmail, setProjectEmail] = useState<string>("");
+  const [projectPhone, setProjectPhone] = useState<string>("");
+  const [projectSource, setProjectSource] = useState<string>("");
   const [showReportMenu, setShowReportMenu] = useState<boolean>(false);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
   const [showReportTypeMenu, setShowReportTypeMenu] = useState<boolean>(false);
-  const [reportType, setReportType] = useState<'administrative' | 'expenses' | 'time-tracking' | 'daily-logs' | 'custom-ai'>('administrative');
+  const [reportType, setReportType] = useState<
+    "administrative" | "expenses" | "time-tracking" | "daily-logs" | "custom-ai"
+  >("administrative");
   const [showAICustomModal, setShowAICustomModal] = useState<boolean>(false);
-  const [aiReportPrompt, setAiReportPrompt] = useState<string>('');
+  const [aiReportPrompt, setAiReportPrompt] = useState<string>("");
   const [isGeneratingAI, setIsGeneratingAI] = useState<boolean>(false);
   const [showProjectPicker, setShowProjectPicker] = useState<boolean>(false);
   const [showSearch, setShowSearch] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
   const [isCreatingProject, setIsCreatingProject] = useState<boolean>(false);
-  const [coverPhotoUri, setCoverPhotoUri] = useState<string>('');
+  const [coverPhotoUri, setCoverPhotoUri] = useState<string>("");
   const [isUploadingCover, setIsUploadingCover] = useState<boolean>(false);
-  const [reportGenerationProgress, setReportGenerationProgress] = useState<{ current: number; total: number; projectName: string }>({ current: 0, total: 0, projectName: '' });
-  const [showClientPickerModal, setShowClientPickerModal] = useState<boolean>(false);
-  const [showEstimatePickerModal, setShowEstimatePickerModal] = useState<boolean>(false);
-  const [selectedClientForConversion, setSelectedClientForConversion] = useState<string | null>(null);
+  const [reportGenerationProgress, setReportGenerationProgress] = useState<{
+    current: number;
+    total: number;
+    projectName: string;
+  }>({ current: 0, total: 0, projectName: "" });
+  const [showClientPickerModal, setShowClientPickerModal] =
+    useState<boolean>(false);
+  const [showEstimatePickerModal, setShowEstimatePickerModal] =
+    useState<boolean>(false);
+  const [selectedClientForConversion, setSelectedClientForConversion] =
+    useState<string | null>(null);
 
   // ===== PROJECT ACTIONS STATE =====
-  const [showProjectActionsModal, setShowProjectActionsModal] = useState<boolean>(false);
-  const [selectedProjectForActions, setSelectedProjectForActions] = useState<Project | null>(null);
+  const [showProjectActionsModal, setShowProjectActionsModal] =
+    useState<boolean>(false);
+  const [selectedProjectForActions, setSelectedProjectForActions] =
+    useState<Project | null>(null);
 
   // ===== EDIT CLIENT STATE (Dashboard) =====
-  const [showDashEditClientModal, setShowDashEditClientModal] = useState<boolean>(false);
+  const [showDashEditClientModal, setShowDashEditClientModal] =
+    useState<boolean>(false);
   const [dashEditClientId, setDashEditClientId] = useState<string | null>(null);
-  const [dashEditClientName, setDashEditClientName] = useState<string>('');
-  const [dashEditClientEmail, setDashEditClientEmail] = useState<string>('');
-  const [dashEditClientPhone, setDashEditClientPhone] = useState<string>('');
-  const [dashEditClientAddress, setDashEditClientAddress] = useState<string>('');
-  const [dashEditClientSource, setDashEditClientSource] = useState<string>('');
-  const [dashEditClientErrors, setDashEditClientErrors] = useState<{ name?: string; email?: string; phone?: string; source?: string }>({});
-  const [isUpdatingDashClient, setIsUpdatingDashClient] = useState<boolean>(false);
+  const [dashEditClientName, setDashEditClientName] = useState<string>("");
+  const [dashEditClientEmail, setDashEditClientEmail] = useState<string>("");
+  const [dashEditClientPhone, setDashEditClientPhone] = useState<string>("");
+  const [dashEditClientAddress, setDashEditClientAddress] =
+    useState<string>("");
+  const [dashEditClientSource, setDashEditClientSource] = useState<string>("");
+  const [dashEditClientErrors, setDashEditClientErrors] = useState<{
+    name?: string;
+    email?: string;
+    phone?: string;
+    source?: string;
+  }>({});
+  const [isUpdatingDashClient, setIsUpdatingDashClient] =
+    useState<boolean>(false);
 
   // ===== DAILY TASKS STATE =====
   const [showDailyTasksMenu, setShowDailyTasksMenu] = useState<boolean>(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState<boolean>(false);
-  const [taskFilter, setTaskFilter] = useState<'today' | 'upcoming' | 'all'>('today');
+  const [taskFilter, setTaskFilter] = useState<"today" | "upcoming" | "all">(
+    "today",
+  );
 
-  const activeProjects = projects.filter(p => p.status === 'active');
-  const delayedProjects = projects.filter(p => p.status === 'on-hold');
-  const completedProjects = projects.filter(p => p.status === 'completed');
-  const archivedProjects = projects.filter(p => p.status === 'archived');
+  const activeProjects = projects.filter((p) => p.status === "active");
+  const delayedProjects = projects.filter((p) => p.status === "on-hold");
+  const completedProjects = projects.filter((p) => p.status === "completed");
+  const archivedProjects = projects.filter((p) => p.status === "archived");
 
-  const filteredActiveProjects = activeProjects.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredActiveProjects = activeProjects.filter((p) =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
-  const filteredDelayedProjects = delayedProjects.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredDelayedProjects = delayedProjects.filter((p) =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
-  const filteredCompletedProjects = completedProjects.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredCompletedProjects = completedProjects.filter((p) =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
-  const filteredArchivedProjects = archivedProjects.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredArchivedProjects = archivedProjects.filter((p) =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const displayProjects =
-    projectFilter === 'active' ? filteredActiveProjects :
-    projectFilter === 'delayed' ? filteredDelayedProjects :
-    projectFilter === 'completed' ? filteredCompletedProjects :
-    filteredArchivedProjects;
+    projectFilter === "active"
+      ? filteredActiveProjects
+      : projectFilter === "delayed"
+        ? filteredDelayedProjects
+        : projectFilter === "completed"
+          ? filteredCompletedProjects
+          : filteredArchivedProjects;
 
   // Hours worked this month (for CompactBusinessCosts rec. rate)
   const hoursWorkedThisMonth = useMemo(() => {
     const now = new Date();
     return clockEntries
-      .filter(e => {
+      .filter((e) => {
         if (!e.clockOut) return false;
         const d = new Date(e.clockIn);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+        return (
+          d.getFullYear() === now.getFullYear() &&
+          d.getMonth() === now.getMonth()
+        );
       })
       .reduce((sum, e) => {
-        let ms = new Date(e.clockOut!).getTime() - new Date(e.clockIn).getTime();
+        let ms =
+          new Date(e.clockOut!).getTime() - new Date(e.clockIn).getTime();
         if (e.lunchBreaks) {
-          e.lunchBreaks.forEach(lunch => {
+          e.lunchBreaks.forEach((lunch) => {
             if (lunch.endTime) {
-              ms -= new Date(lunch.endTime).getTime() - new Date(lunch.startTime).getTime();
+              ms -=
+                new Date(lunch.endTime).getTime() -
+                new Date(lunch.startTime).getTime();
             }
           });
         }
@@ -124,18 +213,25 @@ export default function DashboardScreen() {
   }, [clockEntries]);
 
   // Company users map for avatar display on project cards
-  const [usersMap, setUsersMap] = useState<Map<string, { name: string; avatar?: string }>>(new Map());
+  const [usersMap, setUsersMap] = useState<
+    Map<string, { name: string; avatar?: string }>
+  >(new Map());
   useEffect(() => {
     if (!company?.id) return;
-    supabase.from('users').select('id, name, avatar').eq('company_id', company.id)
+    supabase
+      .from("users")
+      .select("id, name, avatar")
+      .eq("company_id", company.id)
       .then(({ data }) => {
         const map = new Map<string, { name: string; avatar?: string }>();
-        (data || []).forEach((u: any) => map.set(u.id, { name: u.name, avatar: u.avatar }));
+        (data || []).forEach((u: any) =>
+          map.set(u.id, { name: u.name, avatar: u.avatar }),
+        );
         setUsersMap(map);
       });
   }, [company?.id]);
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'super-admin';
+  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
 
   // Poll clock entries every 10 seconds so the Business Costs card reflects
   // employee clock-in/out events in real time without a manual refresh.
@@ -150,54 +246,73 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (!company?.id || !isAdmin) return;
 
-    const activeIds = projects.filter(p => p.status === 'active').map(p => p.id);
+    const activeIds = projects
+      .filter((p) => p.status === "active")
+      .map((p) => p.id);
     if (activeIds.length === 0) return;
 
     const fetch = () =>
-      supabase.from('worker_live_locations').select('*').in('project_id', activeIds)
-        .then(({ data }) => { if (data) setWorkerLocations(data); });
+      supabase
+        .from("worker_live_locations")
+        .select("*")
+        .in("project_id", activeIds)
+        .then(({ data }) => {
+          if (data) setWorkerLocations(data);
+        });
 
     fetch();
 
-    const channel = supabase.channel('dash-live-locs')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'worker_live_locations' }, fetch)
+    const channel = supabase
+      .channel("dash-live-locs")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "worker_live_locations" },
+        fetch,
+      )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [company?.id, isAdmin, projects]);
 
-  const workerPins = useMemo<WorkerPin[]>(() =>
-    workerLocations.map(loc => ({
-      employeeId: loc.employee_id,
-      employeeName: usersMap.get(loc.employee_id)?.name || loc.employee_name || 'Unknown',
-      avatarUrl: usersMap.get(loc.employee_id)?.avatar,
-      latitude: loc.latitude,
-      longitude: loc.longitude,
-      status: loc.status as 'working' | 'on_break',
-      updatedAt: loc.updated_at,
-    })),
-  [workerLocations, usersMap]);
+  const workerPins = useMemo<WorkerPin[]>(
+    () =>
+      workerLocations.map((loc) => ({
+        employeeId: loc.employee_id,
+        employeeName:
+          usersMap.get(loc.employee_id)?.name || loc.employee_name || "Unknown",
+        avatarUrl: usersMap.get(loc.employee_id)?.avatar,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        status: loc.status as "working" | "on_break",
+        updatedAt: loc.updated_at,
+      })),
+    [workerLocations, usersMap],
+  );
 
   // Non-archived projects are the source of truth for all financial stats —
   // mirrors the monthly revenue chart scope so totals are consistent.
   const nonArchivedProjects = useMemo(
-    () => projects.filter(p => p.status !== 'archived'),
-    [projects]
+    () => projects.filter((p) => p.status !== "archived"),
+    [projects],
   );
 
   const totalBudget = useMemo(
     () => nonArchivedProjects.reduce((sum, p) => sum + (p.budget ?? 0), 0),
-    [nonArchivedProjects]
+    [nonArchivedProjects],
   );
   const totalSold = useMemo(
-    () => nonArchivedProjects.reduce((sum, p) => sum + (p.contractAmount ?? 0), 0),
-    [nonArchivedProjects]
+    () =>
+      nonArchivedProjects.reduce((sum, p) => sum + (p.contractAmount ?? 0), 0),
+    [nonArchivedProjects],
   );
   const totalExpenses = useMemo(
-    () => expenses
-      .filter(e => nonArchivedProjects.some(p => p.id === e.projectId))
-      .reduce((sum, e) => sum + e.amount, 0),
-    [expenses, nonArchivedProjects]
+    () =>
+      expenses
+        .filter((e) => nonArchivedProjects.some((p) => p.id === e.projectId))
+        .reduce((sum, e) => sum + e.amount, 0),
+    [expenses, nonArchivedProjects],
   );
 
   // Monthly revenue for the last 8 months — grouped by project startDate.
@@ -218,36 +333,40 @@ export default function DashboardScreen() {
           }
           return acc;
         },
-        { revenue: 0, count: 0 }
+        { revenue: 0, count: 0 },
       );
-      return { month: d.toLocaleString('default', { month: 'short' }), revenue, count };
+      return {
+        month: d.toLocaleString("default", { month: "short" }),
+        revenue,
+        count,
+      };
     });
   }, [nonArchivedProjects]);
 
-  const maxRevenue = Math.max(...monthlyRevenue.map(m => m.revenue), 1);
+  const maxRevenue = Math.max(...monthlyRevenue.map((m) => m.revenue), 1);
 
   const totalProjectsWithContract = useMemo(
-    () => nonArchivedProjects.filter(p => (p.contractAmount ?? 0) > 0).length,
-    [nonArchivedProjects]
+    () => nonArchivedProjects.filter((p) => (p.contractAmount ?? 0) > 0).length,
+    [nonArchivedProjects],
   );
 
   // Pie chart: active projects only (shows where money is currently being spent).
   // Filter out zero-expense projects so they don't pollute the legend with 0.0% entries.
   const projectExpenses = useMemo(() => {
     return activeProjects
-      .map(project => ({
+      .map((project) => ({
         id: project.id,
         name: project.name,
         amount: expenses
-          .filter(e => e.projectId === project.id)
+          .filter((e) => e.projectId === project.id)
           .reduce((sum: number, e) => sum + e.amount, 0),
       }))
-      .filter(p => p.amount > 0);
+      .filter((p) => p.amount > 0);
   }, [activeProjects, expenses]);
 
   // Helper for cross-platform alerts
   const showAlert = (title: string, message: string) => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === "web") {
       alert(`${title}: ${message}`);
     } else {
       Alert.alert(title, message);
@@ -262,14 +381,17 @@ export default function DashboardScreen() {
 
   const isValidUSPhone = (phone: string): boolean => {
     // Remove all non-numeric characters for validation
-    const digitsOnly = phone.replace(/\D/g, '');
+    const digitsOnly = phone.replace(/\D/g, "");
     // US phone should have 10 digits (or 11 with country code 1)
-    return digitsOnly.length === 10 || (digitsOnly.length === 11 && digitsOnly.startsWith('1'));
+    return (
+      digitsOnly.length === 10 ||
+      (digitsOnly.length === 11 && digitsOnly.startsWith("1"))
+    );
   };
 
   const formatUSPhone = (value: string): string => {
     // Remove all non-numeric characters
-    const digitsOnly = value.replace(/\D/g, '');
+    const digitsOnly = value.replace(/\D/g, "");
 
     // Format as (XXX) XXX-XXXX
     if (digitsOnly.length <= 3) {
@@ -289,11 +411,11 @@ export default function DashboardScreen() {
 
   const handleBudgetChange = (value: string) => {
     // Only allow numbers and decimal point
-    const cleaned = value.replace(/[^0-9.]/g, '');
+    const cleaned = value.replace(/[^0-9.]/g, "");
     // Prevent multiple decimal points
-    const parts = cleaned.split('.');
+    const parts = cleaned.split(".");
     if (parts.length > 2) {
-      setProjectBudget(parts[0] + '.' + parts.slice(1).join(''));
+      setProjectBudget(parts[0] + "." + parts.slice(1).join(""));
     } else {
       setProjectBudget(cleaned);
     }
@@ -301,7 +423,7 @@ export default function DashboardScreen() {
 
   const handlePickCoverPhoto = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.8,
@@ -312,59 +434,68 @@ export default function DashboardScreen() {
   };
 
   const uploadCoverPhoto = async (localUri: string): Promise<string> => {
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+    const apiUrl =
+      process.env.EXPO_PUBLIC_API_URL ||
+      "https://legacy-prime-workflow-suite.vercel.app";
     const urlRes = await fetch(`${apiUrl}/api/get-s3-upload-url`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fileName: `project-cover-${Date.now()}.jpg`,
-        fileType: 'image/jpeg',
+        fileType: "image/jpeg",
         companyId: company?.id,
       }),
     });
     const urlData = await urlRes.json();
-    if (!urlData.uploadUrl) throw new Error('Failed to get upload URL');
+    if (!urlData.uploadUrl) throw new Error("Failed to get upload URL");
 
-    const compressed = await compressImage(localUri, { maxWidth: 1200, quality: 0.8 });
-    const blob = await fetch(compressed.uri).then(r => r.blob());
-    await fetch(urlData.uploadUrl, { method: 'PUT', body: blob, headers: { 'Content-Type': 'image/jpeg' } });
+    const compressed = await compressImage(localUri, {
+      maxWidth: 1200,
+      quality: 0.8,
+    });
+    const blob = await fetch(compressed.uri).then((r) => r.blob());
+    await fetch(urlData.uploadUrl, {
+      method: "PUT",
+      body: blob,
+      headers: { "Content-Type": "image/jpeg" },
+    });
     return urlData.fileUrl as string;
   };
 
   const handleCreateProject = async () => {
     // Validation
     if (!projectName.trim()) {
-      showAlert('Error', 'Please enter a client/project name');
+      showAlert("Error", "Please enter a client/project name");
       return;
     }
     if (!projectEmail.trim()) {
-      showAlert('Error', 'Please enter an email');
+      showAlert("Error", "Please enter an email");
       return;
     }
     if (!isValidEmail(projectEmail)) {
-      showAlert('Error', 'Please enter a valid email address');
+      showAlert("Error", "Please enter a valid email address");
       return;
     }
     if (!projectPhone.trim()) {
-      showAlert('Error', 'Please enter a phone number');
+      showAlert("Error", "Please enter a phone number");
       return;
     }
     if (!isValidUSPhone(projectPhone)) {
-      showAlert('Error', 'Please enter a valid US phone number (10 digits)');
+      showAlert("Error", "Please enter a valid US phone number (10 digits)");
       return;
     }
     if (!projectBudget.trim()) {
-      showAlert('Error', 'Please enter a budget');
+      showAlert("Error", "Please enter a budget");
       return;
     }
     const budgetNum = parseFloat(projectBudget);
     if (isNaN(budgetNum) || budgetNum < 0) {
-      showAlert('Error', 'Please enter a valid budget amount');
+      showAlert("Error", "Please enter a valid budget amount");
       return;
     }
 
     if (!company?.id) {
-      showAlert('Error', 'Company information not found. Please try again.');
+      showAlert("Error", "Company information not found. Please try again.");
       return;
     }
 
@@ -372,27 +503,34 @@ export default function DashboardScreen() {
 
     try {
       // Upload cover photo if selected
-      let coverImageUrl = 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400';
+      let coverImageUrl =
+        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400";
       if (coverPhotoUri) {
         setIsUploadingCover(true);
         try {
           coverImageUrl = await uploadCoverPhoto(coverPhotoUri);
         } catch (e) {
-          console.warn('[Dashboard] Cover photo upload failed, using default:', e);
+          console.warn(
+            "[Dashboard] Cover photo upload failed, using default:",
+            e,
+          );
         } finally {
           setIsUploadingCover(false);
         }
       }
 
       // Determine source
-      const sourceValue = projectSource.trim() || 'Phone Call';
-      const validSources = ['Google', 'Referral', 'Ad', 'Phone Call'];
-      const finalSource = validSources.includes(sourceValue) ? sourceValue : 'Phone Call';
+      const sourceValue = projectSource.trim() || "Phone Call";
+      const validSources = ["Google", "Referral", "Ad", "Phone Call"];
+      const finalSource = validSources.includes(sourceValue)
+        ? sourceValue
+        : "Phone Call";
 
       // Check for existing client by email or phone
-      const existingClient = clients.find(c =>
-        c.email.toLowerCase() === projectEmail.toLowerCase() ||
-        c.phone.replace(/\D/g, '') === projectPhone.replace(/\D/g, '')
+      const existingClient = clients.find(
+        (c) =>
+          c.email.toLowerCase() === projectEmail.toLowerCase() ||
+          c.phone.replace(/\D/g, "") === projectPhone.replace(/\D/g, ""),
       );
 
       let clientId: string;
@@ -400,13 +538,15 @@ export default function DashboardScreen() {
       if (existingClient) {
         // Use existing client and update status to Project
         clientId = existingClient.id;
-        updateClient(existingClient.id, { status: 'Project' });
+        updateClient(existingClient.id, { status: "Project" });
       } else {
         // Create new client in database
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+        const apiUrl =
+          process.env.EXPO_PUBLIC_API_URL ||
+          "https://legacy-prime-workflow-suite.vercel.app";
         const clientResponse = await fetch(`${apiUrl}/api/add-client`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             companyId: company.id,
             name: projectName,
@@ -414,18 +554,18 @@ export default function DashboardScreen() {
             email: projectEmail,
             phone: projectPhone,
             source: finalSource,
-            status: 'Project',
+            status: "Project",
           }),
         });
 
         if (!clientResponse.ok) {
           const errorData = await clientResponse.json();
-          throw new Error(errorData.error || 'Failed to create client');
+          throw new Error(errorData.error || "Failed to create client");
         }
 
         const clientResult = await clientResponse.json();
         if (!clientResult.success || !clientResult.client) {
-          throw new Error('Failed to create client');
+          throw new Error("Failed to create client");
         }
 
         clientId = clientResult.client.id;
@@ -434,28 +574,30 @@ export default function DashboardScreen() {
         addClient({
           id: clientResult.client.id,
           name: projectName,
-          address: projectAddress || '',
+          address: projectAddress || "",
           email: projectEmail,
           phone: projectPhone,
-          source: finalSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call',
-          status: 'Project',
-          lastContacted: '',
+          source: finalSource as "Google" | "Referral" | "Ad" | "Phone Call",
+          status: "Project",
+          lastContacted: "",
           notes: [],
         });
       }
 
       // Create project in database
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+      const apiUrl =
+        process.env.EXPO_PUBLIC_API_URL ||
+        "https://legacy-prime-workflow-suite.vercel.app";
       const projectResponse = await fetch(`${apiUrl}/api/add-project`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId: company.id,
           name: projectName,
           budget: budgetNum,
           expenses: 0,
           progress: 0,
-          status: 'active',
+          status: "active",
           image: coverImageUrl,
           hoursWorked: 0,
           startDate: new Date().toISOString(),
@@ -466,12 +608,12 @@ export default function DashboardScreen() {
 
       if (!projectResponse.ok) {
         const errorData = await projectResponse.json();
-        throw new Error(errorData.error || 'Failed to create project');
+        throw new Error(errorData.error || "Failed to create project");
       }
 
       const projectResult = await projectResponse.json();
       if (!projectResult.success || !projectResult.project) {
-        throw new Error('Failed to create project');
+        throw new Error("Failed to create project");
       }
 
       // Add to local state
@@ -492,18 +634,21 @@ export default function DashboardScreen() {
       addProject(newProject);
 
       // Reset form
-      setProjectName('');
-      setProjectAddress('');
-      setProjectEmail('');
-      setProjectPhone('');
-      setProjectSource('');
-      setProjectBudget('');
-      setCoverPhotoUri('');
+      setProjectName("");
+      setProjectAddress("");
+      setProjectEmail("");
+      setProjectPhone("");
+      setProjectSource("");
+      setProjectBudget("");
+      setCoverPhotoUri("");
       setShowCreateModal(false);
-      showAlert('Success', 'Project created successfully!');
+      showAlert("Success", "Project created successfully!");
     } catch (error: any) {
-      console.error('[Dashboard] Error creating project:', error);
-      showAlert('Error', error.message || 'Failed to create project. Please try again.');
+      console.error("[Dashboard] Error creating project:", error);
+      showAlert(
+        "Error",
+        error.message || "Failed to create project. Please try again.",
+      );
     } finally {
       setIsCreatingProject(false);
     }
@@ -512,27 +657,33 @@ export default function DashboardScreen() {
   // ===== DAILY TASKS HELPERS =====
   const filteredTasks = useMemo(() => {
     if (!dailyTasks || !Array.isArray(dailyTasks)) return [];
-    const today = new Date().toISOString().split('T')[0];
-    const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
+    const weekEnd = new Date(Date.now() + 7 * 86400000)
+      .toISOString()
+      .split("T")[0];
 
     switch (taskFilter) {
-      case 'today':
-        return dailyTasks.filter(t => t.dueDate === today);
-      case 'upcoming':
-        return dailyTasks.filter(t => t.dueDate >= today && t.dueDate <= weekEnd && !t.completed);
-      case 'all':
-        return [...dailyTasks].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      case "today":
+        return dailyTasks.filter((t) => t.dueDate === today);
+      case "upcoming":
+        return dailyTasks.filter(
+          (t) => t.dueDate >= today && t.dueDate <= weekEnd && !t.completed,
+        );
+      case "all":
+        return [...dailyTasks].sort((a, b) =>
+          a.dueDate.localeCompare(b.dueDate),
+        );
       default:
         return dailyTasks;
     }
   }, [dailyTasks, taskFilter]);
 
   const formatTime = (timeStr: string): string => {
-    if (!timeStr) return '';
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
+    if (!timeStr) return "";
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    const ampm = hours >= 12 ? "PM" : "AM";
     const hour12 = hours % 12 || 12;
-    return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+    return `${hour12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
   };
 
   const handleAddTaskSubmit = async (taskData: {
@@ -546,20 +697,20 @@ export default function DashboardScreen() {
     await addDailyTask({
       ...taskData,
       completed: false,
-      companyId: company?.id || '',
-      userId: user?.id || '',
+      companyId: company?.id || "",
+      userId: user?.id || "",
     });
   };
 
   const handleConvertEstimateToProject = async (estimateId: string) => {
-    const client = clients.find(c => c.id === selectedClientForConversion);
+    const client = clients.find((c) => c.id === selectedClientForConversion);
     if (!client) return;
 
-    const estimate = estimates.find(e => e.id === estimateId);
+    const estimate = estimates.find((e) => e.id === estimateId);
     if (!estimate) return;
 
     if (!company?.id) {
-      showAlert('Error', 'Company information not found. Please try again.');
+      showAlert("Error", "Company information not found. Please try again.");
       return;
     }
 
@@ -572,18 +723,21 @@ export default function DashboardScreen() {
 
     try {
       // Create project in database - use direct API instead of tRPC for consistency
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+      const apiUrl =
+        process.env.EXPO_PUBLIC_API_URL ||
+        "https://legacy-prime-workflow-suite.vercel.app";
       const projectResponse = await fetch(`${apiUrl}/api/add-project`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId: company.id,
           name: `${client.name} - ${estimate.name}`,
           budget: estimate.total,
           expenses: 0,
           progress: 0,
-          status: 'active',
-          image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+          status: "active",
+          image:
+            "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400",
           hoursWorked: 0,
           startDate: new Date().toISOString(),
           estimateId: estimateId,
@@ -594,12 +748,12 @@ export default function DashboardScreen() {
 
       if (!projectResponse.ok) {
         const errorData = await projectResponse.json();
-        throw new Error(errorData.error || 'Failed to create project');
+        throw new Error(errorData.error || "Failed to create project");
       }
 
       const projectResult = await projectResponse.json();
       if (!projectResult.success || !projectResult.project) {
-        throw new Error('Failed to create project');
+        throw new Error("Failed to create project");
       }
 
       // Add to local state
@@ -622,62 +776,92 @@ export default function DashboardScreen() {
       addProject(newProject);
 
       // Update estimate status to approved
-      updateEstimate(estimateId, { status: 'approved' });
+      updateEstimate(estimateId, { status: "approved" });
 
       // Update client status to Project
-      updateClient(client.id, { status: 'Project' });
+      updateClient(client.id, { status: "Project" });
 
       // Show success message
-      if (Platform.OS === 'web') {
-        if (confirm(`Project created for ${client.name} using estimate "${estimate.name}"!\n\nWould you like to view the project now?`)) {
+      if (Platform.OS === "web") {
+        if (
+          confirm(
+            `Project created for ${client.name} using estimate "${estimate.name}"!\n\nWould you like to view the project now?`,
+          )
+        ) {
           router.push(`/project/${newProject.id}`);
         }
       } else {
         Alert.alert(
-          'Success',
+          "Success",
           `Project created for ${client.name} using estimate "${estimate.name}"!`,
           [
-            { text: 'View Project', onPress: () => router.push(`/project/${newProject.id}`) },
-            { text: 'OK' },
-          ]
+            {
+              text: "View Project",
+              onPress: () => router.push(`/project/${newProject.id}`),
+            },
+            { text: "OK" },
+          ],
         );
       }
     } catch (error: any) {
-      console.error('[Dashboard] Error converting to project:', error);
-      showAlert('Error', error.message || 'Failed to create project. Please try again.');
+      console.error("[Dashboard] Error converting to project:", error);
+      showAlert(
+        "Error",
+        error.message || "Failed to create project. Please try again.",
+      );
     } finally {
       setIsCreatingProject(false);
     }
   };
 
-  const handleAIReportGeneration = async (selectionType: 'all' | 'selected') => {
-    if (selectionType === 'selected' && selectedProjects.length === 0) {
-      showAlert('No Projects Selected', 'Please select at least one project to generate a report.');
+  const handleAIReportGeneration = async (
+    selectionType: "all" | "selected",
+  ) => {
+    if (selectionType === "selected" && selectedProjects.length === 0) {
+      showAlert(
+        "No Projects Selected",
+        "Please select at least one project to generate a report.",
+      );
       return;
     }
 
     if (!aiReportPrompt.trim()) {
-      showAlert('Missing Instructions', 'Please describe what you want to include in the custom report.');
+      showAlert(
+        "Missing Instructions",
+        "Please describe what you want to include in the custom report.",
+      );
       return;
     }
 
-    const projectsToReport = selectionType === 'all' 
-      ? activeProjects 
-      : activeProjects.filter(p => selectedProjects.includes(p.id));
+    const projectsToReport =
+      selectionType === "all"
+        ? activeProjects
+        : activeProjects.filter((p) => selectedProjects.includes(p.id));
 
     setIsGeneratingAI(true);
 
     try {
-      const projectsData = projectsToReport.map(project => {
-        const projectExpenses = expenses.filter(e => e.projectId === project.id);
-        const projectClockEntries = clockEntries.filter(c => c.projectId === project.id);
-        const projectLogs = Array.isArray(dailyLogs) ? dailyLogs.filter(log => log.projectId === project.id) : [];
+      const projectsData = projectsToReport.map((project) => {
+        const projectExpenses = expenses.filter(
+          (e) => e.projectId === project.id,
+        );
+        const projectClockEntries = clockEntries.filter(
+          (c) => c.projectId === project.id,
+        );
+        const projectLogs = Array.isArray(dailyLogs)
+          ? dailyLogs.filter((log) => log.projectId === project.id)
+          : [];
 
         return {
           name: project.name,
           budget: project.budget,
           expenses: projectExpenses.reduce((sum, e) => sum + e.amount, 0),
-          expensesList: projectExpenses.map(e => ({ type: e.type, amount: e.amount, date: e.date, store: e.store })),
+          expensesList: projectExpenses.map((e) => ({
+            type: e.type,
+            amount: e.amount,
+            date: e.date,
+            store: e.store,
+          })),
           hoursWorked: project.hoursWorked,
           clockEntries: projectClockEntries.length,
           status: project.status,
@@ -685,7 +869,7 @@ export default function DashboardScreen() {
           startDate: project.startDate,
           endDate: project.endDate,
           dailyLogsCount: projectLogs.length,
-          dailyLogs: projectLogs.map(log => ({
+          dailyLogs: projectLogs.map((log) => ({
             date: log.logDate,
             workPerformed: log.workPerformed,
             issues: log.issues,
@@ -702,10 +886,12 @@ export default function DashboardScreen() {
       });
 
       // Call the AI report generation API
-      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
+      const baseUrl =
+        process.env.EXPO_PUBLIC_API_URL ||
+        "https://legacy-prime-workflow-suite.vercel.app";
       const response = await fetch(`${baseUrl}/api/generate-ai-report`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: aiReportPrompt,
           projectsData,
@@ -715,26 +901,26 @@ export default function DashboardScreen() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to generate AI report');
+        throw new Error(result.error || "Failed to generate AI report");
       }
 
       const generatedReport = result.report;
 
       const report: Report = {
         id: `report-${Date.now()}`,
-        name: `Custom AI Report - ${aiReportPrompt.slice(0, 50)}${aiReportPrompt.length > 50 ? '...' : ''}`,
-        type: 'custom',
+        name: `Custom AI Report - ${aiReportPrompt.slice(0, 50)}${aiReportPrompt.length > 50 ? "..." : ""}`,
+        type: "custom",
         generatedDate: new Date().toISOString(),
-        projectIds: projectsToReport.map(p => p.id),
+        projectIds: projectsToReport.map((p) => p.id),
         projectsCount: projectsToReport.length,
         notes: generatedReport,
       };
 
       addReport(report);
 
-      console.log('[Report] Custom AI report generated');
-      console.log('[Report] Prompt:', aiReportPrompt);
-      console.log('[Report] Projects:', projectsToReport.length);
+      console.log("[Report] Custom AI report generated");
+      console.log("[Report] Prompt:", aiReportPrompt);
+      console.log("[Report] Projects:", projectsToReport.length);
 
       // Reset state and navigate to reports
       setShowAICustomModal(false);
@@ -742,55 +928,73 @@ export default function DashboardScreen() {
       setShowReportTypeMenu(false);
       setIsSelectMode(false);
       setSelectedProjects([]);
-      setAiReportPrompt('');
+      setAiReportPrompt("");
       setShowProjectPicker(false);
-      router.push('/reports' as any);
+      router.push("/reports" as any);
     } catch (error) {
-      console.error('[Report] AI generation error:', error);
-      showAlert('Error', 'Failed to generate custom report. Please try again.');
+      console.error("[Report] AI generation error:", error);
+      showAlert("Error", "Failed to generate custom report. Please try again.");
     } finally {
       setIsGeneratingAI(false);
     }
   };
 
-  const handleReportRequest = async (selectionType: 'all' | 'selected') => {
-    if (selectionType === 'selected' && selectedProjects.length === 0) {
-      Alert.alert('No Projects Selected', 'Please select at least one project to generate a report.');
+  const handleReportRequest = async (selectionType: "all" | "selected") => {
+    if (selectionType === "selected" && selectedProjects.length === 0) {
+      Alert.alert(
+        "No Projects Selected",
+        "Please select at least one project to generate a report.",
+      );
       return;
     }
 
-    const projectsToReport = selectionType === 'all'
-      ? activeProjects
-      : activeProjects.filter(p => selectedProjects.includes(p.id));
+    const projectsToReport =
+      selectionType === "all"
+        ? activeProjects
+        : activeProjects.filter((p) => selectedProjects.includes(p.id));
 
     if (projectsToReport.length === 0) {
-      Alert.alert('No Projects', 'There are no active projects to generate a report for.');
+      Alert.alert(
+        "No Projects",
+        "There are no active projects to generate a report for.",
+      );
       return;
     }
 
     // Start loading state
     setIsGeneratingReport(true);
-    setReportGenerationProgress({ current: 0, total: projectsToReport.length, projectName: 'Initializing...' });
+    setReportGenerationProgress({
+      current: 0,
+      total: projectsToReport.length,
+      projectName: "Initializing...",
+    });
 
     // Small delay to show loading state
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-    if (reportType === 'expenses') {
+    if (reportType === "expenses") {
       const projectsExpensesData = [];
 
       for (let i = 0; i < projectsToReport.length; i++) {
         const project = projectsToReport[i];
-        setReportGenerationProgress({ current: i + 1, total: projectsToReport.length, projectName: project.name });
+        setReportGenerationProgress({
+          current: i + 1,
+          total: projectsToReport.length,
+          projectName: project.name,
+        });
 
         // Small delay to show progress for each project
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-        const projectExpenses = expenses.filter(e => e.projectId === project.id);
+        const projectExpenses = expenses.filter(
+          (e) => e.projectId === project.id,
+        );
 
         const expensesByCategory: { [category: string]: number } = {};
-        projectExpenses.forEach(expense => {
-          const category = expense.type || 'Uncategorized';
-          expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
+        projectExpenses.forEach((expense) => {
+          const category = expense.type || "Uncategorized";
+          expensesByCategory[category] =
+            (expensesByCategory[category] || 0) + expense.amount;
         });
 
         projectsExpensesData.push({
@@ -809,27 +1013,36 @@ export default function DashboardScreen() {
       }
 
       const overallExpensesByCategory: { [category: string]: number } = {};
-      projectsExpensesData.forEach(project => {
-        Object.entries(project.expensesByCategory).forEach(([category, amount]) => {
-          overallExpensesByCategory[category] = (overallExpensesByCategory[category] || 0) + amount;
-        });
+      projectsExpensesData.forEach((project) => {
+        Object.entries(project.expensesByCategory).forEach(
+          ([category, amount]) => {
+            overallExpensesByCategory[category] =
+              (overallExpensesByCategory[category] || 0) + amount;
+          },
+        );
       });
 
       const report: Report = {
         id: `report-${Date.now()}`,
-        name: `Expenses Report - ${selectionType === 'all' ? 'All Projects' : `${projectsToReport.length} Selected Projects`}`,
-        type: 'expenses',
+        name: `Expenses Report - ${selectionType === "all" ? "All Projects" : `${projectsToReport.length} Selected Projects`}`,
+        type: "expenses",
         generatedDate: new Date().toISOString(),
-        projectIds: projectsToReport.map(p => p.id),
+        projectIds: projectsToReport.map((p) => p.id),
         projectsCount: projectsToReport.length,
-        totalExpenses: projectsExpensesData.reduce((sum, p) => sum + p.expenses, 0),
+        totalExpenses: projectsExpensesData.reduce(
+          (sum, p) => sum + p.expenses,
+          0,
+        ),
         projects: projectsExpensesData,
         expensesByCategory: overallExpensesByCategory,
       };
 
       await addReport(report);
 
-      console.log('[Report] Generating expenses breakdown report for projects:', projectsToReport.map(p => p.name));
+      console.log(
+        "[Report] Generating expenses breakdown report for projects:",
+        projectsToReport.map((p) => p.name),
+      );
 
       // Reset state and navigate
       setIsGeneratingReport(false);
@@ -837,25 +1050,35 @@ export default function DashboardScreen() {
       setShowReportTypeMenu(false);
       setIsSelectMode(false);
       setSelectedProjects([]);
-      router.push('/reports' as any);
+      router.push("/reports" as any);
       return;
     }
 
-    if (reportType === 'time-tracking') {
-      setReportGenerationProgress({ current: 0, total: projectsToReport.length, projectName: 'Processing clock entries...' });
+    if (reportType === "time-tracking") {
+      setReportGenerationProgress({
+        current: 0,
+        total: projectsToReport.length,
+        projectName: "Processing clock entries...",
+      });
 
       const employeeDataMap: { [employeeId: string]: any } = {};
 
       for (let i = 0; i < projectsToReport.length; i++) {
         const project = projectsToReport[i];
-        setReportGenerationProgress({ current: i + 1, total: projectsToReport.length, projectName: project.name });
+        setReportGenerationProgress({
+          current: i + 1,
+          total: projectsToReport.length,
+          projectName: project.name,
+        });
 
         // Small delay to show progress
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-        const projectClockEntries = clockEntries.filter(entry => entry.projectId === project.id);
+        const projectClockEntries = clockEntries.filter(
+          (entry) => entry.projectId === project.id,
+        );
 
-        projectClockEntries.forEach(entry => {
+        projectClockEntries.forEach((entry) => {
           if (!employeeDataMap[entry.employeeId]) {
             employeeDataMap[entry.employeeId] = {
               employeeId: entry.employeeId,
@@ -870,12 +1093,15 @@ export default function DashboardScreen() {
           }
 
           if (entry.clockOut) {
-            const hours = (new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60);
+            const hours =
+              (new Date(entry.clockOut).getTime() -
+                new Date(entry.clockIn).getTime()) /
+              (1000 * 60 * 60);
             employeeDataMap[entry.employeeId].totalHours += hours;
 
             if (hours > 8) {
               employeeDataMap[entry.employeeId].regularHours += 8;
-              employeeDataMap[entry.employeeId].overtimeHours += (hours - 8);
+              employeeDataMap[entry.employeeId].overtimeHours += hours - 8;
             } else {
               employeeDataMap[entry.employeeId].regularHours += hours;
             }
@@ -893,19 +1119,22 @@ export default function DashboardScreen() {
 
       const report: Report = {
         id: `report-${Date.now()}`,
-        name: `Time Tracking Report - ${selectionType === 'all' ? 'All Projects' : `${projectsToReport.length} Selected Projects`}`,
-        type: 'time-tracking',
+        name: `Time Tracking Report - ${selectionType === "all" ? "All Projects" : `${projectsToReport.length} Selected Projects`}`,
+        type: "time-tracking",
         generatedDate: new Date().toISOString(),
-        projectIds: projectsToReport.map(p => p.id),
+        projectIds: projectsToReport.map((p) => p.id),
         projectsCount: projectsToReport.length,
         totalHours: employeeData.reduce((sum, emp) => sum + emp.totalHours, 0),
         employeeData,
-        employeeIds: employeeData.map(emp => emp.employeeId),
+        employeeIds: employeeData.map((emp) => emp.employeeId),
       };
 
       await addReport(report);
 
-      console.log('[Report] Generating time tracking report for projects:', projectsToReport.map(p => p.name));
+      console.log(
+        "[Report] Generating time tracking report for projects:",
+        projectsToReport.map((p) => p.name),
+      );
 
       // Reset state and navigate
       setIsGeneratingReport(false);
@@ -913,21 +1142,27 @@ export default function DashboardScreen() {
       setShowReportTypeMenu(false);
       setIsSelectMode(false);
       setSelectedProjects([]);
-      router.push('/reports' as any);
+      router.push("/reports" as any);
       return;
     }
 
-    if (reportType === 'daily-logs') {
+    if (reportType === "daily-logs") {
       const projectDailyLogs = [];
 
       for (let i = 0; i < projectsToReport.length; i++) {
         const project = projectsToReport[i];
-        setReportGenerationProgress({ current: i + 1, total: projectsToReport.length, projectName: project.name });
+        setReportGenerationProgress({
+          current: i + 1,
+          total: projectsToReport.length,
+          projectName: project.name,
+        });
 
         // Small delay to show progress
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-        const logs = Array.isArray(dailyLogs) ? dailyLogs.filter(log => log.projectId === project.id) : [];
+        const logs = Array.isArray(dailyLogs)
+          ? dailyLogs.filter((log) => log.projectId === project.id)
+          : [];
         if (logs.length > 0) {
           projectDailyLogs.push({
             projectId: project.id,
@@ -937,27 +1172,36 @@ export default function DashboardScreen() {
         }
       }
 
-      const totalLogs = projectDailyLogs.reduce((sum, p) => sum + p.logs.length, 0);
+      const totalLogs = projectDailyLogs.reduce(
+        (sum, p) => sum + p.logs.length,
+        0,
+      );
 
       if (totalLogs === 0) {
         setIsGeneratingReport(false);
-        Alert.alert('No Daily Logs', 'The selected project(s) have no daily logs to export.');
+        Alert.alert(
+          "No Daily Logs",
+          "The selected project(s) have no daily logs to export.",
+        );
         return;
       }
 
       const report: Report = {
         id: `report-${Date.now()}`,
-        name: `Daily Logs Report - ${selectionType === 'all' ? 'All Projects' : `${projectsToReport.length} Selected Projects`}`,
-        type: 'custom',
+        name: `Daily Logs Report - ${selectionType === "all" ? "All Projects" : `${projectsToReport.length} Selected Projects`}`,
+        type: "custom",
         generatedDate: new Date().toISOString(),
-        projectIds: projectsToReport.map(p => p.id),
+        projectIds: projectsToReport.map((p) => p.id),
         projectsCount: projectsToReport.length,
         notes: JSON.stringify({ dailyLogs: projectDailyLogs }),
       };
 
       await addReport(report);
 
-      console.log('[Report] Generating daily logs report for projects:', projectsToReport.map(p => p.name));
+      console.log(
+        "[Report] Generating daily logs report for projects:",
+        projectsToReport.map((p) => p.name),
+      );
 
       // Reset state and navigate
       setIsGeneratingReport(false);
@@ -965,7 +1209,7 @@ export default function DashboardScreen() {
       setShowReportTypeMenu(false);
       setIsSelectMode(false);
       setSelectedProjects([]);
-      router.push('/reports' as any);
+      router.push("/reports" as any);
       return;
     }
 
@@ -973,18 +1217,27 @@ export default function DashboardScreen() {
 
     for (let i = 0; i < projectsToReport.length; i++) {
       const project = projectsToReport[i];
-      setReportGenerationProgress({ current: i + 1, total: projectsToReport.length, projectName: project.name });
+      setReportGenerationProgress({
+        current: i + 1,
+        total: projectsToReport.length,
+        projectName: project.name,
+      });
 
       // Small delay to show progress
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const projectExpenses = expenses.filter(e => e.projectId === project.id);
-      const projectClockEntries = clockEntries.filter(c => c.projectId === project.id);
+      const projectExpenses = expenses.filter(
+        (e) => e.projectId === project.id,
+      );
+      const projectClockEntries = clockEntries.filter(
+        (c) => c.projectId === project.id,
+      );
 
       const expensesByCategory: { [category: string]: number } = {};
-      projectExpenses.forEach(expense => {
-        const category = expense.type || 'Uncategorized';
-        expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.amount;
+      projectExpenses.forEach((expense) => {
+        const category = expense.type || "Uncategorized";
+        expensesByCategory[category] =
+          (expensesByCategory[category] || 0) + expense.amount;
       });
 
       projectsData.push({
@@ -1004,10 +1257,10 @@ export default function DashboardScreen() {
 
     const report: Report = {
       id: `report-${Date.now()}`,
-      name: `Administrative Report - ${selectionType === 'all' ? 'All Projects' : `${projectsToReport.length} Selected Projects`}`,
-      type: 'administrative',
+      name: `Administrative Report - ${selectionType === "all" ? "All Projects" : `${projectsToReport.length} Selected Projects`}`,
+      type: "administrative",
       generatedDate: new Date().toISOString(),
-      projectIds: projectsToReport.map(p => p.id),
+      projectIds: projectsToReport.map((p) => p.id),
       projectsCount: projectsToReport.length,
       totalBudget: projectsToReport.reduce((sum, p) => sum + p.budget, 0),
       totalExpenses: projectsData.reduce((sum, p) => sum + p.expenses, 0),
@@ -1017,7 +1270,10 @@ export default function DashboardScreen() {
 
     await addReport(report);
 
-    console.log('[Report] Generating administrative report for projects:', projectsToReport.map(p => p.name));
+    console.log(
+      "[Report] Generating administrative report for projects:",
+      projectsToReport.map((p) => p.name),
+    );
 
     // Reset state and navigate
     setIsGeneratingReport(false);
@@ -1025,26 +1281,29 @@ export default function DashboardScreen() {
     setShowReportTypeMenu(false);
     setIsSelectMode(false);
     setSelectedProjects([]);
-    router.push('/reports' as any);
+    router.push("/reports" as any);
   };
 
   const toggleProjectSelection = (projectId: string) => {
-    setSelectedProjects(prev => {
+    setSelectedProjects((prev) => {
       if (prev.includes(projectId)) {
-        return prev.filter(id => id !== projectId);
+        return prev.filter((id) => id !== projectId);
       }
       return [...prev, projectId];
     });
   };
 
   const openDashEditClientModal = (project: Project) => {
-    const client = clients.find(c => c.id === project.clientId);
-    if (!client) { Alert.alert('No Client', 'No client linked to this project.'); return; }
+    const client = clients.find((c) => c.id === project.clientId);
+    if (!client) {
+      Alert.alert("No Client", "No client linked to this project.");
+      return;
+    }
     setDashEditClientId(client.id);
     setDashEditClientName(client.name);
     setDashEditClientEmail(client.email);
-    setDashEditClientPhone(client.phone.replace(/\D/g, '').slice(-10));
-    setDashEditClientAddress(client.address || '');
+    setDashEditClientPhone(client.phone.replace(/\D/g, "").slice(-10));
+    setDashEditClientAddress(client.address || "");
     setDashEditClientSource(client.source);
     setDashEditClientErrors({});
     setShowProjectActionsModal(false);
@@ -1053,42 +1312,59 @@ export default function DashboardScreen() {
 
   const handleDashUpdateClient = async () => {
     const errors: typeof dashEditClientErrors = {};
-    if (!dashEditClientName.trim()) errors.name = 'Name is required';
-    if (!dashEditClientEmail.trim()) errors.email = 'Email is required';
-    else if (!isValidEmail(dashEditClientEmail)) errors.email = 'Enter a valid email address';
-    if (!dashEditClientPhone) errors.phone = 'Phone is required';
-    else if (!isValidUSPhone(dashEditClientPhone)) errors.phone = 'Enter a valid 10-digit US phone number';
-    if (!dashEditClientSource) errors.source = 'Select how they found you';
-    if (Object.keys(errors).length > 0) { setDashEditClientErrors(errors); return; }
+    if (!dashEditClientName.trim()) errors.name = "Name is required";
+    if (!dashEditClientEmail.trim()) errors.email = "Email is required";
+    else if (!isValidEmail(dashEditClientEmail))
+      errors.email = "Enter a valid email address";
+    if (!dashEditClientPhone) errors.phone = "Phone is required";
+    else if (!isValidUSPhone(dashEditClientPhone))
+      errors.phone = "Enter a valid 10-digit US phone number";
+    if (!dashEditClientSource) errors.source = "Select how they found you";
+    if (Object.keys(errors).length > 0) {
+      setDashEditClientErrors(errors);
+      return;
+    }
     if (!dashEditClientId) return;
     setIsUpdatingDashClient(true);
     try {
       const newName = dashEditClientName.trim();
-      const oldName = clients.find(c => c.id === dashEditClientId)?.name ?? '';
+      const oldName =
+        clients.find((c) => c.id === dashEditClientId)?.name ?? "";
       await updateClient(dashEditClientId, {
         name: newName,
         email: dashEditClientEmail.trim().toLowerCase(),
         phone: formatUSPhone(dashEditClientPhone),
         address: dashEditClientAddress.trim() || undefined,
-        source: dashEditClientSource as 'Google' | 'Referral' | 'Ad' | 'Phone Call',
+        source: dashEditClientSource as
+          | "Google"
+          | "Referral"
+          | "Ad"
+          | "Phone Call",
       });
       // Rename linked projects whose name starts with the old client name
       if (oldName && oldName !== newName) {
         projects
-          .filter(p => p.clientId === dashEditClientId && p.name.startsWith(oldName))
-          .forEach(p => updateProject(p.id, { name: newName + p.name.slice(oldName.length) }));
+          .filter(
+            (p) =>
+              p.clientId === dashEditClientId && p.name.startsWith(oldName),
+          )
+          .forEach((p) =>
+            updateProject(p.id, {
+              name: newName + p.name.slice(oldName.length),
+            }),
+          );
       }
       setShowDashEditClientModal(false);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update client.');
+      Alert.alert("Error", err.message || "Failed to update client.");
     } finally {
       setIsUpdatingDashClient(false);
     }
   };
 
   const handleDelayProject = (project: Project) => {
-    const isOnHold = project.status === 'on-hold';
-    updateProject(project.id, { status: isOnHold ? 'active' : 'on-hold' });
+    const isOnHold = project.status === "on-hold";
+    updateProject(project.id, { status: isOnHold ? "active" : "on-hold" });
     setShowProjectActionsModal(false);
   };
 
@@ -1096,7 +1372,14 @@ export default function DashboardScreen() {
     const total = projectExpenses.reduce((sum, p) => sum + p.amount, 0);
     if (total === 0) return [];
 
-    const colors = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+    const colors = [
+      "#2563EB",
+      "#10B981",
+      "#F59E0B",
+      "#EF4444",
+      "#8B5CF6",
+      "#EC4899",
+    ];
     let currentAngle = -90;
 
     return projectExpenses.map((proj, index) => {
@@ -1117,7 +1400,6 @@ export default function DashboardScreen() {
     });
   }, [projectExpenses]);
 
-
   if (isLoading || isCompanyReloading) {
     return <DashboardSkeleton />;
   }
@@ -1128,45 +1410,92 @@ export default function DashboardScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="on-drag"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.headerLeft}>
-              <Text style={styles.headerTitle}>{t('dashboard.title')}</Text>
+              <Text style={styles.headerTitle}>{t("dashboard.title")}</Text>
               <View style={styles.filterChipsRow}>
                 <TouchableOpacity
-                  style={[styles.filterChip, projectFilter === 'active' && styles.filterChipActive]}
-                  onPress={() => setProjectFilter('active')}
+                  style={[
+                    styles.filterChip,
+                    projectFilter === "active" && styles.filterChipActive,
+                  ]}
+                  onPress={() => setProjectFilter("active")}
                 >
-                  <Text style={[styles.filterChipText, projectFilter === 'active' && styles.filterChipTextActive]}>
-                    {t('dashboard.activeProjects')} ({activeProjects.length})
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      projectFilter === "active" && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {t("dashboard.activeProjects")} ({activeProjects.length})
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.filterChip, projectFilter === 'delayed' && styles.filterChipActive, projectFilter === 'delayed' && { backgroundColor: '#F59E0B' }]}
-                  onPress={() => setProjectFilter('delayed')}
+                  style={[
+                    styles.filterChip,
+                    projectFilter === "delayed" && styles.filterChipActive,
+                    projectFilter === "delayed" && {
+                      backgroundColor: "#F59E0B",
+                    },
+                  ]}
+                  onPress={() => setProjectFilter("delayed")}
                 >
-                  <PauseCircle size={14} color={projectFilter === 'delayed' ? '#FFFFFF' : '#F59E0B'} />
-                  <Text style={[styles.filterChipText, projectFilter === 'delayed' && styles.filterChipTextActive]}>
+                  <PauseCircle
+                    size={14}
+                    color={projectFilter === "delayed" ? "#FFFFFF" : "#F59E0B"}
+                  />
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      projectFilter === "delayed" &&
+                        styles.filterChipTextActive,
+                    ]}
+                  >
                     On Hold ({delayedProjects.length})
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.filterChip, projectFilter === 'completed' && styles.filterChipActive]}
-                  onPress={() => setProjectFilter('completed')}
+                  style={[
+                    styles.filterChip,
+                    projectFilter === "completed" && styles.filterChipActive,
+                  ]}
+                  onPress={() => setProjectFilter("completed")}
                 >
-                  <Text style={[styles.filterChipText, projectFilter === 'completed' && styles.filterChipTextActive]}>
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      projectFilter === "completed" &&
+                        styles.filterChipTextActive,
+                    ]}
+                  >
                     Completed ({completedProjects.length})
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.filterChip, projectFilter === 'archived' && styles.filterChipActive]}
-                  onPress={() => setProjectFilter('archived')}
+                  style={[
+                    styles.filterChip,
+                    projectFilter === "archived" && styles.filterChipActive,
+                  ]}
+                  onPress={() => setProjectFilter("archived")}
                 >
-                  <Archive size={16} color={projectFilter === 'archived' ? '#FFFFFF' : '#6B7280'} />
-                  <Text style={[styles.filterChipText, projectFilter === 'archived' && styles.filterChipTextActive]}>
-                    {t('dashboard.archivedProjects')} ({archivedProjects.length})
+                  <Archive
+                    size={16}
+                    color={projectFilter === "archived" ? "#FFFFFF" : "#6B7280"}
+                  />
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      projectFilter === "archived" &&
+                        styles.filterChipTextActive,
+                    ]}
+                  >
+                    {t("dashboard.archivedProjects")} ({archivedProjects.length}
+                    )
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1193,9 +1522,11 @@ export default function DashboardScreen() {
                 onPress={() => setShowImportOptions(true)}
               >
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.addButtonText}>{t('dashboard.addProject')}</Text>
+                <Text style={styles.addButtonText}>
+                  {t("dashboard.addProject")}
+                </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={styles.reportButton}
                 onPress={() => setShowReportMenu(!showReportMenu)}
@@ -1206,11 +1537,13 @@ export default function DashboardScreen() {
               {reports.length > 0 && (
                 <TouchableOpacity
                   style={styles.reportsLibraryButton}
-                  onPress={() => router.push('/reports' as any)}
+                  onPress={() => router.push("/reports" as any)}
                 >
                   <FolderOpen size={20} color="#10B981" />
                   <View style={styles.reportsBadge}>
-                    <Text style={styles.reportsBadgeText}>{reports.length}</Text>
+                    <Text style={styles.reportsBadgeText}>
+                      {reports.length}
+                    </Text>
                   </View>
                 </TouchableOpacity>
               )}
@@ -1225,12 +1558,12 @@ export default function DashboardScreen() {
               style={styles.searchInput}
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder={t('dashboard.searchProjects')}
+              placeholder={t("dashboard.searchProjects")}
               placeholderTextColor="#9CA3AF"
               autoFocus
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
                 <X size={18} color="#6B7280" />
               </TouchableOpacity>
             )}
@@ -1241,65 +1574,84 @@ export default function DashboardScreen() {
           <View style={styles.reportMenu}>
             <View style={styles.reportMenuHeader}>
               <FileText size={20} color="#2563EB" />
-              <Text style={styles.reportMenuTitle}>{t('dashboard.generateReport')}</Text>
+              <Text style={styles.reportMenuTitle}>
+                {t("dashboard.generateReport")}
+              </Text>
             </View>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
               style={styles.reportMenuScroll}
               contentContainerStyle={styles.reportMenuScrollContent}
-            
-          keyboardDismissMode="on-drag"
-        >
+              keyboardDismissMode="on-drag"
+            >
               <TouchableOpacity
                 style={styles.reportMenuItemHorizontal}
                 onPress={() => {
-                  setReportType('administrative');
+                  setReportType("administrative");
                   setShowReportTypeMenu(true);
                 }}
               >
                 <FileText size={18} color="#2563EB" />
-                <Text style={styles.reportMenuItemTextHorizontal}>Admin &{"\n"}Financial</Text>
+                <Text style={styles.reportMenuItemTextHorizontal}>
+                  Admin &{"\n"}Financial
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.reportMenuItemHorizontal}
                 onPress={() => {
-                  setReportType('expenses');
+                  setReportType("expenses");
                   setShowReportTypeMenu(true);
                 }}
               >
                 <FileText size={18} color="#EF4444" />
-                <Text style={styles.reportMenuItemTextHorizontal}>Expenses{"\n"}Breakdown</Text>
+                <Text style={styles.reportMenuItemTextHorizontal}>
+                  Expenses{"\n"}Breakdown
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.reportMenuItemHorizontal}
                 onPress={() => {
-                  setReportType('time-tracking');
+                  setReportType("time-tracking");
                   setShowReportTypeMenu(true);
                 }}
               >
                 <FileText size={18} color="#F59E0B" />
-                <Text style={styles.reportMenuItemTextHorizontal}>Time &{"\n"}Clocking</Text>
+                <Text style={styles.reportMenuItemTextHorizontal}>
+                  Time &{"\n"}Clocking
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.reportMenuItemHorizontal}
                 onPress={() => {
-                  setReportType('daily-logs');
+                  setReportType("daily-logs");
                   setShowReportTypeMenu(true);
                 }}
               >
                 <FileText size={18} color="#8B5CF6" />
-                <Text style={styles.reportMenuItemTextHorizontal}>Daily{"\n"}Logs</Text>
+                <Text style={styles.reportMenuItemTextHorizontal}>
+                  Daily{"\n"}Logs
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.reportMenuItemHorizontal, styles.reportMenuItemAI]}
+                style={[
+                  styles.reportMenuItemHorizontal,
+                  styles.reportMenuItemAI,
+                ]}
                 onPress={() => {
-                  setReportType('custom-ai');
+                  setReportType("custom-ai");
                   setShowAICustomModal(true);
                 }}
               >
                 <Sparkles size={18} color="#10B981" />
-                <Text style={[styles.reportMenuItemTextHorizontal, { color: '#10B981' }]}>Custom AI{"\n"}Report</Text>
+                <Text
+                  style={[
+                    styles.reportMenuItemTextHorizontal,
+                    { color: "#10B981" },
+                  ]}
+                >
+                  Custom AI{"\n"}Report
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -1310,9 +1662,13 @@ export default function DashboardScreen() {
             <View style={styles.reportMenuHeader}>
               <FileText size={20} color="#2563EB" />
               <Text style={styles.reportMenuTitle}>
-                {reportType === 'administrative' ? 'Administrative & Financial' : 
-                 reportType === 'expenses' ? 'Expenses Breakdown' :
-                 reportType === 'time-tracking' ? 'Time Tracking & Clocking' : 'Daily Logs'}
+                {reportType === "administrative"
+                  ? "Administrative & Financial"
+                  : reportType === "expenses"
+                    ? "Expenses Breakdown"
+                    : reportType === "time-tracking"
+                      ? "Time Tracking & Clocking"
+                      : "Daily Logs"}
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -1320,17 +1676,19 @@ export default function DashboardScreen() {
                   setIsSelectMode(false);
                   setSelectedProjects([]);
                 }}
-                style={{ marginLeft: 'auto' }}
+                style={{ marginLeft: "auto" }}
               >
-                <Text style={{ color: '#6B7280', fontSize: 14 }}>Back</Text>
+                <Text style={{ color: "#6B7280", fontSize: 14 }}>Back</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.reportMenuButtons}>
               <TouchableOpacity
                 style={styles.reportMenuItem}
-                onPress={() => handleReportRequest('all')}
+                onPress={() => handleReportRequest("all")}
               >
-                <Text style={styles.reportMenuItemText}>All Active Projects</Text>
+                <Text style={styles.reportMenuItemText}>
+                  All Active Projects
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.reportMenuItem}
@@ -1342,13 +1700,13 @@ export default function DashboardScreen() {
                 }}
               >
                 <Text style={styles.reportMenuItemText}>
-                  {isSelectMode ? 'Cancel Selection' : 'Select Projects'}
+                  {isSelectMode ? "Cancel Selection" : "Select Projects"}
                 </Text>
               </TouchableOpacity>
               {isSelectMode && selectedProjects.length > 0 && (
                 <TouchableOpacity
                   style={[styles.reportMenuItem, styles.reportMenuItemPrimary]}
-                  onPress={() => handleReportRequest('selected')}
+                  onPress={() => handleReportRequest("selected")}
                 >
                   <Text style={styles.reportMenuItemTextPrimary}>
                     Generate Report ({selectedProjects.length})
@@ -1363,38 +1721,46 @@ export default function DashboardScreen() {
           <View style={styles.emptyState}>
             <Archive size={48} color="#9CA3AF" />
             <Text style={styles.emptyStateText}>
-              {projectFilter === 'archived'
-                ? t('dashboard.noArchivedProjects')
-                : projectFilter === 'completed'
-                ? 'No completed projects yet'
-                : projectFilter === 'delayed'
-                ? 'No delayed projects'
-                : t('dashboard.noActiveProjects')}
+              {projectFilter === "archived"
+                ? t("dashboard.noArchivedProjects")
+                : projectFilter === "completed"
+                  ? "No completed projects yet"
+                  : projectFilter === "delayed"
+                    ? "No delayed projects"
+                    : t("dashboard.noActiveProjects")}
             </Text>
           </View>
         ) : (
           <ScrollView
             horizontal
             pagingEnabled
-            showsHorizontalScrollIndicator={Platform.OS === 'web'}
+            showsHorizontalScrollIndicator={Platform.OS === "web"}
             decelerationRate="fast"
             snapToInterval={263}
             snapToAlignment="center"
             contentContainerStyle={styles.projectsCarousel}
-            style={[styles.projectsCarouselContainer, Platform.OS === 'web' && styles.projectsCarouselWeb]}
-          
-          keyboardDismissMode="on-drag"
-        >
+            style={[
+              styles.projectsCarouselContainer,
+              Platform.OS === "web" && styles.projectsCarouselWeb,
+            ]}
+            keyboardDismissMode="on-drag"
+          >
             {displayProjects.map((project) => {
-              const activeEntries = clockEntries.filter(c => c.projectId === project.id && !c.clockOut);
+              const activeEntries = clockEntries.filter(
+                (c) => c.projectId === project.id && !c.clockOut,
+              );
               const visibleAvatars = activeEntries.slice(0, 3);
               const extraCount = Math.max(0, activeEntries.length - 3);
-              const isSelected = isSelectMode && selectedProjects.includes(project.id);
+              const isSelected =
+                isSelectMode && selectedProjects.includes(project.id);
 
               return (
                 <TouchableOpacity
                   key={project.id}
-                  style={[styles.projectCard, isSelected && styles.projectCardSelected]}
+                  style={[
+                    styles.projectCard,
+                    isSelected && styles.projectCardSelected,
+                  ]}
                   onPress={() => {
                     if (isSelectMode) {
                       toggleProjectSelection(project.id);
@@ -1407,21 +1773,30 @@ export default function DashboardScreen() {
                   {/* TOP: badges + menu/checkbox */}
                   <View style={styles.cardTopRow}>
                     <View style={styles.cardBadges}>
-                      {(!project.contractAmount || project.contractAmount === 0) && (
+                      {(!project.contractAmount ||
+                        project.contractAmount === 0) && (
                         <View style={styles.cardBadgeWarning}>
                           <AlertTriangle size={10} color="#F97316" />
                           <Text style={styles.cardBadgeText}>No Contract</Text>
                         </View>
                       )}
-                      {project.status === 'on-hold' && (
+                      {project.status === "on-hold" && (
                         <View style={styles.cardBadgeHold}>
                           <PauseCircle size={10} color="#D97706" />
-                          <Text style={[styles.cardBadgeText, { color: '#D97706' }]}>On Hold</Text>
+                          <Text
+                            style={[styles.cardBadgeText, { color: "#D97706" }]}
+                          >
+                            On Hold
+                          </Text>
                         </View>
                       )}
-                      {project.status === 'completed' && (
+                      {project.status === "completed" && (
                         <View style={styles.cardBadgeDone}>
-                          <Text style={[styles.cardBadgeText, { color: '#059669' }]}>Completed</Text>
+                          <Text
+                            style={[styles.cardBadgeText, { color: "#059669" }]}
+                          >
+                            Completed
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -1429,16 +1804,20 @@ export default function DashboardScreen() {
                       <View style={styles.projectCheckbox}>
                         <CheckSquare
                           size={24}
-                          color={isSelected ? '#10B981' : '#FFFFFF'}
-                          fill={isSelected ? '#10B981' : 'transparent'}
+                          color={isSelected ? "#10B981" : "#FFFFFF"}
+                          fill={isSelected ? "#10B981" : "transparent"}
                         />
                       </View>
                     ) : null}
                   </View>
 
                   {/* Project name + budget */}
-                  <Text style={styles.projectName} numberOfLines={1}>{project.name}</Text>
-                  <Text style={styles.cardBudgetText}>Budget: ${project.budget.toLocaleString()}</Text>
+                  <Text style={styles.projectName} numberOfLines={1}>
+                    {project.name}
+                  </Text>
+                  <Text style={styles.cardBudgetText}>
+                    Budget: ${project.budget.toLocaleString()}
+                  </Text>
 
                   {/* Embedded cover photo */}
                   <View style={styles.cardPhotoWrap}>
@@ -1455,25 +1834,45 @@ export default function DashboardScreen() {
                       <View style={styles.cardAvatarRow}>
                         {visibleAvatars.map((entry, idx) => {
                           const userData = usersMap.get(entry.employeeId);
-                          const displayName = userData?.name || entry.employeeName || '?';
-                          const initials = displayName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
-                          const onLunch = entry.lunchBreaks?.some((lb: any) => lb.startTime && !lb.endTime) ?? false;
+                          const displayName =
+                            userData?.name || entry.employeeName || "?";
+                          const initials = displayName
+                            .split(" ")
+                            .map((n: string) => n[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase();
+                          const onLunch =
+                            entry.lunchBreaks?.some(
+                              (lb: any) => lb.startTime && !lb.endTime,
+                            ) ?? false;
                           return (
                             <View
                               key={entry.id}
                               style={[
                                 styles.cardAvatarWrapper,
-                                { marginLeft: idx === 0 ? 0 : -8, zIndex: 3 - idx },
+                                {
+                                  marginLeft: idx === 0 ? 0 : -8,
+                                  zIndex: 3 - idx,
+                                },
                               ]}
                             >
-                              <View style={[
-                                styles.cardAvatar,
-                                onLunch && styles.cardAvatarOnLunch,
-                              ]}>
+                              <View
+                                style={[
+                                  styles.cardAvatar,
+                                  onLunch && styles.cardAvatarOnLunch,
+                                ]}
+                              >
                                 {userData?.avatar ? (
-                                  <Image source={{ uri: userData.avatar }} style={styles.cardAvatarImg} contentFit="cover" />
+                                  <Image
+                                    source={{ uri: userData.avatar }}
+                                    style={styles.cardAvatarImg}
+                                    contentFit="cover"
+                                  />
                                 ) : (
-                                  <Text style={styles.cardAvatarInitials}>{initials}</Text>
+                                  <Text style={styles.cardAvatarInitials}>
+                                    {initials}
+                                  </Text>
                                 )}
                               </View>
                               {onLunch ? (
@@ -1487,15 +1886,27 @@ export default function DashboardScreen() {
                           );
                         })}
                         {extraCount > 0 && (
-                          <View style={[styles.cardAvatar, styles.cardAvatarExtra, { marginLeft: -8, zIndex: 0 }]}>
-                            <Text style={styles.cardAvatarExtraText}>+{extraCount}</Text>
+                          <View
+                            style={[
+                              styles.cardAvatar,
+                              styles.cardAvatarExtra,
+                              { marginLeft: -8, zIndex: 0 },
+                            ]}
+                          >
+                            <Text style={styles.cardAvatarExtraText}>
+                              +{extraCount}
+                            </Text>
                           </View>
                         )}
-                        <Text style={styles.cardOnSiteText}>{activeEntries.length} on site</Text>
+                        <Text style={styles.cardOnSiteText}>
+                          {activeEntries.length} on site
+                        </Text>
                       </View>
                     ) : (
                       <View style={styles.cardAvatarRow}>
-                        <Text style={styles.cardNoWorkers}>No workers on site</Text>
+                        <Text style={styles.cardNoWorkers}>
+                          No workers on site
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -1520,20 +1931,51 @@ export default function DashboardScreen() {
           expenses={expenses}
           clockEntries={clockEntries}
           hoursWorked={hoursWorkedThisMonth}
-          onDetails={() => router.push('/business-costs' as any)}
+          onDetails={() => router.push("/business-costs" as any)}
           usersMap={usersMap}
         />
 
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <Text style={styles.statTitle}>{t('dashboard.totalSold')}</Text>
+            <Text style={styles.statTitle}>{t("dashboard.totalSold")}</Text>
             <Text style={styles.statValue}>${totalSold.toLocaleString()}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <Text style={{ fontSize: 12, color: '#6B7280', fontWeight: '500' }}>Monthly Revenue</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F0FDF4', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
-                <Text style={{ fontSize: 11, color: '#059669', fontWeight: '600' }}>
-                  {totalProjectsWithContract} contract{totalProjectsWithContract !== 1 ? 's' : ''}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 12,
+              }}
+            >
+              <Text
+                style={{ fontSize: 12, color: "#6B7280", fontWeight: "500" }}
+              >
+                Monthly Revenue
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  backgroundColor: "#F0FDF4",
+                  borderRadius: 12,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                }}
+              >
+                <View
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: "#10B981",
+                  }}
+                />
+                <Text
+                  style={{ fontSize: 11, color: "#059669", fontWeight: "600" }}
+                >
+                  {totalProjectsWithContract} contract
+                  {totalProjectsWithContract !== 1 ? "s" : ""}
                 </Text>
               </View>
             </View>
@@ -1544,37 +1986,46 @@ export default function DashboardScreen() {
                   key={level}
                   pointerEvents="none"
                   style={{
-                    position: 'absolute',
+                    position: "absolute",
                     left: 0,
                     right: 0,
                     bottom: `${level * 100}%` as any,
                     height: 1,
-                    backgroundColor: '#F3F4F6',
+                    backgroundColor: "#F3F4F6",
                     marginBottom: 20, // account for label area
                   }}
                 />
               ))}
               {monthlyRevenue.map((item, index) => {
                 const barAreaHeight = 140; // matches chartContainer minus label area
-                const heightPct = item.revenue > 0 ? Math.max((item.revenue / maxRevenue) * 100, 6) : 0;
+                const heightPct =
+                  item.revenue > 0
+                    ? Math.max((item.revenue / maxRevenue) * 100, 6)
+                    : 0;
                 return (
                   <View key={index} style={styles.barWrapper}>
                     <View style={styles.barValueArea}>
                       {item.count > 0 && (
                         <Text style={styles.barValueLabel}>
-                          ${item.revenue >= 1000 ? `${(item.revenue / 1000).toFixed(0)}k` : item.revenue}
+                          $
+                          {item.revenue >= 1000
+                            ? `${(item.revenue / 1000).toFixed(0)}k`
+                            : item.revenue}
                         </Text>
                       )}
                     </View>
                     <View style={styles.barTrack}>
-                      <View style={[
-                        styles.bar,
-                        {
-                          height: item.revenue > 0 ? `${heightPct}%` : 3,
-                          backgroundColor: item.count > 0 ? '#10B981' : '#E5E7EB',
-                          opacity: item.count > 0 ? 1 : 0.5,
-                        }
-                      ]} />
+                      <View
+                        style={[
+                          styles.bar,
+                          {
+                            height: item.revenue > 0 ? `${heightPct}%` : 3,
+                            backgroundColor:
+                              item.count > 0 ? "#10B981" : "#E5E7EB",
+                            opacity: item.count > 0 ? 1 : 0.5,
+                          },
+                        ]}
+                      />
                     </View>
                     <Text style={styles.barLabel}>{item.month}</Text>
                   </View>
@@ -1582,14 +2033,18 @@ export default function DashboardScreen() {
               })}
             </View>
             <View style={styles.totalBudgetRow}>
-              <Text style={styles.totalBudgetLabel}>{t('dashboard.totalBudget')}</Text>
-              <Text style={styles.totalBudgetValue}>${totalBudget.toLocaleString()}</Text>
+              <Text style={styles.totalBudgetLabel}>
+                {t("dashboard.totalBudget")}
+              </Text>
+              <Text style={styles.totalBudgetValue}>
+                ${totalBudget.toLocaleString()}
+              </Text>
             </View>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statTitle}>{t('dashboard.expenses')}</Text>
-            
+            <Text style={styles.statTitle}>{t("dashboard.expenses")}</Text>
+
             {pieChartData.length > 0 ? (
               <View style={styles.pieChartContainer}>
                 <Svg width="180" height="180" viewBox="0 0 200 200">
@@ -1605,7 +2060,9 @@ export default function DashboardScreen() {
                             stroke={slice.color}
                             strokeWidth="180"
                             strokeDasharray={`${(slice.angle / 360) * 565.48} 565.48`}
-                            strokeDashoffset={-565.48 * ((slice.startAngle + 90) / 360)}
+                            strokeDashoffset={
+                              -565.48 * ((slice.startAngle + 90) / 360)
+                            }
                             rotation="-90"
                             origin="100, 100"
                           />
@@ -1614,15 +2071,23 @@ export default function DashboardScreen() {
                     })}
                   </G>
                 </Svg>
-                
+
                 <View style={styles.legendContainer}>
                   {pieChartData.map((slice) => (
                     <View key={slice.id} style={styles.legendItem}>
-                      <View style={[styles.legendColor, { backgroundColor: slice.color }]} />
+                      <View
+                        style={[
+                          styles.legendColor,
+                          { backgroundColor: slice.color },
+                        ]}
+                      />
                       <View style={styles.legendText}>
-                        <Text style={styles.legendName} numberOfLines={1}>{slice.name}</Text>
+                        <Text style={styles.legendName} numberOfLines={1}>
+                          {slice.name}
+                        </Text>
                         <Text style={styles.legendValue}>
-                          ${slice.amount.toLocaleString()} ({slice.percentage.toFixed(1)}%)
+                          ${slice.amount.toLocaleString()} (
+                          {slice.percentage.toFixed(1)}%)
                         </Text>
                       </View>
                     </View>
@@ -1631,13 +2096,19 @@ export default function DashboardScreen() {
               </View>
             ) : (
               <View style={styles.emptyExpenses}>
-                <Text style={styles.emptyExpensesText}>{t('dashboard.noExpenses')}</Text>
+                <Text style={styles.emptyExpensesText}>
+                  {t("dashboard.noExpenses")}
+                </Text>
               </View>
             )}
-            
+
             <View style={styles.expenseTotal}>
-              <Text style={styles.expenseTotalLabel}>{t('dashboard.totalExpenses')}</Text>
-              <Text style={styles.expenseTotalValue}>${totalExpenses.toLocaleString()}</Text>
+              <Text style={styles.expenseTotalLabel}>
+                {t("dashboard.totalExpenses")}
+              </Text>
+              <Text style={styles.expenseTotalValue}>
+                ${totalExpenses.toLocaleString()}
+              </Text>
             </View>
           </View>
         </View>
@@ -1650,10 +2121,13 @@ export default function DashboardScreen() {
         onRequestClose={() => setShowImportOptions(false)}
       >
         <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={Keyboard.dismiss}
+          />
           <View style={styles.importOptionsModal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('dashboard.addProject')}</Text>
+              <Text style={styles.modalTitle}>{t("dashboard.addProject")}</Text>
               <TouchableOpacity onPress={() => setShowImportOptions(false)}>
                 <X size={24} color="#6B7280" />
               </TouchableOpacity>
@@ -1685,12 +2159,15 @@ export default function DashboardScreen() {
               style={styles.importOptionCard}
               onPress={() => {
                 // Get clients that have at least one estimate
-                const clientsWithEstimates = clients.filter(client =>
-                  estimates.some(est => est.clientId === client.id)
+                const clientsWithEstimates = clients.filter((client) =>
+                  estimates.some((est) => est.clientId === client.id),
                 );
 
                 if (clientsWithEstimates.length === 0) {
-                  showAlert('No Estimates Available', 'Create estimates for clients in CRM first to import from there.');
+                  showAlert(
+                    "No Estimates Available",
+                    "Create estimates for clients in CRM first to import from there.",
+                  );
                   return;
                 }
 
@@ -1719,21 +2196,29 @@ export default function DashboardScreen() {
         onRequestClose={() => setShowCreateModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
         >
           <View style={styles.modalOverlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={Keyboard.dismiss}
+            />
             <ScrollView
               style={styles.modalScrollView}
-              contentContainerStyle={[styles.modalScrollContent, { paddingBottom: 40 }]}
+              contentContainerStyle={[
+                styles.modalScrollContent,
+                { paddingBottom: 40 },
+              ]}
               showsVerticalScrollIndicator={false}
               automaticallyAdjustKeyboardInsets={true}
-            keyboardDismissMode="on-drag"
-          >
+              keyboardDismissMode="on-drag"
+            >
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>{t('projects.createNew')}</Text>
+                  <Text style={styles.modalTitle}>
+                    {t("projects.createNew")}
+                  </Text>
                   <TouchableOpacity onPress={() => setShowCreateModal(false)}>
                     <X size={24} color="#6B7280" />
                   </TouchableOpacity>
@@ -1741,7 +2226,7 @@ export default function DashboardScreen() {
 
                 <View style={styles.modalBody}>
                   <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{t('projects.name')} *</Text>
+                    <Text style={styles.formLabel}>{t("projects.name")} *</Text>
                     <TextInput
                       style={styles.formInput}
                       value={projectName}
@@ -1752,7 +2237,9 @@ export default function DashboardScreen() {
                   </View>
 
                   <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{t('projects.address')}</Text>
+                    <Text style={styles.formLabel}>
+                      {t("projects.address")}
+                    </Text>
                     <TextInput
                       style={styles.formInput}
                       value={projectAddress}
@@ -1763,7 +2250,7 @@ export default function DashboardScreen() {
                   </View>
 
                   <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{t('forms.email')} *</Text>
+                    <Text style={styles.formLabel}>{t("forms.email")} *</Text>
                     <TextInput
                       style={styles.formInput}
                       value={projectEmail}
@@ -1776,7 +2263,7 @@ export default function DashboardScreen() {
                   </View>
 
                   <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{t('forms.phone')} *</Text>
+                    <Text style={styles.formLabel}>{t("forms.phone")} *</Text>
                     <TextInput
                       style={styles.formInput}
                       value={projectPhone}
@@ -1789,7 +2276,7 @@ export default function DashboardScreen() {
                   </View>
 
                   <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{t('forms.source')}</Text>
+                    <Text style={styles.formLabel}>{t("forms.source")}</Text>
                     <TextInput
                       style={styles.formInput}
                       value={projectSource}
@@ -1800,7 +2287,9 @@ export default function DashboardScreen() {
                   </View>
 
                   <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{t('projects.budget')} *</Text>
+                    <Text style={styles.formLabel}>
+                      {t("projects.budget")} *
+                    </Text>
                     <TextInput
                       style={styles.formInput}
                       value={projectBudget}
@@ -1826,21 +2315,29 @@ export default function DashboardScreen() {
                       ) : (
                         <View style={styles.coverPhotoPlaceholder}>
                           <Camera size={28} color="#9CA3AF" />
-                          <Text style={styles.coverPhotoPlaceholderText}>Tap to add a project photo</Text>
+                          <Text style={styles.coverPhotoPlaceholderText}>
+                            Tap to add a project photo
+                          </Text>
                         </View>
                       )}
                     </TouchableOpacity>
                   </View>
 
                   <TouchableOpacity
-                    style={[styles.createButton, (isCreatingProject || isUploadingCover) && styles.createButtonDisabled]}
+                    style={[
+                      styles.createButton,
+                      (isCreatingProject || isUploadingCover) &&
+                        styles.createButtonDisabled,
+                    ]}
                     onPress={handleCreateProject}
                     disabled={isCreatingProject || isUploadingCover}
                   >
                     {isCreatingProject || isUploadingCover ? (
                       <ActivityIndicator color="#FFFFFF" size="small" />
                     ) : (
-                      <Text style={styles.createButtonText}>{t('projects.createNew')}</Text>
+                      <Text style={styles.createButtonText}>
+                        {t("projects.createNew")}
+                      </Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -1861,35 +2358,46 @@ export default function DashboardScreen() {
         }}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
         >
           <View style={styles.modalOverlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={Keyboard.dismiss}
+            />
             <View style={styles.aiModalContent}>
               <View style={styles.modalHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <Sparkles size={24} color="#10B981" />
                   <Text style={styles.modalTitle}>Custom AI Report</Text>
                 </View>
-                <TouchableOpacity onPress={() => {
-                  setShowAICustomModal(false);
-                  setAiReportPrompt('');
-                  setShowProjectPicker(false);
-                  setSelectedProjects([]);
-                }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowAICustomModal(false);
+                    setAiReportPrompt("");
+                    setShowProjectPicker(false);
+                    setSelectedProjects([]);
+                  }}
+                >
                   <X size={24} color="#6B7280" />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={styles.aiModalScroll} showsVerticalScrollIndicator={false}
+              <ScrollView
+                style={styles.aiModalScroll}
+                showsVerticalScrollIndicator={false}
                 automaticallyAdjustKeyboardInsets={true}
                 contentContainerStyle={{ paddingBottom: 40 }}
-            keyboardDismissMode="on-drag"
-          >
+                keyboardDismissMode="on-drag"
+              >
                 <View style={styles.modalBody}>
                   <Text style={styles.aiInstructionText}>
-                    Describe what you want in your custom report. AI will analyze your project data and generate a comprehensive report based on your requirements.
+                    Describe what you want in your custom report. AI will
+                    analyze your project data and generate a comprehensive
+                    report based on your requirements.
                   </Text>
 
                   <View style={styles.formGroup}>
@@ -1910,27 +2418,51 @@ export default function DashboardScreen() {
                   <View style={styles.aiExamplesContainer}>
                     <TouchableOpacity
                       style={styles.aiExampleChip}
-                      onPress={() => setAiReportPrompt('Analyze budget vs expenses with variance analysis and cost-saving recommendations')}
+                      onPress={() =>
+                        setAiReportPrompt(
+                          "Analyze budget vs expenses with variance analysis and cost-saving recommendations",
+                        )
+                      }
                     >
-                      <Text style={styles.aiExampleText}>Budget variance analysis</Text>
+                      <Text style={styles.aiExampleText}>
+                        Budget variance analysis
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.aiExampleChip}
-                      onPress={() => setAiReportPrompt('Provide project timeline analysis with progress insights and schedule recommendations')}
+                      onPress={() =>
+                        setAiReportPrompt(
+                          "Provide project timeline analysis with progress insights and schedule recommendations",
+                        )
+                      }
                     >
-                      <Text style={styles.aiExampleText}>Timeline & progress analysis</Text>
+                      <Text style={styles.aiExampleText}>
+                        Timeline & progress analysis
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.aiExampleChip}
-                      onPress={() => setAiReportPrompt('Compare project performance metrics across all selected projects')}
+                      onPress={() =>
+                        setAiReportPrompt(
+                          "Compare project performance metrics across all selected projects",
+                        )
+                      }
                     >
-                      <Text style={styles.aiExampleText}>Performance comparison</Text>
+                      <Text style={styles.aiExampleText}>
+                        Performance comparison
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.aiExampleChip}
-                      onPress={() => setAiReportPrompt('Generate executive summary with key metrics and action items')}
+                      onPress={() =>
+                        setAiReportPrompt(
+                          "Generate executive summary with key metrics and action items",
+                        )
+                      }
                     >
-                      <Text style={styles.aiExampleText}>Executive summary</Text>
+                      <Text style={styles.aiExampleText}>
+                        Executive summary
+                      </Text>
                     </TouchableOpacity>
                   </View>
 
@@ -1945,25 +2477,39 @@ export default function DashboardScreen() {
                       }}
                     >
                       <Text style={styles.aiSecondaryButtonText}>
-                        {showProjectPicker ? 'Hide Projects' : 'Select Specific Projects'}
+                        {showProjectPicker
+                          ? "Hide Projects"
+                          : "Select Specific Projects"}
                       </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[styles.aiGenerateButton, isGeneratingAI && styles.aiGenerateButtonDisabled]}
-                      onPress={() => handleAIReportGeneration(selectedProjects.length > 0 ? 'selected' : 'all')}
+                      style={[
+                        styles.aiGenerateButton,
+                        isGeneratingAI && styles.aiGenerateButtonDisabled,
+                      ]}
+                      onPress={() =>
+                        handleAIReportGeneration(
+                          selectedProjects.length > 0 ? "selected" : "all",
+                        )
+                      }
                       disabled={isGeneratingAI}
                     >
                       {isGeneratingAI ? (
                         <>
                           <ActivityIndicator size="small" color="#FFFFFF" />
-                          <Text style={styles.aiGenerateButtonText}>Generating...</Text>
+                          <Text style={styles.aiGenerateButtonText}>
+                            Generating...
+                          </Text>
                         </>
                       ) : (
                         <>
                           <Sparkles size={18} color="#FFFFFF" />
                           <Text style={styles.aiGenerateButtonText}>
-                            Generate Report {selectedProjects.length > 0 ? `(${selectedProjects.length} Projects)` : '(All Projects)'}
+                            Generate Report{" "}
+                            {selectedProjects.length > 0
+                              ? `(${selectedProjects.length} Projects)`
+                              : "(All Projects)"}
                           </Text>
                         </>
                       )}
@@ -1976,21 +2522,24 @@ export default function DashboardScreen() {
                       <Text style={styles.aiProjectPickerTitle}>
                         Select Projects ({selectedProjects.length} selected)
                       </Text>
-                      <ScrollView style={styles.aiProjectPickerList} nestedScrollEnabled
-            keyboardDismissMode="on-drag"
-          >
-                        {activeProjects.map(project => (
+                      <ScrollView
+                        style={styles.aiProjectPickerList}
+                        nestedScrollEnabled
+                        keyboardDismissMode="on-drag"
+                      >
+                        {activeProjects.map((project) => (
                           <TouchableOpacity
                             key={project.id}
                             style={[
                               styles.aiProjectPickerItem,
-                              selectedProjects.includes(project.id) && styles.aiProjectPickerItemSelected
+                              selectedProjects.includes(project.id) &&
+                                styles.aiProjectPickerItemSelected,
                             ]}
                             onPress={() => {
-                              setSelectedProjects(prev =>
+                              setSelectedProjects((prev) =>
                                 prev.includes(project.id)
-                                  ? prev.filter(id => id !== project.id)
-                                  : [...prev, project.id]
+                                  ? prev.filter((id) => id !== project.id)
+                                  : [...prev, project.id],
                               );
                             }}
                           >
@@ -1998,13 +2547,18 @@ export default function DashboardScreen() {
                               {selectedProjects.includes(project.id) ? (
                                 <CheckSquare size={20} color="#10B981" />
                               ) : (
-                                <View style={styles.aiProjectPickerEmptyCheckbox} />
+                                <View
+                                  style={styles.aiProjectPickerEmptyCheckbox}
+                                />
                               )}
                             </View>
                             <View style={styles.aiProjectPickerInfo}>
-                              <Text style={styles.aiProjectPickerName}>{project.name}</Text>
+                              <Text style={styles.aiProjectPickerName}>
+                                {project.name}
+                              </Text>
                               <Text style={styles.aiProjectPickerDetails}>
-                                Budget: ${project.budget.toLocaleString()} • {project.status}
+                                Budget: ${project.budget.toLocaleString()} •{" "}
+                                {project.status}
                               </Text>
                             </View>
                           </TouchableOpacity>
@@ -2013,15 +2567,21 @@ export default function DashboardScreen() {
                       <TouchableOpacity
                         style={styles.aiSelectAllButton}
                         onPress={() => {
-                          if (selectedProjects.length === activeProjects.length) {
+                          if (
+                            selectedProjects.length === activeProjects.length
+                          ) {
                             setSelectedProjects([]);
                           } else {
-                            setSelectedProjects(activeProjects.map(p => p.id));
+                            setSelectedProjects(
+                              activeProjects.map((p) => p.id),
+                            );
                           }
                         }}
                       >
                         <Text style={styles.aiSelectAllButtonText}>
-                          {selectedProjects.length === activeProjects.length ? 'Deselect All' : 'Select All'}
+                          {selectedProjects.length === activeProjects.length
+                            ? "Deselect All"
+                            : "Select All"}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -2040,17 +2600,14 @@ export default function DashboardScreen() {
       </Modal>
 
       {/* Report Generation Loading Modal */}
-      <Modal
-        visible={isGeneratingReport}
-        transparent
-        animationType="fade"
-      >
+      <Modal visible={isGeneratingReport} transparent animationType="fade">
         <View style={styles.reportLoadingOverlay}>
           <View style={styles.reportLoadingCard}>
             <ActivityIndicator size="large" color="#2563EB" />
             <Text style={styles.reportLoadingTitle}>Generating Report</Text>
             <Text style={styles.reportLoadingProgress}>
-              Processing {reportGenerationProgress.current} of {reportGenerationProgress.total} projects
+              Processing {reportGenerationProgress.current} of{" "}
+              {reportGenerationProgress.total} projects
             </Text>
             <Text style={styles.reportLoadingProject}>
               {reportGenerationProgress.projectName}
@@ -2080,14 +2637,19 @@ export default function DashboardScreen() {
         }}
       >
         <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={Keyboard.dismiss}
+          />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Client</Text>
-              <TouchableOpacity onPress={() => {
-                setShowClientPickerModal(false);
-                setSelectedClientForConversion(null);
-              }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowClientPickerModal(false);
+                  setSelectedClientForConversion(null);
+                }}
+              >
                 <X size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
@@ -2097,13 +2659,18 @@ export default function DashboardScreen() {
                 Select a client with estimates to convert to a project
               </Text>
 
-              <ScrollView style={{ maxHeight: 400 }}
-          keyboardDismissMode="on-drag"
-        >
+              <ScrollView
+                style={{ maxHeight: 400 }}
+                keyboardDismissMode="on-drag"
+              >
                 {clients
-                  .filter(client => estimates.some(est => est.clientId === client.id))
-                  .map(client => {
-                    const clientEstimates = estimates.filter(est => est.clientId === client.id);
+                  .filter((client) =>
+                    estimates.some((est) => est.clientId === client.id),
+                  )
+                  .map((client) => {
+                    const clientEstimates = estimates.filter(
+                      (est) => est.clientId === client.id,
+                    );
                     return (
                       <TouchableOpacity
                         key={client.id}
@@ -2118,12 +2685,20 @@ export default function DashboardScreen() {
                           <FileText size={24} color="#2563EB" />
                         </View>
                         <View style={styles.importOptionContent}>
-                          <Text style={styles.importOptionTitle}>{client.name}</Text>
+                          <Text style={styles.importOptionTitle}>
+                            {client.name}
+                          </Text>
                           <Text style={styles.importOptionText}>
-                            {clientEstimates.length} estimate{clientEstimates.length !== 1 ? 's' : ''} available
+                            {clientEstimates.length} estimate
+                            {clientEstimates.length !== 1 ? "s" : ""} available
                           </Text>
                           {client.email && (
-                            <Text style={[styles.importOptionText, { fontSize: 12, marginTop: 2 }]}>
+                            <Text
+                              style={[
+                                styles.importOptionText,
+                                { fontSize: 12, marginTop: 2 },
+                              ]}
+                            >
                               {client.email}
                             </Text>
                           )}
@@ -2148,7 +2723,10 @@ export default function DashboardScreen() {
         }}
       >
         <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={Keyboard.dismiss}
+          />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <TouchableOpacity
@@ -2158,13 +2736,15 @@ export default function DashboardScreen() {
                 }}
                 style={{ marginRight: 12 }}
               >
-                <Text style={{ fontSize: 24, color: '#6B7280' }}>←</Text>
+                <Text style={{ fontSize: 24, color: "#6B7280" }}>←</Text>
               </TouchableOpacity>
               <Text style={styles.modalTitle}>Select Estimate</Text>
-              <TouchableOpacity onPress={() => {
-                setShowEstimatePickerModal(false);
-                setSelectedClientForConversion(null);
-              }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowEstimatePickerModal(false);
+                  setSelectedClientForConversion(null);
+                }}
+              >
                 <X size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
@@ -2173,32 +2753,50 @@ export default function DashboardScreen() {
               {selectedClientForConversion && (
                 <>
                   <Text style={styles.importDescription}>
-                    Select an estimate to convert to a project for{' '}
-                    {clients.find(c => c.id === selectedClientForConversion)?.name}
+                    Select an estimate to convert to a project for{" "}
+                    {
+                      clients.find((c) => c.id === selectedClientForConversion)
+                        ?.name
+                    }
                   </Text>
 
-                  <ScrollView style={{ maxHeight: 400 }}
-          keyboardDismissMode="on-drag"
-        >
+                  <ScrollView
+                    style={{ maxHeight: 400 }}
+                    keyboardDismissMode="on-drag"
+                  >
                     {estimates
-                      .filter(est => est.clientId === selectedClientForConversion)
-                      .map(estimate => (
+                      .filter(
+                        (est) => est.clientId === selectedClientForConversion,
+                      )
+                      .map((estimate) => (
                         <TouchableOpacity
                           key={estimate.id}
                           style={styles.importOptionCard}
-                          onPress={() => handleConvertEstimateToProject(estimate.id)}
+                          onPress={() =>
+                            handleConvertEstimateToProject(estimate.id)
+                          }
                           disabled={isCreatingProject}
                         >
                           <View style={styles.importIconContainer}>
                             <FileText size={24} color="#10B981" />
                           </View>
                           <View style={styles.importOptionContent}>
-                            <Text style={styles.importOptionTitle}>{estimate.name}</Text>
-                            <Text style={styles.importOptionText}>
-                              Total: ${estimate.total?.toFixed(2) || '0.00'}
+                            <Text style={styles.importOptionTitle}>
+                              {estimate.name}
                             </Text>
-                            <Text style={[styles.importOptionText, { fontSize: 12, marginTop: 2 }]}>
-                              {estimate.items?.length || 0} line items • Created {new Date(estimate.createdDate).toLocaleDateString()}
+                            <Text style={styles.importOptionText}>
+                              Total: ${estimate.total?.toFixed(2) || "0.00"}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.importOptionText,
+                                { fontSize: 12, marginTop: 2 },
+                              ]}
+                            >
+                              {estimate.items?.length || 0} line items • Created{" "}
+                              {new Date(
+                                estimate.createdDate,
+                              ).toLocaleDateString()}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -2212,16 +2810,26 @@ export default function DashboardScreen() {
       </Modal>
 
       {/* ===== DAILY TASKS SIDE MENU ===== */}
-      <Modal visible={showDailyTasksMenu} animationType="slide" transparent={true} onRequestClose={() => setShowDailyTasksMenu(false)}>
+      <Modal
+        visible={showDailyTasksMenu}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowDailyTasksMenu(false)}
+      >
         <View style={styles.dailyTasksOverlay}>
-          <TouchableOpacity style={styles.dailyTasksBackdrop} activeOpacity={1} onPress={() => setShowDailyTasksMenu(false)} />
+          <TouchableOpacity
+            style={styles.dailyTasksBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowDailyTasksMenu(false)}
+          />
           <View style={styles.dailyTasksMenu}>
             {/* Header */}
             <View style={styles.dailyTasksHeader}>
               <View>
                 <Text style={styles.dailyTasksTitle}>Daily Tasks</Text>
                 <Text style={styles.dailyTasksSubtitle}>
-                  {dailyTasks?.length || 0} total • {dailyTasks?.filter(t => !t.completed).length || 0} pending
+                  {dailyTasks?.length || 0} total •{" "}
+                  {dailyTasks?.filter((t) => !t.completed).length || 0} pending
                 </Text>
               </View>
               <TouchableOpacity
@@ -2237,31 +2845,48 @@ export default function DashboardScreen() {
 
             {/* Filter Tabs */}
             <View style={styles.taskFilters}>
-              {(['today', 'upcoming', 'all'] as const).map((filter) => (
+              {(["today", "upcoming", "all"] as const).map((filter) => (
                 <TouchableOpacity
                   key={filter}
-                  style={[styles.filterChip, taskFilter === filter && styles.filterChipActive]}
+                  style={[
+                    styles.filterChip,
+                    taskFilter === filter && styles.filterChipActive,
+                  ]}
                   onPress={() => setTaskFilter(filter)}
                 >
-                  <Text style={[styles.filterText, taskFilter === filter && styles.filterTextActive]}>
-                    {filter === 'today' ? 'Today' : filter === 'upcoming' ? 'This Week' : 'All Tasks'}
+                  <Text
+                    style={[
+                      styles.filterText,
+                      taskFilter === filter && styles.filterTextActive,
+                    ]}
+                  >
+                    {filter === "today"
+                      ? "Today"
+                      : filter === "upcoming"
+                        ? "This Week"
+                        : "All Tasks"}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* Task List */}
-            <ScrollView style={styles.taskList} contentContainerStyle={styles.taskListContent} showsVerticalScrollIndicator={false}
-          keyboardDismissMode="on-drag"
-        >
+            <ScrollView
+              style={styles.taskList}
+              contentContainerStyle={styles.taskListContent}
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
+            >
               {filteredTasks.length === 0 ? (
                 <View style={styles.emptyTasks}>
                   <CheckSquare size={48} color="#D1D5DB" />
                   <Text style={styles.emptyTasksTitle}>No tasks</Text>
                   <Text style={styles.emptyTasksText}>
-                    {taskFilter === 'today' ? 'No tasks for today' :
-                     taskFilter === 'upcoming' ? 'No upcoming tasks this week' :
-                     'Add your first task'}
+                    {taskFilter === "today"
+                      ? "No tasks for today"
+                      : taskFilter === "upcoming"
+                        ? "No upcoming tasks this week"
+                        : "Add your first task"}
                   </Text>
                 </View>
               ) : (
@@ -2269,14 +2894,19 @@ export default function DashboardScreen() {
                   <DailyTaskCard
                     key={task.id}
                     task={task}
-                    onToggleComplete={(task) => updateDailyTask(task.id, { completed: !task.completed })}
+                    onToggleComplete={(task) =>
+                      updateDailyTask(task.id, { completed: !task.completed })
+                    }
                     onDelete={(taskId) => deleteDailyTask(taskId)}
                   />
                 ))
               )}
             </ScrollView>
 
-            <TouchableOpacity style={styles.closeTasksButton} onPress={() => setShowDailyTasksMenu(false)}>
+            <TouchableOpacity
+              style={styles.closeTasksButton}
+              onPress={() => setShowDailyTasksMenu(false)}
+            >
               <X size={20} color="#6B7280" />
               <Text style={styles.closeTasksText}>Close</Text>
             </TouchableOpacity>
@@ -2299,51 +2929,138 @@ export default function DashboardScreen() {
         onRequestClose={() => setShowProjectActionsModal(false)}
       >
         <TouchableOpacity
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.4)",
+            justifyContent: "flex-end",
+          }}
           activeOpacity={1}
           onPress={() => setShowProjectActionsModal(false)}
         >
-          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40, paddingHorizontal: 20, paddingTop: 12 }}>
-            <View style={{ width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 16 }} />
+          <View
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingBottom: 40,
+              paddingHorizontal: 20,
+              paddingTop: 12,
+            }}
+          >
+            <View
+              style={{
+                width: 40,
+                height: 4,
+                backgroundColor: "#E5E7EB",
+                borderRadius: 2,
+                alignSelf: "center",
+                marginBottom: 16,
+              }}
+            />
             {selectedProjectForActions && (
               <>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 4 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "700",
+                    color: "#1F2937",
+                    marginBottom: 4,
+                  }}
+                >
                   {selectedProjectForActions.name}
                 </Text>
-                <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>
-                  Status: {selectedProjectForActions.status === 'on-hold' ? 'On Hold' : selectedProjectForActions.status.charAt(0).toUpperCase() + selectedProjectForActions.status.slice(1)}
+                <Text
+                  style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}
+                >
+                  Status:{" "}
+                  {selectedProjectForActions.status === "on-hold"
+                    ? "On Hold"
+                    : selectedProjectForActions.status.charAt(0).toUpperCase() +
+                      selectedProjectForActions.status.slice(1)}
                 </Text>
 
                 {selectedProjectForActions.clientId && (
                   <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}
-                    onPress={() => openDashEditClientModal(selectedProjectForActions)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 14,
+                      paddingVertical: 16,
+                      borderTopWidth: 1,
+                      borderTopColor: "#F3F4F6",
+                    }}
+                    onPress={() =>
+                      openDashEditClientModal(selectedProjectForActions)
+                    }
                   >
                     <Pencil size={20} color="#2563EB" />
-                    <Text style={{ fontSize: 16, color: '#1F2937', fontWeight: '500' }}>Edit Client Info</Text>
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        color: "#1F2937",
+                        fontWeight: "500",
+                      }}
+                    >
+                      Edit Client Info
+                    </Text>
                   </TouchableOpacity>
                 )}
 
                 <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 14,
+                    paddingVertical: 16,
+                    borderTopWidth: 1,
+                    borderTopColor: "#F3F4F6",
+                  }}
                   onPress={() => handleDelayProject(selectedProjectForActions)}
                 >
-                  {selectedProjectForActions.status === 'on-hold' ? (
+                  {selectedProjectForActions.status === "on-hold" ? (
                     <PlayCircle size={20} color="#10B981" />
                   ) : (
                     <PauseCircle size={20} color="#F59E0B" />
                   )}
-                  <Text style={{ fontSize: 16, color: '#1F2937', fontWeight: '500' }}>
-                    {selectedProjectForActions.status === 'on-hold' ? 'Resume Project' : 'Hold Project'}
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: "#1F2937",
+                      fontWeight: "500",
+                    }}
+                  >
+                    {selectedProjectForActions.status === "on-hold"
+                      ? "Resume Project"
+                      : "Hold Project"}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}
-                  onPress={() => { setShowProjectActionsModal(false); router.push(`/project/${selectedProjectForActions.id}` as any); }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 14,
+                    paddingVertical: 16,
+                    borderTopWidth: 1,
+                    borderTopColor: "#F3F4F6",
+                  }}
+                  onPress={() => {
+                    setShowProjectActionsModal(false);
+                    router.push(
+                      `/project/${selectedProjectForActions.id}` as any,
+                    );
+                  }}
                 >
                   <FolderOpen size={20} color="#6B7280" />
-                  <Text style={{ fontSize: 16, color: '#1F2937', fontWeight: '500' }}>View Project</Text>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: "#1F2937",
+                      fontWeight: "500",
+                    }}
+                  >
+                    View Project
+                  </Text>
                 </TouchableOpacity>
               </>
             )}
@@ -2359,57 +3076,111 @@ export default function DashboardScreen() {
         onRequestClose={() => setShowDashEditClientModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
         >
           <View style={styles.modalOverlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={Keyboard.dismiss}
+            />
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit Client Info</Text>
-                <TouchableOpacity onPress={() => setShowDashEditClientModal(false)}>
+                <TouchableOpacity
+                  onPress={() => setShowDashEditClientModal(false)}
+                >
                   <X size={24} color="#6B7280" />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={styles.modalBody}
+              <ScrollView
+                style={styles.modalBody}
                 automaticallyAdjustKeyboardInsets={true}
                 contentContainerStyle={{ paddingBottom: 40 }}
-            keyboardDismissMode="on-drag"
-          >
+                keyboardDismissMode="on-drag"
+              >
                 <Text style={styles.inputLabel}>Full Name *</Text>
                 <TextInput
-                  style={[styles.modalInput, dashEditClientErrors.name ? styles.modalInputError : undefined]}
+                  style={[
+                    styles.modalInput,
+                    dashEditClientErrors.name
+                      ? styles.modalInputError
+                      : undefined,
+                  ]}
                   placeholder="e.g. John Smith"
                   placeholderTextColor="#9CA3AF"
                   value={dashEditClientName}
-                  onChangeText={(text) => { setDashEditClientName(text); if (dashEditClientErrors.name) setDashEditClientErrors(e => ({ ...e, name: undefined })); }}
+                  onChangeText={(text) => {
+                    setDashEditClientName(text);
+                    if (dashEditClientErrors.name)
+                      setDashEditClientErrors((e) => ({
+                        ...e,
+                        name: undefined,
+                      }));
+                  }}
                 />
-                {dashEditClientErrors.name && <Text style={styles.fieldErrorText}>{dashEditClientErrors.name}</Text>}
+                {dashEditClientErrors.name && (
+                  <Text style={styles.fieldErrorText}>
+                    {dashEditClientErrors.name}
+                  </Text>
+                )}
 
                 <Text style={styles.inputLabel}>Email Address *</Text>
                 <TextInput
-                  style={[styles.modalInput, dashEditClientErrors.email ? styles.modalInputError : undefined]}
+                  style={[
+                    styles.modalInput,
+                    dashEditClientErrors.email
+                      ? styles.modalInputError
+                      : undefined,
+                  ]}
                   placeholder="e.g. john@example.com"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={dashEditClientEmail}
-                  onChangeText={(text) => { setDashEditClientEmail(text); if (dashEditClientErrors.email) setDashEditClientErrors(e => ({ ...e, email: undefined })); }}
+                  onChangeText={(text) => {
+                    setDashEditClientEmail(text);
+                    if (dashEditClientErrors.email)
+                      setDashEditClientErrors((e) => ({
+                        ...e,
+                        email: undefined,
+                      }));
+                  }}
                 />
-                {dashEditClientErrors.email && <Text style={styles.fieldErrorText}>{dashEditClientErrors.email}</Text>}
+                {dashEditClientErrors.email && (
+                  <Text style={styles.fieldErrorText}>
+                    {dashEditClientErrors.email}
+                  </Text>
+                )}
 
                 <Text style={styles.inputLabel}>Phone Number *</Text>
                 <TextInput
-                  style={[styles.modalInput, dashEditClientErrors.phone ? styles.modalInputError : undefined]}
+                  style={[
+                    styles.modalInput,
+                    dashEditClientErrors.phone
+                      ? styles.modalInputError
+                      : undefined,
+                  ]}
                   placeholder="e.g. 5551234567"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="number-pad"
                   maxLength={10}
                   value={dashEditClientPhone}
-                  onChangeText={(text) => { setDashEditClientPhone(text.replace(/\D/g, '')); if (dashEditClientErrors.phone) setDashEditClientErrors(e => ({ ...e, phone: undefined })); }}
+                  onChangeText={(text) => {
+                    setDashEditClientPhone(text.replace(/\D/g, ""));
+                    if (dashEditClientErrors.phone)
+                      setDashEditClientErrors((e) => ({
+                        ...e,
+                        phone: undefined,
+                      }));
+                  }}
                 />
-                {dashEditClientErrors.phone && <Text style={styles.fieldErrorText}>{dashEditClientErrors.phone}</Text>}
+                {dashEditClientErrors.phone && (
+                  <Text style={styles.fieldErrorText}>
+                    {dashEditClientErrors.phone}
+                  </Text>
+                )}
 
                 <Text style={styles.inputLabel}>Address (optional)</Text>
                 <TextInput
@@ -2421,26 +3192,74 @@ export default function DashboardScreen() {
                 />
 
                 <Text style={styles.inputLabel}>How did they find you? *</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                  {['Google', 'Referral', 'Ad', 'Phone Call'].map((source) => (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginBottom: 8,
+                  }}
+                >
+                  {["Google", "Referral", "Ad", "Phone Call"].map((source) => (
                     <TouchableOpacity
                       key={source}
-                      style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: dashEditClientSource === source ? '#2563EB' : '#E5E7EB', backgroundColor: dashEditClientSource === source ? '#EFF6FF' : '#FFFFFF' }}
-                      onPress={() => { setDashEditClientSource(source); if (dashEditClientErrors.source) setDashEditClientErrors(e => ({ ...e, source: undefined })); }}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor:
+                          dashEditClientSource === source
+                            ? "#2563EB"
+                            : "#E5E7EB",
+                        backgroundColor:
+                          dashEditClientSource === source
+                            ? "#EFF6FF"
+                            : "#FFFFFF",
+                      }}
+                      onPress={() => {
+                        setDashEditClientSource(source);
+                        if (dashEditClientErrors.source)
+                          setDashEditClientErrors((e) => ({
+                            ...e,
+                            source: undefined,
+                          }));
+                      }}
                     >
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: dashEditClientSource === source ? '#2563EB' : '#6B7280' }}>{source}</Text>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "500",
+                          color:
+                            dashEditClientSource === source
+                              ? "#2563EB"
+                              : "#6B7280",
+                        }}
+                      >
+                        {source}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-                {dashEditClientErrors.source && <Text style={styles.fieldErrorText}>{dashEditClientErrors.source}</Text>}
+                {dashEditClientErrors.source && (
+                  <Text style={styles.fieldErrorText}>
+                    {dashEditClientErrors.source}
+                  </Text>
+                )}
               </ScrollView>
 
               <View style={styles.modalFooter}>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setShowDashEditClientModal(false)}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setShowDashEditClientModal(false)}
+                >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.submitButton, isUpdatingDashClient ? { opacity: 0.6 } : undefined]}
+                  style={[
+                    styles.submitButton,
+                    isUpdatingDashClient ? { opacity: 0.6 } : undefined,
+                  ]}
                   onPress={handleDashUpdateClient}
                   disabled={isUpdatingDashClient}
                 >
@@ -2455,7 +3274,6 @@ export default function DashboardScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
     </View>
   );
 }
@@ -2463,22 +3281,22 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
   },
   reportLoadingOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   reportLoadingCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 32,
-    alignItems: 'center',
+    alignItems: "center",
     minWidth: 280,
-    maxWidth: '85%',
-    shadowColor: '#000',
+    maxWidth: "85%",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -2486,230 +3304,230 @@ const styles = StyleSheet.create({
   },
   reportLoadingTitle: {
     fontSize: 20,
-    fontWeight: '700' as const,
-    color: '#1F2937',
+    fontWeight: "700" as const,
+    color: "#1F2937",
     marginTop: 16,
     marginBottom: 8,
   },
   reportLoadingProgress: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     marginBottom: 4,
   },
   reportLoadingProject: {
     fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#2563EB',
+    fontWeight: "600" as const,
+    color: "#2563EB",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   reportLoadingProgressBar: {
-    width: '100%',
+    width: "100%",
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: "#E5E7EB",
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   reportLoadingProgressFill: {
-    height: '100%',
-    backgroundColor: '#2563EB',
+    height: "100%",
+    backgroundColor: "#2563EB",
     borderRadius: 4,
   },
   scrollView: {
     flex: 1,
   },
   header: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   headerTop: {
-    flexDirection: 'column',
+    flexDirection: "column",
     gap: 12,
   },
   headerLeft: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
+    flexDirection: "column",
+    alignItems: "flex-start",
     gap: 8,
-    width: '100%',
+    width: "100%",
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700' as const,
-    color: '#1F2937',
+    fontWeight: "700" as const,
+    color: "#1F2937",
   },
   filterChipsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   filterChipActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
   },
   filterChipText: {
     fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#6B7280',
+    fontWeight: "600" as const,
+    color: "#6B7280",
   },
   filterChipTextActive: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    width: '100%',
-    flexWrap: 'wrap',
+    width: "100%",
+    flexWrap: "wrap",
   },
   iconButton: {
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563EB',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#2563EB",
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
     gap: 6,
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   addButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: '600' as const,
+    fontWeight: "600" as const,
   },
   reportButton: {
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   reportsLibraryButton: {
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#D1FAE5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative' as const,
+    backgroundColor: "#D1FAE5",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative" as const,
   },
   reportsBadge: {
-    position: 'absolute' as const,
+    position: "absolute" as const,
     top: -4,
     right: -4,
-    backgroundColor: '#EF4444',
+    backgroundColor: "#EF4444",
     borderRadius: 10,
     minWidth: 18,
     height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 4,
   },
   reportsBadgeText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 10,
-    fontWeight: '700' as const,
+    fontWeight: "700" as const,
   },
   reportMenu: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 8,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   reportMenuHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 12,
   },
   reportMenuTitle: {
     fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+    fontWeight: "600" as const,
+    color: "#1F2937",
   },
   reportMenuButtons: {
     gap: 8,
   },
   reportMenuItem: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   reportMenuItemPrimary: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
   },
   reportMenuItemText: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-    textAlign: 'center',
+    fontWeight: "600" as const,
+    color: "#1F2937",
+    textAlign: "center",
   },
   reportMenuItemTextPrimary: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontWeight: "600" as const,
+    color: "#FFFFFF",
+    textAlign: "center",
   },
   reportMenuScroll: {
     maxHeight: 140,
   },
   reportMenuScrollContent: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     paddingVertical: 4,
   },
   reportMenuItemHorizontal: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
     minWidth: 100,
     gap: 8,
   },
   reportMenuItemAI: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
+    backgroundColor: "#ECFDF5",
+    borderColor: "#10B981",
   },
   reportMenuItemTextHorizontal: {
     fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-    textAlign: 'center',
+    fontWeight: "600" as const,
+    color: "#1F2937",
+    textAlign: "center",
     lineHeight: 16,
   },
 
@@ -2718,28 +3536,28 @@ const styles = StyleSheet.create({
   },
   projectsCarouselWeb: {
     // @ts-ignore - Web-only CSS properties
-    overflowX: 'auto',
+    overflowX: "auto",
     // @ts-ignore
-    scrollbarWidth: 'thin',
+    scrollbarWidth: "thin",
     // @ts-ignore
-    scrollbarColor: '#2563EB #F3F4F6',
+    scrollbarColor: "#2563EB #F3F4F6",
     // @ts-ignore - WebKit browsers (Chrome, Safari, Edge)
-    '::-webkit-scrollbar': {
-      height: '8px',
+    "::-webkit-scrollbar": {
+      height: "8px",
     },
     // @ts-ignore
-    '::-webkit-scrollbar-track': {
-      background: '#F3F4F6',
-      borderRadius: '4px',
+    "::-webkit-scrollbar-track": {
+      background: "#F3F4F6",
+      borderRadius: "4px",
     },
     // @ts-ignore
-    '::-webkit-scrollbar-thumb': {
-      background: '#2563EB',
-      borderRadius: '4px',
+    "::-webkit-scrollbar-thumb": {
+      background: "#2563EB",
+      borderRadius: "4px",
     },
     // @ts-ignore
-    '::-webkit-scrollbar-thumb:hover': {
-      background: '#1E40AF',
+    "::-webkit-scrollbar-thumb:hover": {
+      background: "#1E40AF",
     },
   },
   projectsCarousel: {
@@ -2749,25 +3567,25 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 60,
     paddingHorizontal: 16,
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 12,
   },
   projectCard: {
     width: 247,
     borderRadius: 20,
     height: 260,
-    backgroundColor: '#3366FF',
-    overflow: 'hidden' as const,
+    backgroundColor: "#3366FF",
+    overflow: "hidden" as const,
     padding: 14,
-    shadowColor: '#1a3dcc',
+    shadowColor: "#1a3dcc",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
@@ -2775,135 +3593,135 @@ const styles = StyleSheet.create({
   },
   projectCardSelected: {
     borderWidth: 3,
-    borderColor: '#10B981',
+    borderColor: "#10B981",
   },
   projectCheckbox: {
     zIndex: 10,
   },
   // card layout
   cardTopRow: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'flex-start' as const,
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "flex-start" as const,
     marginBottom: 6,
   },
   cardBadges: {
-    flexDirection: 'row' as const,
-    flexWrap: 'wrap' as const,
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
     gap: 5,
     flex: 1,
     marginRight: 8,
   },
   cardBadgeWarning: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
   cardBadgeHold: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
   cardBadgeDone: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
   cardBadgeText: {
     fontSize: 10,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
+    fontWeight: "700" as const,
+    color: "#FFFFFF",
   },
   cardMoreBtn: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: "rgba(255,255,255,0.15)",
     borderRadius: 14,
     padding: 5,
   },
   cardPhotoWrap: {
     borderRadius: 12,
-    overflow: 'hidden' as const,
+    overflow: "hidden" as const,
     flex: 1,
     marginBottom: 10,
   },
   cardPhoto: {
-    width: '100%' as const,
-    height: '100%' as const,
+    width: "100%" as const,
+    height: "100%" as const,
     borderRadius: 12,
   },
   cardBottom: {
-    marginTop: 'auto' as any,
+    marginTop: "auto" as any,
   },
   projectName: {
     fontSize: 16,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
+    fontWeight: "700" as const,
+    color: "#FFFFFF",
     marginBottom: 2,
     lineHeight: 20,
   },
   cardBudgetText: {
     fontSize: 12,
-    fontWeight: '500' as const,
-    color: 'rgba(255,255,255,0.75)',
+    fontWeight: "500" as const,
+    color: "rgba(255,255,255,0.75)",
     marginBottom: 8,
   },
   cardAvatarRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
   },
   cardAvatarWrapper: {
-    position: 'relative' as const,
+    position: "relative" as const,
   },
   cardAvatar: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#5B8DEF',
+    backgroundColor: "#5B8DEF",
     borderWidth: 2,
-    borderColor: '#3366FF',
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    overflow: 'hidden' as const,
+    borderColor: "#3366FF",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    overflow: "hidden" as const,
   },
   cardAvatarOnLunch: {
     borderWidth: 2.5,
-    borderColor: '#F59E0B',
+    borderColor: "#F59E0B",
   },
   cardLunchBadge: {
-    position: 'absolute' as const,
+    position: "absolute" as const,
     bottom: -2,
     right: -2,
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#F59E0B',
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+    backgroundColor: "#F59E0B",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
     borderWidth: 1.5,
-    borderColor: '#3366FF',
+    borderColor: "#3366FF",
     zIndex: 5,
   },
   cardOnlineDot: {
-    position: 'absolute' as const,
+    position: "absolute" as const,
     bottom: -1,
     right: -1,
     width: 9,
     height: 9,
     borderRadius: 4.5,
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
     borderWidth: 1.5,
-    borderColor: '#3366FF',
+    borderColor: "#3366FF",
     zIndex: 5,
   },
   cardAvatarImg: {
@@ -2912,30 +3730,30 @@ const styles = StyleSheet.create({
   },
   cardAvatarInitials: {
     fontSize: 10,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
+    fontWeight: "700" as const,
+    color: "#FFFFFF",
   },
   cardAvatarExtra: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: "rgba(255,255,255,0.22)",
   },
   cardAvatarExtraText: {
     fontSize: 10,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
+    fontWeight: "700" as const,
+    color: "#FFFFFF",
   },
   cardOnSiteText: {
     fontSize: 11,
-    fontWeight: '600' as const,
-    color: 'rgba(255,255,255,0.85)',
+    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.85)",
     marginLeft: 8,
   },
   cardNoWorkers: {
     fontSize: 11,
-    fontWeight: '500' as const,
-    color: 'rgba(255,255,255,0.5)',
+    fontWeight: "500" as const,
+    color: "rgba(255,255,255,0.5)",
   },
   projectImage: {
-    width: '100%',
+    width: "100%",
     flex: 1,
   },
   liveWorkersSection: {
@@ -2943,8 +3761,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   liveWorkersHeader: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
     gap: 6,
     marginBottom: 10,
   },
@@ -2952,30 +3770,30 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
   },
   liveWorkersTitle: {
     fontSize: 14,
-    fontWeight: '700' as const,
-    color: '#0F172A',
+    fontWeight: "700" as const,
+    color: "#0F172A",
     flex: 1,
   },
   liveWorkersCount: {
     fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#6B7280',
+    fontWeight: "600" as const,
+    color: "#6B7280",
   },
   statsContainer: {
-    flexDirection: 'column',
+    flexDirection: "column",
     padding: 16,
     gap: 16,
   },
   statCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
+    width: "100%",
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -2983,53 +3801,53 @@ const styles = StyleSheet.create({
   },
   statTitle: {
     fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#6B7280',
-    textTransform: 'uppercase',
+    fontWeight: "600" as const,
+    color: "#6B7280",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   statValue: {
     fontSize: 28,
-    fontWeight: '700' as const,
-    color: '#111827',
+    fontWeight: "700" as const,
+    color: "#111827",
     marginBottom: 16,
   },
   chartContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
     height: 180,
     paddingHorizontal: 4,
     marginBottom: 16,
   },
   barWrapper: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    height: '100%',
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: "100%",
   },
   barValueArea: {
     height: 18,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+    justifyContent: "flex-end",
+    alignItems: "center",
   },
   barValueLabel: {
     fontSize: 10,
-    color: '#059669',
-    fontWeight: '700',
-    textAlign: 'center',
+    color: "#059669",
+    fontWeight: "700",
+    textAlign: "center",
   },
   barTrack: {
     flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "flex-end",
     paddingHorizontal: 3,
   },
   bar: {
-    width: '75%',
-    backgroundColor: '#10B981',
+    width: "75%",
+    backgroundColor: "#10B981",
     borderTopLeftRadius: 5,
     borderTopRightRadius: 5,
     borderBottomLeftRadius: 2,
@@ -3038,39 +3856,39 @@ const styles = StyleSheet.create({
   },
   barLabel: {
     fontSize: 10,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginTop: 6,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   totalBudgetRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: "#E5E7EB",
   },
   totalBudgetLabel: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+    fontWeight: "600" as const,
+    color: "#1F2937",
   },
   totalBudgetValue: {
     fontSize: 16,
-    fontWeight: '700' as const,
-    color: '#1F2937',
+    fontWeight: "700" as const,
+    color: "#1F2937",
   },
   pieChartContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 16,
   },
   legendContainer: {
-    width: '100%',
+    width: "100%",
     marginTop: 16,
   },
   legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   legendColor: {
@@ -3084,89 +3902,89 @@ const styles = StyleSheet.create({
   },
   legendName: {
     fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+    fontWeight: "600" as const,
+    color: "#1F2937",
     marginBottom: 2,
   },
   legendValue: {
     fontSize: 11,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   emptyExpenses: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
   },
   emptyExpensesText: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
   expenseTotal: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   expenseTotalLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     marginBottom: 4,
   },
   expenseTotalValue: {
     fontSize: 18,
-    fontWeight: '700' as const,
-    color: '#1F2937',
+    fontWeight: "700" as const,
+    color: "#1F2937",
   },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalScrollView: {
     flex: 1,
-    width: '100%',
+    width: "100%",
   },
   modalScrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingVertical: 40,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    width: '100%',
+    width: "100%",
     maxWidth: 500,
   },
   importOptionsModal: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 24,
-    width: '90%',
+    width: "90%",
     maxWidth: 500,
   },
   importDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     marginBottom: 20,
     lineHeight: 20,
   },
   importOptionCard: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 16,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     marginBottom: 12,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   importIconContainer: {
     width: 56,
     height: 56,
     borderRadius: 12,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 16,
   },
   importOptionContent: {
@@ -3174,27 +3992,27 @@ const styles = StyleSheet.create({
   },
   importOptionTitle: {
     fontSize: 16,
-    fontWeight: '700' as const,
-    color: '#1F2937',
+    fontWeight: "700" as const,
+    color: "#1F2937",
     marginBottom: 6,
   },
   importOptionText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 18,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700' as const,
-    color: '#1F2937',
+    fontWeight: "700" as const,
+    color: "#1F2937",
   },
   modalBody: {
     padding: 20,
@@ -3204,48 +4022,48 @@ const styles = StyleSheet.create({
   },
   formLabel: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+    fontWeight: "600" as const,
+    color: "#1F2937",
     marginBottom: 8,
   },
   formInput: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#1F2937',
+    color: "#1F2937",
   },
   createButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: "#2563EB",
     paddingVertical: 14,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 10,
   },
   createButtonDisabled: {
-    backgroundColor: '#93C5FD',
+    backgroundColor: "#93C5FD",
   },
   createButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '700' as const,
+    fontWeight: "700" as const,
   },
   aiModalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    width: '95%',
+    width: "95%",
     maxWidth: 600,
-    maxHeight: '90%',
+    maxHeight: "90%",
   },
   aiModalScroll: {
     flex: 1,
   },
   aiInstructionText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 20,
     marginBottom: 20,
   },
@@ -3255,8 +4073,8 @@ const styles = StyleSheet.create({
   },
   aiExampleTitle: {
     fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+    fontWeight: "600" as const,
+    color: "#1F2937",
     marginBottom: 12,
     marginTop: 8,
   },
@@ -3264,107 +4082,107 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   aiExampleChip: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: "#EFF6FF",
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: "#BFDBFE",
   },
   aiExampleText: {
     fontSize: 13,
-    color: '#2563EB',
-    fontWeight: '500' as const,
+    color: "#2563EB",
+    fontWeight: "500" as const,
   },
   aiButtonsContainer: {
     gap: 12,
   },
   aiSecondaryButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     paddingVertical: 12,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   aiSecondaryButtonText: {
-    color: '#1F2937',
+    color: "#1F2937",
     fontSize: 14,
-    fontWeight: '600' as const,
+    fontWeight: "600" as const,
   },
   aiGenerateButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
     paddingVertical: 14,
     borderRadius: 8,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 8,
   },
   aiGenerateButtonDisabled: {
-    backgroundColor: '#9CA3AF',
+    backgroundColor: "#9CA3AF",
   },
   aiGenerateButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: '700' as const,
+    fontWeight: "700" as const,
   },
   aiHelpTextContainer: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: "#ECFDF5",
     padding: 12,
     borderRadius: 8,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: "#A7F3D0",
   },
   aiHelpText: {
     fontSize: 12,
-    color: '#059669',
-    textAlign: 'center',
-    fontWeight: '600' as const,
+    color: "#059669",
+    textAlign: "center",
+    fontWeight: "600" as const,
   },
   aiProjectPickerContainer: {
     marginTop: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   aiProjectPickerTitle: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#374151',
+    fontWeight: "600" as const,
+    color: "#374151",
     padding: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   aiProjectPickerList: {
     maxHeight: 200,
   },
   aiProjectPickerItem: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: "#F3F4F6",
   },
   aiProjectPickerItemSelected: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: "#ECFDF5",
   },
   aiProjectPickerCheckbox: {
     width: 24,
     height: 24,
     marginRight: 12,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
   },
   aiProjectPickerEmptyCheckbox: {
     width: 20,
     height: 20,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     borderRadius: 4,
   },
   aiProjectPickerInfo: {
@@ -3372,106 +4190,106 @@ const styles = StyleSheet.create({
   },
   aiProjectPickerName: {
     fontSize: 15,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+    fontWeight: "600" as const,
+    color: "#1F2937",
   },
   aiProjectPickerDetails: {
     fontSize: 13,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 2,
   },
   aiSelectAllButton: {
     padding: 12,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    alignItems: 'center' as const,
+    borderTopColor: "#E5E7EB",
+    alignItems: "center" as const,
   },
   aiSelectAllButtonText: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#2563EB',
+    fontWeight: "600" as const,
+    color: "#2563EB",
   },
   searchContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 8,
     borderRadius: 12,
     padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#1F2937',
+    color: "#1F2937",
     paddingVertical: 4,
   },
   // Daily Tasks Styles
   dailyTasksOverlay: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   dailyTasksBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   dailyTasksMenu: {
     width: 340,
-    maxWidth: '85%',
-    backgroundColor: '#FFFFFF',
+    maxWidth: "85%",
+    backgroundColor: "#FFFFFF",
     borderLeftWidth: 1,
-    borderLeftColor: '#E5E7EB',
-    shadowColor: '#000',
+    borderLeftColor: "#E5E7EB",
+    shadowColor: "#000",
     shadowOffset: { width: -2, height: 0 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
   },
   dailyTasksHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    borderBottomColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
   },
   dailyTasksTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontWeight: "700",
+    color: "#1F2937",
   },
   dailyTasksSubtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 2,
   },
   addTaskButton: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#10B981',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
   },
   taskFilters: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 12,
     gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   filterText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: "600",
+    color: "#6B7280",
   },
   filterTextActive: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   taskList: {
     flex: 1,
@@ -3480,33 +4298,33 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   emptyTasks: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 60,
   },
   emptyTasksTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: "600",
+    color: "#6B7280",
     marginTop: 12,
   },
   emptyTasksText: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginTop: 4,
   },
   taskCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     padding: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   taskCardCompleted: {
-    backgroundColor: '#F9FAFB',
-    borderColor: '#F3F4F6',
+    backgroundColor: "#F9FAFB",
+    borderColor: "#F3F4F6",
   },
   taskCheckbox: {
     marginRight: 12,
@@ -3517,99 +4335,99 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+    justifyContent: "center",
   },
   checkboxCompleted: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
   },
   taskContent: {
     flex: 1,
   },
   taskTitle: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: "600",
+    color: "#1F2937",
     marginBottom: 4,
   },
   taskTitleCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#9CA3AF',
+    textDecorationLine: "line-through",
+    color: "#9CA3AF",
   },
   taskMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   taskDate: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
   taskNotes: {
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 4,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   deleteTaskButton: {
     padding: 8,
   },
   closeTasksButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
   },
   closeTasksText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: "600",
+    color: "#6B7280",
   },
   inputHint: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginTop: 4,
   },
   reminderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderRadius: 8,
   },
   reminderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   reminderLabel: {
     fontSize: 15,
-    fontWeight: '500',
-    color: '#1F2937',
+    fontWeight: "500",
+    color: "#1F2937",
   },
   toggle: {
     width: 50,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: "#D1D5DB",
     padding: 2,
   },
   toggleActive: {
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
   },
   toggleThumb: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
@@ -3619,14 +4437,14 @@ const styles = StyleSheet.create({
   },
   textArea: {
     minHeight: 80,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -3636,49 +4454,49 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   // Add Task Modal Styles
   addTaskOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   addTaskModal: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    width: '100%',
+    width: "100%",
     maxWidth: 420,
-    maxHeight: '85%',
-    shadowColor: '#000',
+    maxHeight: "85%",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
   },
   addTaskHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   addTaskTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontWeight: "700",
+    color: "#1F2937",
   },
   addTaskCloseButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
   addTaskForm: {
     padding: 20,
@@ -3688,33 +4506,33 @@ const styles = StyleSheet.create({
   },
   addTaskLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: "600",
+    color: "#374151",
     marginBottom: 8,
   },
   required: {
-    color: '#EF4444',
+    color: "#EF4444",
   },
   optional: {
-    color: '#9CA3AF',
-    fontWeight: '400',
+    color: "#9CA3AF",
+    fontWeight: "400",
   },
   addTaskInput: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#1F2937',
+    color: "#1F2937",
   },
   dateInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 10,
     paddingHorizontal: 16,
     gap: 12,
@@ -3723,32 +4541,32 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#1F2937',
+    color: "#1F2937",
   },
   dateInputPlaceholder: {
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
   dateHint: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginTop: 6,
   },
   reminderToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   reminderIconWrapper: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   reminderTextWrapper: {
@@ -3756,30 +4574,30 @@ const styles = StyleSheet.create({
   },
   reminderToggleLabel: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: "600",
+    color: "#1F2937",
   },
   reminderToggleHint: {
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 2,
   },
   toggleSwitch: {
     width: 52,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: "#D1D5DB",
     padding: 3,
   },
   toggleSwitchActive: {
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
   },
   toggleKnob: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
@@ -3789,45 +4607,45 @@ const styles = StyleSheet.create({
     transform: [{ translateX: 22 }],
   },
   addTaskTextArea: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#1F2937',
+    color: "#1F2937",
     minHeight: 100,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   addTaskFooter: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: "#E5E7EB",
     gap: 12,
   },
   addTaskCancelBtn: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
   addTaskCancelText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: "600",
+    color: "#6B7280",
   },
   addTaskSubmitBtn: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#10B981',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   addTaskSubmitBtnDisabled: {
@@ -3835,15 +4653,15 @@ const styles = StyleSheet.create({
   },
   addTaskSubmitText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   timeInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 10,
     paddingHorizontal: 16,
     gap: 12,
@@ -3852,90 +4670,90 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#1F2937',
+    color: "#1F2937",
     minWidth: 60,
   },
   timePresets: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   timePresetBtn: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: "#E5E7EB",
     borderRadius: 6,
   },
   timePresetText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#4B5563',
+    fontWeight: "600",
+    color: "#4B5563",
   },
   coverPhotoPickerButton: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   coverPhotoPreview: {
-    width: '100%',
+    width: "100%",
     height: 140,
   },
   coverPhotoPlaceholder: {
     height: 120,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   coverPhotoPlaceholderText: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#374151',
+    fontWeight: "600" as const,
+    color: "#374151",
     marginBottom: 6,
     marginTop: 12,
   },
   modalInput: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#1F2937',
+    color: "#1F2937",
     marginBottom: 4,
   },
   modalInputError: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEF2F2',
+    borderColor: "#EF4444",
+    backgroundColor: "#FEF2F2",
   },
   fieldErrorText: {
     fontSize: 12,
-    color: '#EF4444',
+    color: "#EF4444",
     marginBottom: 4,
   },
   modalFooter: {
-    flexDirection: 'row' as const,
+    flexDirection: "row" as const,
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: "#E5E7EB",
     gap: 12,
   },
   cancelButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#6B7280',
+    fontWeight: "600" as const,
+    color: "#6B7280",
   },
 });

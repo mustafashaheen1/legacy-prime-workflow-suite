@@ -28,14 +28,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  console.log('[check-task-reminders] Checking for upcoming task reminders');
 
   try {
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error('[check-task-reminders] Supabase not configured');
       return res.status(500).json({ error: 'Database not configured' });
     }
 
@@ -50,10 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const now = new Date();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
-    console.log('[check-task-reminders] Time range:', {
-      from: fiveMinutesAgo.toISOString(),
-      to:   now.toISOString(),
-    });
+    
 
     // Query tasks that need reminders
     // - reminder is true
@@ -69,17 +64,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .lte('due_date_time', now.toISOString());
 
     if (error) {
-      console.error('[check-task-reminders] Database error:', error);
       return res.status(500).json({ error: error.message });
     }
 
-    console.log(`[check-task-reminders] Found ${tasks?.length || 0} tasks needing reminders`);
 
     const remindedTasks = [];
 
     // Process each task
     for (const task of tasks || []) {
-      console.log('[check-task-reminders] Processing task:', {
+      console.log('Processing task:', {
         id: task.id,
         title: task.title,
         dueDateTime: task.due_date_time
@@ -96,13 +89,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select('id');
 
       if (updateError) {
-        console.error('[check-task-reminders] Error updating task:', task.id, updateError);
         continue;
       }
 
       if (!claimed || claimed.length === 0) {
-        console.log('[check-task-reminders] Task already claimed by concurrent request, skipping:', task.id);
-        continue;
+=        continue;
       }
 
       // Send push notification to the task owner's devices
@@ -131,7 +122,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    console.log(`[check-task-reminders] Successfully processed ${remindedTasks.length} reminders`);
 
     return res.status(200).json({
       success: true,
@@ -139,7 +129,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       count: remindedTasks.length
     });
   } catch (error: any) {
-    console.error('[check-task-reminders] Unexpected error:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
