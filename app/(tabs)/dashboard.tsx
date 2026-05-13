@@ -1117,55 +1117,6 @@ export default function DashboardScreen() {
     });
   }, [projectExpenses]);
 
-  // Check for task reminders every minute
-  useEffect(() => {
-    const checkReminders = async () => {
-      try {
-        const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
-        const apiUrl = `${baseUrl}/api/check-task-reminders`;
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (!response.ok) {
-          const errBody = await response.text().catch(() => '');
-          console.error('[dashboard] Failed to check reminders:', response.status, errBody.slice(0, 300));
-          return;
-        }
-
-        const data = await response.json();
-
-        // Show notifications for reminded tasks
-        if (data.remindedTasks && data.remindedTasks.length > 0) {
-          for (const task of data.remindedTasks) {
-            const timeStr = task.dueTime ? ` at ${formatTime(task.dueTime)}` : '';
-            showAlert(
-              'Task Reminder',
-              `"${task.title}" is due${timeStr}`
-            );
-
-            // Update local state to reflect reminder was sent
-            if (updateDailyTask) {
-              await updateDailyTask(task.id, { reminderSent: true });
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[dashboard] Error checking reminders:', error);
-      }
-    };
-
-    // Check immediately on mount
-    checkReminders();
-
-    // Then check every 60 seconds
-    const intervalId = setInterval(checkReminders, 60000);
-
-    // Cleanup on unmount
-    return () => clearInterval(intervalId);
-  }, [updateDailyTask]);
 
   if (isLoading || isCompanyReloading) {
     return <DashboardSkeleton />;
