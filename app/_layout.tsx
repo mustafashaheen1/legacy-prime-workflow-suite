@@ -11,6 +11,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import AnimatedSplashScreen from "@/components/AnimatedSplashScreen";
 import { useNotificationSetup } from "@/hooks/useNotificationSetup";
 import * as Notifications from 'expo-notifications';
+import { supabase } from '@/lib/supabase';
 import '@/lib/i18n';
 
 SplashScreen.preventAutoHideAsync();
@@ -42,7 +43,6 @@ const PUBLIC_ROUTES = [
   '/privacy',
 ];
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
 
 function RootLayoutNav() {
   const { user, isLoading, company, addNotification, getNotifications, refreshNotifications, setUnreadChatCount } = useApp();
@@ -65,31 +65,98 @@ function RootLayoutNav() {
   }, [user?.id, company?.id]);
 
   // Global unread chat count — runs even before the chat tab is first visited.
-  // Chat tab is lazily mounted, so without this the FloatingChatButton badge
-  // would stay at 0 until the user navigates to chat.
+  // Uses Supabase directly + Realtime instead of polling the serverless API.
   useEffect(() => {
     if (!user?.id) return;
-    const refresh = async () => {
+
+    const myConvIds: string[] = [];
+    const myLastReadByConv: Record<string, string> = {};
+
+    const fetchUnreadCount = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/team/get-conversations?userId=${user.id}`);
-        const result = await resp.json();
-        if (!result?.success) return;
-        const convs: any[] = Array.isArray(result?.conversations) ? result.conversations : [];
-        // Sum unreadCount from the API — same field chat.tsx uses, so both
-        // sources stay in sync and the ghost-conversation bug (null lastMessage
-        // satisfying `sender_id !== userId`) is eliminated.
-        const total = convs.reduce(
-          (sum: number, conv: any) => sum + (conv?.unreadCount ?? 0),
-          0
+        const { data: parts } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id, last_read_at')
+          .eq('user_id', user.id);
+
+        if (!parts?.length) { setUnreadChatCount(0); return; }
+
+        myConvIds.length = 0;
+        for (const p of parts) {
+          myConvIds.push(p.conversation_id);
+          myLastReadByConv[p.conversation_id] = p.last_read_at || '1970-01-01T00:00:00.000Z';
+        }
+
+        const minLastRead = Object.values(myLastReadByConv).reduce(
+          (min, t) => (t < min ? t : min),
+          new Date().toISOString()
         );
+
+        const { data: unreadMsgs } = await supabase
+          .from('messages')
+          .select('conversation_id, created_at')
+          .in('conversation_id', myConvIds)
+          .neq('sender_id', user.id)
+          .or('is_deleted.eq.false,is_deleted.is.null')
+          .gt('created_at', minLastRead)
+          .limit(500);
+
+        let total = 0;
+        for (const msg of (unreadMsgs || []) as any[]) {
+          const lastRead = myLastReadByConv[msg.conversation_id] || '1970-01-01T00:00:00.000Z';
+          if (msg.created_at > lastRead) total++;
+        }
         setUnreadChatCount(total);
       } catch (err: any) {
         console.warn('[ChatBadge] fetch failed:', err?.message ?? err);
       }
     };
-    refresh();
-    const interval = setInterval(refresh, 30_000);
-    return () => clearInterval(interval);
+
+    fetchUnreadCount();
+
+    const badgeChannel = supabase
+      .channel(`badge:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as any;
+          if (msg.sender_id === user.id || msg.is_deleted) return;
+          // Re-fetch always — unknown conv_id means a new conversation was created
+          // and the participant INSERT may have been missed; fetchUnreadCount will
+          // re-query conversation_participants and pick it up automatically.
+          fetchUnreadCount();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'conversation_participants' },
+        (payload) => {
+          const p = payload.new as any;
+          // Current user was added to a new conversation — register it so
+          // the next messages INSERT from that conv passes the ID filter.
+          if (p.user_id !== user.id) return;
+          if (!myConvIds.includes(p.conversation_id)) {
+            myConvIds.push(p.conversation_id);
+            myLastReadByConv[p.conversation_id] = p.last_read_at || '1970-01-01T00:00:00.000Z';
+          }
+          fetchUnreadCount();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversation_participants' },
+        (payload) => {
+          const p = payload.new as any;
+          // User read a conversation — re-fetch to get the authoritative count
+          if (p.user_id === user.id) fetchUnreadCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(badgeChannel);
+    };
   }, [user?.id]);
 
   // Keep native app icon badge in sync with the in-app unread count
