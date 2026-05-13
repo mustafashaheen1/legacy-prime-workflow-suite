@@ -233,11 +233,10 @@ export default function DashboardScreen() {
 
   const isAdmin = user?.role === "admin" || user?.role === "super-admin";
 
-  // Poll clock entries every 10 seconds so the Business Costs card reflects
-  // employee clock-in/out events in real time without a manual refresh.
+  // Poll clock entries every 60 seconds (reduced from 10s to ease DB load).
   useEffect(() => {
     if (!company?.id) return;
-    const id = setInterval(() => refreshClockEntries(), 10_000);
+    const id = setInterval(() => refreshClockEntries(), 60_000);
     return () => clearInterval(id);
   }, [company?.id, refreshClockEntries]);
 

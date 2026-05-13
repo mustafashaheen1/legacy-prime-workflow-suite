@@ -670,7 +670,7 @@ export default function ChatScreen() {
         }
       });
 
-    const interval = setInterval(fetchMessages, 30000);
+    const interval = setInterval(fetchMessages, 60000);
 
     return () => {
       supabase.removeChannel(channel);

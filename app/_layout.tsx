@@ -54,7 +54,7 @@ function RootLayoutNav() {
   useEffect(() => {
     if (!user?.id || !company?.id) return;
     refreshNotifications();
-    const interval = setInterval(() => refreshNotifications(), 30_000);
+    const interval = setInterval(() => refreshNotifications(), 60_000);
     return () => clearInterval(interval);
     // refreshNotifications is a useCallback derived from these same two IDs —
     // including it would double-fire on startup when both the IDs and the
