@@ -156,6 +156,7 @@ export default function ChatScreen() {
   // ── Refs ──────────────────────────────────────────────────────────────────
   const flatListRef = useRef<FlatList>(null);
   const fetchConversationsFnRef = useRef<(() => void) | null>(null);
+  const convIdsRef = useRef<string[]>([]);
   const conversationsRef = useRef(conversations);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
   const selectedChatRef = useRef<string | null>(null);
@@ -405,20 +406,24 @@ export default function ChatScreen() {
     fetchTeamMembers();
   }, [user?.id, user?.role]);
 
-  // ── Fetch conversations (poll 30 s + Realtime-triggered) ─────────────────
+  // ── Fetch conversations (initial load + Realtime-driven updates) ──────────
   useEffect(() => {
-    const fetchConversations = async () => {
-      if (!user?.id) return;
-      setIsLoadingConversations(true);
+    if (!user?.id) return;
 
+    const fetchConversations = async () => {
+      setIsLoadingConversations(true);
       try {
+        // Use the API (service role) so RLS doesn't block user name/avatar joins
         const resp = await fetch(`${rorkApi}/api/team/get-conversations?userId=${user.id}`);
         const result = await resp.json();
         if (!result.success) return;
 
         const freshMeta = new Map<string, ConversationMeta>();
+        const freshIds: string[] = [];
 
         result.conversations.forEach((conv: any) => {
+          freshIds.push(conv.id);
+
           addConversation({
             id: conv.id,
             name: conv.name,
@@ -449,7 +454,6 @@ export default function ChatScreen() {
             });
           }
 
-          // If this conversation is currently open, force unreadCount = 0 locally
           const isSelected = conv.id === selectedChatRef.current;
           freshMeta.set(conv.id, {
             unreadCount: isSelected ? 0 : (conv.unreadCount || 0),
@@ -457,13 +461,15 @@ export default function ChatScreen() {
           });
         });
 
+        // Keep convIdsRef in sync so Realtime handlers filter correctly
+        convIdsRef.current = freshIds;
+
         setConversationMeta((prev) => {
           const next = new Map(prev);
           freshMeta.forEach((meta, id) => next.set(id, meta));
           return next;
         });
 
-        // Sync global badge count
         let badge = 0;
         freshMeta.forEach((meta, id) => {
           if (id !== selectedChatRef.current) badge += meta.unreadCount;
@@ -478,20 +484,82 @@ export default function ChatScreen() {
 
     fetchConversationsFnRef.current = fetchConversations;
     fetchConversations();
-    const interval = setInterval(fetchConversations, 30000);
 
-    const convChannel = supabase
-      .channel(`conversations-list:${user?.id}`)
+    // Realtime: new message in any of the user's conversations → update preview
+    // + per-conv unread dot without re-fetching. Global badge is managed by _layout.
+    const inboxChannel = supabase
+      .channel(`inbox:${user.id}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'conversations' },
-        () => { fetchConversationsFnRef.current?.(); }
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as any;
+          if (msg.is_deleted || msg.sender_id === user.id) return;
+          if (!convIdsRef.current.includes(msg.conversation_id)) {
+            // Unknown conversation — the participant INSERT may have been missed.
+            // Trigger a full refresh so the new thread appears immediately.
+            fetchConversationsFnRef.current?.();
+            return;
+          }
+
+          const convId: string = msg.conversation_id;
+          const lmType: string = msg.type;
+          const previewText =
+            lmType === 'image' ? '📷 Photo'
+            : lmType === 'voice' ? '🎤 Voice message'
+            : lmType === 'video' ? '🎬 Video'
+            : lmType === 'file' ? `📎 ${msg.file_name || 'File'}`
+            : msg.content || '';
+
+          setConversationPreviews((prev) => {
+            const next = new Map(prev);
+            next.set(convId, { text: previewText, timestamp: msg.created_at, senderId: msg.sender_id, type: lmType });
+            return next;
+          });
+
+          if (convId !== selectedChatRef.current) {
+            setConversationMeta((prev) => {
+              const next = new Map(prev);
+              const existing = next.get(convId) || { unreadCount: 0, otherLastReadAt: null };
+              next.set(convId, { ...existing, unreadCount: existing.unreadCount + 1 });
+              return next;
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'conversation_participants' },
+        (payload) => {
+          const p = payload.new as any;
+          // Current user was added to a new conversation — register it and re-fetch
+          // so the conversation appears in the list immediately.
+          if (p.user_id !== user.id) return;
+          if (!convIdsRef.current.includes(p.conversation_id)) {
+            convIdsRef.current = [...convIdsRef.current, p.conversation_id];
+          }
+          fetchConversationsFnRef.current?.();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversation_participants' },
+        (payload) => {
+          const p = payload.new as any;
+          // Update read receipt for the other participant in a 1:1 conversation
+          if (p.user_id === user.id || !convIdsRef.current.includes(p.conversation_id)) return;
+          setConversationMeta((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(p.conversation_id);
+            if (existing) next.set(p.conversation_id, { ...existing, otherLastReadAt: p.last_read_at });
+            return next;
+          });
+        }
       )
       .subscribe();
 
     return () => {
-      clearInterval(interval);
-      supabase.removeChannel(convChannel);
+      supabase.removeChannel(inboxChannel);
     };
   }, [user?.id]);
 
