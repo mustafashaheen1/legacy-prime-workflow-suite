@@ -73,16 +73,14 @@ export default function BusinessCostsScreen() {
   };
 
   // When screen comes into focus: immediate refresh + start a 10-second
-  // polling interval so clock-in/out events appear without any manual refresh.
-  // Interval is cleared automatically when the screen loses focus.
+  // Fetch fresh data on screen focus. Live updates arrive via AppContext Realtime
+  // channels (clock-entries + expenses) — no polling interval needed.
+  // Functions intentionally excluded from deps to prevent double-fetch on re-render.
   useFocusEffect(useCallback(() => {
     refreshClockEntries();
     refreshExpenses();
-    const id = setInterval(() => {
-      refreshClockEntries();
-    }, 10_000);
-    return () => clearInterval(id);
-  }, [refreshClockEntries, refreshExpenses]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []));
 
   // Tick every 10s so live labor costs (active sessions) update their hours
   const [, setTick] = useState(0);

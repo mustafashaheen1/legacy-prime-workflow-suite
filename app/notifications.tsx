@@ -6,9 +6,10 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter, useFocusEffect } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { ArrowLeft, Bell, BellOff, CheckCheck } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
 import type { Notification } from '@/types';
@@ -76,22 +77,23 @@ function NotificationRow({ notification, onPress }: NotificationRowProps) {
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { getNotifications, markNotificationRead, markAllNotificationsRead, refreshNotifications, projects } = useApp();
+  const { getNotifications, markNotificationRead, markAllNotificationsRead, refreshNotifications, loadMoreNotifications, hasMoreNotifications, projects } = useApp();
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refreshNotifications();
     setRefreshing(false);
   }, [refreshNotifications]);
 
-  // Refresh immediately on focus and then every 15s while screen is open
-  useFocusEffect(
-    useCallback(() => {
-      refreshNotifications();
-      const interval = setInterval(() => refreshNotifications(), 15_000);
-      return () => clearInterval(interval);
-    }, [refreshNotifications])
-  );
+  const onLoadMore = useCallback(async () => {
+    if (!hasMoreNotifications || loadingMore) return;
+    setLoadingMore(true);
+    await loadMoreNotifications();
+    setLoadingMore(false);
+  }, [hasMoreNotifications, loadingMore, loadMoreNotifications]);
+
 
   const notifications = getNotifications();
   const unread = notifications.filter(n => !n.read);
@@ -251,6 +253,21 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        onEndReached={onLoadMore}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={
+          notifications.length > 0 ? (
+            loadingMore ? (
+              <View style={styles.footer}>
+                <ActivityIndicator size="small" color="#2563EB" />
+              </View>
+            ) : !hasMoreNotifications ? (
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>All caught up</Text>
+              </View>
+            ) : null
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <BellOff size={48} color="#D1D5DB" />
@@ -327,6 +344,14 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: '#F3F4F6',
+  },
+  footer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 13,
+    color: '#9CA3AF',
   },
   empty: {
     flex: 1,

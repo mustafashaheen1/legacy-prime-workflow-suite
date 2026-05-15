@@ -63,6 +63,29 @@ function makeVercelRes() {
 type Handler = (req: unknown, res: ReturnType<typeof makeVercelRes>) => Promise<unknown> | unknown;
 const routes = new Map<string, Handler>();
 
+// ─── Request logger ───────────────────────────────────────────────────────────
+const lastCallMap = new Map<string, number>();
+
+function logRequest(method: string, pathname: string, status: number, durationMs: number) {
+  const now = Date.now();
+  const key = `${method}:${pathname}`;
+  const last = lastCallMap.get(key);
+  const gap = last != null
+    ? ` ⏱  ${((now - last) / 1000).toFixed(1)}s since last`
+    : '  (first call)';
+  lastCallMap.set(key, now);
+
+  const time = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
+  const statusColor = status >= 500 ? '\x1b[31m' : status >= 400 ? '\x1b[33m' : '\x1b[32m';
+  const reset = '\x1b[0m';
+  const dim = '\x1b[2m';
+
+  console.log(
+    `${dim}[${time}]${reset} ${method.padEnd(6)} ${pathname.padEnd(45)} ` +
+    `${statusColor}${status}${reset} ${dim}| ${durationMs}ms${gap}${reset}`
+  );
+}
+
 // ─── Route auto-discovery ─────────────────────────────────────────────────────
 async function loadRoutes(): Promise<void> {
   const apiDir = resolve('api');
@@ -119,6 +142,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   const pathname = url.pathname;
+  const reqStart = Date.now();
   const handler = routes.get(pathname);
 
   if (!handler) {
@@ -162,11 +186,13 @@ const server = http.createServer(async (req, res) => {
     const { status, headers, body: responseBody } = vercelRes._get();
     res.writeHead(status, { ...corsHeaders, ...headers });
     res.end(responseBody);
+    logRequest(req.method ?? 'GET', pathname, status, Date.now() - reqStart);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[${pathname}] Unhandled error:`, msg);
     res.writeHead(500, { 'content-type': 'application/json', ...corsHeaders });
     res.end(JSON.stringify({ error: msg }));
+    logRequest(req.method ?? 'GET', pathname, 500, Date.now() - reqStart);
   }
 });
 

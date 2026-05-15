@@ -6,7 +6,9 @@
       "Bash(awk -F: '$2 > 3262 {print}')",
       "Bash(awk 'NR>3262' /Users/codercrewllc/Downloads/legacy-prime-workflow-suite/app/project/\\\\[id\\\\]/estimate.tsx)",
       "Bash(sed -n '3263,$p' /Users/codercrewllc/Downloads/legacy-prime-workflow-suite/app/project/\\\\[id\\\\]/estimate.tsx | grep -n \"priceListItems\\\\|company\\\\b\\\\|projectId\\\\b\\\\|priceListCategories\" | head -30)",
-      "Bash(bun run *)"
+      "Bash(bun run *)",
+      "Bash(git pull *)",
+      "Bash(git fetch *)"
     ],
     "additionalDirectories": [
       "/Users/codercrewllc/Downloads/legacy-prime-workflow-suite/app/project/[id]"

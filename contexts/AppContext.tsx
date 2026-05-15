@@ -277,6 +277,8 @@ interface AppState {
   refreshClockEntries: () => Promise<void>;
   refreshSubcontractors: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
+  loadMoreNotifications: () => Promise<void>;
+  hasMoreNotifications: boolean;
   loadDailyTasks: () => Promise<void>;
   addDailyTask: (task: Omit<DailyTask, 'id' | 'createdAt' | 'updatedAt'>) => Promise<DailyTask | undefined>;
   updateDailyTask: (taskId: string, updates: Partial<DailyTask>) => Promise<void>;
@@ -339,7 +341,10 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [proposals, setProposals] = useState<SubcontractorProposal[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [hasMoreNotifications, setHasMoreNotifications] = useState(true);
   const notificationRefreshInFlight = useRef(false);
+  const loadMoreNotificationsInFlight = useRef(false);
+  const NOTIF_PAGE_SIZE = 20;
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [scheduleShareLinks, setScheduleShareLinks] = useState<ScheduleShareLink[]>([]);
@@ -427,7 +432,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
             fetch(`${baseUrl}/api/get-estimates?companyId=${companyId}`).then(r => r.ok ? r.json() : null).catch(() => null),
             fetch(`${baseUrl}/api/get-subcontractors?companyId=${companyId}`).then(r => r.ok ? r.json() : null).catch(() => null),
             user?.id
-              ? supabase.from('notifications').select('*').eq('user_id', user.id).eq('company_id', companyId).order('created_at', { ascending: false }).limit(50)
+              ? supabase.from('notifications').select('*').eq('user_id', user.id).eq('company_id', companyId).order('created_at', { ascending: false }).limit(20)
               : Promise.resolve({ data: null, error: null }),
           ]);
 
@@ -527,7 +532,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       if (nextState === 'active') {
         supabase.from('notifications').select('*')
           .eq('user_id', user.id!).eq('company_id', company.id!)
-          .order('created_at', { ascending: false }).limit(50)
+          .order('created_at', { ascending: false }).limit(20)
           .then(({ data }) => {
             if (data?.length) {
               setNotifications(prev => {
@@ -551,7 +556,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
 
     supabase.from('notifications').select('*')
       .eq('user_id', user.id!).eq('company_id', company.id!)
-      .order('created_at', { ascending: false }).limit(50)
+      .order('created_at', { ascending: false }).limit(20)
       .then(({ data }) => {
         if (data?.length) {
           setNotifications(prev => {
@@ -733,7 +738,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
           fetch(`${baseUrl}/api/get-schedule-share-link?companyId=${companyId}`).then(r => r.ok ? r.json() : null).catch(() => null),
           fetch(`${baseUrl}/api/get-daily-tasks?companyId=${companyId}`).then(r => r.ok ? r.json() : null).catch(() => null),
           parsedUser?.id
-            ? supabase.from('notifications').select('*').eq('user_id', parsedUser.id).eq('company_id', companyId).order('created_at', { ascending: false }).limit(50)
+            ? supabase.from('notifications').select('*').eq('user_id', parsedUser.id).eq('company_id', companyId).order('created_at', { ascending: false }).limit(20)
             : Promise.resolve({ data: null, error: null }),
         ]);
 
@@ -1241,17 +1246,15 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     try {
       const { data, error } = await supabase.from('notifications').select('*')
         .eq('user_id', user.id!).eq('company_id', company.id!)
-        .order('created_at', { ascending: false }).limit(50);
+        .order('created_at', { ascending: false }).limit(NOTIF_PAGE_SIZE);
       if (error) {
         console.warn('[Notifications] Refresh query error:', error.message, error.code);
         return;
       }
       const rows = data ?? [];
-      setNotifications(prev => {
-        const dbIds = new Set(rows.map((n: any) => n.id));
-        const localOnly = prev.filter((n: any) => !dbIds.has(n.id));
-        return [...rows.map(mapNotification), ...localOnly];
-      });
+      // Reset to first page — discard any previously loaded pages
+      setNotifications(rows.map(mapNotification));
+      setHasMoreNotifications(rows.length === NOTIF_PAGE_SIZE);
       console.log('[App] ✅ Refreshed', rows.length, 'notifications');
     } catch (error) {
       console.warn('[Notifications] Refresh failed (non-fatal):', error);
@@ -1259,6 +1262,37 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
       notificationRefreshInFlight.current = false;
     }
   }, [user?.id, company?.id]);
+
+  const loadMoreNotifications = useCallback(async () => {
+    if (!user?.id || !company?.id) return;
+    if (loadMoreNotificationsInFlight.current) return;
+    loadMoreNotificationsInFlight.current = true;
+    try {
+      // Use the createdAt of the oldest loaded notification as cursor
+      const cursor = notifications[notifications.length - 1]?.createdAt;
+      if (!cursor) return;
+      const { data, error } = await supabase.from('notifications').select('*')
+        .eq('user_id', user.id!).eq('company_id', company.id!)
+        .lt('created_at', cursor)
+        .order('created_at', { ascending: false }).limit(NOTIF_PAGE_SIZE);
+      if (error) {
+        console.warn('[Notifications] Load more error:', error.message);
+        return;
+      }
+      const rows = data ?? [];
+      setNotifications(prev => {
+        const existingIds = new Set(prev.map(n => n.id));
+        const newRows = rows.map(mapNotification).filter((n: Notification) => !existingIds.has(n.id));
+        return [...prev, ...newRows];
+      });
+      setHasMoreNotifications(rows.length === NOTIF_PAGE_SIZE);
+      console.log('[App] ✅ Loaded', rows.length, 'more notifications');
+    } catch (error) {
+      console.warn('[Notifications] Load more failed:', error);
+    } finally {
+      loadMoreNotificationsInFlight.current = false;
+    }
+  }, [user?.id, company?.id, notifications]);
 
   // ─── Supabase Realtime subscription ──────────────────────────────────────────
   // Listens for INSERT events on the notifications table filtered to this user.
@@ -3344,6 +3378,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     refreshClockEntries,
     refreshSubcontractors,
     refreshNotifications,
+    loadMoreNotifications,
+    hasMoreNotifications,
     loadDailyTasks,
     addDailyTask,
     updateDailyTask,
@@ -3376,6 +3412,7 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     subcontractors,
     proposals,
     notifications,
+    hasMoreNotifications,
     dailyTasks,
     scheduledTasks,
     scheduleShareLinks,
@@ -3477,6 +3514,8 @@ export const [AppProvider, useApp] = createContextHook<AppState>(() => {
     refreshClockEntries,
     refreshSubcontractors,
     refreshNotifications,
+    loadMoreNotifications,
+    hasMoreNotifications,
     loadDailyTasks,
     addDailyTask,
     updateDailyTask,

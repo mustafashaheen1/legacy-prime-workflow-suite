@@ -220,6 +220,11 @@ export default function ExpensesScreen() {
         ? generateOCRFingerprint(store, parseFloat(amount), ocrDate)
         : undefined;
 
+      // File expense under today if the receipt's date is from a different month —
+      // ensures it appears in "This Month" Business Costs when scanned and saved now
+      const todayStr = new Date().toISOString().split('T')[0];
+      const expenseDate = ocrDate.substring(0, 7) === todayStr.substring(0, 7) ? ocrDate : todayStr;
+
       const imageSizeBytes = receiptBase64
         ? getBase64ByteSize(receiptBase64)
         : undefined;
@@ -279,7 +284,7 @@ export default function ExpensesScreen() {
         amount: parseFloat(amount),
         store,
         notes: notes.trim() || undefined,
-        date: ocrDate,
+        date: expenseDate,
         receiptUrl: uploadedReceiptUrl,
         imageHash,
         ocrFingerprint,

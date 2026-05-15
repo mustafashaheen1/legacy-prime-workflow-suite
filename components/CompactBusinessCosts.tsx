@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { Briefcase, TrendingUp, Calendar } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useMemo, useEffect, useState } from 'react';
@@ -13,6 +13,9 @@ interface Props {
 }
 
 export default function CompactBusinessCosts({ expenses, clockEntries = [], hoursWorked = 0, onDetails, usersMap }: Props) {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
   // Tick every 60s so live (clocked-in) labor costs update without a refresh
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -67,10 +70,12 @@ export default function CompactBusinessCosts({ expenses, clockEntries = [], hour
   }, [officeClockEntries]);
 
   const thisMonthExpenseTotal = useMemo(() => {
+    const thisYear = now.getFullYear();
+    const thisMonth = now.getMonth() + 1; // 1-based
     return businessExpenses
       .filter(e => {
-        const d = new Date(e.date);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+        const [y, m] = e.date.split('-').map(Number);
+        return y === thisYear && m === thisMonth;
       })
       .reduce((sum, e) => sum + e.amount, 0);
   }, [businessExpenses]);
@@ -83,10 +88,13 @@ export default function CompactBusinessCosts({ expenses, clockEntries = [], hour
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const monthMap: Record<string, number> = {};
     businessExpenses
-      .filter(e => new Date(e.date) >= sixMonthsAgo)
+      .filter(e => {
+        const [y, m, d] = e.date.split('-').map(Number);
+        return new Date(y, m - 1, d) >= sixMonthsAgo;
+      })
       .forEach(e => {
-        const d = new Date(e.date);
-        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        const [y, m] = e.date.split('-').map(Number);
+        const key = `${y}-${m - 1}`;
         monthMap[key] = (monthMap[key] || 0) + e.amount;
       });
     officeClockEntries
@@ -177,58 +185,101 @@ export default function CompactBusinessCosts({ expenses, clockEntries = [], hour
         </View>
       </View>
 
-      {/* 3-column metrics */}
-      <View style={styles.metricsRow}>
-        <View style={styles.metric}>
-          <View style={styles.metricHeader}>
-            <View style={[styles.dot, { backgroundColor: '#2563EB' }]} />
-            <Text style={styles.metricLabel}>This Month</Text>
+      {isTablet ? (
+        /* ── Tablet: original 3-column + forecast row ── */
+        <>
+          <View style={styles.metricsRow}>
+            <View style={styles.metric}>
+              <View style={styles.metricHeader}>
+                <View style={[styles.dot, { backgroundColor: '#2563EB' }]} />
+                <Text style={styles.metricLabel}>This Month</Text>
+              </View>
+              <Text style={[styles.metricValue, styles.metricValueLarge, { color: '#2563EB' }]} numberOfLines={1}>{fmt(thisMonthTotal)}</Text>
+            </View>
+            <View style={styles.metricDivider} />
+            <View style={styles.metric}>
+              <View style={styles.metricHeader}>
+                <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
+                <Text style={styles.metricLabel}>Overhead/mo</Text>
+              </View>
+              <Text style={[styles.metricValue, styles.metricValueLarge, { color: '#10B981' }]} numberOfLines={1}>{fmt(overheadPerMonth)}</Text>
+            </View>
+            <View style={styles.metricDivider} />
+            <View style={styles.metric}>
+              <View style={styles.metricHeader}>
+                <View style={[styles.dot, { backgroundColor: '#7C3AED' }]} />
+                <Text style={styles.metricLabel}>Rec. Rate</Text>
+              </View>
+              <Text style={[styles.metricValue, styles.metricValueLarge, { color: '#7C3AED' }]} numberOfLines={1}>
+                {recRate > 0 ? `$${recRate.toFixed(0)}/hr` : '$0/hr'}
+              </Text>
+            </View>
           </View>
-          <Text style={[styles.metricValue, { color: '#2563EB' }]}>{fmt(thisMonthTotal)}</Text>
-        </View>
-        <View style={styles.metricDivider} />
-        <View style={styles.metric}>
-          <View style={styles.metricHeader}>
-            <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
-            <Text style={styles.metricLabel}>Overhead/mo</Text>
+          <View style={styles.forecastRow}>
+            <View style={styles.forecastLeft}>
+              <TrendingUp size={14} color="#64748B" />
+              <Text style={styles.forecastLabel}>Yearly Forecast</Text>
+            </View>
+            <Text style={styles.forecastValue} numberOfLines={1}>{fmt(yearlyForecast)}</Text>
+            <View style={[styles.trendBadge, trendLabel === 'Rising' && styles.trendRising, trendLabel === 'Falling' && styles.trendFalling]}>
+              <Text style={[styles.trendText, trendLabel === 'Rising' && styles.trendTextRising, trendLabel === 'Falling' && styles.trendTextFalling]}>{trendLabel}</Text>
+            </View>
+            <View style={styles.yearBadge}>
+              <Calendar size={10} color="#64748B" />
+              <Text style={styles.yearText}>{now.getFullYear()}</Text>
+            </View>
           </View>
-          <Text style={[styles.metricValue, { color: '#10B981' }]}>{fmt(overheadPerMonth)}</Text>
-        </View>
-        <View style={styles.metricDivider} />
-        <View style={styles.metric}>
-          <View style={styles.metricHeader}>
-            <View style={[styles.dot, { backgroundColor: '#7C3AED' }]} />
-            <Text style={styles.metricLabel}>Rec. Rate</Text>
+        </>
+      ) : (
+        /* ── Phone: 2×2 grid + badges row ── */
+        <>
+          <View style={styles.metricsRow}>
+            <View style={styles.metric}>
+              <View style={styles.metricHeader}>
+                <View style={[styles.dot, { backgroundColor: '#2563EB' }]} />
+                <Text style={styles.metricLabel}>This Month</Text>
+              </View>
+              <Text style={[styles.metricValue, { color: '#2563EB' }]} numberOfLines={1}>{fmt(thisMonthTotal)}</Text>
+            </View>
+            <View style={styles.metricDivider} />
+            <View style={styles.metric}>
+              <View style={styles.metricHeader}>
+                <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
+                <Text style={styles.metricLabel}>Overhead/mo</Text>
+              </View>
+              <Text style={[styles.metricValue, { color: '#10B981' }]} numberOfLines={1}>{fmt(overheadPerMonth)}</Text>
+            </View>
           </View>
-          <Text style={[styles.metricValue, { color: '#7C3AED' }]}>
-            {recRate > 0 ? `$${recRate.toFixed(0)}/hr` : '$0/hr'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Yearly Forecast row */}
-      <View style={styles.forecastRow}>
-        <View style={styles.forecastLeft}>
-          <TrendingUp size={14} color="#64748B" />
-          <Text style={styles.forecastLabel}>Yearly Forecast</Text>
-        </View>
-        <Text style={styles.forecastValue}>{fmt(yearlyForecast)}</Text>
-        <View style={[
-          styles.trendBadge,
-          trendLabel === 'Rising' && styles.trendRising,
-          trendLabel === 'Falling' && styles.trendFalling,
-        ]}>
-          <Text style={[
-            styles.trendText,
-            trendLabel === 'Rising' && styles.trendTextRising,
-            trendLabel === 'Falling' && styles.trendTextFalling,
-          ]}>{trendLabel}</Text>
-        </View>
-        <View style={styles.yearBadge}>
-          <Calendar size={10} color="#64748B" />
-          <Text style={styles.yearText}>{now.getFullYear()}</Text>
-        </View>
-      </View>
+          <View style={styles.metricsRow}>
+            <View style={styles.metric}>
+              <View style={styles.metricHeader}>
+                <View style={[styles.dot, { backgroundColor: '#7C3AED' }]} />
+                <Text style={styles.metricLabel}>Rec. Rate</Text>
+              </View>
+              <Text style={[styles.metricValue, { color: '#7C3AED' }]} numberOfLines={1}>
+                {recRate > 0 ? `$${recRate.toFixed(0)}/hr` : '$0/hr'}
+              </Text>
+            </View>
+            <View style={styles.metricDivider} />
+            <View style={styles.metric}>
+              <View style={styles.metricHeader}>
+                <TrendingUp size={11} color="#64748B" />
+                <Text style={styles.metricLabel}>Yearly Forecast</Text>
+              </View>
+              <Text style={[styles.metricValue, { color: '#F59E0B' }]} numberOfLines={1}>{fmt(yearlyForecast)}</Text>
+            </View>
+          </View>
+          <View style={styles.badgesRow}>
+            <View style={[styles.trendBadge, trendLabel === 'Rising' && styles.trendRising, trendLabel === 'Falling' && styles.trendFalling]}>
+              <Text style={[styles.trendText, trendLabel === 'Rising' && styles.trendTextRising, trendLabel === 'Falling' && styles.trendTextFalling]}>{trendLabel}</Text>
+            </View>
+            <View style={styles.yearBadge}>
+              <Calendar size={10} color="#64748B" />
+              <Text style={styles.yearText}>{now.getFullYear()}</Text>
+            </View>
+          </View>
+        </>
+      )}
     </TouchableOpacity>
   );
 }
@@ -343,7 +394,7 @@ const styles = StyleSheet.create({
   metricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   metric: {
     flex: 1,
@@ -365,16 +416,28 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   metricValue: {
-    fontSize: 18,
+    fontSize: 13,
     fontWeight: '700',
     color: '#1F2937',
     paddingLeft: 12,
+  },
+  metricValueLarge: {
+    fontSize: 16,
   },
   metricDivider: {
     width: 1,
     height: 36,
     backgroundColor: '#E5E7EB',
-    marginHorizontal: 8,
+    marginHorizontal: 6,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 8,
   },
   forecastRow: {
     flexDirection: 'row',
@@ -395,7 +458,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   forecastValue: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
     color: '#1F2937',
     flex: 1,
