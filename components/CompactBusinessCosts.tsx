@@ -122,21 +122,34 @@ export default function CompactBusinessCosts({ expenses, clockEntries = [], hour
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clockEntries]);
 
-  // Total payroll cost this month (all employees with hourly rate)
-  const totalPayrollCostThisMonth = useMemo(() => {
-    return clockEntries
-      .filter(e => {
-        const d = new Date(e.clockIn);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-      })
-      .reduce((s, e) => e.hourlyRate ? s + calcNetMs(e) / 3_600_000 * e.hourlyRate : s, 0);
+  // Field/project employees this month only.
+  // Office labor is intentionally excluded here — it's counted in totalIndirectCostsThisMonth.
+  // Including it here AND in indirect costs would double-count office payroll in the rate.
+  const fieldEntriesThisMonth = useMemo(() => {
+    return clockEntries.filter(e => {
+      if (!e.projectId) return false;
+      const d = new Date(e.clockIn);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clockEntries]);
 
-  // Avg labor cost/hr = total payroll ÷ total hours
+  const fieldHoursThisMonth = useMemo(
+    () => fieldEntriesThisMonth.reduce((s, e) => s + calcNetMs(e) / 3_600_000, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fieldEntriesThisMonth]
+  );
+
+  const fieldPayrollCostThisMonth = useMemo(
+    () => fieldEntriesThisMonth.reduce((s, e) => e.hourlyRate ? s + calcNetMs(e) / 3_600_000 * e.hourlyRate : s, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fieldEntriesThisMonth]
+  );
+
+  // Avg labor cost/hr = field payroll ÷ field hours worked
   const avgLaborCostPerHour = useMemo(
-    () => totalEmployeeHoursThisMonth > 0 ? totalPayrollCostThisMonth / totalEmployeeHoursThisMonth : 0,
-    [totalPayrollCostThisMonth, totalEmployeeHoursThisMonth]
+    () => fieldHoursThisMonth > 0 ? fieldPayrollCostThisMonth / fieldHoursThisMonth : 0,
+    [fieldPayrollCostThisMonth, fieldHoursThisMonth]
   );
 
   // Total indirect costs this month = company expenses + office labor

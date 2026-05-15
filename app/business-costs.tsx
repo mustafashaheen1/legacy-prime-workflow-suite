@@ -94,7 +94,7 @@ export default function BusinessCostsScreen() {
   }, []));
 
   // Tick every 10s so live labor costs (active sessions) update their hours
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 10_000);
     return () => clearInterval(id);
@@ -148,17 +148,18 @@ export default function BusinessCostsScreen() {
 
   // This month: office labor cost (hours × rate, no project entries)
   const officeLaborThisMonth = useMemo(() => {
+    const n = new Date();
     return officeClockEntries
       .filter(e => {
         const d = new Date(e.clockIn);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+        return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth();
       })
       .reduce((sum, e) => {
         if (!e.hourlyRate) return sum;
         return sum + calcNetMs(e) / 3_600_000 * e.hourlyRate;
       }, 0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [officeClockEntries]);
+  }, [officeClockEntries, tick]);
 
   // This month combined total (used for summary card + yearly forecast)
   const thisMonthTotal = thisMonthExpenseTotal + officeLaborThisMonth;
@@ -246,7 +247,7 @@ export default function BusinessCostsScreen() {
   const laborRows = useMemo((): EmployeeLaborRow[] => {
     const map = new Map<string, EmployeeLaborRow>();
     const twentyFourHoursAgo = Date.now() - 24 * 3_600_000;
-    officeClockEntries.forEach(e => {
+    officeClockEntries.forEach((e: typeof clockEntries[0]) => {
         const netHours = calcNetMs(e) / 3_600_000;
         const rate = e.hourlyRate ?? null;
         const cost = rate != null ? netHours * rate : 0;
@@ -270,7 +271,7 @@ export default function BusinessCostsScreen() {
       });
     return Array.from(map.values()).sort((a, b) => b.totalCost - a.totalCost);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [officeClockEntries]);
+  }, [officeClockEntries, tick]);
 
   const laborTotalAllTime = useMemo(
     () => laborRows.reduce((s, r) => s + r.totalCost, 0),
@@ -312,7 +313,7 @@ export default function BusinessCostsScreen() {
       });
     return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLaborRow, officeClockEntries, laborFilter, laborFilterDate]);
+  }, [selectedLaborRow, officeClockEntries, laborFilter, laborFilterDate, tick]);
 
   const laborHoursAllTime = useMemo(
     () => laborRows.reduce((s, r) => s + r.totalHours, 0),
@@ -331,21 +332,37 @@ export default function BusinessCostsScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clockEntries, periodBounds]);
 
+  // All employee hours in period (field + office) — used as divisor for indirect cost rate
   const totalEmployeeHoursInPeriod = useMemo(
     () => allPeriodEntries.reduce((s, e) => s + calcNetMs(e) / 3_600_000, 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allPeriodEntries, tick]
+  );
+
+  // Field/project employees only — their cost forms the average labor rate baseline.
+  // Office labor is intentionally excluded here; it appears in totalIndirectCostsInPeriod
+  // as overhead, so counting it here would double-count it in the recommended rate.
+  const fieldPeriodEntries = useMemo(
+    () => allPeriodEntries.filter(e => !!e.projectId),
     [allPeriodEntries]
   );
 
-  const totalPayrollCostInPeriod = useMemo(
-    () => allPeriodEntries.reduce((s, e) => e.hourlyRate ? s + calcNetMs(e) / 3_600_000 * e.hourlyRate : s, 0),
+  const fieldHoursInPeriod = useMemo(
+    () => fieldPeriodEntries.reduce((s, e) => s + calcNetMs(e) / 3_600_000, 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allPeriodEntries]
+    [fieldPeriodEntries, tick]
   );
 
+  const fieldPayrollCostInPeriod = useMemo(
+    () => fieldPeriodEntries.reduce((s, e) => e.hourlyRate ? s + calcNetMs(e) / 3_600_000 * e.hourlyRate : s, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fieldPeriodEntries, tick]
+  );
+
+  // Average field labor cost per field hour worked
   const avgLaborCostPerHour = useMemo(
-    () => totalEmployeeHoursInPeriod > 0 ? totalPayrollCostInPeriod / totalEmployeeHoursInPeriod : 0,
-    [totalPayrollCostInPeriod, totalEmployeeHoursInPeriod]
+    () => fieldHoursInPeriod > 0 ? fieldPayrollCostInPeriod / fieldHoursInPeriod : 0,
+    [fieldPayrollCostInPeriod, fieldHoursInPeriod]
   );
 
   const totalIndirectCostsInPeriod = useMemo(() => {
@@ -354,7 +371,7 @@ export default function BusinessCostsScreen() {
     const officeLaborCost = officeClockEntries.filter(e => { const d = new Date(e.clockIn); return d >= start && d <= end; }).reduce((s, e) => e.hourlyRate ? s + calcNetMs(e) / 3_600_000 * e.hourlyRate : s, 0);
     return expCost + officeLaborCost;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businessExpenses, officeClockEntries, periodBounds]);
+  }, [businessExpenses, officeClockEntries, periodBounds, tick]);
 
   const indirectCostPerHour = useMemo(
     () => totalEmployeeHoursInPeriod > 0 ? totalIndirectCostsInPeriod / totalEmployeeHoursInPeriod : 0,
@@ -534,12 +551,17 @@ export default function BusinessCostsScreen() {
               <ChevronDown size={11} color="#6B7280" />
             </TouchableOpacity>
 
-            <Text style={[styles.cardValue, { color: '#7C3AED' }]}>
+            <Text
+              style={[styles.cardValue, { color: '#7C3AED' }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+            >
               {recommendedRate > 0 ? `${fmtDec(recommendedRate)}/hr` : '$0/hr'}
             </Text>
             {recommendedRate > 0 && (
-              <Text style={styles.cardSubValue}>
-                ${avgLaborCostPerHour.toFixed(2)} + ${indirectCostPerHour.toFixed(2)}/hr
+              <Text style={styles.cardSubValue} numberOfLines={2}>
+                L: ${avgLaborCostPerHour.toFixed(2)} + O: ${indirectCostPerHour.toFixed(2)}/hr
               </Text>
             )}
           </View>
@@ -1331,6 +1353,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    overflow: 'hidden',
   },
   cardIcon: {
     width: 40,
@@ -1689,7 +1712,7 @@ const styles = StyleSheet.create({
   openPdfButtonText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
 
   // Recommended Rate card — filter pill
-  cardSubValue: { fontSize: 11, color: '#9CA3AF', marginTop: 3 },
+  cardSubValue: { fontSize: 10, color: '#9CA3AF', marginTop: 3 },
   rateFilterRow: {
     alignSelf: 'flex-end',
     flexDirection: 'row',
@@ -1703,8 +1726,10 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     marginTop: 6,
     marginBottom: 8,
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
-  rateFilterDate: { fontSize: 10, fontWeight: '600', color: '#1F2937' },
+  rateFilterDate: { fontSize: 10, fontWeight: '600', color: '#1F2937', flexShrink: 1 },
   rateFilterBadge: {
     backgroundColor: '#EFF6FF',
     borderRadius: 5,

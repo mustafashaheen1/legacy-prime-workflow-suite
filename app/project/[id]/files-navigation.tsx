@@ -99,6 +99,9 @@ export default function FilesNavigationScreen() {
   const [inspectionVideos, setInspectionVideos] = useState<any[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<FolderType | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const FILES_PAGE_SIZE = 20;
+  const [filesVisibleCount, setFilesVisibleCount] = useState(FILES_PAGE_SIZE);
   const [uploadModalVisible, setUploadModalVisible] = useState<boolean>(false);
   const [fileNotes, setFileNotes] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -405,7 +408,7 @@ export default function FilesNavigationScreen() {
 
   // Direct API call to create custom folder
   const createCustomFolder = async (projectId: string, name: string, color?: string, description?: string) => {
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://legacy-prime-workflow-suite.vercel.app';
     const response = await fetch(`${baseUrl}/api/custom-folders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -447,6 +450,16 @@ export default function FilesNavigationScreen() {
   useEffect(() => {
     loadProjectFiles();
   }, [loadProjectFiles]);
+
+  // Reset file pagination whenever the user navigates into a different folder/category
+  useEffect(() => { setFilesVisibleCount(FILES_PAGE_SIZE); }, [selectedFolder, selectedCategory]);
+
+  const handleFilesScrollNearBottom = useCallback(({ nativeEvent }: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 200) {
+      setFilesVisibleCount(c => c + FILES_PAGE_SIZE);
+    }
+  }, []);
 
   const projectPhotos = useMemo(() => {
     return photos.filter(p => p.projectId === id);
@@ -1054,6 +1067,7 @@ export default function FilesNavigationScreen() {
     }
 
     const files = getFilesForCategory(folder.type, selectedCategory);
+    const displayedFiles = files.slice(0, filesVisibleCount);
     return (
       <View style={styles.filesView}>
         <View style={styles.filesHeader}>
@@ -1089,12 +1103,16 @@ export default function FilesNavigationScreen() {
             )}
           </View>
         </View>
-        <ScrollView style={styles.filesList} showsVerticalScrollIndicator={false}
+        <ScrollView
+          style={styles.filesList}
+          showsVerticalScrollIndicator={false}
           keyboardDismissMode="on-drag"
+          onScroll={handleFilesScrollNearBottom}
+          scrollEventThrottle={400}
         >
           {folder.type === 'photos' && photoViewMode === 'grid' && (
             <View style={styles.photoGrid}>
-              {files.map((file: any) => (
+              {displayedFiles.map((file: any) => (
                 <View key={file.id} style={styles.photoGridItem}>
                   <TouchableOpacity
                     activeOpacity={0.85}
@@ -1116,7 +1134,7 @@ export default function FilesNavigationScreen() {
           )}
           {folder.type === 'photos' && photoViewMode === 'list' && (
             <View>
-              {files.map((file: any) => (
+              {displayedFiles.map((file: any) => (
                 <View key={file.id} style={[styles.photoCard, { position: 'relative' }]}>
                   <TouchableOpacity
                     style={{ flexDirection: 'row', flex: 1, paddingRight: 40 }}
@@ -1139,7 +1157,7 @@ export default function FilesNavigationScreen() {
               ))}
             </View>
           )}
-          {files.map((file: any) => {
+          {displayedFiles.map((file: any) => {
             if (folder.type === 'photos') {
               return null;
             } else if (folder.type === 'receipts') {
@@ -1289,6 +1307,19 @@ export default function FilesNavigationScreen() {
               );
             }
           })}
+
+          {/* Pagination footer */}
+          {filesVisibleCount < files.length && (
+            <View style={styles.paginationFooter}>
+              <ActivityIndicator size="small" color="#2563EB" />
+              <Text style={styles.paginationText}>
+                Showing {filesVisibleCount} of {files.length} — scroll for more
+              </Text>
+            </View>
+          )}
+          {files.length > FILES_PAGE_SIZE && filesVisibleCount >= files.length && (
+            <Text style={styles.paginationEnd}>All {files.length} items loaded</Text>
+          )}
         </ScrollView>
       </View>
     );
@@ -2541,5 +2572,22 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600' as const,
+  },
+  paginationFooter: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 10,
+    paddingVertical: 16,
+  },
+  paginationText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  paginationEnd: {
+    textAlign: 'center' as const,
+    fontSize: 13,
+    color: '#9CA3AF',
+    paddingVertical: 16,
   },
 });

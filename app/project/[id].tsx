@@ -45,6 +45,10 @@ export default function ProjectDetailScreen() {
   const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
 
+  const TAB_PAGE_SIZE = 20;
+  const [videosVisibleCount, setVideosVisibleCount] = useState(TAB_PAGE_SIZE);
+  const [reportsVisibleCount, setReportsVisibleCount] = useState(TAB_PAGE_SIZE);
+
   const fetchPayments = useCallback(() => {
     if (!id) return;
     supabase.from('payments').select('*').eq('project_id', id as string).order('date', { ascending: false })
@@ -218,6 +222,12 @@ export default function ProjectDetailScreen() {
       loadScheduledTasks(id as string);
     }
   }, [activeTab, company?.id, id, refreshReports, loadScheduledTasks]);
+
+  // Reset tab-level pagination when switching tabs
+  useEffect(() => {
+    setVideosVisibleCount(TAB_PAGE_SIZE);
+    setReportsVisibleCount(TAB_PAGE_SIZE);
+  }, [activeTab]);
 
   // Removed - budgetRemaining and budgetUsedPercentage are now calculated after adjustedProjectTotal and totalJobCost
   
@@ -3360,12 +3370,22 @@ export default function ProjectDetailScreen() {
           v.status === 'completed' &&
           v.videoUrl
         );
+        const displayedVideos = clientVideos.slice(0, videosVisibleCount);
 
         return (
           <View style={styles.photosTabContent}>
-            <ScrollView style={styles.photosScrollView} showsVerticalScrollIndicator={false}
-          keyboardDismissMode="on-drag"
-        >
+            <ScrollView
+              style={styles.photosScrollView}
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
+              onScroll={({ nativeEvent }) => {
+                const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+                if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 200) {
+                  setVideosVisibleCount(c => Math.min(c + TAB_PAGE_SIZE, clientVideos.length));
+                }
+              }}
+              scrollEventThrottle={400}
+            >
               <View style={styles.photosHeader}>
                 <View>
                   <Text style={styles.photosTitle}>Inspection Videos</Text>
@@ -3391,7 +3411,7 @@ export default function ProjectDetailScreen() {
                 <View style={styles.photosGallery}>
                   <Text style={styles.photosGalleryTitle}>Client Videos</Text>
                   <View style={styles.videosGalleryGrid}>
-                    {clientVideos.map((video) => (
+                    {displayedVideos.map((video) => (
                       <TouchableOpacity
                         key={video.id}
                         style={styles.videoGalleryItem}
@@ -3443,6 +3463,18 @@ export default function ProjectDetailScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
+
+                  {videosVisibleCount < clientVideos.length && (
+                    <View style={styles.tabPaginationFooter}>
+                      <ActivityIndicator size="small" color="#2563EB" />
+                      <Text style={styles.tabPaginationText}>
+                        Showing {videosVisibleCount} of {clientVideos.length} — scroll for more
+                      </Text>
+                    </View>
+                  )}
+                  {clientVideos.length > TAB_PAGE_SIZE && videosVisibleCount >= clientVideos.length && (
+                    <Text style={styles.tabPaginationEnd}>All {clientVideos.length} videos loaded</Text>
+                  )}
                 </View>
               )}
             </ScrollView>
@@ -3686,7 +3718,7 @@ export default function ProjectDetailScreen() {
             {projectReports.length > 0 && (
               <View style={styles.projectReportsList}>
                 <Text style={styles.projectReportsTitle}>Saved Reports ({projectReports.length})</Text>
-                {projectReports.map((report) => (
+                {projectReports.slice(0, reportsVisibleCount).map((report) => (
                   <TouchableOpacity
                     key={report.id}
                     style={styles.projectReportCard}
@@ -3705,6 +3737,17 @@ export default function ProjectDetailScreen() {
                     </View>
                   </TouchableOpacity>
                 ))}
+                {reportsVisibleCount < projectReports.length && (
+                  <View style={styles.tabPaginationFooter}>
+                    <ActivityIndicator size="small" color="#2563EB" />
+                    <Text style={styles.tabPaginationText}>
+                      Showing {reportsVisibleCount} of {projectReports.length} — scroll for more
+                    </Text>
+                  </View>
+                )}
+                {projectReports.length > TAB_PAGE_SIZE && reportsVisibleCount >= projectReports.length && (
+                  <Text style={styles.tabPaginationEnd}>All {projectReports.length} reports loaded</Text>
+                )}
               </View>
             )}
           </View>
@@ -3854,9 +3897,19 @@ export default function ProjectDetailScreen() {
         </View>
       )}
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}
-          keyboardDismissMode="on-drag"
-        >
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardDismissMode="on-drag"
+        onScroll={({ nativeEvent }) => {
+          if (activeTab !== 'reports') return;
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 200) {
+            setReportsVisibleCount(c => c + TAB_PAGE_SIZE);
+          }
+        }}
+        scrollEventThrottle={400}
+      >
         {renderTabContent()}
       </ScrollView>
       </View>
@@ -7056,5 +7109,22 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center' as const,
     lineHeight: 20,
+  },
+  tabPaginationFooter: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 10,
+    paddingVertical: 16,
+  },
+  tabPaginationText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  tabPaginationEnd: {
+    textAlign: 'center' as const,
+    fontSize: 13,
+    color: '#9CA3AF',
+    paddingVertical: 16,
   },
 });

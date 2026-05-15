@@ -47,6 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const updateData: any = {
       clock_out: clockOut || new Date().toISOString(),
+      is_clocked_in: false,
     };
 
     if (workPerformed !== undefined) {

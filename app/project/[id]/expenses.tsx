@@ -1,5 +1,5 @@
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 // priceListCategories now comes from AppContext
@@ -41,6 +41,9 @@ export default function ProjectExpensesScreen() {
   const [selectedExpense, setSelectedExpense] = useState<any>(null);
   const [showExpenseDetail, setShowExpenseDetail] = useState<boolean>(false);
 
+  const PAGE_SIZE = 20;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
   const project = useMemo(() =>
     projects.find(p => p.id === id),
     [projects, id]
@@ -55,6 +58,22 @@ export default function ProjectExpensesScreen() {
     filteredExpenses.reduce((sum, e) => sum + e.amount, 0),
     [filteredExpenses]
   );
+
+  const displayedExpenses = useMemo(
+    () => filteredExpenses.slice(0, visibleCount),
+    [filteredExpenses, visibleCount]
+  );
+
+  // Reset pagination when the project changes
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [id]);
+
+  const handleScrollNearBottom = useCallback(({ nativeEvent }: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    const nearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 200;
+    if (nearBottom && visibleCount < filteredExpenses.length) {
+      setVisibleCount(c => c + PAGE_SIZE);
+    }
+  }, [visibleCount, filteredExpenses.length]);
 
   // Refresh expenses on mount so admin always sees the latest data from all users
   useEffect(() => {
@@ -719,8 +738,12 @@ export default function ProjectExpensesScreen() {
           </View>
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
           keyboardDismissMode="on-drag"
+          onScroll={handleScrollNearBottom}
+          scrollEventThrottle={400}
         >
           <View style={styles.form}>
             {/* Prominent AI scanner — shown to all roles when no receipt captured yet */}
@@ -842,7 +865,9 @@ export default function ProjectExpensesScreen() {
 
           {user?.role === 'admin' && (
             <View style={styles.expensesList}>
-              <Text style={styles.sectionTitle}>Recent Expenses</Text>
+              <Text style={styles.sectionTitle}>
+                Expenses ({filteredExpenses.length})
+              </Text>
 
               {/* Info message for labor expenses */}
               {filteredExpenses.some(exp => exp.type === 'Labor' && exp.clockEntryId) && (
@@ -859,7 +884,7 @@ export default function ProjectExpensesScreen() {
                   <Text style={styles.emptyStateText}>No expenses recorded for this project</Text>
                 </View>
               ) : (
-                filteredExpenses.map((expense) => {
+                displayedExpenses.map((expense) => {
                   const isLaborExpense = expense.type === 'Labor' && expense.clockEntryId;
 
                   return (
@@ -952,6 +977,19 @@ export default function ProjectExpensesScreen() {
                   );
                 })
               )}
+
+              {/* Pagination footer — admin list */}
+              {visibleCount < filteredExpenses.length && (
+                <View style={styles.paginationFooter}>
+                  <ActivityIndicator size="small" color="#2563EB" />
+                  <Text style={styles.paginationText}>
+                    Showing {visibleCount} of {filteredExpenses.length} — scroll for more
+                  </Text>
+                </View>
+              )}
+              {filteredExpenses.length > PAGE_SIZE && visibleCount >= filteredExpenses.length && (
+                <Text style={styles.paginationEnd}>All {filteredExpenses.length} expenses loaded</Text>
+              )}
             </View>
           )}
 
@@ -963,14 +1001,14 @@ export default function ProjectExpensesScreen() {
                 <Text style={styles.employeeTotalAmount}>${projectExpenseTotal.toLocaleString()}</Text>
               </View>
 
-              <Text style={styles.sectionTitle}>Expenses</Text>
+              <Text style={styles.sectionTitle}>Expenses ({filteredExpenses.length})</Text>
 
               {filteredExpenses.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyStateText}>No expenses recorded for this project</Text>
                 </View>
               ) : (
-                filteredExpenses.map((expense) => (
+                displayedExpenses.map((expense) => (
                   <View key={expense.id} style={styles.expenseCard}>
                     <View style={styles.expenseMainRow}>
                       <View style={styles.expenseLeftSection}>
@@ -997,6 +1035,19 @@ export default function ProjectExpensesScreen() {
                     </View>
                   </View>
                 ))
+              )}
+
+              {/* Pagination footer — employee list */}
+              {visibleCount < filteredExpenses.length && (
+                <View style={styles.paginationFooter}>
+                  <ActivityIndicator size="small" color="#2563EB" />
+                  <Text style={styles.paginationText}>
+                    Showing {visibleCount} of {filteredExpenses.length} — scroll for more
+                  </Text>
+                </View>
+              )}
+              {filteredExpenses.length > PAGE_SIZE && visibleCount >= filteredExpenses.length && (
+                <Text style={styles.paginationEnd}>All {filteredExpenses.length} expenses loaded</Text>
               )}
             </View>
           )}
@@ -1954,5 +2005,22 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  paginationFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+  },
+  paginationText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  paginationEnd: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#9CA3AF',
+    paddingVertical: 16,
   },
 });

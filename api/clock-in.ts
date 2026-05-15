@@ -69,6 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         work_performed: workPerformed || null,
         category: category || null,
         hourly_rate: snapshotRate,
+        is_clocked_in: true,
       })
       .select()
       .single();

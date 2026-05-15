@@ -142,6 +142,7 @@ const mapClockEntry = (row: any) => ({
     endLocation:   lb.endLocation   ?? lb.end_location   ?? undefined,
   })),
   hourlyRate: row.hourly_rate != null ? Number(row.hourly_rate) : undefined,
+  isClockedIn: row.is_clocked_in ?? row.isClockedIn ?? false,
 });
 
 const mapPriceListItem = (row: any) => ({

@@ -208,6 +208,9 @@ export interface ClockEntry {
   }[];
   /** Rate snapshotted at clock-in time. Null for legacy entries (pre-migration). */
   hourlyRate?: number;
+  /** True while the employee is actively clocked in. Flips to false on clock-out.
+   *  Solely used to trigger Realtime on the admin side — time calculations remain local. */
+  isClockedIn?: boolean;
 }
 
 export interface Client {
